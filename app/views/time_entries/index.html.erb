@@ -86,7 +86,7 @@
 
       <div class="glow-card">
         <% entries.sort_by(&:started_at).reverse.each_with_index do |entry, i| %>
-          <% if i > 0 %><div class="border-t border-base-200/60 mx-4"></div><% end %>
+          <% if i > 0 %><div class="border-t border-black/[0.04] mx-4"></div><% end %>
           <%= render "time_entries/time_entry_row", entry: entry %>
         <% end %>
       </div>
