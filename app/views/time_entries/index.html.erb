@@ -2,10 +2,6 @@
   <%# Header %>
   <div class="flex items-center justify-between">
     <h1 class="text-2xl font-bold tracking-tight">Time Entries</h1>
-    <%= link_to new_time_entry_path, class: "btn btn-primary btn-sm gap-1" do %>
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-      New Entry
-    <% end %>
   </div>
 
   <%# Week navigation %>
@@ -34,28 +30,6 @@
         { include_blank: "All tags" },
         class: "filter-select", data: { action: "change->filter#submit" } %>
   <% end %>
-
-  <%# Quick entry %>
-  <div class="bg-base-100 rounded-2xl border border-base-300/40 px-4 py-2.5">
-    <%= form_with url: time_entries_path, method: :post, class: "flex items-center gap-3" do |f| %>
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-base-content/25 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/></svg>
-      <%= f.text_field "time_entry[description]", placeholder: "What did you work on?",
-          class: "bg-transparent border-none flex-1 focus:outline-none text-sm min-w-[120px] placeholder:text-base-content/30" %>
-      <%= f.select "time_entry[project_id]",
-          @projects.map { |p| [p.name, p.id] },
-          { include_blank: "Project" },
-          class: "bg-transparent border-none text-sm focus:outline-none cursor-pointer text-base-content/50",
-          data: { controller: "task-loader", action: "change->task-loader#load" } %>
-      <%= f.select "time_entry[task_id]", [],
-          { include_blank: "Task" },
-          class: "bg-transparent border-none text-sm focus:outline-none cursor-pointer text-base-content/50" %>
-      <div class="w-px h-5 bg-base-300/60"></div>
-      <%= f.text_field "time_entry[duration_manual]", placeholder: "0:00",
-          class: "bg-transparent border-none w-14 text-center mono-duration text-sm focus:outline-none" %>
-      <input type="hidden" name="time_entry[started_at]" value="<%= Time.current.strftime('%Y-%m-%dT%H:%M') %>">
-      <%= f.submit "Add", class: "btn btn-primary btn-sm rounded-lg" %>
-    <% end %>
-  </div>
 
   <%# Entries list with bulk actions %>
   <div data-controller="bulk-select">
