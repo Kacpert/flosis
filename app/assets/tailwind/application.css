@@ -79,10 +79,11 @@
 }
 /* Finder-style blue active selection */
 .sidebar-light .menu a.active {
-  border-left-color: #4f6ef7;
-  background: linear-gradient(90deg, rgba(79,110,247,0.12), rgba(79,110,247,0.05));
-  color: #3b5ce4;
+  border-left-color: transparent;
+  background: rgba(59,92,228,0.15);
+  color: #2d4ec7;
   font-weight: 600;
+  border-radius: 0.5rem;
 }
 .sidebar-divider {
   height: 1px;
@@ -97,7 +98,7 @@
 
 /* ─── Timer top bar — contour background ─── */
 .timer-top-bar {
-  background: #f0eef5 url('/bg-contour.png') right center / 50% auto no-repeat;
+  background: #e8e6ee url('/bg-contour.png') right center / 30% auto no-repeat;
   border-radius: 1rem;
   padding: 0.5rem 1rem;
   position: relative;
@@ -122,13 +123,24 @@
   }
 }
 
-/* ─── Timer input bar ─── */
-.timer-input-bar {
-  @apply flex items-center gap-2 bg-base-200/60 rounded-xl px-4 py-2 w-full;
+/* ─── Timer fields — unified style ─── */
+.timer-field {
+  height: 2rem;
+  font-size: 0.8125rem;
+  padding: 0 0.625rem;
+  border-radius: 0.5rem;
+  border: 1px solid oklch(var(--bc) / 0.1);
+  background: rgba(255,255,255,0.7);
+  color: oklch(var(--bc) / 0.8);
+  outline: none;
+  transition: border-color 0.15s ease;
 }
-.timer-input-bar input,
-.timer-input-bar select {
-  @apply bg-transparent border-none focus:outline-none focus:ring-0;
+.timer-field::placeholder {
+  color: oklch(var(--bc) / 0.35);
+}
+.timer-field:focus {
+  border-color: rgba(99,102,241,0.4);
+  box-shadow: 0 0 0 1px rgba(99,102,241,0.1);
 }
 
 /* ─── Loading states ─── */
