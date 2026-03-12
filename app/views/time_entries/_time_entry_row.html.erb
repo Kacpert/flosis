@@ -1,41 +1,38 @@
 <%= turbo_frame_tag "time_entry_#{entry.id}" do %>
   <div class="entry-row group" data-controller="inline-edit" data-action="keydown->inline-edit#submitOnEscape">
-    <input type="checkbox" class="checkbox checkbox-sm checkbox-primary" value="<%= entry.id %>"
+    <input type="checkbox" class="entry-checkbox" value="<%= entry.id %>"
            data-bulk-select-target="checkbox" data-action="change->bulk-select#toggle">
 
     <%# Display mode %>
     <div class="flex items-center gap-3 flex-1 min-w-0" data-inline-edit-target="display">
-      <span class="w-0.5 h-8 rounded-full flex-shrink-0" style="background-color: <%= entry.project&.color || '#CBD5E1' %>"></span>
+      <span class="w-[3px] h-10 rounded-full flex-shrink-0" style="background-color: <%= entry.project&.color || '#CBD5E1' %>"></span>
 
       <div class="flex-1 min-w-0">
-        <div class="text-sm font-medium truncate"><%= entry.description.presence || "No description" %></div>
-        <div class="text-xs text-base-content/45 mt-0.5">
-          <% if entry.project %><%= entry.project.name %><% end %>
-          <% if entry.task %> · <%= entry.task.name %><% end %>
-        </div>
+        <div class="text-[0.9375rem] font-medium text-[#2d2b3a] truncate"><%= entry.description.presence || "No description" %></div>
+        <% if entry.project %>
+          <div class="entry-project-text">
+            <%= entry.project.name %><% if entry.task %> · <%= entry.task.name %><% end %>
+          </div>
+        <% end %>
       </div>
 
       <%# Tags %>
-      <div class="hidden sm:flex items-center gap-1 flex-shrink-0">
+      <div class="hidden sm:flex items-center gap-1.5 flex-shrink-0">
         <% entry.tags.first(2).each do |tag| %>
-          <span class="tag-pill" style="color: <%= tag.color %>; border-color: <%= tag.color %>30">
+          <span class="tag-pill" style="color: <%= tag.color %>; border-color: <%= tag.color %>30; background-color: <%= tag.color %>10">
             <%= tag.name %>
           </span>
         <% end %>
         <% if entry.tags.size > 2 %>
-          <span class="text-[10px] text-base-content/35">+<%= entry.tags.size - 2 %></span>
+          <span class="text-[10px] text-[#b0adb8]">+<%= entry.tags.size - 2 %></span>
         <% end %>
       </div>
 
-      <% if entry.billable? %>
-        <span class="text-success text-xs font-semibold flex-shrink-0">$</span>
-      <% end %>
-
-      <span class="text-xs text-base-content/35 mono-duration flex-shrink-0">
+      <span class="entry-time-range flex-shrink-0">
         <%= entry.started_at.strftime("%H:%M") %> – <%= entry.stopped_at.strftime("%H:%M") %>
       </span>
 
-      <span class="mono-duration text-sm font-semibold w-20 text-right flex-shrink-0"><%= entry.formatted_duration %></span>
+      <span class="entry-duration flex-shrink-0"><%= entry.formatted_duration %></span>
 
       <%# Hover actions %>
       <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">

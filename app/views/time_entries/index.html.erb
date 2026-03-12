@@ -1,42 +1,78 @@
-<div class="space-y-4">
-  <%# Header %>
-  <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold tracking-tight">Time Entries</h1>
-  </div>
-
-  <%# Week navigation %>
+<div class="space-y-5">
+  <%# Week navigation + filters in card %>
   <% week_start = @date.beginning_of_week(:monday) %>
   <% week_end = @date.end_of_week(:monday) %>
-  <div class="flex items-center justify-center gap-4">
-    <%= link_to time_entries_path(date: (week_start - 7.days)), class: "btn btn-ghost btn-sm btn-circle" do %>
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-    <% end %>
-    <span class="text-sm font-semibold min-w-[12rem] text-center"><%= week_start.strftime("%b %-d") %> – <%= week_end.strftime("%b %-d, %Y") %></span>
-    <%= link_to time_entries_path(date: (week_start + 7.days)), class: "btn btn-ghost btn-sm btn-circle" do %>
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+
+  <div class="week-nav-card flex-wrap">
+    <div class="flex items-center gap-2">
+      <%= link_to time_entries_path(date: (week_start - 7.days)), class: "week-nav-arrow" do %>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+      <% end %>
+      <span class="text-[0.9375rem] font-bold min-w-[11rem] text-center text-[#2d2b3a]"><%= week_start.strftime("%b %-d") %> – <%= week_end.strftime("%b %-d, %Y") %></span>
+      <%= link_to time_entries_path(date: (week_start + 7.days)), class: "week-nav-arrow" do %>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+      <% end %>
+    </div>
+
+    <div class="flex-1"></div>
+
+    <%= form_with url: time_entries_path, method: :get, class: "flex items-center gap-2", data: { controller: "filter" } do |f| %>
+      <%= f.hidden_field :date, value: @date %>
+      <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
+          { include_blank: "All projects" },
+          class: "filter-select", data: { action: "change->filter#submit" } %>
+      <%= f.select :tag_id, @tags.map { |t| [t.name, t.id] },
+          { include_blank: "All tags" },
+          class: "filter-select", data: { action: "change->filter#submit" } %>
     <% end %>
   </div>
 
-  <%# Filters %>
-  <%= form_with url: time_entries_path, method: :get, class: "flex flex-wrap items-center gap-2", data: { controller: "filter" } do |f| %>
-    <%= f.hidden_field :date, value: @date %>
-    <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
-        { include_blank: "All projects" },
-        class: "filter-select", data: { action: "change->filter#submit" } %>
-    <%= f.select :billable, [["Billable", "1"], ["Non-billable", "0"]],
-        { include_blank: "All" },
-        class: "filter-select", data: { action: "change->filter#submit" } %>
-    <%= f.select :tag_id, @tags.map { |t| [t.name, t.id] },
-        { include_blank: "All tags" },
-        class: "filter-select", data: { action: "change->filter#submit" } %>
-  <% end %>
+  <%# Weekly goal / progress card %>
+  <% week_total_seconds = @entries.sum(&:duration_seconds) %>
+  <% today_seconds = @entries.select { |e| e.started_at.to_date == Date.current }.sum(&:duration_seconds) %>
+  <% weekly_goal_seconds = 40 * 3600 %>
+  <% progress_pct = [(week_total_seconds.to_f / weekly_goal_seconds * 100).round, 100].min %>
+  <% remaining_seconds = [weekly_goal_seconds - week_total_seconds, 0].max %>
+
+  <div class="weekly-goal-card">
+    <div class="flex items-center gap-4 mb-3">
+      <%# Left: Today's time %>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center justify-center w-10 h-10 rounded-full bg-[#f0ecf5]">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#7c3aed]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        </div>
+        <div>
+          <div class="text-xs text-[#9090a0] font-medium">Today</div>
+          <div class="text-[1.375rem] font-bold tracking-tight text-[#7c3aed] mono-duration"><%= format_duration(today_seconds) %></div>
+        </div>
+      </div>
+
+      <%# Right: Weekly goal progress label %>
+      <div class="flex-1">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-xs text-[#7c3aed] font-medium">Weekly goal</span>
+          <div class="flex items-center gap-1.5">
+            <span class="text-sm font-bold mono-duration text-[#2d2b3a]"><%= format_duration(week_total_seconds) %></span>
+            <span class="text-xs text-[#b0adb8] font-medium">/ <%= format_duration(weekly_goal_seconds) %></span>
+          </div>
+        </div>
+        <div class="weekly-progress-bar">
+          <div class="weekly-progress-fill" style="width: <%= progress_pct %>%"></div>
+        </div>
+        <div class="flex items-center justify-between mt-1">
+          <span class="text-[0.6875rem] text-[#7c3aed] font-medium"><%= progress_pct %>% complete</span>
+          <span class="text-[0.6875rem] text-[#b0adb8]"><%= format_duration(remaining_seconds) %> remaining</span>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <%# Entries list with bulk actions %>
   <div data-controller="bulk-select">
     <%# Bulk toolbar %>
-    <div class="hidden items-center gap-2 bg-base-100 p-3 rounded-xl border border-base-300/40 mb-3 flex-wrap" data-bulk-select-target="toolbar">
+    <div class="hidden items-center gap-2 bg-white p-3 rounded-xl border border-[#e8e5ec] mb-3 flex-wrap" data-bulk-select-target="toolbar">
       <span class="text-sm font-semibold"><span data-bulk-select-target="count">0</span> selected</span>
-      <div class="w-px h-5 bg-base-300/60 mx-1"></div>
+      <div class="w-px h-5 bg-[#e8e5ec] mx-1"></div>
 
       <%= form_with url: bulk_destroy_time_entries_path, method: :post, class: "inline" do |f| %>
         <div data-bulk-select-target="idsContainer"></div>
@@ -62,18 +98,18 @@
     <%# Time entries grouped by day %>
     <% @entries_by_day.sort_by { |date, _| date }.reverse.each do |date, entries| %>
       <div class="day-header">
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-3">
           <span class="day-header-label"><%= date.strftime("%A, %B %-d") %></span>
           <% if date == Date.current %>
-            <span class="text-[10px] font-semibold text-primary bg-primary/8 px-2 py-0.5 rounded-full uppercase tracking-wide">Today</span>
+            <span class="today-badge">Today</span>
           <% end %>
         </div>
         <span class="day-header-total"><%= format_duration(entries.sum(&:duration_seconds)) %></span>
       </div>
 
-      <div class="bg-base-100 rounded-2xl border border-base-300/40 overflow-hidden">
+      <div class="entries-card">
         <% entries.sort_by(&:started_at).reverse.each_with_index do |entry, i| %>
-          <% if i > 0 %><div class="border-t border-base-200/60 mx-4"></div><% end %>
+          <% if i > 0 %><div class="entry-divider"></div><% end %>
           <%= render "time_entries/time_entry_row", entry: entry %>
         <% end %>
       </div>
@@ -85,7 +121,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
         <p class="empty-state-title">No time entries this week</p>
-        <p class="empty-state-desc">Start a timer or <%= link_to "create a manual entry", new_time_entry_path, class: "text-primary hover:underline" %></p>
+        <p class="empty-state-desc">Start a timer or <%= link_to "create a manual entry", new_time_entry_path, class: "text-[#7c3aed] hover:underline" %></p>
       </div>
     <% end %>
   </div>
