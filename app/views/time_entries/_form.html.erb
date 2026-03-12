@@ -1,59 +1,59 @@
 <%= form_with model: time_entry, url: url, class: "space-y-4" do |f| %>
   <% if time_entry.errors.any? %>
-    <div class="alert alert-error">
+    <div class="m3-alert m3-alert-error">
       <ul><% time_entry.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %></ul>
     </div>
   <% end %>
 
-  <div class="form-control">
-    <label class="label"><span class="label-text">Description</span></label>
-    <%= f.text_field :description, class: "input input-bordered w-full", placeholder: "What did you work on?" %>
+  <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Description</label>
+    <%= f.text_field :description, class: "m3-text-field w-full", placeholder: "What did you work on?" %>
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div class="form-control">
-      <label class="label"><span class="label-text">Project</span></label>
+    <div class="space-y-1">
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Project</label>
       <%= f.collection_select :project_id, projects, :id, :name,
           { include_blank: "No project" },
-          class: "select select-bordered w-full" %>
+          class: "m3-text-field w-full" %>
     </div>
 
-    <div class="form-control">
-      <label class="label"><span class="label-text">Task</span></label>
+    <div class="space-y-1">
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Task</label>
       <% tasks = time_entry.project ? time_entry.project.tasks.active : [] %>
       <%= f.collection_select :task_id, tasks, :id, :name,
           { include_blank: "No task" },
-          class: "select select-bordered w-full" %>
+          class: "m3-text-field w-full" %>
     </div>
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="form-control">
-      <label class="label"><span class="label-text">Date & Start Time</span></label>
-      <%= f.datetime_local_field :started_at, class: "input input-bordered w-full", data: { controller: "datepicker", datepicker_enable_time_value: "true" } %>
+    <div class="space-y-1">
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Date & Start Time</label>
+      <%= f.datetime_local_field :started_at, class: "m3-text-field w-full", data: { controller: "datepicker", datepicker_enable_time_value: "true" } %>
     </div>
 
-    <div class="form-control">
-      <label class="label"><span class="label-text">End Time</span></label>
-      <%= f.datetime_local_field :stopped_at, class: "input input-bordered w-full", data: { controller: "datepicker", datepicker_enable_time_value: "true" } %>
+    <div class="space-y-1">
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">End Time</label>
+      <%= f.datetime_local_field :stopped_at, class: "m3-text-field w-full", data: { controller: "datepicker", datepicker_enable_time_value: "true" } %>
     </div>
 
-    <div class="form-control">
-      <label class="label"><span class="label-text">Or Duration (HH:MM)</span></label>
-      <%= f.text_field :duration_manual, class: "input input-bordered w-full",
+    <div class="space-y-1">
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Or Duration (HH:MM)</label>
+      <%= f.text_field :duration_manual, class: "m3-text-field w-full",
           placeholder: "1:30", value: time_entry.persisted? ? nil : nil %>
     </div>
   </div>
 
-  <div class="form-control">
-    <label class="label"><span class="label-text">Tags</span></label>
+  <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Tags</label>
     <div class="flex flex-wrap gap-2">
       <% tags.each do |tag| %>
         <label class="cursor-pointer">
           <%= check_box_tag "time_entry[tag_ids][]", tag.id,
               time_entry.tag_ids.include?(tag.id),
               class: "hidden peer", id: "tag_#{tag.id}" %>
-          <span class="badge peer-checked:badge-primary cursor-pointer" style="--badge-color: <%= tag.color %>">
+          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer peer-checked:ring-2 peer-checked:ring-offset-1" style="color: <%= tag.color %>; border-color: <%= tag.color %>40; background-color: <%= tag.color %>10; --tw-ring-color: <%= tag.color %>">
             <%= tag.name %>
           </span>
         </label>
@@ -61,15 +61,13 @@
     </div>
   </div>
 
-  <div class="form-control">
-    <label class="label cursor-pointer justify-start gap-3">
-      <%= f.check_box :billable, class: "checkbox" %>
-      <span class="label-text">Billable</span>
-    </label>
-  </div>
+  <label class="flex items-center gap-3 cursor-pointer">
+    <%= f.check_box :billable, class: "m3-checkbox" %>
+    <span class="text-sm font-medium" style="color: var(--color-on-surface)">Billable</span>
+  </label>
 
   <div class="flex gap-2">
-    <%= f.submit class: "btn btn-primary" %>
-    <%= link_to "Cancel", time_entries_path, class: "btn btn-ghost" %>
+    <%= f.submit class: "m3-btn m3-btn-filled" %>
+    <%= link_to "Cancel", time_entries_path, class: "m3-btn m3-btn-text" %>
   </div>
 <% end %>

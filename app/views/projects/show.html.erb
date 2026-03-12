@@ -2,15 +2,15 @@
   <div class="flex justify-between items-center">
     <div class="flex items-center gap-3">
       <%= project_color_dot(@project.color) %>
-      <h1 class="text-2xl font-bold tracking-tight"><%= @project.name %></h1>
+      <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)"><%= @project.name %></h1>
       <% if @project.client %>
-        <span class="text-base-content/45">·</span>
-        <span class="text-sm text-base-content/50"><%= @project.client.name %></span>
+        <span style="color: var(--color-outline)">·</span>
+        <span class="text-sm" style="color: var(--color-on-surface-variant)"><%= @project.client.name %></span>
       <% end %>
     </div>
     <div class="flex gap-2">
-      <%= link_to "Edit", edit_project_path(@project), class: "btn btn-ghost btn-sm" %>
-      <%= link_to "Back", projects_path, class: "btn btn-ghost btn-sm" %>
+      <%= link_to "Edit", edit_project_path(@project), class: "m3-btn m3-btn-text" %>
+      <%= link_to "Back", projects_path, class: "m3-btn m3-btn-text" %>
     </div>
   </div>
 
@@ -46,8 +46,8 @@
         <% end %>
       </div>
       <%= form_with model: [@project, Task.new], class: "flex gap-2 mt-3" do |f| %>
-        <%= f.text_field :name, placeholder: "Add task...", class: "input input-bordered input-sm flex-1 rounded-lg", required: true %>
-        <%= f.submit "Add", class: "btn btn-primary btn-sm rounded-lg" %>
+        <%= f.text_field :name, placeholder: "Add task...", class: "m3-text-field flex-1", required: true %>
+        <%= f.submit "Add", class: "m3-btn m3-btn-filled m3-btn-sm" %>
       <% end %>
     </div>
 
@@ -57,19 +57,19 @@
       <% if @time_entries.any? %>
         <div class="space-y-0.5">
           <% @time_entries.each do |entry| %>
-            <div class="flex items-center justify-between p-2 rounded-lg hover:bg-base-200/50 transition-colors text-sm">
+            <div class="flex items-center justify-between p-2 rounded-[var(--radius-sm)] transition-colors text-sm" onmouseover="this.style.background='var(--color-surface-container)'" onmouseout="this.style.background='transparent'">
               <div class="min-w-0">
-                <div class="font-medium truncate"><%= entry.description.presence || "No description" %></div>
-                <div class="text-xs text-base-content/45">
+                <div class="font-medium truncate" style="color: var(--color-on-surface)"><%= entry.description.presence || "No description" %></div>
+                <div class="text-xs" style="color: var(--color-on-surface-variant)">
                   <%= entry.user.name %> · <%= entry.started_at.strftime("%b %-d") %>
                 </div>
               </div>
-              <span class="mono-duration font-medium text-base-content/60 ml-3"><%= entry.formatted_duration %></span>
+              <span class="mono-duration font-medium ml-3" style="color: var(--color-on-surface-variant)"><%= entry.formatted_duration %></span>
             </div>
           <% end %>
         </div>
       <% else %>
-        <p class="text-sm text-base-content/40 py-4 text-center">No entries yet</p>
+        <p class="text-sm py-4 text-center" style="color: var(--color-outline)">No entries yet</p>
       <% end %>
     </div>
   </div>
@@ -83,16 +83,16 @@
         <% @task_time_recap.each do |(task_id, task_name, task_status), seconds| %>
           <div>
             <div class="flex justify-between items-center mb-1.5">
-              <span class="text-sm font-medium flex items-center gap-2">
+              <span class="text-sm font-medium flex items-center gap-2" style="color: var(--color-on-surface)">
                 <%= task_name %>
                 <% if task_status == "done" %>
-                  <span class="text-[10px] font-medium text-base-content/40 bg-base-200/80 px-2 py-0.5 rounded-full">Done</span>
+                  <span class="text-[10px] font-medium px-2 py-0.5 rounded-full" style="color: var(--color-outline); background: var(--color-surface-container)">Done</span>
                 <% end %>
               </span>
-              <span class="text-sm mono-duration text-base-content/60"><%= format_duration_hm(seconds) %></span>
+              <span class="text-sm mono-duration" style="color: var(--color-on-surface-variant)"><%= format_duration_hm(seconds) %></span>
             </div>
-            <div class="w-full h-1.5 rounded-full bg-base-200 overflow-hidden">
-              <div class="h-full rounded-full bg-primary/70 transition-all" style="width: <%= max_seconds > 0 ? (seconds.to_f / max_seconds * 100).round(1) : 0 %>%"></div>
+            <div class="w-full h-1.5 rounded-full overflow-hidden" style="background: var(--color-surface-container-highest)">
+              <div class="h-full rounded-full transition-all" style="background: var(--color-primary); opacity: 0.7; width: <%= max_seconds > 0 ? (seconds.to_f / max_seconds * 100).round(1) : 0 %>%"></div>
             </div>
           </div>
         <% end %>

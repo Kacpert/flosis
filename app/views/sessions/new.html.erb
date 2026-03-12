@@ -1,22 +1,26 @@
-<h2 class="text-xl font-bold text-center tracking-tight">Welcome back</h2>
-<p class="text-center text-base-content/45 text-sm mb-6">Sign in to continue tracking</p>
+<h2 class="text-xl font-bold text-center tracking-tight" style="color: var(--color-on-surface)">Welcome back</h2>
+<p class="text-center text-sm mb-6" style="color: var(--color-on-surface-variant)">Sign in to continue tracking</p>
 
 <%= form_with url: session_path, class: "space-y-4" do |f| %>
-  <div class="form-control">
-    <label class="label"><span class="label-text text-sm font-medium">Email</span></label>
-    <%= f.email_field :email_address, class: "input input-bordered w-full rounded-lg focus:input-primary", required: true, autofocus: true, autocomplete: "email", placeholder: "you@company.com" %>
+  <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Email</label>
+    <%= f.email_field :email_address, class: "m3-text-field w-full", required: true, autofocus: true, autocomplete: "email", placeholder: "you@company.com" %>
   </div>
-  <div class="form-control">
+  <div class="space-y-1">
     <div class="flex items-center justify-between">
-      <label class="label"><span class="label-text text-sm font-medium">Password</span></label>
-      <%= link_to "Forgot?", new_password_path, class: "text-xs text-primary hover:underline" %>
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Password</label>
+      <%= link_to "Forgot?", new_password_path, class: "text-xs", style: "color: var(--color-primary); text-decoration: none;", onmouseover: "this.style.textDecoration='underline'", onmouseout: "this.style.textDecoration='none'" %>
     </div>
-    <%= f.password_field :password, class: "input input-bordered w-full rounded-lg focus:input-primary", required: true, autocomplete: "current-password", placeholder: "••••••••" %>
+    <%= f.password_field :password, class: "m3-text-field w-full", required: true, autocomplete: "current-password", placeholder: "••••••••" %>
   </div>
-  <%= f.submit "Sign In", class: "btn btn-primary w-full rounded-lg" %>
+  <%= f.submit "Sign In", class: "m3-btn m3-btn-filled w-full" %>
 <% end %>
 
-<div class="divider text-xs text-base-content/25 my-5">OR</div>
-<p class="text-center text-sm text-base-content/50">
-  Don't have an account? <%= link_to "Create one", new_registration_path, class: "text-primary font-medium hover:underline" %>
+<div class="flex items-center gap-3 my-5">
+  <div class="flex-1 h-px" style="background: var(--color-outline-variant)"></div>
+  <span class="text-xs" style="color: var(--color-outline)">OR</span>
+  <div class="flex-1 h-px" style="background: var(--color-outline-variant)"></div>
+</div>
+<p class="text-center text-sm" style="color: var(--color-on-surface-variant)">
+  Don't have an account? <%= link_to "Create one", new_registration_path, style: "color: var(--color-primary); font-weight: 500; text-decoration: none;", onmouseover: "this.style.textDecoration='underline'", onmouseout: "this.style.textDecoration='none'" %>
 </p>

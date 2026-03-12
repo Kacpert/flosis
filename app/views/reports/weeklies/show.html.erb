@@ -1,21 +1,21 @@
 <div class="space-y-5">
   <div class="flex justify-between items-center">
-    <h1 class="text-2xl font-bold tracking-tight">Weekly Report</h1>
+    <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">Weekly Report</h1>
     <div class="flex gap-2">
-      <%= link_to "CSV", export_csv_reports_weekly_path(request.query_parameters), class: "btn btn-ghost btn-sm" %>
-      <%= link_to "PDF", export_pdf_reports_weekly_path(request.query_parameters), class: "btn btn-ghost btn-sm" %>
+      <%= link_to "CSV", export_csv_reports_weekly_path(request.query_parameters), class: "m3-btn m3-btn-text m3-btn-sm" %>
+      <%= link_to "PDF", export_pdf_reports_weekly_path(request.query_parameters), class: "m3-btn m3-btn-text m3-btn-sm" %>
     </div>
   </div>
 
   <%# Week navigation %>
   <div class="flex items-center justify-center gap-4">
-    <%= link_to reports_weekly_path(week_of: (@week_start - 7.days), group_by: @group_by), class: "btn btn-ghost btn-sm btn-circle" do %>
+    <%= link_to reports_weekly_path(week_of: (@week_start - 7.days), group_by: @group_by), class: "m3-week-arrow" do %>
       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
     <% end %>
-    <span class="text-sm font-semibold min-w-[12rem] text-center">
+    <span class="text-sm font-semibold min-w-[12rem] text-center" style="color: var(--color-on-surface)">
       <%= @week_start.strftime("%b %-d") %> – <%= (@week_start + 6.days).strftime("%b %-d, %Y") %>
     </span>
-    <%= link_to reports_weekly_path(week_of: (@week_start + 7.days), group_by: @group_by), class: "btn btn-ghost btn-sm btn-circle" do %>
+    <%= link_to reports_weekly_path(week_of: (@week_start + 7.days), group_by: @group_by), class: "m3-week-arrow" do %>
       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
     <% end %>
   </div>
@@ -23,17 +23,17 @@
   <%# Filters %>
   <%= form_with url: reports_weekly_path, method: :get, class: "flex gap-3 items-end" do |f| %>
     <%= f.hidden_field :week_of, value: @week_start %>
-    <div class="form-control">
-      <label class="label label-text text-xs">Group by</label>
+    <div class="space-y-1">
+      <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Group by</label>
       <%= f.select :group_by, [["User", "user"], ["Project", "project"]],
-          { selected: @group_by }, class: "select select-bordered select-sm rounded-lg" %>
+          { selected: @group_by }, class: "m3-text-field" %>
     </div>
-    <div class="form-control">
-      <label class="label label-text text-xs">Project</label>
+    <div class="space-y-1">
+      <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Project</label>
       <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
-          { include_blank: "All" }, class: "select select-bordered select-sm rounded-lg" %>
+          { include_blank: "All" }, class: "m3-text-field" %>
     </div>
-    <%= f.submit "Apply", class: "btn btn-primary btn-sm rounded-lg" %>
+    <%= f.submit "Apply", class: "m3-btn m3-btn-filled m3-btn-sm" %>
   <% end %>
 
   <%# Chart %>
@@ -45,7 +45,7 @@
                 data-chart-data-value='<%= {
                   labels: @week_days.map { |d| d.strftime("%a %-d") },
                   datasets: @grid.map.with_index { |(name, days), i|
-                    colors = %w[#3B82F6 #EF4444 #10B981 #F59E0B #8B5CF6 #EC4899 #06B6D4 #F97316]
+                    colors = %w[#6750A4 #EF4444 #10B981 #F59E0B #8B5CF6 #EC4899 #06B6D4 #F97316]
                     {
                       label: name,
                       data: @week_days.map { |d| ((days[d] || 0) / 3600.0).round(2) },
@@ -59,15 +59,15 @@
   <% end %>
 
   <%# Table %>
-  <div class="refined-table overflow-x-auto">
-    <table class="table table-sm">
+  <div class="m3-card-outlined overflow-x-auto">
+    <table class="m3-table">
       <thead>
         <tr>
           <th><%= @group_by.titleize %></th>
           <% @week_days.each do |day| %>
-            <th class="text-center <%= day == Date.current ? 'bg-primary/5' : '' %>">
+            <th class="text-center" style="<%= day == Date.current ? 'background: rgba(103, 80, 164, 0.05)' : '' %>">
               <div class="text-xs"><%= day.strftime("%a") %></div>
-              <div class="text-[10px] text-base-content/40"><%= day.strftime("%-d") %></div>
+              <div class="text-[10px]" style="color: var(--color-outline)"><%= day.strftime("%-d") %></div>
             </th>
           <% end %>
           <th class="text-center">Total</th>
@@ -75,15 +75,15 @@
       </thead>
       <tbody>
         <% @grid.each do |name, days| %>
-          <tr class="hover">
-            <td class="font-medium text-sm"><%= name %></td>
+          <tr>
+            <td class="font-medium text-sm" style="color: var(--color-on-surface)"><%= name %></td>
             <% @week_days.each do |day| %>
               <% seconds = days[day] || 0 %>
-              <td class="text-center mono-duration text-sm <%= day == Date.current ? 'bg-primary/5' : '' %>">
+              <td class="text-center mono-duration text-sm" style="<%= day == Date.current ? 'background: rgba(103, 80, 164, 0.05)' : '' %>">
                 <%= seconds > 0 ? format("%d:%02d", seconds / 3600, (seconds % 3600) / 60) : "" %>
               </td>
             <% end %>
-            <td class="text-center mono-duration font-bold text-sm">
+            <td class="text-center mono-duration font-bold text-sm" style="color: var(--color-on-surface)">
               <% total = days.values.sum %>
               <%= format("%d:%02d", total / 3600, (total % 3600) / 60) %>
             </td>
@@ -92,14 +92,14 @@
       </tbody>
       <tfoot>
         <tr class="font-bold">
-          <td class="text-sm">Total</td>
+          <td class="text-sm" style="color: var(--color-on-surface)">Total</td>
           <% @week_days.each do |day| %>
-            <td class="text-center mono-duration text-sm <%= day == Date.current ? 'bg-primary/5' : '' %>">
+            <td class="text-center mono-duration text-sm" style="color: var(--color-on-surface); <%= day == Date.current ? 'background: rgba(103, 80, 164, 0.05)' : '' %>">
               <% total = @day_totals[day] || 0 %>
               <%= total > 0 ? format("%d:%02d", total / 3600, (total % 3600) / 60) : "" %>
             </td>
           <% end %>
-          <td class="text-center mono-duration text-sm">
+          <td class="text-center mono-duration text-sm" style="color: var(--color-on-surface)">
             <% grand_total = @day_totals.values.sum %>
             <%= format("%d:%02d", grand_total / 3600, (grand_total % 3600) / 60) %>
           </td>

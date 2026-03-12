@@ -1,5 +1,5 @@
 <div class="text-center py-12">
-  <div class="text-base-content/30 mb-4">
+  <div class="mb-4" style="color: var(--color-outline)">
     <% if local_assigns[:icon] == "clock" %>
       <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
     <% elsif local_assigns[:icon] == "folder" %>
@@ -10,9 +10,9 @@
       <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
     <% end %>
   </div>
-  <h3 class="text-lg font-semibold text-base-content/70 mb-1"><%= local_assigns[:title] || "Nothing here yet" %></h3>
-  <p class="text-base-content/50 mb-4"><%= local_assigns[:description] || "" %></p>
+  <h3 class="text-lg font-semibold mb-1" style="color: var(--color-on-surface-variant)"><%= local_assigns[:title] || "Nothing here yet" %></h3>
+  <p class="mb-4" style="color: var(--color-outline)"><%= local_assigns[:description] || "" %></p>
   <% if local_assigns[:action_url] && local_assigns[:action_text] %>
-    <%= link_to action_text, action_url, class: "btn btn-primary btn-sm" %>
+    <%= link_to action_text, action_url, class: "m3-btn m3-btn-filled m3-btn-sm" %>
   <% end %>
 </div>

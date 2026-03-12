@@ -1,9 +1,9 @@
 <div class="space-y-5">
   <div class="flex justify-between items-center">
-    <h1 class="text-2xl font-bold tracking-tight">Summary Report</h1>
+    <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">Summary Report</h1>
     <div class="flex gap-2">
-      <%= link_to "CSV", export_csv_reports_summary_path(request.query_parameters), class: "btn btn-ghost btn-sm" %>
-      <%= link_to "PDF", export_pdf_reports_summary_path(request.query_parameters), class: "btn btn-ghost btn-sm" %>
+      <%= link_to "CSV", export_csv_reports_summary_path(request.query_parameters), class: "m3-btn m3-btn-text m3-btn-sm" %>
+      <%= link_to "PDF", export_pdf_reports_summary_path(request.query_parameters), class: "m3-btn m3-btn-text m3-btn-sm" %>
     </div>
   </div>
 
@@ -11,30 +11,30 @@
   <%= form_with url: reports_summary_path, method: :get, class: "filter-panel" do |f| %>
     <%= render "shared/date_range_presets" %>
     <div class="flex flex-wrap gap-3 items-end">
-      <div class="form-control">
-        <label class="label label-text text-xs">From</label>
-        <%= f.date_field :from, value: @from, class: "input input-bordered input-sm rounded-lg" %>
+      <div class="space-y-1">
+        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">From</label>
+        <%= f.date_field :from, value: @from, class: "m3-text-field" %>
       </div>
-      <div class="form-control">
-        <label class="label label-text text-xs">To</label>
-        <%= f.date_field :to, value: @to, class: "input input-bordered input-sm rounded-lg" %>
+      <div class="space-y-1">
+        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">To</label>
+        <%= f.date_field :to, value: @to, class: "m3-text-field" %>
       </div>
-      <div class="form-control">
-        <label class="label label-text text-xs">Group by</label>
+      <div class="space-y-1">
+        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Group by</label>
         <%= f.select :group_by, [["Project", "project"], ["Client", "client"], ["User", "user"], ["Tag", "tag"]],
-            { selected: @group_by }, class: "select select-bordered select-sm rounded-lg" %>
+            { selected: @group_by }, class: "m3-text-field" %>
       </div>
-      <div class="form-control">
-        <label class="label label-text text-xs">Project</label>
+      <div class="space-y-1">
+        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Project</label>
         <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
-            { include_blank: "All" }, class: "select select-bordered select-sm rounded-lg" %>
+            { include_blank: "All" }, class: "m3-text-field" %>
       </div>
-      <div class="form-control">
-        <label class="label label-text text-xs">Billable</label>
+      <div class="space-y-1">
+        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Billable</label>
         <%= f.select :billable, [["Yes", "1"], ["No", "0"]],
-            { include_blank: "All" }, class: "select select-bordered select-sm rounded-lg" %>
+            { include_blank: "All" }, class: "m3-text-field" %>
       </div>
-      <%= f.submit "Apply", class: "btn btn-primary btn-sm rounded-lg" %>
+      <%= f.submit "Apply", class: "m3-btn m3-btn-filled m3-btn-sm" %>
     </div>
   <% end %>
 
@@ -46,7 +46,7 @@
     </div>
     <div class="stat-card">
       <div class="stat-label">Billable Hours</div>
-      <div class="stat-number text-success"><%= format_duration_hm(@billable_seconds) %></div>
+      <div class="stat-number" style="color: var(--color-success)"><%= format_duration_hm(@billable_seconds) %></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Billable Amount</div>
@@ -83,7 +83,7 @@
                     datasets: [{
                       label: "Hours",
                       data: @daily_data.map { |d| (d[:seconds] / 3600.0).round(2) },
-                      backgroundColor: "#3B82F6"
+                      backgroundColor: "#6750A4"
                     }]
                   }.to_json %>'></canvas>
         </div>
@@ -91,8 +91,8 @@
     </div>
 
     <%# Data table %>
-    <div class="refined-table">
-      <table class="table">
+    <div class="m3-card-outlined overflow-hidden">
+      <table class="m3-table">
         <thead>
           <tr>
             <th><%= @group_by.titleize %></th>
@@ -102,14 +102,14 @@
         </thead>
         <tbody>
           <% @chart_data.sort_by { |d| -d[:seconds] }.each do |data| %>
-            <tr class="hover">
+            <tr>
               <td class="flex items-center gap-2">
                 <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: <%= data[:color] %>"></span>
                 <%= link_to data[:name], reports_detailed_path(from: @from, to: @to, "#{@group_by}_id": data[:id]),
-                    class: "hover:text-primary transition-colors" %>
+                    style: "color: var(--color-on-surface); text-decoration: none; transition: color 0.15s;", onmouseover: "this.style.color='var(--color-primary)'", onmouseout: "this.style.color='var(--color-on-surface)'" %>
               </td>
               <td class="text-right mono-duration"><%= format_duration_hm(data[:seconds]) %></td>
-              <td class="text-right text-base-content/50"><%= @total_seconds > 0 ? (data[:seconds].to_f / @total_seconds * 100).round(1) : 0 %>%</td>
+              <td class="text-right" style="color: var(--color-on-surface-variant)"><%= @total_seconds > 0 ? (data[:seconds].to_f / @total_seconds * 100).round(1) : 0 %>%</td>
             </tr>
           <% end %>
         </tbody>

@@ -1,68 +1,65 @@
 <%= form_with model: project, url: url, class: "space-y-4", data: { controller: "budget-toggle" } do |f| %>
   <% if project.errors.any? %>
-    <div class="alert alert-error">
+    <div class="m3-alert m3-alert-error">
       <ul><% project.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %></ul>
     </div>
   <% end %>
 
-  <div class="form-control">
-    <label class="label"><span class="label-text">Name</span></label>
-    <%= f.text_field :name, class: "input input-bordered w-full", required: true %>
+  <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Name</label>
+    <%= f.text_field :name, class: "m3-text-field w-full", required: true %>
   </div>
 
-  <div class="form-control">
-    <label class="label"><span class="label-text">Client</span></label>
+  <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Client</label>
     <%= f.collection_select :client_id, clients, :id, :name,
         { include_blank: "No client" },
-        class: "select select-bordered w-full" %>
+        class: "m3-text-field w-full" %>
   </div>
 
-  <div class="form-control">
-    <label class="label"><span class="label-text">Color</span></label>
+  <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Color</label>
     <div class="flex flex-wrap gap-2">
       <% Project::PROJECT_COLORS.each do |color| %>
         <label class="cursor-pointer">
           <%= f.radio_button :color, color, class: "hidden peer" %>
-          <span class="block w-8 h-8 rounded-full border-2 border-transparent peer-checked:border-base-content peer-checked:ring-2 peer-checked:ring-offset-2"
-                style="background-color: <%= color %>"></span>
+          <span class="block w-8 h-8 rounded-full border-2 border-transparent peer-checked:ring-2 peer-checked:ring-offset-2 transition-all" style="background-color: <%= color %>; --tw-ring-color: var(--color-primary)"></span>
         </label>
       <% end %>
     </div>
   </div>
 
-  <div class="form-control">
-    <label class="label cursor-pointer justify-start gap-3">
-      <%= f.check_box :billable, class: "checkbox" %>
-      <span class="label-text">Billable</span>
-    </label>
-  </div>
+  <label class="flex items-center gap-3 cursor-pointer">
+    <%= f.check_box :billable, class: "m3-checkbox" %>
+    <span class="text-sm font-medium" style="color: var(--color-on-surface)">Billable</span>
+  </label>
 
-  <div class="form-control" data-controller="currency-input">
-    <label class="label"><span class="label-text">Hourly Rate ($)</span></label>
+  <div class="space-y-1" data-controller="currency-input">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Hourly Rate ($)</label>
     <input type="number" step="0.01" min="0"
-           class="input input-bordered w-full"
+           class="m3-text-field w-full"
            placeholder="Leave blank to use workspace default"
            data-currency-input-target="dollars"
            data-action="input->currency-input#update">
     <%= f.hidden_field :hourly_rate_cents, data: { currency_input_target: "cents" } %>
   </div>
 
-  <div class="form-control">
-    <label class="label"><span class="label-text">Budget Type</span></label>
+  <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Budget Type</label>
     <%= f.select :budget_type, Project.budget_types.keys.map { |k| [k.titleize, k] },
-        {}, class: "select select-bordered w-full",
+        {}, class: "m3-text-field w-full",
         data: { budget_toggle_target: "budgetType", action: "change->budget-toggle#toggle" } %>
   </div>
 
-  <div class="form-control" data-budget-toggle-target="hoursField">
-    <label class="label"><span class="label-text">Budget Hours</span></label>
-    <%= f.number_field :budget_hours, class: "input input-bordered w-full", step: "0.5" %>
+  <div class="space-y-1" data-budget-toggle-target="hoursField">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Budget Hours</label>
+    <%= f.number_field :budget_hours, class: "m3-text-field w-full", step: "0.5" %>
   </div>
 
-  <div class="form-control" data-budget-toggle-target="moneyField" data-controller="currency-input">
-    <label class="label"><span class="label-text">Budget Amount ($)</span></label>
+  <div class="space-y-1" data-budget-toggle-target="moneyField" data-controller="currency-input">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Budget Amount ($)</label>
     <input type="number" step="0.01" min="0"
-           class="input input-bordered w-full"
+           class="m3-text-field w-full"
            placeholder="Budget amount in dollars"
            data-currency-input-target="dollars"
            data-action="input->currency-input#update">
@@ -70,7 +67,7 @@
   </div>
 
   <div class="flex gap-2">
-    <%= f.submit class: "btn btn-primary" %>
-    <%= link_to "Cancel", projects_path, class: "btn btn-ghost" %>
+    <%= f.submit class: "m3-btn m3-btn-filled" %>
+    <%= link_to "Cancel", projects_path, class: "m3-btn m3-btn-text" %>
   </div>
 <% end %>

@@ -1,9 +1,9 @@
 <div class="space-y-5">
   <div class="flex justify-between items-center">
-    <h1 class="text-2xl font-bold tracking-tight">Detailed Report</h1>
+    <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">Detailed Report</h1>
     <div class="flex gap-2">
-      <%= link_to "CSV", export_csv_reports_detailed_path(request.query_parameters), class: "btn btn-ghost btn-sm" %>
-      <%= link_to "PDF", export_pdf_reports_detailed_path(request.query_parameters), class: "btn btn-ghost btn-sm" %>
+      <%= link_to "CSV", export_csv_reports_detailed_path(request.query_parameters), class: "m3-btn m3-btn-text m3-btn-sm" %>
+      <%= link_to "PDF", export_pdf_reports_detailed_path(request.query_parameters), class: "m3-btn m3-btn-text m3-btn-sm" %>
     </div>
   </div>
 
@@ -11,35 +11,35 @@
   <%= form_with url: reports_detailed_path, method: :get, class: "filter-panel" do |f| %>
     <%= render "shared/date_range_presets" %>
     <div class="flex flex-wrap gap-3 items-end">
-      <div class="form-control">
-        <label class="label label-text text-xs">From</label>
-        <%= f.date_field :from, value: @from, class: "input input-bordered input-sm rounded-lg" %>
+      <div class="space-y-1">
+        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">From</label>
+        <%= f.date_field :from, value: @from, class: "m3-text-field" %>
       </div>
-      <div class="form-control">
-        <label class="label label-text text-xs">To</label>
-        <%= f.date_field :to, value: @to, class: "input input-bordered input-sm rounded-lg" %>
+      <div class="space-y-1">
+        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">To</label>
+        <%= f.date_field :to, value: @to, class: "m3-text-field" %>
       </div>
-      <div class="form-control">
-        <label class="label label-text text-xs">Project</label>
+      <div class="space-y-1">
+        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Project</label>
         <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
-            { include_blank: "All" }, class: "select select-bordered select-sm rounded-lg" %>
+            { include_blank: "All" }, class: "m3-text-field" %>
       </div>
-      <div class="form-control">
-        <label class="label label-text text-xs">Client</label>
+      <div class="space-y-1">
+        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Client</label>
         <%= f.select :client_id, @clients.map { |c| [c.name, c.id] },
-            { include_blank: "All" }, class: "select select-bordered select-sm rounded-lg" %>
+            { include_blank: "All" }, class: "m3-text-field" %>
       </div>
-      <div class="form-control">
-        <label class="label label-text text-xs">User</label>
+      <div class="space-y-1">
+        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">User</label>
         <%= f.select :user_id, @users.map { |u| [u.name, u.id] },
-            { include_blank: "All" }, class: "select select-bordered select-sm rounded-lg" %>
+            { include_blank: "All" }, class: "m3-text-field" %>
       </div>
-      <div class="form-control">
-        <label class="label label-text text-xs">Billable</label>
+      <div class="space-y-1">
+        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Billable</label>
         <%= f.select :billable, [["Yes", "1"], ["No", "0"]],
-            { include_blank: "All" }, class: "select select-bordered select-sm rounded-lg" %>
+            { include_blank: "All" }, class: "m3-text-field" %>
       </div>
-      <%= f.submit "Apply", class: "btn btn-primary btn-sm rounded-lg" %>
+      <%= f.submit "Apply", class: "m3-btn m3-btn-filled m3-btn-sm" %>
     </div>
   <% end %>
 
@@ -51,7 +51,7 @@
     </div>
     <div class="stat-card">
       <div class="stat-label">Billable</div>
-      <div class="stat-number text-success"><%= format_duration_hm(@billable_seconds) %></div>
+      <div class="stat-number" style="color: var(--color-success)"><%= format_duration_hm(@billable_seconds) %></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Amount</div>
@@ -60,8 +60,8 @@
   </div>
 
   <%# Entries table %>
-  <div class="refined-table overflow-x-auto">
-    <table class="table table-sm">
+  <div class="m3-card-outlined overflow-x-auto">
+    <table class="m3-table">
       <thead>
         <tr>
           <th>Date</th>
@@ -76,9 +76,9 @@
       </thead>
       <tbody>
         <% @entries.each do |entry| %>
-          <tr class="hover">
-            <td class="text-sm text-base-content/60"><%= entry.started_at.strftime("%b %-d") %></td>
-            <td class="text-sm max-w-xs truncate"><%= entry.description %></td>
+          <tr>
+            <td class="text-sm" style="color: var(--color-on-surface-variant)"><%= entry.started_at.strftime("%b %-d") %></td>
+            <td class="text-sm max-w-xs truncate" style="color: var(--color-on-surface)"><%= entry.description %></td>
             <td>
               <% if entry.project %>
                 <span class="flex items-center gap-1.5">
@@ -87,17 +87,17 @@
                 </span>
               <% end %>
             </td>
-            <td class="text-sm text-base-content/60"><%= entry.task&.name %></td>
-            <td class="text-sm text-base-content/60"><%= entry.user.name %></td>
+            <td class="text-sm" style="color: var(--color-on-surface-variant)"><%= entry.task&.name %></td>
+            <td class="text-sm" style="color: var(--color-on-surface-variant)"><%= entry.user.name %></td>
             <td>
               <div class="flex gap-1">
                 <% entry.tags.each do |tag| %>
-                  <span class="tag-pill" style="color: <%= tag.color %>; border-color: <%= tag.color %>30"><%= tag.name %></span>
+                  <span class="m3-tag-chip" style="color: <%= tag.color %>; border-color: <%= tag.color %>30; background-color: <%= tag.color %>10"><%= tag.name %></span>
                 <% end %>
               </div>
             </td>
             <td class="text-right mono-duration text-sm"><%= entry.formatted_duration %></td>
-            <td class="text-right text-sm text-base-content/60">
+            <td class="text-right text-sm" style="color: var(--color-on-surface-variant)">
               <% if entry.billable? %>$<%= '%.2f' % entry.billable_amount %><% end %>
             </td>
           </tr>

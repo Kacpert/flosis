@@ -1,21 +1,21 @@
 <div class="space-y-5">
   <div class="flex justify-between items-center">
-    <h1 class="text-2xl font-bold tracking-tight">Tags</h1>
-    <%= link_to "New Tag", new_tag_path, class: "btn btn-primary btn-sm" %>
+    <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">Tags</h1>
+    <%= link_to "New Tag", new_tag_path, class: "m3-btn m3-btn-filled" %>
   </div>
 
   <div class="stat-card">
     <% if @tags.any? %>
       <div class="flex flex-wrap gap-2">
         <% @tags.each do |tag| %>
-          <div class="flex items-center gap-2 pl-2.5 pr-1.5 py-1.5 rounded-lg border border-base-300/40 hover:border-base-300/70 transition-colors group">
+          <div class="flex items-center gap-2 pl-2.5 pr-1.5 py-1.5 rounded-[var(--radius-sm)] group" style="border: 1px solid var(--color-outline-variant); transition: border-color 0.15s;" onmouseover="this.style.borderColor='var(--color-outline)'" onmouseout="this.style.borderColor='var(--color-outline-variant)'">
             <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: <%= tag.color %>"></span>
-            <span class="text-sm font-medium"><%= tag.name %></span>
+            <span class="text-sm font-medium" style="color: var(--color-on-surface)"><%= tag.name %></span>
             <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-              <%= link_to edit_tag_path(tag), class: "btn btn-ghost btn-xs btn-circle" do %>
+              <%= link_to edit_tag_path(tag), class: "m3-icon-btn m3-icon-btn-sm" do %>
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
               <% end %>
-              <%= button_to tag_path(tag), method: :delete, class: "btn btn-ghost btn-xs btn-circle text-error/60 hover:text-error",
+              <%= button_to tag_path(tag), method: :delete, class: "m3-icon-btn m3-icon-btn-sm", style: "color: var(--color-error)",
                   data: { turbo_confirm: "Delete #{tag.name}?" } do %>
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
               <% end %>

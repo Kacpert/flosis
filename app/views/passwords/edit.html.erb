@@ -1,23 +1,21 @@
-<div class="card bg-base-100 shadow-xl">
-  <div class="card-body">
-    <h2 class="card-title justify-center">Set New Password</h2>
+<div class="m3-card-elevated p-6">
+  <h2 class="text-xl font-bold text-center mb-4" style="color: var(--color-on-surface)">Set New Password</h2>
 
-    <%= form_with url: password_path(params[:token]), method: :put, class: "space-y-4" do |f| %>
-      <div class="form-control">
-        <label class="label"><span class="label-text">New Password</span></label>
-        <%= f.password_field :password, required: true, autocomplete: "new-password",
-            class: "input input-bordered w-full" %>
-      </div>
+  <%= form_with url: password_path(params[:token]), method: :put, class: "space-y-4" do |f| %>
+    <div class="space-y-1">
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">New Password</label>
+      <%= f.password_field :password, required: true, autocomplete: "new-password",
+          class: "m3-text-field w-full" %>
+    </div>
 
-      <div class="form-control">
-        <label class="label"><span class="label-text">Confirm Password</span></label>
-        <%= f.password_field :password_confirmation, required: true, autocomplete: "new-password",
-            class: "input input-bordered w-full" %>
-      </div>
+    <div class="space-y-1">
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Confirm Password</label>
+      <%= f.password_field :password_confirmation, required: true, autocomplete: "new-password",
+          class: "m3-text-field w-full" %>
+    </div>
 
-      <div class="form-control mt-6">
-        <%= f.submit "Update Password", class: "btn btn-primary w-full" %>
-      </div>
-    <% end %>
-  </div>
+    <div class="mt-6">
+      <%= f.submit "Update Password", class: "m3-btn m3-btn-filled w-full" %>
+    </div>
+  <% end %>
 </div>
