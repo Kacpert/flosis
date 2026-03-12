@@ -1,66 +1,66 @@
-<div class="space-y-4">
+<div class="space-y-5">
   <div class="flex justify-between items-center">
-    <h1 class="text-2xl font-bold">Detailed Report</h1>
+    <h1 class="text-2xl font-bold tracking-tight">Detailed Report</h1>
     <div class="flex gap-2">
       <%= link_to "CSV", export_csv_reports_detailed_path(request.query_parameters), class: "btn btn-ghost btn-sm" %>
       <%= link_to "PDF", export_pdf_reports_detailed_path(request.query_parameters), class: "btn btn-ghost btn-sm" %>
     </div>
   </div>
 
-  <!-- Filters -->
-  <%= form_with url: reports_detailed_path, method: :get, class: "card bg-base-100 shadow p-4" do |f| %>
+  <%# Filters %>
+  <%= form_with url: reports_detailed_path, method: :get, class: "filter-panel" do |f| %>
     <%= render "shared/date_range_presets" %>
     <div class="flex flex-wrap gap-3 items-end">
       <div class="form-control">
         <label class="label label-text text-xs">From</label>
-        <%= f.date_field :from, value: @from, class: "input input-bordered input-sm" %>
+        <%= f.date_field :from, value: @from, class: "input input-bordered input-sm rounded-lg" %>
       </div>
       <div class="form-control">
         <label class="label label-text text-xs">To</label>
-        <%= f.date_field :to, value: @to, class: "input input-bordered input-sm" %>
+        <%= f.date_field :to, value: @to, class: "input input-bordered input-sm rounded-lg" %>
       </div>
       <div class="form-control">
         <label class="label label-text text-xs">Project</label>
         <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
-            { include_blank: "All" }, class: "select select-bordered select-sm" %>
+            { include_blank: "All" }, class: "select select-bordered select-sm rounded-lg" %>
       </div>
       <div class="form-control">
         <label class="label label-text text-xs">Client</label>
         <%= f.select :client_id, @clients.map { |c| [c.name, c.id] },
-            { include_blank: "All" }, class: "select select-bordered select-sm" %>
+            { include_blank: "All" }, class: "select select-bordered select-sm rounded-lg" %>
       </div>
       <div class="form-control">
         <label class="label label-text text-xs">User</label>
         <%= f.select :user_id, @users.map { |u| [u.name, u.id] },
-            { include_blank: "All" }, class: "select select-bordered select-sm" %>
+            { include_blank: "All" }, class: "select select-bordered select-sm rounded-lg" %>
       </div>
       <div class="form-control">
         <label class="label label-text text-xs">Billable</label>
         <%= f.select :billable, [["Yes", "1"], ["No", "0"]],
-            { include_blank: "All" }, class: "select select-bordered select-sm" %>
+            { include_blank: "All" }, class: "select select-bordered select-sm rounded-lg" %>
       </div>
-      <%= f.submit "Apply", class: "btn btn-primary btn-sm" %>
+      <%= f.submit "Apply", class: "btn btn-primary btn-sm rounded-lg" %>
     </div>
   <% end %>
 
-  <!-- Stats -->
-  <div class="stats stats-vertical sm:stats-horizontal shadow w-full bg-base-100">
-    <div class="stat">
-      <div class="stat-title">Total</div>
-      <div class="stat-value text-lg"><%= format_duration_hm(@total_seconds) %></div>
+  <%# Stats %>
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;">
+    <div class="stat-card">
+      <div class="stat-label">Total</div>
+      <div class="stat-number"><%= format_duration_hm(@total_seconds) %></div>
     </div>
-    <div class="stat">
-      <div class="stat-title">Billable</div>
-      <div class="stat-value text-lg text-success"><%= format_duration_hm(@billable_seconds) %></div>
+    <div class="stat-card">
+      <div class="stat-label">Billable</div>
+      <div class="stat-number text-success"><%= format_duration_hm(@billable_seconds) %></div>
     </div>
-    <div class="stat">
-      <div class="stat-title">Amount</div>
-      <div class="stat-value text-lg">$<%= '%.2f' % @billable_amount %></div>
+    <div class="stat-card">
+      <div class="stat-label">Amount</div>
+      <div class="stat-number">$<%= '%.2f' % @billable_amount %></div>
     </div>
   </div>
 
-  <!-- Entries table -->
-  <div class="card bg-base-100 shadow overflow-x-auto">
+  <%# Entries table %>
+  <div class="refined-table overflow-x-auto">
     <table class="table table-sm">
       <thead>
         <tr>
@@ -77,25 +77,27 @@
       <tbody>
         <% @entries.each do |entry| %>
           <tr class="hover">
-            <td class="text-sm"><%= entry.started_at.strftime("%b %d") %></td>
+            <td class="text-sm text-base-content/60"><%= entry.started_at.strftime("%b %-d") %></td>
             <td class="text-sm max-w-xs truncate"><%= entry.description %></td>
             <td>
               <% if entry.project %>
-                <span class="flex items-center gap-1">
+                <span class="flex items-center gap-1.5">
                   <%= project_color_dot(entry.project.color) %>
                   <span class="text-sm"><%= entry.project.name %></span>
                 </span>
               <% end %>
             </td>
-            <td class="text-sm"><%= entry.task&.name %></td>
-            <td class="text-sm"><%= entry.user.name %></td>
+            <td class="text-sm text-base-content/60"><%= entry.task&.name %></td>
+            <td class="text-sm text-base-content/60"><%= entry.user.name %></td>
             <td>
-              <% entry.tags.each do |tag| %>
-                <span class="badge badge-xs" style="background-color: <%= tag.color %>20; color: <%= tag.color %>"><%= tag.name %></span>
-              <% end %>
+              <div class="flex gap-1">
+                <% entry.tags.each do |tag| %>
+                  <span class="tag-pill" style="color: <%= tag.color %>; border-color: <%= tag.color %>30"><%= tag.name %></span>
+                <% end %>
+              </div>
             </td>
-            <td class="text-right font-mono text-sm"><%= entry.formatted_duration %></td>
-            <td class="text-right text-sm">
+            <td class="text-right mono-duration text-sm"><%= entry.formatted_duration %></td>
+            <td class="text-right text-sm text-base-content/60">
               <% if entry.billable? %>$<%= '%.2f' % entry.billable_amount %><% end %>
             </td>
           </tr>
@@ -105,10 +107,12 @@
   </div>
 
   <% if @entries.empty? %>
-    <div class="text-center py-8 text-base-content/50">No entries for the selected period.</div>
+    <div class="empty-state">
+      <p class="empty-state-title">No entries for this period</p>
+      <p class="empty-state-desc">Adjust your filters or date range</p>
+    </div>
   <% end %>
 
-  <!-- Pagination -->
   <% if @pagy.pages > 1 %>
     <div class="flex justify-center">
       <%== pagy_nav(@pagy) %>

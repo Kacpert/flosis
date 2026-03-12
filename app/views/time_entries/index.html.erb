@@ -1,89 +1,83 @@
 <div class="space-y-4">
   <%# Header %>
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold">Time Entries</h1>
+    <h1 class="text-2xl font-bold tracking-tight">Time Entries</h1>
     <%= link_to new_time_entry_path, class: "btn btn-primary btn-sm gap-1" do %>
       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
       New Entry
     <% end %>
   </div>
 
-  <%# Week navigation - centered, clean %>
+  <%# Week navigation %>
   <% week_start = @date.beginning_of_week(:monday) %>
   <% week_end = @date.end_of_week(:monday) %>
   <div class="flex items-center justify-center gap-4">
     <%= link_to time_entries_path(date: (week_start - 7.days)), class: "btn btn-ghost btn-sm btn-circle" do %>
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
     <% end %>
-    <span class="font-semibold text-lg"><%= week_start.strftime("%b %d") %> – <%= week_end.strftime("%b %d, %Y") %></span>
+    <span class="text-sm font-semibold min-w-[12rem] text-center"><%= week_start.strftime("%b %-d") %> – <%= week_end.strftime("%b %-d, %Y") %></span>
     <%= link_to time_entries_path(date: (week_start + 7.days)), class: "btn btn-ghost btn-sm btn-circle" do %>
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
     <% end %>
   </div>
 
-  <%# Filters - horizontal, compact, pill-style %>
-  <div class="card bg-base-100 shadow-sm border border-base-300/50 p-3">
-    <%= form_with url: time_entries_path, method: :get, class: "flex flex-wrap items-center gap-2", data: { controller: "filter" } do |f| %>
-      <%= f.hidden_field :date, value: @date %>
-      <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
-          { include_blank: "All projects" },
-          class: "select select-bordered select-sm rounded-full min-w-[140px]", data: { action: "change->filter#submit" } %>
-      <%= f.select :billable, [["Billable", "1"], ["Non-billable", "0"]],
-          { include_blank: "All" },
-          class: "select select-bordered select-sm rounded-full min-w-[100px]", data: { action: "change->filter#submit" } %>
-      <%= f.select :tag_id, @tags.map { |t| [t.name, t.id] },
-          { include_blank: "All tags" },
-          class: "select select-bordered select-sm rounded-full min-w-[120px]", data: { action: "change->filter#submit" } %>
-    <% end %>
-  </div>
+  <%# Filters %>
+  <%= form_with url: time_entries_path, method: :get, class: "flex flex-wrap items-center gap-2", data: { controller: "filter" } do |f| %>
+    <%= f.hidden_field :date, value: @date %>
+    <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
+        { include_blank: "All projects" },
+        class: "filter-select", data: { action: "change->filter#submit" } %>
+    <%= f.select :billable, [["Billable", "1"], ["Non-billable", "0"]],
+        { include_blank: "All" },
+        class: "filter-select", data: { action: "change->filter#submit" } %>
+    <%= f.select :tag_id, @tags.map { |t| [t.name, t.id] },
+        { include_blank: "All tags" },
+        class: "filter-select", data: { action: "change->filter#submit" } %>
+  <% end %>
 
-  <%# Quick entry bar - prominent with gradient %>
-  <div class="card bg-gradient-to-r from-base-100 to-base-200 shadow-sm border border-base-300/50">
-    <div class="card-body p-3">
-      <%= form_with url: time_entries_path, method: :post, class: "flex items-center gap-3" do |f| %>
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-base-content/30 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        <%= f.text_field "time_entry[description]", placeholder: "What did you work on?",
-            class: "input input-ghost flex-1 focus:outline-none focus:bg-transparent text-sm min-w-[120px]" %>
-        <%= f.select "time_entry[project_id]",
-            @projects.map { |p| [p.name, p.id] },
-            { include_blank: "Project" },
-            class: "select select-ghost select-sm text-sm",
-            data: { controller: "task-loader", action: "change->task-loader#load" } %>
-        <%= f.select "time_entry[task_id]", [],
-            { include_blank: "Task" },
-            class: "select select-ghost select-sm text-sm" %>
-        <%= f.text_field "time_entry[duration_manual]", placeholder: "0:00",
-            class: "input input-ghost w-16 text-center font-mono text-sm" %>
-        <input type="hidden" name="time_entry[started_at]" value="<%= Time.current.strftime('%Y-%m-%dT%H:%M') %>">
-        <%= f.submit "Add", class: "btn btn-primary btn-sm" %>
-      <% end %>
-    </div>
+  <%# Quick entry %>
+  <div class="bg-base-100 rounded-2xl border border-base-300/40 px-4 py-2.5">
+    <%= form_with url: time_entries_path, method: :post, class: "flex items-center gap-3" do |f| %>
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-base-content/25 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/></svg>
+      <%= f.text_field "time_entry[description]", placeholder: "What did you work on?",
+          class: "bg-transparent border-none flex-1 focus:outline-none text-sm min-w-[120px] placeholder:text-base-content/30" %>
+      <%= f.select "time_entry[project_id]",
+          @projects.map { |p| [p.name, p.id] },
+          { include_blank: "Project" },
+          class: "bg-transparent border-none text-sm focus:outline-none cursor-pointer text-base-content/50",
+          data: { controller: "task-loader", action: "change->task-loader#load" } %>
+      <%= f.select "time_entry[task_id]", [],
+          { include_blank: "Task" },
+          class: "bg-transparent border-none text-sm focus:outline-none cursor-pointer text-base-content/50" %>
+      <div class="w-px h-5 bg-base-300/60"></div>
+      <%= f.text_field "time_entry[duration_manual]", placeholder: "0:00",
+          class: "bg-transparent border-none w-14 text-center mono-duration text-sm focus:outline-none" %>
+      <input type="hidden" name="time_entry[started_at]" value="<%= Time.current.strftime('%Y-%m-%dT%H:%M') %>">
+      <%= f.submit "Add", class: "btn btn-primary btn-sm rounded-lg" %>
+    <% end %>
   </div>
 
   <%# Entries list with bulk actions %>
   <div data-controller="bulk-select">
     <%# Bulk toolbar %>
-    <div class="hidden items-center gap-2 bg-base-100 p-3 rounded-lg shadow-sm border border-base-300/50 mb-3 flex-wrap" data-bulk-select-target="toolbar">
+    <div class="hidden items-center gap-2 bg-base-100 p-3 rounded-xl border border-base-300/40 mb-3 flex-wrap" data-bulk-select-target="toolbar">
       <span class="text-sm font-semibold"><span data-bulk-select-target="count">0</span> selected</span>
-      <div class="divider divider-horizontal mx-0"></div>
+      <div class="w-px h-5 bg-base-300/60 mx-1"></div>
 
-      <%# Delete %>
       <%= form_with url: bulk_destroy_time_entries_path, method: :post, class: "inline" do |f| %>
         <div data-bulk-select-target="idsContainer"></div>
-        <%= f.submit "Delete", class: "btn btn-error btn-xs",
+        <%= f.submit "Delete", class: "btn btn-error btn-xs rounded-lg",
             data: { turbo_confirm: "Delete selected entries?" } %>
       <% end %>
 
-      <%# Change Project %>
       <%= form_with url: bulk_update_time_entries_path, method: :post, class: "inline flex items-center gap-1" do |f| %>
         <div data-bulk-select-target="idsContainer"></div>
         <%= f.hidden_field :bulk_action, value: "change_project" %>
         <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
-            { include_blank: "Move to..." }, class: "select select-bordered select-xs rounded-full" %>
+            { include_blank: "Move to..." }, class: "select select-bordered select-xs rounded-lg" %>
         <%= f.submit "Move", class: "btn btn-ghost btn-xs" %>
       <% end %>
 
-      <%# Toggle Billable %>
       <%= form_with url: bulk_update_time_entries_path, method: :post, class: "inline" do |f| %>
         <div data-bulk-select-target="idsContainer"></div>
         <%= f.hidden_field :bulk_action, value: "toggle_billable" %>
@@ -93,30 +87,31 @@
 
     <%# Time entries grouped by day %>
     <% @entries_by_day.sort_by { |date, _| date }.reverse.each do |date, entries| %>
-      <%# Day header - clean separator style %>
-      <div class="flex items-center justify-between py-3 mt-2">
-        <div class="flex items-center gap-3">
-          <span class="font-semibold text-sm"><%= date.strftime("%A, %B %d") %></span>
+      <div class="day-header">
+        <div class="flex items-center gap-2">
+          <span class="day-header-label"><%= date.strftime("%A, %B %-d") %></span>
           <% if date == Date.current %>
-            <span class="badge badge-primary badge-xs">Today</span>
+            <span class="text-[10px] font-semibold text-primary bg-primary/8 px-2 py-0.5 rounded-full uppercase tracking-wide">Today</span>
           <% end %>
         </div>
-        <span class="font-mono font-bold text-sm text-primary"><%= format_duration(entries.sum(&:duration_seconds)) %></span>
+        <span class="day-header-total"><%= format_duration(entries.sum(&:duration_seconds)) %></span>
       </div>
 
-      <%# Entry rows in a clean card with dividers %>
-      <div class="card bg-base-100 shadow-sm border border-base-300/50 overflow-hidden divide-y divide-base-200">
-        <% entries.sort_by(&:started_at).reverse.each do |entry| %>
+      <div class="bg-base-100 rounded-2xl border border-base-300/40 overflow-hidden">
+        <% entries.sort_by(&:started_at).reverse.each_with_index do |entry, i| %>
+          <% if i > 0 %><div class="border-t border-base-200/60 mx-4"></div><% end %>
           <%= render "time_entries/time_entry_row", entry: entry %>
         <% end %>
       </div>
     <% end %>
 
     <% if @entries_by_day.empty? %>
-      <div class="text-center py-16 text-base-content/40">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-4 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        <p class="font-medium">No time entries for this week.</p>
-        <p class="mt-2 text-sm">Start a timer or <%= link_to "create a manual entry", new_time_entry_path, class: "link link-primary" %>.</p>
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <p class="empty-state-title">No time entries this week</p>
+        <p class="empty-state-desc">Start a timer or <%= link_to "create a manual entry", new_time_entry_path, class: "text-primary hover:underline" %></p>
       </div>
     <% end %>
   </div>

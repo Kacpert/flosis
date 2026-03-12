@@ -1,10 +1,10 @@
-<h2 class="text-xl font-bold text-center">Create your account</h2>
-<p class="text-center text-base-content/50 text-sm mb-6">Start tracking time in seconds</p>
+<h2 class="text-xl font-bold text-center tracking-tight">Create your account</h2>
+<p class="text-center text-base-content/45 text-sm mb-6">Start tracking time in seconds</p>
 
 <%= form_with model: @user, url: registration_path, class: "space-y-4" do |f| %>
   <% if @user.errors.any? %>
-    <div class="alert alert-error">
-      <ul>
+    <div class="alert alert-error rounded-lg">
+      <ul class="text-sm">
         <% @user.errors.full_messages.each do |msg| %>
           <li><%= msg %></li>
         <% end %>
@@ -13,24 +13,24 @@
   <% end %>
 
   <div class="form-control">
-    <label class="label"><span class="label-text font-medium">Name</span></label>
-    <%= f.text_field :name, class: "input input-bordered w-full focus:input-primary", required: true, autofocus: true, placeholder: "Your name" %>
+    <label class="label"><span class="label-text text-sm font-medium">Name</span></label>
+    <%= f.text_field :name, class: "input input-bordered w-full rounded-lg focus:input-primary", required: true, autofocus: true, placeholder: "Your name" %>
   </div>
   <div class="form-control">
-    <label class="label"><span class="label-text font-medium">Email</span></label>
-    <%= f.email_field :email_address, class: "input input-bordered w-full focus:input-primary", required: true, autocomplete: "email", placeholder: "you@company.com" %>
+    <label class="label"><span class="label-text text-sm font-medium">Email</span></label>
+    <%= f.email_field :email_address, class: "input input-bordered w-full rounded-lg focus:input-primary", required: true, autocomplete: "email", placeholder: "you@company.com" %>
   </div>
   <div class="form-control">
-    <label class="label"><span class="label-text font-medium">Password</span></label>
-    <%= f.password_field :password, class: "input input-bordered w-full focus:input-primary", required: true, autocomplete: "new-password", placeholder: "Min. 8 characters" %>
+    <label class="label"><span class="label-text text-sm font-medium">Password</span></label>
+    <%= f.password_field :password, class: "input input-bordered w-full rounded-lg focus:input-primary", required: true, autocomplete: "new-password", placeholder: "Min. 8 characters" %>
   </div>
   <div class="form-control">
-    <label class="label"><span class="label-text font-medium">Confirm Password</span></label>
-    <%= f.password_field :password_confirmation, class: "input input-bordered w-full focus:input-primary", required: true, autocomplete: "new-password" %>
+    <label class="label"><span class="label-text text-sm font-medium">Confirm Password</span></label>
+    <%= f.password_field :password_confirmation, class: "input input-bordered w-full rounded-lg focus:input-primary", required: true, autocomplete: "new-password" %>
   </div>
-  <%= f.submit "Get Started", class: "btn btn-primary w-full mt-2 rounded-lg" %>
+  <%= f.submit "Get Started", class: "btn btn-primary w-full rounded-lg" %>
 <% end %>
 
-<p class="text-center text-sm text-base-content/60 mt-4">
+<p class="text-center text-sm text-base-content/50 mt-5">
   Already have an account? <%= link_to "Sign in", new_session_path, class: "text-primary font-medium hover:underline" %>
 </p>

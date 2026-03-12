@@ -1,10 +1,11 @@
-<div class="space-y-4">
+<div class="space-y-5">
   <div class="flex justify-between items-center">
     <div class="flex items-center gap-3">
       <%= project_color_dot(@project.color) %>
-      <h1 class="text-2xl font-bold"><%= @project.name %></h1>
+      <h1 class="text-2xl font-bold tracking-tight"><%= @project.name %></h1>
       <% if @project.client %>
-        <span class="text-base-content/60">&middot; <%= @project.client.name %></span>
+        <span class="text-base-content/45">·</span>
+        <span class="text-sm text-base-content/50"><%= @project.client.name %></span>
       <% end %>
     </div>
     <div class="flex gap-2">
@@ -13,96 +14,88 @@
     </div>
   </div>
 
-  <!-- Project stats -->
-  <div class="stats shadow bg-base-100">
-    <div class="stat">
-      <div class="stat-title">Total Time</div>
-      <div class="stat-value text-lg"><%= format_duration_hm(@total_seconds) %></div>
+  <%# Stats %>
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem;">
+    <div class="stat-card">
+      <div class="stat-label">Total Time</div>
+      <div class="stat-number"><%= format_duration_hm(@total_seconds) %></div>
     </div>
-    <div class="stat">
-      <div class="stat-title">Tasks</div>
-      <div class="stat-value text-lg"><%= @tasks.size %></div>
+    <div class="stat-card">
+      <div class="stat-label">Tasks</div>
+      <div class="stat-number"><%= @tasks.size %></div>
     </div>
-    <div class="stat">
-      <div class="stat-title">Billable</div>
-      <div class="stat-value text-lg"><%= @project.billable? ? "Yes" : "No" %></div>
+    <div class="stat-card">
+      <div class="stat-label">Billable</div>
+      <div class="stat-number"><%= @project.billable? ? "Yes" : "No" %></div>
     </div>
     <% if @project.budget_type != "no_budget" %>
-      <div class="stat">
-        <div class="stat-title">Budget</div>
-        <div class="stat-value text-lg"><%= @project.budget_percentage %>%</div>
+      <div class="stat-card">
+        <div class="stat-label">Budget</div>
+        <div class="stat-number"><%= @project.budget_percentage %>%</div>
       </div>
     <% end %>
   </div>
 
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <!-- Tasks -->
-    <div class="card bg-base-100 shadow">
-      <div class="card-body">
-        <h2 class="card-title text-lg">Tasks</h2>
-
-        <div id="tasks-list" class="space-y-1">
-          <% @tasks.each do |task| %>
-            <%= render "tasks/task", task: task %>
-          <% end %>
-        </div>
-
-        <%= form_with model: [@project, Task.new], class: "flex gap-2 mt-3" do |f| %>
-          <%= f.text_field :name, placeholder: "Add task...", class: "input input-bordered input-sm flex-1", required: true %>
-          <%= f.submit "Add", class: "btn btn-primary btn-sm" %>
+  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+    <%# Tasks %>
+    <div class="stat-card">
+      <h2 class="section-header mb-3">Tasks</h2>
+      <div id="tasks-list" class="space-y-1">
+        <% @tasks.each do |task| %>
+          <%= render "tasks/task", task: task %>
         <% end %>
       </div>
+      <%= form_with model: [@project, Task.new], class: "flex gap-2 mt-3" do |f| %>
+        <%= f.text_field :name, placeholder: "Add task...", class: "input input-bordered input-sm flex-1 rounded-lg", required: true %>
+        <%= f.submit "Add", class: "btn btn-primary btn-sm rounded-lg" %>
+      <% end %>
     </div>
 
-    <!-- Recent entries -->
-    <div class="card bg-base-100 shadow">
-      <div class="card-body">
-        <h2 class="card-title text-lg">Recent Entries</h2>
-        <% if @time_entries.any? %>
-          <div class="space-y-2">
-            <% @time_entries.each do |entry| %>
-              <div class="flex items-center justify-between p-2 rounded hover:bg-base-200 text-sm">
-                <div>
-                  <div class="font-medium"><%= entry.description.presence || "No description" %></div>
-                  <div class="text-xs text-base-content/60">
-                    <%= entry.user.name %> &middot; <%= entry.started_at.strftime("%b %d") %>
-                  </div>
+    <%# Recent entries %>
+    <div class="stat-card">
+      <h2 class="section-header mb-3">Recent Entries</h2>
+      <% if @time_entries.any? %>
+        <div class="space-y-0.5">
+          <% @time_entries.each do |entry| %>
+            <div class="flex items-center justify-between p-2 rounded-lg hover:bg-base-200/50 transition-colors text-sm">
+              <div class="min-w-0">
+                <div class="font-medium truncate"><%= entry.description.presence || "No description" %></div>
+                <div class="text-xs text-base-content/45">
+                  <%= entry.user.name %> · <%= entry.started_at.strftime("%b %-d") %>
                 </div>
-                <span class="font-mono"><%= entry.formatted_duration %></span>
               </div>
-            <% end %>
-          </div>
-        <% else %>
-          <p class="text-base-content/50">No entries yet.</p>
-        <% end %>
-      </div>
-    </div>
-  </div>
-
-  <!-- Time by Task -->
-  <% if @task_time_recap.any? %>
-    <div class="card bg-base-100 shadow">
-      <div class="card-body">
-        <h2 class="card-title text-lg">Time by Task</h2>
-        <% max_seconds = @task_time_recap.map { |_, s| s }.max %>
-        <div class="space-y-2 mt-2">
-          <% @task_time_recap.each do |(task_id, task_name, task_status), seconds| %>
-            <div class="flex items-center gap-3">
-              <div class="flex-1">
-                <div class="flex justify-between items-center mb-1">
-                  <span class="text-sm font-medium flex items-center gap-2">
-                    <%= task_name %>
-                    <% if task_status == "done" %>
-                      <span class="badge badge-ghost badge-xs">Done</span>
-                    <% end %>
-                  </span>
-                  <span class="text-sm font-mono"><%= format_duration_hm(seconds) %></span>
-                </div>
-                <progress class="progress progress-primary w-full" value="<%= seconds %>" max="<%= max_seconds %>"></progress>
-              </div>
+              <span class="mono-duration font-medium text-base-content/60 ml-3"><%= entry.formatted_duration %></span>
             </div>
           <% end %>
         </div>
+      <% else %>
+        <p class="text-sm text-base-content/40 py-4 text-center">No entries yet</p>
+      <% end %>
+    </div>
+  </div>
+
+  <%# Time by Task %>
+  <% if @task_time_recap.any? %>
+    <div class="stat-card">
+      <h2 class="section-header mb-4">Time by Task</h2>
+      <% max_seconds = @task_time_recap.map { |_, s| s }.max %>
+      <div class="space-y-3">
+        <% @task_time_recap.each do |(task_id, task_name, task_status), seconds| %>
+          <div>
+            <div class="flex justify-between items-center mb-1.5">
+              <span class="text-sm font-medium flex items-center gap-2">
+                <%= task_name %>
+                <% if task_status == "done" %>
+                  <span class="text-[10px] font-medium text-base-content/40 bg-base-200/80 px-2 py-0.5 rounded-full">Done</span>
+                <% end %>
+              </span>
+              <span class="text-sm mono-duration text-base-content/60"><%= format_duration_hm(seconds) %></span>
+            </div>
+            <div class="w-full h-1.5 rounded-full bg-base-200 overflow-hidden">
+              <div class="h-full rounded-full bg-primary/70 transition-all" style="width: <%= max_seconds > 0 ? (seconds.to_f / max_seconds * 100).round(1) : 0 %>%"></div>
+            </div>
+          </div>
+        <% end %>
       </div>
     </div>
   <% end %>
