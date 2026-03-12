@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html data-theme="corporate">
   <head>
-    <title><%= content_for(:title) || "Gold" %></title>
+    <title><%= content_for(:title) || "Ros" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="application-name" content="Gold">
+    <meta name="application-name" content="Ros">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
     <%= yield :head %>
@@ -20,147 +20,159 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body class="min-h-screen bg-base-200" data-controller="keyboard-shortcuts">
+  <body class="min-h-screen paper-bg" data-controller="keyboard-shortcuts">
     <% if current_user && Current.workspace %>
-      <div class="drawer lg:drawer-open">
-        <input id="sidebar-drawer" type="checkbox" class="drawer-toggle" />
-
-        <div class="drawer-content flex flex-col">
-          <!-- Top navbar / Timer bar -->
-          <header class="sticky top-0 z-30 border-b border-base-300/40 <%= @running_timer ? 'navbar-timer-running' : 'bg-base-100/80 backdrop-blur-xl supports-[backdrop-filter]:bg-base-100/70' %>">
-            <div class="flex items-center gap-3 px-4 lg:px-6 h-14">
-              <div class="flex-none lg:hidden">
-                <label for="sidebar-drawer" class="btn btn-ghost btn-sm btn-square">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-5 h-5 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                </label>
-              </div>
-              <div class="flex-1 min-w-0">
-                <%= render "shared/timer_bar" %>
-              </div>
+      <div class="flex flex-col min-h-screen">
+        <!-- Top timer bar — full width with contour background -->
+        <header class="sticky top-0 z-50 p-2 pb-0 paper-bg">
+          <div class="timer-top-bar flex items-center gap-3 <%= @running_timer ? 'navbar-timer-running' : '' %>">
+            <div class="flex-none lg:hidden">
+              <label for="sidebar-drawer" class="btn btn-ghost btn-sm btn-square">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-5 h-5 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+              </label>
             </div>
-          </header>
-
-          <!-- Main content -->
-          <main class="flex-1 p-4 lg:p-8">
-            <div class="max-w-7xl mx-auto">
-              <% if flash[:notice] %>
-                <div class="alert alert-success mb-4 rounded-xl shadow-sm" data-controller="flash">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  <span><%= flash[:notice] %></span>
-                </div>
-              <% end %>
-              <% if flash[:alert] %>
-                <div class="alert alert-error mb-4 rounded-xl shadow-sm" data-controller="flash">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                  <span><%= flash[:alert] %></span>
-                </div>
-              <% end %>
-
-              <%= yield %>
+            <div class="flex-1 min-w-0">
+              <%= render "shared/timer_bar" %>
             </div>
-          </main>
-        </div>
+          </div>
+        </header>
 
-        <!-- Sidebar -->
-        <div class="drawer-side z-40">
-          <label for="sidebar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
-          <aside class="sidebar-dark min-h-full w-64 flex flex-col">
+        <!-- Sidebar + Content below top bar -->
+        <div class="drawer lg:drawer-open flex-1">
+          <input id="sidebar-drawer" type="checkbox" class="drawer-toggle" />
+
+          <div class="drawer-content flex flex-col">
+            <!-- Main content — paper feel -->
+            <main class="flex-1 p-4 lg:p-8">
+              <div class="max-w-6xl mx-auto paper-content p-5 lg:p-8">
+                <% if flash[:notice] %>
+                  <div class="alert alert-success mb-5 rounded-xl" data-controller="flash">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span><%= flash[:notice] %></span>
+                  </div>
+                <% end %>
+                <% if flash[:alert] %>
+                  <div class="alert alert-error mb-5 rounded-xl" data-controller="flash">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    <span><%= flash[:alert] %></span>
+                  </div>
+                <% end %>
+
+                <%= yield %>
+              </div>
+            </main>
+          </div>
+
+          <!-- Sidebar -->
+          <div class="drawer-side z-40">
+            <label for="sidebar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+            <div class="min-h-full w-56 p-2 paper-bg">
+            <aside class="sidebar-light h-full flex flex-col rounded-xl border border-base-300/30 shadow-sm">
             <!-- Brand -->
-            <div class="px-5 pt-5 pb-4">
-              <div class="flex items-center gap-2.5">
-                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-sm">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div class="px-4 pt-4 pb-3">
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 </div>
-                <span class="text-lg font-bold tracking-tight text-white/95">Gold</span>
-              </div>
-            </div>
-
-            <!-- Workspace selector -->
-            <div class="px-3 mb-5">
-              <div class="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-white/[0.04] text-sm">
-                <div class="w-6 h-6 rounded bg-amber-500/20 flex items-center justify-center text-[10px] font-bold text-amber-400">
-                  <%= Current.workspace.name.first.upcase %>
-                </div>
-                <span class="flex-1 truncate text-white/60 text-[13px]"><%= Current.workspace.name %></span>
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
+                <span class="text-base font-bold tracking-tight">Ros</span>
               </div>
             </div>
 
             <!-- Navigation -->
-            <nav class="flex-1 px-3 space-y-0.5 overflow-y-auto">
-              <%= link_to root_path, class: "sidebar-nav-item #{current_page?(root_path) ? 'active' : ''}" do %>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-                <span>Dashboard</span>
-              <% end %>
+            <nav class="flex-1 px-3 overflow-y-auto">
+              <ul class="menu menu-sm gap-0.5 p-0">
+                <li>
+                  <%= link_to root_path, class: current_page?(root_path) ? 'active' : '' do %>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                    Dashboard
+                  <% end %>
+                </li>
+                <li>
+                  <%= link_to time_entries_path, class: current_page?(time_entries_path) ? 'active' : '' do %>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Time Entries
+                  <% end %>
+                </li>
+                <li>
+                  <%= link_to timesheet_path, class: current_page?(timesheet_path) ? 'active' : '' do %>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    Timesheet
+                  <% end %>
+                </li>
+              </ul>
 
-              <%= link_to time_entries_path, class: "sidebar-nav-item #{current_page?(time_entries_path) ? 'active' : ''}" do %>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <span>Time Entries</span>
-              <% end %>
+              <div class="sidebar-divider"></div>
 
-              <%= link_to timesheet_path, class: "sidebar-nav-item #{current_page?(timesheet_path) ? 'active' : ''}" do %>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                <span>Timesheet</span>
-              <% end %>
+              <ul class="menu menu-sm gap-0.5 p-0">
+                <li class="menu-title text-[11px] tracking-wide">Manage</li>
+                <li>
+                  <%= link_to projects_path, class: current_page?(projects_path) ? 'active' : '' do %>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+                    Projects
+                  <% end %>
+                </li>
+                <li>
+                  <%= link_to clients_path, class: current_page?(clients_path) ? 'active' : '' do %>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                    Clients
+                  <% end %>
+                </li>
+                <li>
+                  <%= link_to tags_path, class: current_page?(tags_path) ? 'active' : '' do %>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                    Tags
+                  <% end %>
+                </li>
+              </ul>
 
-              <div class="pt-6 pb-1.5">
-                <div class="sidebar-section-label">Manage</div>
-              </div>
+              <div class="sidebar-divider"></div>
 
-              <%= link_to projects_path, class: "sidebar-nav-item #{current_page?(projects_path) ? 'active' : ''}" do %>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
-                <span>Projects</span>
-              <% end %>
-
-              <%= link_to clients_path, class: "sidebar-nav-item #{current_page?(clients_path) ? 'active' : ''}" do %>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                <span>Clients</span>
-              <% end %>
-
-              <%= link_to tags_path, class: "sidebar-nav-item #{current_page?(tags_path) ? 'active' : ''}" do %>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-                <span>Tags</span>
-              <% end %>
-
-              <div class="pt-6 pb-1.5">
-                <div class="sidebar-section-label">Reports</div>
-              </div>
-
-              <%= link_to reports_summary_path, class: "sidebar-nav-item #{current_page?(reports_summary_path) ? 'active' : ''}" do %>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path stroke-linecap="round" stroke-linejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
-                <span>Summary</span>
-              <% end %>
-
-              <%= link_to reports_detailed_path, class: "sidebar-nav-item #{current_page?(reports_detailed_path) ? 'active' : ''}" do %>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                <span>Detailed</span>
-              <% end %>
-
-              <%= link_to reports_weekly_path, class: "sidebar-nav-item #{current_page?(reports_weekly_path) ? 'active' : ''}" do %>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                <span>Weekly</span>
-              <% end %>
+              <ul class="menu menu-sm gap-0.5 p-0">
+                <li class="menu-title text-[11px] tracking-wide">Reports</li>
+                <li>
+                  <%= link_to reports_summary_path, class: current_page?(reports_summary_path) ? 'active' : '' do %>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path stroke-linecap="round" stroke-linejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
+                    Summary
+                  <% end %>
+                </li>
+                <li>
+                  <%= link_to reports_detailed_path, class: current_page?(reports_detailed_path) ? 'active' : '' do %>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    Detailed
+                  <% end %>
+                </li>
+                <li>
+                  <%= link_to reports_weekly_path, class: current_page?(reports_weekly_path) ? 'active' : '' do %>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    Weekly
+                  <% end %>
+                </li>
+              </ul>
             </nav>
 
             <!-- Bottom -->
             <div class="px-3 pb-1">
-              <button class="sidebar-nav-item w-full" data-action="click->keyboard-shortcuts#showHelp">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <span>Shortcuts</span>
-                <span class="ml-auto text-[10px] text-white/20 font-mono">?</span>
-              </button>
+              <ul class="menu menu-sm p-0">
+                <li>
+                  <button class="w-full" data-action="click->keyboard-shortcuts#showHelp">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Shortcuts
+                    <span class="ml-auto text-[10px] text-base-content/25 font-mono">?</span>
+                  </button>
+                </li>
+              </ul>
             </div>
 
-            <div class="px-3 py-3 border-t border-white/[0.06]">
+            <div class="px-3 py-3 border-t border-base-200">
               <div class="dropdown dropdown-top w-full">
-                <div tabindex="0" role="button" class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] cursor-pointer w-full transition-colors">
-                  <div class="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-[10px] font-bold">
+                <div tabindex="0" role="button" class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-base-200/60 cursor-pointer w-full transition-colors">
+                  <div class="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-[9px] font-bold">
                     <%= current_user.name.first(2).upcase %>
                   </div>
-                  <span class="flex-1 min-w-0 text-[13px] font-medium truncate text-white/70"><%= current_user.name %></span>
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                  <span class="flex-1 min-w-0 text-[13px] font-medium truncate text-base-content/70"><%= current_user.name %></span>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-base-content/25" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
                 </div>
-                <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow-lg bg-base-100 text-base-content rounded-xl w-56 mb-2 border border-base-300/50">
+                <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow-lg bg-base-100 text-base-content rounded-xl w-52 mb-2 border border-base-300/50">
                   <li><%= link_to "Profile", profile_path %></li>
                   <li><%= link_to "Workspace Settings", workspace_settings_path %></li>
                   <div class="divider my-1"></div>
@@ -176,7 +188,9 @@
                 </ul>
               </div>
             </div>
-          </aside>
+            </aside>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -208,18 +222,18 @@
       <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-base-200 via-base-100 to-base-200 relative overflow-hidden">
         <%# Decorative background elements %>
         <div class="absolute inset-0 overflow-hidden pointer-events-none">
-          <div class="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-gradient-to-br from-amber-400/10 to-orange-500/5 blur-3xl"></div>
+          <div class="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-gradient-to-br from-indigo-400/10 to-violet-500/5 blur-3xl"></div>
           <div class="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-gradient-to-tr from-primary/10 to-secondary/5 blur-3xl"></div>
         </div>
 
         <div class="w-full max-w-md relative z-10 px-4">
           <div class="text-center mb-8">
             <div class="flex items-center justify-center gap-2 mb-3">
-              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               </div>
             </div>
-            <h1 class="text-3xl font-bold">Gold</h1>
+            <h1 class="text-3xl font-bold">Ros</h1>
             <p class="text-base-content/50 mt-1">Track time. Ship faster.</p>
           </div>
 
@@ -240,7 +254,7 @@
             </div>
           </div>
 
-          <p class="text-center text-base-content/30 text-xs mt-8">Gold Time Tracking</p>
+          <p class="text-center text-base-content/30 text-xs mt-8">Ros - Time Tracking</p>
         </div>
       </div>
     <% end %>

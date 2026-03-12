@@ -1,34 +1,28 @@
 <div class="space-y-4">
-  <%# Header %>
-  <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold tracking-tight">Time Entries</h1>
-  </div>
-
-  <%# Week navigation %>
+  <%# Week navigation + Filters — single row %>
   <% week_start = @date.beginning_of_week(:monday) %>
   <% week_end = @date.end_of_week(:monday) %>
-  <div class="flex items-center justify-center gap-4">
-    <%= link_to time_entries_path(date: (week_start - 7.days)), class: "btn btn-ghost btn-sm btn-circle" do %>
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-    <% end %>
-    <span class="text-sm font-semibold min-w-[12rem] text-center"><%= week_start.strftime("%b %-d") %> – <%= week_end.strftime("%b %-d, %Y") %></span>
-    <%= link_to time_entries_path(date: (week_start + 7.days)), class: "btn btn-ghost btn-sm btn-circle" do %>
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-    <% end %>
-  </div>
-
-  <%# Filters %>
-  <%= form_with url: time_entries_path, method: :get, class: "flex flex-wrap items-center gap-2", data: { controller: "filter" } do |f| %>
+  <%= form_with url: time_entries_path, method: :get, class: "flex items-center gap-2 flex-nowrap", data: { controller: "filter" } do |f| %>
     <%= f.hidden_field :date, value: @date %>
+    <div class="flex items-center gap-1">
+      <%= link_to time_entries_path(date: (week_start - 7.days)), class: "btn btn-ghost btn-sm btn-circle" do %>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      <% end %>
+      <span class="text-sm font-semibold min-w-[10rem] text-center"><%= week_start.strftime("%b %-d") %> – <%= week_end.strftime("%b %-d, %Y") %></span>
+      <%= link_to time_entries_path(date: (week_start + 7.days)), class: "btn btn-ghost btn-sm btn-circle" do %>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      <% end %>
+    </div>
+    <div class="w-px h-5 bg-base-300/40"></div>
     <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
         { include_blank: "All projects" },
-        class: "filter-select", data: { action: "change->filter#submit" } %>
+        class: "select select-bordered select-sm rounded-lg w-36", data: { action: "change->filter#submit" } %>
     <%= f.select :billable, [["Billable", "1"], ["Non-billable", "0"]],
         { include_blank: "All" },
-        class: "filter-select", data: { action: "change->filter#submit" } %>
+        class: "select select-bordered select-sm rounded-lg w-24", data: { action: "change->filter#submit" } %>
     <%= f.select :tag_id, @tags.map { |t| [t.name, t.id] },
         { include_blank: "All tags" },
-        class: "filter-select", data: { action: "change->filter#submit" } %>
+        class: "select select-bordered select-sm rounded-lg w-28", data: { action: "change->filter#submit" } %>
   <% end %>
 
   <%# Entries list with bulk actions %>

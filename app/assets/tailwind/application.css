@@ -9,9 +9,12 @@
   }
 }
 
+/* ─── Violet pearl gradient (reusable vars) ─── */
+/* From Ruby on Sites palette: deep violet #5b21b6 → indigo #6366f1 */
+
 /* ─── Apple-style refinements ─── */
 
-/* Softer card treatment — no harsh shadows, just subtle border */
+/* Softer card treatment */
 .card {
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
@@ -19,9 +22,25 @@
   border-color: oklch(var(--bc) / 0.12);
 }
 
-/* Stat cards — clean, no icon noise */
+/* Stat cards — violet pearl sheen */
 .stat-card {
   @apply bg-base-100 rounded-2xl border border-base-300/40 p-5;
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(99,102,241,0.2) 20%, rgba(139,92,246,0.3) 50%, rgba(99,102,241,0.2) 80%, transparent);
+}
+.stat-card::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(165deg, rgba(139,92,246,0.04) 0%, transparent 40%, transparent 60%, rgba(99,102,241,0.02) 100%);
+  pointer-events: none;
 }
 .stat-card .stat-label {
   @apply text-xs font-medium text-base-content/50 tracking-wide;
@@ -33,52 +52,64 @@
   @apply text-xs text-base-content/40 mt-1;
 }
 
-/* ─── Dark sidebar ─── */
-.sidebar-dark {
-  background: #1a1a2e;
-  color: #e0e0e8;
+/* ─── Light sidebar — Finder-style ─── */
+.sidebar-light {
+  background: oklch(var(--b1));
+  color: oklch(var(--bc));
+  border-right: none;
+  position: relative;
+  overflow: hidden;
 }
-
-.sidebar-nav-item {
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  gap: 0.625rem;
-  padding: 0.4375rem 0.75rem;
-  border-radius: 0.5rem;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.5);
-  transition: background 0.15s ease, color 0.15s ease;
-  text-decoration: none;
-  letter-spacing: -0.006em;
+.sidebar-light::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(175deg, rgba(139,92,246,0.03) 0%, transparent 30%, transparent 70%, rgba(99,102,241,0.02) 100%);
+  pointer-events: none;
 }
-.sidebar-nav-item svg {
-  width: 1.125rem;
-  height: 1.125rem;
-  flex-shrink: 0;
-  opacity: 0.45;
-  stroke-width: 1.75;
+.sidebar-light .menu a {
+  font-size: 0.875rem;
+  gap: 0.5rem;
+  border-left: 2px solid transparent;
+  transition: all 0.15s ease;
 }
-.sidebar-nav-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.85);
+.sidebar-light .menu a:hover {
+  border-left-color: rgba(99,102,241,0.2);
+  background: rgba(99,102,241,0.04);
 }
-.sidebar-nav-item:hover svg { opacity: 0.65; }
-
-.sidebar-nav-item.active {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.95);
-}
-.sidebar-nav-item.active svg { opacity: 0.8; }
-
-.sidebar-section-label {
-  font-size: 0.6875rem;
+/* Finder-style blue active selection */
+.sidebar-light .menu a.active {
+  border-left-color: #4f6ef7;
+  background: linear-gradient(90deg, rgba(79,110,247,0.12), rgba(79,110,247,0.05));
+  color: #3b5ce4;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.22);
-  padding: 0 0.75rem;
+}
+.sidebar-divider {
+  height: 1px;
+  background: oklch(var(--bc) / 0.07);
+  margin: 0.75rem 0.5rem;
+}
+
+/* ─── Paper feel — main content ─── */
+.paper-bg {
+  background: #f7f6f9;
+}
+
+/* ─── Timer top bar — contour background ─── */
+.timer-top-bar {
+  background: #f0eef5 url('/bg-contour.png') right center / 50% auto no-repeat;
+  border-radius: 1rem;
+  padding: 0.5rem 1rem;
+  position: relative;
+  overflow: hidden;
+}
+.paper-content {
+  background: oklch(var(--b1));
+  border-radius: 1rem;
+  border: 1px solid oklch(var(--bc) / 0.06);
+  box-shadow: 0 1px 3px oklch(var(--bc) / 0.04);
+  position: relative;
+  overflow: hidden;
 }
 
 /* ─── Responsive helpers ─── */
@@ -125,7 +156,7 @@
 
 /* ─── Turbo progress ─── */
 .turbo-progress-bar {
-  background-color: oklch(var(--p));
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
   height: 2px;
 }
 
@@ -157,7 +188,7 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ─── Section titles — Apple style ─── */
+/* ─── Section titles ─── */
 .section-header {
   @apply text-lg font-semibold tracking-tight;
 }
@@ -180,22 +211,38 @@
   @apply text-sm font-bold font-mono text-primary;
 }
 
-/* ─── Time entry row — Apple list style ─── */
+/* ─── Time entry row ─── */
 .entry-row {
   @apply flex items-center gap-3 px-4 py-3 transition-colors;
 }
 .entry-row:hover {
-  background: oklch(var(--bc) / 0.02);
+  background: rgba(99,102,241,0.03);
 }
 
-/* ─── Tag pills — subtle outline ─── */
+/* ─── Tag pills ─── */
 .tag-pill {
   @apply text-[10px] px-1.5 py-0.5 rounded-md border font-medium;
 }
 
-/* ─── Project cards — Apple card ─── */
+/* ─── Project cards — violet pearl ─── */
 .project-card {
   @apply bg-base-100 rounded-2xl border border-base-300/40 p-5 transition-all;
+  position: relative;
+  overflow: hidden;
+}
+.project-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(99,102,241,0.2) 20%, rgba(139,92,246,0.3) 50%, rgba(99,102,241,0.2) 80%, transparent);
+}
+.project-card::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(165deg, rgba(139,92,246,0.04) 0%, transparent 40%, transparent 60%, rgba(99,102,241,0.02) 100%);
+  pointer-events: none;
 }
 .project-card:hover {
   @apply shadow-md border-base-300/60;
@@ -205,17 +252,20 @@
 .filter-select {
   font-size: 0.8125rem;
   padding: 0.375rem 2rem 0.375rem 0.75rem;
-  border: 1px solid oklch(var(--bc) / 0.15);
+  border: 1px solid oklch(var(--bc) / 0.2);
   border-radius: 0.5rem;
   background-color: oklch(var(--b1));
-  color: oklch(var(--bc) / 0.7);
+  color: oklch(var(--bc) / 0.8);
   cursor: pointer;
   min-width: 8rem;
-  height: 2rem;
+  height: 2.25rem;
+  box-shadow: 0 1px 2px oklch(var(--bc) / 0.06);
+  font-weight: 500;
 }
 .filter-select:focus {
-  border-color: oklch(var(--p) / 0.5);
+  border-color: #6366f1;
   outline: none;
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.15);
 }
 
 /* ─── Empty states ─── */
@@ -240,15 +290,47 @@
   @apply flex rounded-full h-2 overflow-hidden bg-base-200;
 }
 
-/* ─── Report filter panel ─── */
+/* ─── Report filter panel — violet pearl ─── */
 .filter-panel {
   @apply bg-base-100 rounded-2xl border border-base-300/40 p-5;
+  position: relative;
+  overflow: hidden;
+}
+.filter-panel::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(99,102,241,0.2) 20%, rgba(139,92,246,0.3) 50%, rgba(99,102,241,0.2) 80%, transparent);
+}
+.filter-panel::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(165deg, rgba(139,92,246,0.04) 0%, transparent 40%, transparent 60%, rgba(99,102,241,0.02) 100%);
+  pointer-events: none;
 }
 
-/* ─── Refined table ─── */
+/* ─── Refined table — violet pearl ─── */
 .refined-table {
   @apply bg-base-100 rounded-2xl border border-base-300/40 overflow-hidden;
+  position: relative;
+}
+.refined-table::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(99,102,241,0.2) 20%, rgba(139,92,246,0.3) 50%, rgba(99,102,241,0.2) 80%, transparent);
+  z-index: 1;
 }
 .refined-table th {
   @apply text-xs font-medium text-base-content/50 uppercase tracking-wider;
+}
+
+/* ─── Top bar full-width gradient line ─── */
+.top-bar-line {
+  height: 2px;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6, #6366f1);
+  opacity: 0.4;
 }
