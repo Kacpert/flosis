@@ -1,0 +1,4 @@
+<option value="">No task</option>
+<% tasks.each do |task| %>
+  <option value="<%= task.id %>"><%= task.name %></option>
+<% end %>

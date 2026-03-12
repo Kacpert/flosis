@@ -1,0 +1,117 @@
+<div class="space-y-4">
+  <div class="flex justify-between items-center">
+    <h1 class="text-2xl font-bold">Detailed Report</h1>
+    <div class="flex gap-2">
+      <%= link_to "CSV", export_csv_reports_detailed_path(request.query_parameters), class: "btn btn-ghost btn-sm" %>
+      <%= link_to "PDF", export_pdf_reports_detailed_path(request.query_parameters), class: "btn btn-ghost btn-sm" %>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <%= form_with url: reports_detailed_path, method: :get, class: "card bg-base-100 shadow p-4" do |f| %>
+    <%= render "shared/date_range_presets" %>
+    <div class="flex flex-wrap gap-3 items-end">
+      <div class="form-control">
+        <label class="label label-text text-xs">From</label>
+        <%= f.date_field :from, value: @from, class: "input input-bordered input-sm" %>
+      </div>
+      <div class="form-control">
+        <label class="label label-text text-xs">To</label>
+        <%= f.date_field :to, value: @to, class: "input input-bordered input-sm" %>
+      </div>
+      <div class="form-control">
+        <label class="label label-text text-xs">Project</label>
+        <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
+            { include_blank: "All" }, class: "select select-bordered select-sm" %>
+      </div>
+      <div class="form-control">
+        <label class="label label-text text-xs">Client</label>
+        <%= f.select :client_id, @clients.map { |c| [c.name, c.id] },
+            { include_blank: "All" }, class: "select select-bordered select-sm" %>
+      </div>
+      <div class="form-control">
+        <label class="label label-text text-xs">User</label>
+        <%= f.select :user_id, @users.map { |u| [u.name, u.id] },
+            { include_blank: "All" }, class: "select select-bordered select-sm" %>
+      </div>
+      <div class="form-control">
+        <label class="label label-text text-xs">Billable</label>
+        <%= f.select :billable, [["Yes", "1"], ["No", "0"]],
+            { include_blank: "All" }, class: "select select-bordered select-sm" %>
+      </div>
+      <%= f.submit "Apply", class: "btn btn-primary btn-sm" %>
+    </div>
+  <% end %>
+
+  <!-- Stats -->
+  <div class="stats stats-vertical sm:stats-horizontal shadow w-full bg-base-100">
+    <div class="stat">
+      <div class="stat-title">Total</div>
+      <div class="stat-value text-lg"><%= format_duration_hm(@total_seconds) %></div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Billable</div>
+      <div class="stat-value text-lg text-success"><%= format_duration_hm(@billable_seconds) %></div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Amount</div>
+      <div class="stat-value text-lg">$<%= '%.2f' % @billable_amount %></div>
+    </div>
+  </div>
+
+  <!-- Entries table -->
+  <div class="card bg-base-100 shadow overflow-x-auto">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Description</th>
+          <th>Project</th>
+          <th>Task</th>
+          <th>User</th>
+          <th>Tags</th>
+          <th class="text-right">Duration</th>
+          <th class="text-right">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @entries.each do |entry| %>
+          <tr class="hover">
+            <td class="text-sm"><%= entry.started_at.strftime("%b %d") %></td>
+            <td class="text-sm max-w-xs truncate"><%= entry.description %></td>
+            <td>
+              <% if entry.project %>
+                <span class="flex items-center gap-1">
+                  <%= project_color_dot(entry.project.color) %>
+                  <span class="text-sm"><%= entry.project.name %></span>
+                </span>
+              <% end %>
+            </td>
+            <td class="text-sm"><%= entry.task&.name %></td>
+            <td class="text-sm"><%= entry.user.name %></td>
+            <td>
+              <% entry.tags.each do |tag| %>
+                <span class="badge badge-xs" style="background-color: <%= tag.color %>20; color: <%= tag.color %>"><%= tag.name %></span>
+              <% end %>
+            </td>
+            <td class="text-right font-mono text-sm"><%= entry.formatted_duration %></td>
+            <td class="text-right text-sm">
+              <% if entry.billable? %>$<%= '%.2f' % entry.billable_amount %><% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <% if @entries.empty? %>
+    <div class="text-center py-8 text-base-content/50">No entries for the selected period.</div>
+  <% end %>
+
+  <!-- Pagination -->
+  <% if @pagy.pages > 1 %>
+    <div class="flex justify-center">
+      <%== pagy_nav(@pagy) %>
+    </div>
+  <% end %>
+</div>

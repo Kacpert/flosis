@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html data-theme="corporate">
+  <head>
+    <title><%= content_for(:title) || "Gold" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Gold">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <%= yield :head %>
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+    <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+  </head>
+
+  <body class="min-h-screen bg-base-200" data-controller="keyboard-shortcuts">
+    <% if current_user && Current.workspace %>
+      <div class="drawer lg:drawer-open">
+        <input id="sidebar-drawer" type="checkbox" class="drawer-toggle" />
+
+        <div class="drawer-content flex flex-col">
+          <!-- Top navbar / Timer bar -->
+          <div class="navbar bg-base-100 shadow-sm sticky top-0 z-30 px-4 <%= @running_timer ? 'navbar-timer-running' : '' %>">
+            <div class="flex-none lg:hidden">
+              <label for="sidebar-drawer" class="btn btn-square btn-ghost">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-5 h-5 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+              </label>
+            </div>
+
+            <div class="flex-1">
+              <%= render "shared/timer_bar" %>
+            </div>
+          </div>
+
+          <!-- Main content -->
+          <main class="flex-1 p-4 lg:p-8">
+            <div class="max-w-7xl mx-auto">
+              <% if flash[:notice] %>
+                <div class="alert alert-success mb-4 rounded-xl shadow-sm" data-controller="flash">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span><%= flash[:notice] %></span>
+                </div>
+              <% end %>
+              <% if flash[:alert] %>
+                <div class="alert alert-error mb-4 rounded-xl shadow-sm" data-controller="flash">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  <span><%= flash[:alert] %></span>
+                </div>
+              <% end %>
+
+              <%= yield %>
+            </div>
+          </main>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="drawer-side z-40">
+          <label for="sidebar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+          <aside class="bg-neutral text-neutral-content min-h-full w-64 flex flex-col">
+            <!-- Brand -->
+            <div class="px-5 py-5">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <span class="text-lg font-bold tracking-tight">Gold</span>
+              </div>
+            </div>
+
+            <!-- Workspace selector -->
+            <div class="px-3 mb-4">
+              <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 text-sm">
+                <div class="w-6 h-6 rounded bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+                  <%= Current.workspace.name.first.upcase %>
+                </div>
+                <span class="flex-1 truncate text-neutral-content/80"><%= Current.workspace.name %></span>
+              </div>
+            </div>
+
+            <!-- Navigation -->
+            <nav class="flex-1 px-3 space-y-1 overflow-y-auto">
+              <%# --- Track section --- %>
+              <%= link_to root_path, class: "sidebar-nav-item #{current_page?(root_path) ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                <span>Dashboard</span>
+              <% end %>
+
+              <%= link_to time_entries_path, class: "sidebar-nav-item #{current_page?(time_entries_path) ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>Time Entries</span>
+              <% end %>
+
+              <%= link_to timesheet_path, class: "sidebar-nav-item #{current_page?(timesheet_path) ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                <span>Timesheet</span>
+              <% end %>
+
+              <%# --- Manage section --- %>
+              <div class="pt-5 pb-2">
+                <div class="text-xs font-semibold uppercase tracking-wider text-neutral-content/40 px-3">Manage</div>
+              </div>
+
+              <%= link_to projects_path, class: "sidebar-nav-item #{current_page?(projects_path) ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+                <span>Projects</span>
+              <% end %>
+
+              <%= link_to clients_path, class: "sidebar-nav-item #{current_page?(clients_path) ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                <span>Clients</span>
+              <% end %>
+
+              <%= link_to tags_path, class: "sidebar-nav-item #{current_page?(tags_path) ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                <span>Tags</span>
+              <% end %>
+
+              <%# --- Reports section --- %>
+              <div class="pt-5 pb-2">
+                <div class="text-xs font-semibold uppercase tracking-wider text-neutral-content/40 px-3">Reports</div>
+              </div>
+
+              <%= link_to reports_summary_path, class: "sidebar-nav-item #{current_page?(reports_summary_path) ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
+                <span>Summary</span>
+              <% end %>
+
+              <%= link_to reports_detailed_path, class: "sidebar-nav-item #{current_page?(reports_detailed_path) ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                <span>Detailed</span>
+              <% end %>
+
+              <%= link_to reports_weekly_path, class: "sidebar-nav-item #{current_page?(reports_weekly_path) ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <span>Weekly</span>
+              <% end %>
+            </nav>
+
+            <!-- Bottom section: Help + User -->
+            <div class="px-3 py-2">
+              <button class="sidebar-nav-item w-full text-neutral-content/50 hover:text-neutral-content" data-action="click->keyboard-shortcuts#showHelp">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>Keyboard Shortcuts</span>
+                <kbd class="kbd kbd-xs ml-auto opacity-50">?</kbd>
+              </button>
+            </div>
+
+            <div class="px-3 py-4 border-t border-white/10">
+              <div class="dropdown dropdown-top w-full">
+                <div tabindex="0" role="button" class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 cursor-pointer w-full transition-colors duration-150">
+                  <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-xs font-bold shadow-sm">
+                    <%= current_user.name.first(2).upcase %>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium truncate"><%= current_user.name %></div>
+                    <div class="text-xs text-neutral-content/50 truncate"><%= current_user.email_address %></div>
+                  </div>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                </div>
+                <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow-lg bg-base-100 text-base-content rounded-xl w-56 mb-2 border border-base-300">
+                  <li><%= link_to "Profile", profile_path %></li>
+                  <li><%= link_to "Workspace Settings", workspace_settings_path %></li>
+                  <div class="divider my-1"></div>
+                  <li class="menu-title text-xs">Switch Workspace</li>
+                  <% current_user.workspaces.each do |ws| %>
+                    <% unless ws == Current.workspace %>
+                      <li><%= button_to ws.name, switch_workspace_path(ws), method: :post, class: "text-sm" %></li>
+                    <% end %>
+                  <% end %>
+                  <li><%= link_to "New Workspace", new_workspace_path %></li>
+                  <div class="divider my-1"></div>
+                  <li><%= button_to "Sign Out", session_path, method: :delete %></li>
+                </ul>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <%# Keyboard shortcuts help modal %>
+      <dialog class="modal" data-keyboard-shortcuts-target="modal">
+        <div class="modal-box rounded-2xl shadow-2xl">
+          <h3 class="font-bold text-lg mb-4">Keyboard Shortcuts</h3>
+          <div class="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+            <div><kbd class="kbd kbd-sm">s</kbd></div><div>Start/focus timer</div>
+            <div><kbd class="kbd kbd-sm">n</kbd></div><div>New time entry</div>
+            <div><kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">d</kbd></div><div>Go to Dashboard</div>
+            <div><kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">t</kbd></div><div>Go to Time Entries</div>
+            <div><kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">p</kbd></div><div>Go to Projects</div>
+            <div><kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">r</kbd></div><div>Go to Reports</div>
+            <div><kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">s</kbd></div><div>Go to Timesheet</div>
+            <div><kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">c</kbd></div><div>Go to Clients</div>
+            <div><kbd class="kbd kbd-sm">?</kbd></div><div>Show this help</div>
+          </div>
+          <div class="modal-action">
+            <button class="btn btn-sm rounded-lg" data-action="click->keyboard-shortcuts#closeHelp">Close</button>
+          </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
+    <% else %>
+      <!-- Guest layout -->
+      <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral via-neutral/95 to-neutral relative overflow-hidden">
+        <%# Decorative background elements %>
+        <div class="absolute inset-0 overflow-hidden pointer-events-none">
+          <div class="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-gradient-to-br from-amber-400/10 to-orange-500/5 blur-3xl"></div>
+          <div class="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-gradient-to-tr from-primary/10 to-secondary/5 blur-3xl"></div>
+        </div>
+
+        <div class="w-full max-w-md relative z-10 px-4">
+          <div class="text-center mb-8">
+            <div class="flex items-center justify-center gap-3 mb-3">
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
+            </div>
+            <h1 class="text-3xl font-bold text-white tracking-tight">Gold</h1>
+            <p class="text-neutral-content/50 mt-1 text-sm">Time tracking, simplified.</p>
+          </div>
+
+          <% if flash[:notice] %>
+            <div class="alert alert-success mb-4 rounded-xl shadow-sm">
+              <span><%= flash[:notice] %></span>
+            </div>
+          <% end %>
+          <% if flash[:alert] %>
+            <div class="alert alert-error mb-4 rounded-xl shadow-sm">
+              <span><%= flash[:alert] %></span>
+            </div>
+          <% end %>
+
+          <div class="card bg-base-100 shadow-2xl rounded-2xl">
+            <div class="card-body">
+              <%= yield %>
+            </div>
+          </div>
+
+          <p class="text-center text-neutral-content/30 text-xs mt-8">Gold Time Tracking</p>
+        </div>
+      </div>
+    <% end %>
+  </body>
+</html>

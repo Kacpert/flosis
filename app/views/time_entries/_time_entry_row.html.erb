@@ -1,0 +1,82 @@
+<%= turbo_frame_tag "time_entry_#{entry.id}" do %>
+  <div class="flex items-center gap-3 px-4 py-3 hover:bg-base-200/30 transition-colors group" data-controller="inline-edit" data-action="keydown->inline-edit#submitOnEscape">
+    <input type="checkbox" class="checkbox checkbox-sm checkbox-primary" value="<%= entry.id %>"
+           data-bulk-select-target="checkbox" data-action="change->bulk-select#toggle">
+
+    <%# Display mode %>
+    <div class="flex items-center gap-3 flex-1 min-w-0" data-inline-edit-target="display">
+      <%# Project color bar %>
+      <span class="w-1 h-10 rounded-full flex-shrink-0" style="background-color: <%= entry.project&.color || '#CBD5E1' %>"></span>
+
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-medium truncate"><%= entry.description.presence || "No description" %></div>
+        <div class="text-xs text-base-content/50 mt-0.5">
+          <% if entry.project %><%= entry.project.name %><% end %>
+          <% if entry.task %> &middot; <%= entry.task.name %><% end %>
+        </div>
+      </div>
+
+      <%# Tags - subtle outline style %>
+      <div class="hidden sm:flex items-center gap-1 flex-shrink-0">
+        <% entry.tags.first(2).each do |tag| %>
+          <span class="text-[10px] px-1.5 py-0.5 rounded border font-medium" style="color: <%= tag.color %>; border-color: <%= tag.color %>40">
+            <%= tag.name %>
+          </span>
+        <% end %>
+        <% if entry.tags.size > 2 %>
+          <span class="text-[10px] text-base-content/40">+<%= entry.tags.size - 2 %></span>
+        <% end %>
+      </div>
+
+      <% if entry.billable? %>
+        <span class="text-success text-xs font-bold flex-shrink-0">$</span>
+      <% end %>
+
+      <span class="text-xs text-base-content/40 font-mono flex-shrink-0">
+        <%= entry.started_at.strftime("%H:%M") %> – <%= entry.stopped_at.strftime("%H:%M") %>
+      </span>
+
+      <span class="font-mono text-sm font-semibold w-20 text-right flex-shrink-0"><%= entry.formatted_duration %></span>
+
+      <%# Hover actions - slide in from right %>
+      <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0">
+        <%= button_to start_timer_path(description: entry.description, project_id: entry.project_id, task_id: entry.task_id),
+            method: :post, class: "btn btn-ghost btn-xs btn-circle", title: "Continue" do %>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <% end %>
+        <button type="button" class="btn btn-ghost btn-xs btn-circle" data-action="click->inline-edit#edit" title="Edit">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+        </button>
+        <%= button_to time_entry_path(entry), method: :delete, class: "btn btn-ghost btn-xs btn-circle text-error",
+            data: { turbo_confirm: "Delete this entry?" } do %>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        <% end %>
+      </div>
+    </div>
+
+    <%# Edit mode (inline) %>
+    <div class="<%= local_assigns[:editing] ? '' : 'hidden' %> flex-1" data-inline-edit-target="form">
+      <%= form_with model: entry, url: time_entry_path(entry), method: :patch, class: "flex items-center gap-2 flex-wrap w-full", data: { action: "keydown->inline-edit#submitOnEnter" } do |f| %>
+        <%= f.text_field :description, placeholder: "Description",
+            class: "input input-sm input-bordered flex-1 min-w-[120px] rounded-lg" %>
+        <%= f.collection_select :project_id,
+            (Current.workspace&.projects&.active&.order(:name) || []), :id, :name,
+            { include_blank: "No project" },
+            class: "select select-sm select-bordered rounded-lg",
+            data: { controller: "task-loader", action: "change->task-loader#load" } %>
+        <%= f.collection_select :task_id,
+            (entry.project ? entry.project.tasks.active : []), :id, :name,
+            { include_blank: "No task" },
+            class: "select select-sm select-bordered rounded-lg" %>
+        <%= f.datetime_local_field :started_at, class: "input input-sm input-bordered w-[165px] rounded-lg" %>
+        <%= f.datetime_local_field :stopped_at, class: "input input-sm input-bordered w-[165px] rounded-lg" %>
+        <label class="flex items-center gap-1">
+          <%= f.check_box :billable, class: "checkbox checkbox-sm checkbox-primary" %>
+          <span class="text-xs">$</span>
+        </label>
+        <%= f.submit "Save", class: "btn btn-primary btn-xs" %>
+        <button type="button" class="btn btn-ghost btn-xs" data-action="click->inline-edit#cancel">Cancel</button>
+      <% end %>
+    </div>
+  </div>
+<% end %>

@@ -1,0 +1,35 @@
+<div class="space-y-4">
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="text-2xl font-bold"><%= @client.name %></h1>
+      <% if @client.notes.present? %>
+        <p class="text-base-content/60 mt-1"><%= @client.notes %></p>
+      <% end %>
+    </div>
+    <div class="flex gap-2">
+      <%= link_to "Edit", edit_client_path(@client), class: "btn btn-ghost btn-sm" %>
+      <%= link_to "Back", clients_path, class: "btn btn-ghost btn-sm" %>
+    </div>
+  </div>
+
+  <div class="card bg-base-100 shadow">
+    <div class="card-body">
+      <h2 class="card-title text-lg">Projects</h2>
+      <% if @projects.any? %>
+        <div class="space-y-2">
+          <% @projects.each do |project| %>
+            <div class="flex items-center justify-between p-2 rounded hover:bg-base-200">
+              <span class="flex items-center gap-2">
+                <%= project_color_dot(project.color) %>
+                <%= link_to project.name, project_path(project), class: "font-medium" %>
+              </span>
+              <span class="badge badge-ghost"><%= project.tasks.size %> tasks</span>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <p class="text-base-content/50">No projects for this client.</p>
+      <% end %>
+    </div>
+  </div>
+</div>

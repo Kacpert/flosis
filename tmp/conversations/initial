@@ -1,0 +1,339 @@
+# Gold - Time Tracking Application
+
+## Project Vision
+
+A modern, intuitive time-tracking application inspired by Clockify and Toggl Track, built with Ruby on Rails and PostgreSQL. The app enables developers and teams to track time effortlessly, manage projects, and generate detailed reports. Designed from day one to support a Phase 2 Jira integration where developers can select tasks directly from their issue tracker instead of typing descriptions manually.
+
+## Tech Stack
+
+- **Backend:** Ruby on Rails 8.1, PostgreSQL
+- **Frontend:** Tailwind CSS + DaisyUI 
+- **JavaScript:** Hotwire (Turbo + Stimulus) -- no heavy JS frameworks
+- **Charts:** Chart.js or ApexCharts via Stimulus controllers
+- **Date Picker:** Flatpickr via Stimulus controller
+- **Design System:** DaisyUI -- chosen for zero JS footprint, 35 built-in themes, semantic class names (`btn btn-primary` vs raw Tailwind), excellent Rails/Hotwire compatibility, and strong dashboard component support (stat cards, tables, badges, tabs, progress bars)
+
+---
+
+## Phase 1: Core Time Tracking App
+
+### Core Features
+
+#### 1. Time Tracking (Primary Experience)
+
+**Timer Mode:**
+- Persistent timer bar visible across ALL views (top navbar) -- never lose context
+- One-click start/stop
+- Description field, project selector, task selector, tag selector inline in the timer bar
+- Running timer shows elapsed time in real-time (Stimulus controller)
+- "Continue" button on past entries to restart with same project/task/tags
+
+**Manual Mode:**
+- Toggle between timer and manual entry (duration or start/end times)
+- Quick-entry row at the top of the time entries list
+- Inline editing of any time entry without modal popups
+
+**Time Entry List (Day View):**
+- Grouped by day with daily total
+- Each entry shows: description, project (color dot), task, tags, start-end times, duration
+- Inline edit on click
+- Bulk actions: delete, change project, toggle billable
+- "Continue" icon on each entry to restart that timer
+
+**Weekly Timesheet View:**
+- Grid: rows = project/task combinations, columns = days of the week
+- Fill in hours per cell
+- Row and column totals
+- Save as template for recurring weeks
+
+**Calendar View (stretch goal for Phase 1):**
+- Weekly calendar with colored time blocks per project
+- Drag to create new entries
+- Resize to adjust duration
+- Integrates visually with the project color system
+
+#### 2. Projects & Organization
+
+**Clients:**
+- Name, contact info, notes
+- Has many projects
+- Used for grouping in reports
+
+**Projects:**
+- Belongs to one client (optional)
+- Name, color (for visual identification across all views), billable flag
+- Hourly rate (default, can be overridden per-user or per-task)
+- Budget: by hours or by money, with progress tracking
+- Time estimate with completion percentage
+- Status: active / archived
+- Architecture note for Phase 2: Include an `external_reference` field (nullable) to store Jira project key mappings
+
+**Tasks:**
+- Belong to one project
+- Name, billable flag override, hourly rate override
+- Status: active / done
+- Architecture note for Phase 2: Include an `external_reference` field (nullable) and `external_type` enum (e.g., "jira_issue") to store Jira issue keys. Also include `external_url` for deep-linking back to the issue tracker.
+
+**Tags:**
+- Workspace-wide (not tied to a specific project)
+- Name + color
+- Many-to-many with time entries
+- Used for cross-cutting categorization (e.g., "meeting", "code-review", "bugfix")
+
+#### 3. Reporting
+
+**Summary Report:**
+- Group by: project, client, user, tag, or date
+- Sub-group support (e.g., client -> project -> user)
+- Bar chart: total hours per group (stacked billable vs non-billable)
+- Pie chart: proportion by group
+- Click any group to drill down into Detailed Report with that filter pre-applied
+- Date range selector with presets: today, this week, last week, this month, last month, this year, custom range
+
+**Detailed Report:**
+- Line-by-line list of every time entry matching filters
+- Columns: description, project, task, tags, user, date, start-end, duration, billable amount
+- Sortable columns
+- Pagination (server-side via Turbo Frames)
+
+**Weekly Report:**
+- Grid view: rows = grouping entity (user, project, client), columns = days
+- Cell values = total hours
+- Row and column totals
+- Useful for team lead overview
+
+**Report Features (all report types):**
+- Filter bar: project, client, user, tag, billable status, date range
+- Export: CSV, PDF (using Prawn or similar)
+- Shareable via URL with encoded filters
+- Print-friendly layout
+
+**Time Recap / Dashboard:**
+- Today's tracked time with breakdown by project
+- This week's total vs last week comparison
+- Stat cards (DaisyUI `stat` component): total hours, billable hours, billable amount, top project
+- Recent activity feed
+- Architecture note for Phase 2: Dashboard will show per-task time recaps (how much time spent on each Jira ticket) -- design the dashboard components to accept task-level breakdowns from the start
+
+#### 4. User & Workspace Management
+
+**Workspace:**
+- Isolation boundary for all data
+- Name, settings (default currency, week start day, time format 12h/24h)
+- A user can belong to multiple workspaces
+
+**Users:**
+- Authentication (Devise or Rails 8 built-in authentication)
+- Roles per workspace: owner, admin, member
+- Profile: name, email, avatar, default hourly rate
+- Timezone setting (all times stored in UTC, displayed in user's timezone)
+
+**Billable Rates:**
+- Workspace default rate
+- Project-level override
+- Task-level override
+- User-level override
+- Priority: task > project > user > workspace default
+
+---
+
+## Phase 2: Jira Integration (Future)
+
+### Concept
+
+Developers should not need to manually type what they are working on. The Jira integration will pull their assigned tickets and present them as selectable tasks. One click to start tracking time against a Jira issue.
+
+### Planned Features
+
+**Jira Connection:**
+- OAuth2 connection to Jira Cloud instance
+- Map Jira projects to Gold projects (one-time setup per project)
+- Sync interval: configurable (e.g., every 15 minutes) or on-demand
+
+**Task Sync:**
+- Pull Jira issues assigned to the user -> create/update tasks in Gold
+- Jira issue key + title -> task name (e.g., "PROJ-123: Fix login bug")
+- Jira issue type (bug/story/task) -> tag in Gold
+- Jira labels -> tags in Gold
+- Jira sprint -> tag or grouping in Gold
+- Deep link from Gold task back to Jira issue
+
+**Time Entry from Jira Tasks:**
+- "My Tasks" panel showing all Jira-synced issues assigned to the current user
+- Filter by project, sprint, status
+- One-click to start timer on any task
+- Recently worked on tasks pinned at top for quick access
+- Search across all synced Jira issues
+
+**Task Time Recap:**
+- Per-task view showing total time spent across all sessions
+- Timeline of all time entries for a specific Jira issue
+- Comparison: estimated time (from Jira story points or time estimate) vs actual tracked time
+- This recap is accessible from the dashboard, from the task list, and from reports
+
+**Work Log Sync (optional):**
+- Push time entries from Gold back to Jira as work logs
+- Configurable: automatic or manual push
+
+### Phase 2 Architecture Considerations for Phase 1
+
+To ensure a smooth Phase 2 integration, the following must be built into Phase 1:
+
+1. **`external_reference` on Task model** -- nullable string for Jira issue key
+2. **`external_type` on Task model** -- nullable enum for integration source
+3. **`external_url` on Task model** -- nullable string for deep link
+4. **`external_reference` on Project model** -- nullable string for Jira project key
+5. **`Integration` model stub** -- workspace-level model for storing integration configs (type, credentials, settings). Can be empty in Phase 1 but the table should exist.
+6. **Task time recap query** -- build the query/scope for "total time per task" early, as it's useful for Phase 1 reports too
+7. **Task selector UI** -- design the task selector dropdown to support both manual tasks and future "pull from Jira" mode. Use a Stimulus controller that can be extended.
+
+---
+
+## Data Model (Phase 1)
+
+```
+Workspace
+  - name: string
+  - currency: string (default: "USD")
+  - week_start: integer (0=Sunday, 1=Monday)
+  - time_format: enum (twelve_hour, twenty_four_hour)
+
+User
+  - email: string
+  - name: string
+  - avatar: (Active Storage attachment)
+  - timezone: string (default: "UTC")
+  - default_hourly_rate_cents: integer
+
+WorkspaceMembership (join table)
+  - workspace_id: references
+  - user_id: references
+  - role: enum (owner, admin, member)
+
+Client
+  - workspace_id: references
+  - name: string
+  - notes: text
+  - archived: boolean (default: false)
+
+Project
+  - workspace_id: references
+  - client_id: references (nullable)
+  - name: string
+  - color: string (hex)
+  - billable: boolean (default: true)
+  - hourly_rate_cents: integer (nullable)
+  - budget_cents: integer (nullable)
+  - budget_hours: decimal (nullable)
+  - status: enum (active, archived)
+  - external_reference: string (nullable) -- Phase 2: Jira project key
+  - external_type: string (nullable) -- Phase 2: "jira"
+
+Task
+  - project_id: references
+  - name: string
+  - billable: boolean (nullable, overrides project)
+  - hourly_rate_cents: integer (nullable, overrides project)
+  - status: enum (active, done)
+  - external_reference: string (nullable) -- Phase 2: Jira issue key
+  - external_type: string (nullable) -- Phase 2: "jira"
+  - external_url: string (nullable) -- Phase 2: Jira issue URL
+
+Tag
+  - workspace_id: references
+  - name: string
+  - color: string (hex)
+
+TimeEntry
+  - workspace_id: references
+  - user_id: references
+  - project_id: references (nullable)
+  - task_id: references (nullable)
+  - description: text
+  - start_time: datetime
+  - end_time: datetime (nullable -- null means timer is running)
+  - duration: integer (seconds, computed on stop)
+  - billable: boolean
+  - created_at / updated_at
+
+TimeEntryTag (join table)
+  - time_entry_id: references
+  - tag_id: references
+
+Integration (stub for Phase 2)
+  - workspace_id: references
+  - type: string (e.g., "jira")
+  - config: jsonb (encrypted -- store API tokens, base URL, sync settings)
+  - active: boolean (default: false)
+```
+
+---
+
+## UI Design Guidelines
+
+### Layout
+- **Left sidebar:** Workspace name, navigation links (Timer, Timesheet, Calendar, Projects, Clients, Tags, Reports, Settings). Collapsible on mobile.
+- **Top bar:** Persistent timer widget (always visible), user avatar + dropdown, workspace switcher.
+- **Main content area:** Full-width, responsive.
+
+### DaisyUI Components Mapping
+- **Timer bar:** `navbar` with `input`, `select`, `btn` components
+- **Time entry list:** `table` with `badge` for tags, colored `dot` for project
+- **Dashboard stats:** `stat` component group (`stats stats-vertical lg:stats-horizontal`)
+- **Reports filter bar:** `join` group of `select` and `input` components
+- **Charts:** Chart.js canvas wrapped in `card` component
+- **Project cards:** `card` with `progress` bar for budget tracking
+- **Modals:** `modal` for confirmations and settings
+- **Tabs:** `tabs tabs-boxed` for switching between report types
+
+### Color System
+- Project colors: 12-16 predefined colors users can pick from (similar to Google Calendar)
+- Billable vs non-billable: distinct visual treatment in charts (solid vs hatched/lighter)
+- Timer running state: green accent on the timer bar
+- Tags: inherit project color or use tag-specific color
+
+### Responsive Design
+- Mobile: sidebar collapses to hamburger menu, timer bar remains fixed at top
+- Tablet: sidebar visible, timer bar in top navbar
+- Desktop: full layout with sidebar + timer bar
+
+---
+
+## Key Interactions (Stimulus Controllers)
+
+1. **TimerController** -- manages start/stop/resume, elapsed time display, real-time counter
+2. **TimeEntryFormController** -- inline editing, project/task/tag selectors with search
+3. **TimesheetController** -- grid cell editing, auto-save on blur, row/column totals
+4. **ReportFilterController** -- filter bar state management, Turbo Frame updates on filter change
+5. **ChartController** -- render Chart.js/ApexCharts from data attributes
+6. **DateRangePickerController** -- Flatpickr wrapper with presets
+7. **ProjectSelectorController** -- searchable dropdown with color dots, extensible for Phase 2 Jira task picker
+8. **ThemeController** -- DaisyUI theme switcher
+
+---
+
+## Development Priorities
+
+### MVP (Week 1-2)
+1. Authentication + workspace setup
+2. Projects, clients, tags CRUD
+3. Time entries with timer (start/stop) and manual entry
+4. Basic time entry list view grouped by day
+
+### Core (Week 3-4)
+5. Weekly timesheet view
+6. Dashboard with stat cards and today's breakdown
+7. Summary report with grouping and charts
+8. Detailed report with filters and export (CSV)
+
+### Polish (Week 5-6)
+9. PDF export for reports
+10. Billable rates cascade (workspace -> project -> task -> user)
+11. Project budgets with progress tracking
+12. Bulk actions on time entries
+13. Shareable report links
+
+### Stretch
+14. Calendar view with drag-and-drop
+15. Keyboard shortcuts
+16. Dark mode via DaisyUI theme toggle

@@ -1,0 +1,8 @@
+<div class="max-w-2xl mx-auto">
+  <h1 class="text-2xl font-bold mb-4">Edit Time Entry</h1>
+  <div class="card bg-base-100 shadow">
+    <div class="card-body">
+      <%= render "form", time_entry: @time_entry, url: time_entry_path(@time_entry), projects: @projects, tags: @tags %>
+    </div>
+  </div>
+</div>

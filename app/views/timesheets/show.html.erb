@@ -1,0 +1,97 @@
+<div class="space-y-4">
+  <div class="flex justify-between items-center">
+    <h1 class="text-2xl font-bold">Timesheet</h1>
+  </div>
+
+  <!-- Week navigation -->
+  <div class="flex items-center justify-between">
+    <%= link_to timesheet_path(week_of: (@week_start - 7.days)), class: "btn btn-ghost btn-sm" do %>
+      &larr; Previous
+    <% end %>
+    <span class="font-medium">
+      <%= @week_start.strftime("%b %d") %> - <%= (@week_start + 6.days).strftime("%b %d, %Y") %>
+    </span>
+    <%= link_to timesheet_path(week_of: (@week_start + 7.days)), class: "btn btn-ghost btn-sm" do %>
+      Next &rarr;
+    <% end %>
+  </div>
+
+  <div class="card bg-base-100 shadow overflow-x-auto">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th class="min-w-[200px]">Project / Task</th>
+          <% @week_days.each do |day| %>
+            <th class="text-center min-w-[80px] <%= day == Date.current ? 'bg-primary/10' : '' %>">
+              <div><%= day.strftime("%a") %></div>
+              <div class="text-xs"><%= day.strftime("%d") %></div>
+            </th>
+          <% end %>
+          <th class="text-center">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @projects.each do |project| %>
+          <% project_tasks = project.tasks.active %>
+          <% rows = project_tasks.any? ? project_tasks : [nil] %>
+          <% rows.each do |task| %>
+            <% key = [project.id, task&.id] %>
+            <% row_total = @week_days.sum { |d| @grid.dig(key, d) || 0 } %>
+            <tr>
+              <td>
+                <div class="flex items-center gap-2">
+                  <%= project_color_dot(project.color) %>
+                  <div>
+                    <div class="font-medium text-sm"><%= project.name %></div>
+                    <% if task %>
+                      <div class="text-xs text-base-content/60"><%= task.name %></div>
+                    <% end %>
+                  </div>
+                </div>
+              </td>
+              <% @week_days.each do |day| %>
+                <% seconds = @grid.dig(key, day) || 0 %>
+                <td class="text-center <%= day == Date.current ? 'bg-primary/10' : '' %>">
+                  <%= form_with url: update_cell_timesheet_path, method: :patch, class: "inline" do |f| %>
+                    <%= f.hidden_field :project_id, value: project.id %>
+                    <%= f.hidden_field :task_id, value: task&.id %>
+                    <%= f.hidden_field :date, value: day %>
+                    <%= f.text_field :duration, value: seconds > 0 ? format("%d:%02d", seconds / 3600, (seconds % 3600) / 60) : "",
+                        class: "input input-bordered input-xs w-16 text-center",
+                        placeholder: "0:00",
+                        data: { action: "blur->timesheet#submit" } %>
+                  <% end %>
+                </td>
+              <% end %>
+              <td class="text-center font-mono font-bold text-sm">
+                <%= row_total > 0 ? format("%d:%02d", row_total / 3600, (row_total % 3600) / 60) : "" %>
+              </td>
+            </tr>
+          <% end %>
+        <% end %>
+      </tbody>
+      <tfoot>
+        <tr class="font-bold">
+          <td>Total</td>
+          <% @week_days.each do |day| %>
+            <td class="text-center font-mono <%= day == Date.current ? 'bg-primary/10' : '' %>">
+              <% total = @day_totals[day] || 0 %>
+              <%= total > 0 ? format("%d:%02d", total / 3600, (total % 3600) / 60) : "" %>
+            </td>
+          <% end %>
+          <td class="text-center font-mono">
+            <% grand_total = @day_totals.values.sum %>
+            <%= grand_total > 0 ? format("%d:%02d", grand_total / 3600, (grand_total % 3600) / 60) : "0:00" %>
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <% if @projects.empty? %>
+    <div class="text-center py-8 text-base-content/50">
+      <p>Create some projects first to use the timesheet.</p>
+      <%= link_to "Create Project", new_project_path, class: "btn btn-primary btn-sm mt-2" %>
+    </div>
+  <% end %>
+</div>

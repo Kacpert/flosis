@@ -1,0 +1,21 @@
+<div class="card bg-base-100 shadow-xl">
+  <div class="card-body">
+    <h2 class="card-title justify-center">Reset Password</h2>
+
+    <%= form_with url: passwords_path, class: "space-y-4" do |f| %>
+      <div class="form-control">
+        <label class="label"><span class="label-text">Email</span></label>
+        <%= f.email_field :email_address, required: true, autofocus: true, autocomplete: "email",
+            class: "input input-bordered w-full", placeholder: "you@example.com" %>
+      </div>
+
+      <div class="form-control mt-6">
+        <%= f.submit "Send Reset Instructions", class: "btn btn-primary w-full" %>
+      </div>
+    <% end %>
+
+    <p class="text-center text-sm mt-4">
+      <%= link_to "Back to sign in", new_session_path, class: "link link-primary" %>
+    </p>
+  </div>
+</div>

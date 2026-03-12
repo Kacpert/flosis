@@ -1,0 +1,12 @@
+<div class="flex items-center justify-between p-2 rounded hover:bg-base-200" id="<%= dom_id(task) %>">
+  <span class="text-sm"><%= task.name %></span>
+  <div class="flex items-center gap-2">
+    <% if task.done? %>
+      <span class="badge badge-ghost badge-sm">Done</span>
+    <% end %>
+    <%= button_to task_path(task), method: :delete, class: "btn btn-ghost btn-xs text-error",
+        data: { turbo_confirm: "Remove task?" } do %>
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    <% end %>
+  </div>
+</div>

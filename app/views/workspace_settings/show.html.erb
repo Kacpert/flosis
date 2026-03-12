@@ -1,0 +1,59 @@
+<div class="max-w-2xl mx-auto space-y-6">
+  <h1 class="text-2xl font-bold">Workspace Settings</h1>
+
+  <%= form_with model: Current.workspace, url: workspace_settings_path, method: :patch, class: "space-y-6" do |f| %>
+    <% if Current.workspace.errors.any? %>
+      <div class="alert alert-error">
+        <ul><% Current.workspace.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %></ul>
+      </div>
+    <% end %>
+
+    <div class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title text-lg">General</h2>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">Workspace Name</span></label>
+          <%= f.text_field :name, class: "input input-bordered w-full", required: true %>
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">Default Currency</span></label>
+          <%= f.select :default_currency,
+              [["USD ($)", "USD"], ["EUR (\u20AC)", "EUR"], ["GBP (\u00A3)", "GBP"], ["CAD (C$)", "CAD"], ["AUD (A$)", "AUD"], ["JPY (\u00A5)", "JPY"], ["CHF (CHF)", "CHF"], ["PLN (z\u0142)", "PLN"]],
+              {}, class: "select select-bordered w-full" %>
+        </div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title text-lg">Time Tracking</h2>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">Week Starts On</span></label>
+          <%= f.select :week_start, [["Monday", 1], ["Sunday", 0]],
+              {}, class: "select select-bordered w-full" %>
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">Time Format</span></label>
+          <%= f.select :time_format, [["24-hour (14:00)", "twenty_four_hour"], ["12-hour (2:00 PM)", "twelve_hour"]],
+              {}, class: "select select-bordered w-full" %>
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">Default Hourly Rate ($)</span></label>
+          <input type="number" name="workspace[default_hourly_rate_dollars]" step="0.01" min="0"
+                 value="<%= Current.workspace.default_hourly_rate_cents ? (Current.workspace.default_hourly_rate_cents / 100.0) : '' %>"
+                 class="input input-bordered w-full"
+                 placeholder="Default rate for new projects">
+        </div>
+      </div>
+    </div>
+
+    <div class="flex gap-2">
+      <%= f.submit "Save Settings", class: "btn btn-primary" %>
+    </div>
+  <% end %>
+</div>

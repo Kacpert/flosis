@@ -1,0 +1,109 @@
+<div class="space-y-4">
+  <div class="flex justify-between items-center">
+    <div class="flex items-center gap-3">
+      <%= project_color_dot(@project.color) %>
+      <h1 class="text-2xl font-bold"><%= @project.name %></h1>
+      <% if @project.client %>
+        <span class="text-base-content/60">&middot; <%= @project.client.name %></span>
+      <% end %>
+    </div>
+    <div class="flex gap-2">
+      <%= link_to "Edit", edit_project_path(@project), class: "btn btn-ghost btn-sm" %>
+      <%= link_to "Back", projects_path, class: "btn btn-ghost btn-sm" %>
+    </div>
+  </div>
+
+  <!-- Project stats -->
+  <div class="stats shadow bg-base-100">
+    <div class="stat">
+      <div class="stat-title">Total Time</div>
+      <div class="stat-value text-lg"><%= format_duration_hm(@total_seconds) %></div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Tasks</div>
+      <div class="stat-value text-lg"><%= @tasks.size %></div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Billable</div>
+      <div class="stat-value text-lg"><%= @project.billable? ? "Yes" : "No" %></div>
+    </div>
+    <% if @project.budget_type != "no_budget" %>
+      <div class="stat">
+        <div class="stat-title">Budget</div>
+        <div class="stat-value text-lg"><%= @project.budget_percentage %>%</div>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Tasks -->
+    <div class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title text-lg">Tasks</h2>
+
+        <div id="tasks-list" class="space-y-1">
+          <% @tasks.each do |task| %>
+            <%= render "tasks/task", task: task %>
+          <% end %>
+        </div>
+
+        <%= form_with model: [@project, Task.new], class: "flex gap-2 mt-3" do |f| %>
+          <%= f.text_field :name, placeholder: "Add task...", class: "input input-bordered input-sm flex-1", required: true %>
+          <%= f.submit "Add", class: "btn btn-primary btn-sm" %>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- Recent entries -->
+    <div class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title text-lg">Recent Entries</h2>
+        <% if @time_entries.any? %>
+          <div class="space-y-2">
+            <% @time_entries.each do |entry| %>
+              <div class="flex items-center justify-between p-2 rounded hover:bg-base-200 text-sm">
+                <div>
+                  <div class="font-medium"><%= entry.description.presence || "No description" %></div>
+                  <div class="text-xs text-base-content/60">
+                    <%= entry.user.name %> &middot; <%= entry.started_at.strftime("%b %d") %>
+                  </div>
+                </div>
+                <span class="font-mono"><%= entry.formatted_duration %></span>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <p class="text-base-content/50">No entries yet.</p>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Time by Task -->
+  <% if @task_time_recap.any? %>
+    <div class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title text-lg">Time by Task</h2>
+        <% max_seconds = @task_time_recap.map { |_, s| s }.max %>
+        <div class="space-y-2 mt-2">
+          <% @task_time_recap.each do |(task_id, task_name, task_status), seconds| %>
+            <div class="flex items-center gap-3">
+              <div class="flex-1">
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-sm font-medium flex items-center gap-2">
+                    <%= task_name %>
+                    <% if task_status == "done" %>
+                      <span class="badge badge-ghost badge-xs">Done</span>
+                    <% end %>
+                  </span>
+                  <span class="text-sm font-mono"><%= format_duration_hm(seconds) %></span>
+                </div>
+                <progress class="progress progress-primary w-full" value="<%= seconds %>" max="<%= max_seconds %>"></progress>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>

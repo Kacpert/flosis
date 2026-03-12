@@ -1,0 +1,204 @@
+# Gold - Testing Results & Improvements
+
+## Testing Summary
+
+All pages tested via Playwright against http://localhost:3000 on March 12, 2026.
+Login: demo@example.com / password123
+
+### Pages Tested
+- [x] Login page
+- [x] Registration page
+- [x] Dashboard (stat cards, today's breakdown, recent entries)
+- [x] Timer (start/stop/continue)
+- [x] Time Entries list (weekly view, filters, day grouping)
+- [x] Time Entry edit form
+- [x] Time Entry new form
+- [x] Timesheet (weekly grid)
+- [x] Projects list (cards with budget progress)
+- [x] Project detail (tasks, recent entries)
+- [x] New Project form (color picker, budget config)
+- [x] Clients list (table with CRUD)
+- [x] Tags list (badge display with edit/delete)
+- [x] Summary Report (pie chart, bar chart, grouping, filters)
+- [x] Detailed Report (full table, pagination, CSV/PDF export links)
+- [x] Weekly Report (bar chart, grid table)
+- [x] User dropdown (workspace info, sign out)
+
+---
+
+## BUGS
+
+### B1: Timer bar missing task selector
+The timer bar at the top only has description + project selector. There is no task selector in the timer bar. The spec says "Description field, project selector, task selector, tag selector inline in the timer bar." Without task selection, time entries started from the timer have no task assigned, making them less useful for reporting and for Phase 2 Jira integration.
+
+### B2: Timer bar missing tag selector
+No tag selector in the persistent timer bar. Tags can only be added after the fact via edit. This adds friction to the tracking workflow.
+
+### B3: Dashboard "Today's Breakdown" doesn't update after timer stop
+After starting and stopping a timer for "Web Application", the Today's Breakdown still shows "Web Application 0m". The dashboard stats ("Today 11h 21m") also didn't visibly refresh. The entry count updates (6->7->8) but the hours total stays stale. Either Turbo Stream updates are missing or the page needs a manual refresh.
+
+### B4: Hourly rate input shows "cents" instead of dollars
+New Project form shows "Hourly Rate (cents)" and "Budget Amount (cents)". Users should enter dollar amounts (e.g., $150.00), not cent values (15000). This is a UX issue -- store as cents internally but present as dollars to the user.
+
+### B5: Budget Hours/Amount fields always visible
+On the New Project form, Budget Hours and Budget Amount fields are visible even when "No Budget" is selected. These should be conditionally shown/hidden based on the Budget Type selection.
+
+### B6: Time entry edit shows raw datetime format
+The edit form shows "2026-03-12T16:21" in the Date & Start Time field. This is the raw HTML datetime-local format. While functional, it's not user-friendly. A friendlier date/time picker (Flatpickr is already in the spec) would be better.
+
+---
+
+## MISSING FEATURES (from the spec)
+
+### M1: No inline editing on time entries list
+Spec says "Inline edit on click" and "Inline editing of any time entry without modal popups". Currently, clicking an entry opens a separate edit page (/time_entries/:id/edit). Inline editing is a core UX improvement for a time tracking app -- Toggl and Clockify both support this.
+
+### M2: No manual entry mode toggle
+Spec says "Toggle between timer and manual entry (duration or start/end times)" in the timer bar. Currently only timer mode exists in the navbar. There should be a toggle to switch to manual entry mode where you enter start/end times directly.
+
+### M3: No bulk actions on time entries
+Spec says "Bulk actions: delete, change project, toggle billable". Checkboxes are present on each entry but there is no bulk action bar that appears when entries are selected. The checkboxes are non-functional.
+
+### M4: No "quick-entry row" at top of time entries list
+Spec mentions a quick-entry row at the top of the time entries list for fast manual entry without navigating to /time_entries/new.
+
+### M5: No date range presets on reports
+Spec says "Date range selector with presets: today, this week, last week, this month, last month, this year, custom range". Reports currently show raw date inputs with no preset buttons.
+
+### M6: No drill-down from Summary Report to Detailed Report
+Spec says "Click any group to drill down into Detailed Report with that filter pre-applied". The project names in the Summary Report table are plain text, not links.
+
+### M7: No shareable report links
+Spec mentions "Shareable via URL with encoded filters". Report filters are not encoded in the URL, so you can't bookmark or share a specific report view.
+
+### M8: No weekly report export (CSV/PDF)
+Detailed Report has CSV and PDF export buttons. Summary and Weekly reports do not. All report types should support export.
+
+### M9: No "This week vs last week" chart on dashboard
+Dashboard shows "-14% vs last week" text, which is good. But the spec mentions a visual comparison. A small sparkline or comparison bar would make this more meaningful.
+
+### M10: No user profile / settings page
+No way to edit user name, timezone, default hourly rate, or password from within the app. The user dropdown only has "Sign Out" and "New Workspace". There should be a profile/settings page.
+
+### M11: No workspace settings page
+Spec mentions workspace settings (default currency, week start day, time format 12h/24h). There is no settings page accessible from the UI.
+
+### M12: No Timesheet template saving
+Spec says "Save as template for recurring weeks". Not implemented.
+
+### M13: Integration model stub exists but no UI
+The Integration table exists in the database (good for Phase 2 prep) but there's no placeholder or settings panel for it.
+
+---
+
+## UX IMPROVEMENTS
+
+### U1: Timer bar should be more prominent when running
+The timer bar changes to show REC + elapsed time when running (good), but the green accent is subtle. Consider making the entire navbar background change to a light green or adding a pulsing animation to make the running state unmistakable.
+
+### U2: Timer description should persist after stop
+When the timer stops, the timer bar clears the description and project. It would be better UX to keep the last description/project pre-filled so users can quickly start a similar entry.
+
+### U3: Time entries need a "today" quick-scroll
+When viewing time entries for the current week, there's a "Today" badge on Thursday's section, but if you scroll to older entries, there's no quick way to jump back to today. A floating "Back to Today" button would help.
+
+### U4: Project color dots are too small in some views
+On the Time Entries list, the project color dots are small and easy to miss. Making them slightly larger or using a color sidebar/border on each entry (like Toggl) would improve scannability.
+
+### U5: Tags in time entry list are visually noisy
+Tags appear as colored badges in the time entry rows, but when multiple tags are present, they compete visually with other elements. Consider a more subtle tag display (smaller, outline-only badges) or showing tags on hover/expand.
+
+### U6: No keyboard shortcuts
+Spec mentions keyboard shortcuts. No keyboard shortcuts are implemented. At minimum: S to start/stop timer, N for new entry, G+D for go to dashboard, G+T for go to time entries.
+
+### U7: No empty state guidance
+When a new user signs up and has no projects/entries, the dashboard will show 0s and empty lists. There should be onboarding guidance: "Create your first project", "Start tracking time", etc.
+
+### U8: Timesheet cells should highlight on hover
+The timesheet grid cells don't have hover state. Adding a hover highlight would make it clearer which cell you're about to edit.
+
+### U9: No confirmation before deleting
+Delete buttons on clients, tags, and time entries have no confirmation dialog. A single accidental click deletes data immediately.
+
+### U10: Sidebar active state is subtle
+The active page in the sidebar has a slightly different background but it's not very visible. Making the active state more prominent (stronger background, left border accent) would improve navigation awareness.
+
+---
+
+## DESIGN IMPROVEMENTS
+
+### D1: DaisyUI is not actually installed
+The app uses Tailwind CSS (tailwindcss-rails gem is in the Gemfile) but there is no DaisyUI integration. The spec calls for DaisyUI as the design system. The current UI uses raw Tailwind classes, which means:
+- No semantic component classes (btn-primary, card, stat, etc.)
+- No theme system (corporate/business themes)
+- No dark mode toggle capability
+- More verbose and harder to maintain templates
+
+Recommendation: Install DaisyUI and refactor to use its component classes.
+
+### D2: Login/registration pages are plain
+The auth pages work but are very minimal. A branded landing feel (app description, feature highlights, or at least a nice illustration) would improve first impressions.
+
+### D3: No loading states
+There are no loading indicators when performing actions (starting timer, saving entries, applying report filters). Turbo should show loading states for frame navigations.
+
+### D4: Charts lack interactivity
+The Summary Report pie chart and bar charts render but have no tooltips or click interaction. Chart.js supports hover tooltips out of the box -- they should be enabled.
+
+### D5: Mobile responsiveness not tested
+The sidebar uses a drawer pattern which should collapse on mobile, but mobile testing was not performed. The timer bar especially needs attention on small screens.
+
+### D6: No favicon / app branding
+The browser tab shows generic "Gold" text. A proper favicon and branded logo would improve the professional feel.
+
+---
+
+## ARCHITECTURE CONCERNS FOR PHASE 2
+
+### A1: Task selector needs searchable dropdown
+Current task selector is a plain HTML <select>. For Phase 2 Jira integration, there could be hundreds of tasks per project. The task selector needs to be a searchable/filterable dropdown (e.g., Stimulus-powered combobox with search input). Build this in Phase 1.
+
+### A2: Time entry description should support autocomplete
+When developers start typing in the timer bar, suggest recent descriptions. This is useful now and essential for Phase 2 where Jira issue titles will be suggested.
+
+### A3: No "My Tasks" panel on dashboard
+The spec mentions a "My Tasks" panel for Phase 2 Jira integration. The dashboard layout should have a slot/section ready for this. Currently the dashboard has Today's Breakdown + Recent Entries. A third column or tab for "My Tasks" should be planned.
+
+### A4: Per-task time recap not implemented
+Spec says "build the query/scope for total time per task early". The project detail page shows recent entries but not a time recap grouped by task. This is the foundation for Phase 2's "how much time did I spend on PROJ-123" feature.
+
+### A5: External reference fields exist but no UI
+The database has external_reference, external_type, external_url on tasks and projects (good). But there's no way to see or manage these from the UI. Even a read-only display would be useful for debugging in Phase 1.
+
+---
+
+## PRIORITY ORDER FOR FIXES
+
+### High Priority (fix before production)
+1. B1: Add task selector to timer bar
+2. B4: Show hourly rate in dollars, not cents
+3. B5: Conditionally show budget fields based on type
+4. M10: Add user profile/settings page
+5. M11: Add workspace settings page
+6. U9: Add delete confirmation dialogs
+
+### Medium Priority (next sprint)
+7. M1: Inline editing on time entries list
+8. M2: Manual entry mode toggle in timer bar
+9. M3: Bulk actions (wire up the existing checkboxes)
+10. M5: Date range presets on reports
+11. M6: Drill-down from summary to detailed report
+12. B2: Add tag selector to timer bar
+13. U7: Empty state guidance for new users
+14. D1: Install DaisyUI properly
+
+### Lower Priority (polish)
+15. M7: Shareable report links (URL-encoded filters)
+16. M8: Export on all report types
+17. U1: More prominent running timer visual
+18. U6: Keyboard shortcuts
+19. A1: Searchable task dropdown
+20. A4: Per-task time recap on project detail
+21. B6: Better date/time picker (Flatpickr)
+22. D3: Loading states
+23. D4: Chart interactivity (tooltips)

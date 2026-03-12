@@ -1,0 +1,69 @@
+<div class="space-y-4">
+  <div class="flex justify-between items-center">
+    <h1 class="text-2xl font-bold">Projects</h1>
+    <div class="flex gap-2">
+      <label class="label cursor-pointer gap-2">
+        <%= check_box_tag :show_archived, "1", params[:show_archived] == "1",
+            onchange: "window.location.search = this.checked ? '?show_archived=1' : ''",
+            class: "checkbox checkbox-sm" %>
+        <span class="label-text">Show archived</span>
+      </label>
+      <%= link_to "New Project", new_project_path, class: "btn btn-primary btn-sm" %>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    <% @projects.each do |project| %>
+      <div class="card bg-base-100 shadow hover:shadow-md transition-shadow">
+        <div class="card-body">
+          <div class="flex items-start justify-between">
+            <h2 class="card-title text-base">
+              <%= project_color_dot(project.color) %>
+              <%= link_to project.name, project_path(project) %>
+            </h2>
+            <% if project.archived? %>
+              <span class="badge badge-ghost">Archived</span>
+            <% end %>
+          </div>
+
+          <% if project.client %>
+            <p class="text-sm text-base-content/60"><%= project.client.name %></p>
+          <% end %>
+
+          <div class="flex gap-2 mt-1">
+            <% if project.billable? %>
+              <span class="badge badge-success badge-sm">Billable</span>
+            <% end %>
+            <span class="badge badge-ghost badge-sm"><%= project.tasks.size %> tasks</span>
+          </div>
+
+          <% if project.budget_type != "no_budget" && (project.budget_hours.present? || project.budget_cents.present?) %>
+            <div class="mt-2">
+              <div class="flex justify-between text-xs mb-1">
+                <span>Budget</span>
+                <span><%= project.budget_percentage %>%</span>
+              </div>
+              <progress class="progress w-full <%= project.budget_percentage > 90 ? 'progress-error' : project.budget_percentage > 75 ? 'progress-warning' : 'progress-success' %>"
+                        value="<%= [project.budget_percentage, 100].min %>" max="100"></progress>
+            </div>
+          <% end %>
+
+          <div class="card-actions justify-end mt-2">
+            <%= link_to "Edit", edit_project_path(project), class: "btn btn-ghost btn-xs" %>
+            <% if project.archived? %>
+              <%= button_to "Restore", unarchive_project_path(project), method: :patch, class: "btn btn-ghost btn-xs" %>
+            <% else %>
+              <%= button_to "Archive", archive_project_path(project), method: :patch, class: "btn btn-ghost btn-xs" %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+    <% if @projects.empty? %>
+      <div class="col-span-full text-center py-12 text-base-content/50">
+        <p>No projects yet. Create your first project!</p>
+      </div>
+    <% end %>
+  </div>
+</div>
