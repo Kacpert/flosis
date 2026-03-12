@@ -65,7 +65,7 @@
         <span class="day-header-total"><%= format_duration(entries.sum(&:duration_seconds)) %></span>
       </div>
 
-      <div class="bg-base-100 rounded-2xl border border-base-300/40 overflow-hidden">
+      <div class="glow-card">
         <% entries.sort_by(&:started_at).reverse.each_with_index do |entry, i| %>
           <% if i > 0 %><div class="border-t border-base-200/60 mx-4"></div><% end %>
           <%= render "time_entries/time_entry_row", entry: entry %>
