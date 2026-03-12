@@ -26,10 +26,10 @@
   <% end %>
 
   <%# Stats Grid %>
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
     <%# Today card with primary accent %>
-    <div class="card bg-base-100 shadow-sm border border-base-300/50">
-      <div class="card-body p-4">
+    <div class="bg-base-100 shadow-sm border border-base-300/50 rounded-xl">
+      <div class="p-4">
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium text-base-content/60">Today</span>
           <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -44,8 +44,8 @@
     </div>
 
     <%# This Week with comparison arrow %>
-    <div class="card bg-base-100 shadow-sm border border-base-300/50">
-      <div class="card-body p-4">
+    <div class="bg-base-100 shadow-sm border border-base-300/50 rounded-xl">
+      <div class="p-4">
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium text-base-content/60">This Week</span>
           <div class="w-8 h-8 rounded-lg bg-info/10 flex items-center justify-center">
@@ -75,8 +75,8 @@
     </div>
 
     <%# Billable %>
-    <div class="card bg-base-100 shadow-sm border border-base-300/50">
-      <div class="card-body p-4">
+    <div class="bg-base-100 shadow-sm border border-base-300/50 rounded-xl">
+      <div class="p-4">
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium text-base-content/60">Billable</span>
           <div class="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center">
@@ -91,8 +91,8 @@
     </div>
 
     <%# Active Projects %>
-    <div class="card bg-base-100 shadow-sm border border-base-300/50">
-      <div class="card-body p-4">
+    <div class="bg-base-100 shadow-sm border border-base-300/50 rounded-xl">
+      <div class="p-4">
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium text-base-content/60">Active Projects</span>
           <div class="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center">
@@ -110,7 +110,7 @@
   </div>
 
   <%# Two column layout %>
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem;">
     <%# Today's Breakdown %>
     <div class="card bg-base-100 shadow-sm border border-base-300/50">
       <div class="card-body">
