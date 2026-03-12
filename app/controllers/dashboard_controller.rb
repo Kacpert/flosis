@@ -20,7 +20,6 @@ class DashboardController < ApplicationController
       .in_range(week_start, today.end_of_day)
 
     @week_seconds = @week_entries.sum(:duration_seconds)
-    @week_billable_seconds = @week_entries.billable.sum(:duration_seconds)
 
     last_week_start = week_start - 7.days
     last_week_end = week_start - 1.second
@@ -29,8 +28,6 @@ class DashboardController < ApplicationController
       .completed
       .in_range(last_week_start, last_week_end)
       .sum(:duration_seconds)
-
-    @billable_amount = @week_entries.billable.sum("time_entries.duration_seconds * COALESCE(time_entries.hourly_rate_cents, 0) / 360000.0")
 
     @projects_breakdown = current_workspace.time_entries
       .where(user: current_user)

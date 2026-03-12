@@ -30,9 +30,6 @@
         <% end %>
 
         <div class="flex items-center gap-2 mt-3 ml-5">
-          <% if project.billable? %>
-            <span class="text-[10px] font-medium text-success bg-success/10 px-2 py-0.5 rounded-full">Billable</span>
-          <% end %>
           <span class="text-[10px] font-medium text-base-content/40 bg-base-200/80 px-2 py-0.5 rounded-full"><%= project.tasks.size %> tasks</span>
         </div>
 

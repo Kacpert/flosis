@@ -43,12 +43,6 @@
     </div>
 
     <div class="stat-card">
-      <div class="stat-label">Billable</div>
-      <div class="stat-number text-success"><%= format_duration_hm(@week_billable_seconds) %></div>
-      <div class="stat-detail">$<%= '%.2f' % @billable_amount %> this week</div>
-    </div>
-
-    <div class="stat-card">
       <div class="stat-label">Active Projects</div>
       <div class="stat-number"><%= @active_projects_count %></div>
       <div class="stat-detail">

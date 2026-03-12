@@ -11,13 +11,11 @@ class TimeEntry < ApplicationRecord
   validate :no_duplicate_running_timer, on: :create
 
   before_save :calculate_duration, if: -> { stopped_at.present? }
-  before_save :inherit_billable_from_project, if: -> { project_id_changed? && project.present? }
   before_save :set_hourly_rate, if: -> { stopped_at.present? }
 
   scope :running, -> { where(stopped_at: nil) }
   scope :completed, -> { where.not(stopped_at: nil) }
   scope :in_range, ->(from, to) { where(started_at: from..to) }
-  scope :billable, -> { where(billable: true) }
   scope :for_date, ->(date) { where(started_at: date.beginning_of_day..date.end_of_day) }
 
   def running?
@@ -48,15 +46,6 @@ class TimeEntry < ApplicationRecord
       0
   end
 
-  def billable_amount_cents
-    return 0 unless billable?
-    (duration_seconds / 3600.0 * effective_rate_cents).round
-  end
-
-  def billable_amount
-    billable_amount_cents / 100.0
-  end
-
   private
 
   def stopped_at_after_started_at
@@ -73,10 +62,6 @@ class TimeEntry < ApplicationRecord
 
   def calculate_duration
     self.duration_seconds = (stopped_at - started_at).to_i
-  end
-
-  def inherit_billable_from_project
-    self.billable = project.billable
   end
 
   def set_hourly_rate

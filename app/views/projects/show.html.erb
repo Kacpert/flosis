@@ -24,10 +24,6 @@
       <div class="stat-label">Tasks</div>
       <div class="stat-number"><%= @tasks.size %></div>
     </div>
-    <div class="stat-card">
-      <div class="stat-label">Billable</div>
-      <div class="stat-number"><%= @project.billable? ? "Yes" : "No" %></div>
-    </div>
     <% if @project.budget_type != "no_budget" %>
       <div class="stat-card">
         <div class="stat-label">Budget</div>

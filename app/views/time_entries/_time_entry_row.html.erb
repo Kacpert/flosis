@@ -5,7 +5,7 @@
 
     <%# Display mode %>
     <div class="flex items-center gap-3 flex-1 min-w-0" data-inline-edit-target="display">
-      <span class="w-0.5 h-8 rounded-full flex-shrink-0" style="background-color: <%= entry.project&.color || '#CBD5E1' %>"></span>
+      <span class="w-1 h-9 rounded-full flex-shrink-0" style="background-color: <%= entry.project&.color || '#CBD5E1' %>"></span>
 
       <div class="flex-1 min-w-0">
         <div class="text-sm font-medium truncate"><%= entry.description.presence || "No description" %></div>
@@ -26,10 +26,6 @@
           <span class="text-[10px] text-base-content/35">+<%= entry.tags.size - 2 %></span>
         <% end %>
       </div>
-
-      <% if entry.billable? %>
-        <span class="text-success text-xs font-semibold flex-shrink-0">$</span>
-      <% end %>
 
       <span class="text-xs text-base-content/35 mono-duration flex-shrink-0">
         <%= entry.started_at.strftime("%H:%M") %> – <%= entry.stopped_at.strftime("%H:%M") %>
@@ -69,10 +65,6 @@
             class: "select select-sm select-bordered rounded-lg" %>
         <%= f.datetime_local_field :started_at, class: "input input-sm input-bordered w-[165px] rounded-lg" %>
         <%= f.datetime_local_field :stopped_at, class: "input input-sm input-bordered w-[165px] rounded-lg" %>
-        <label class="flex items-center gap-1">
-          <%= f.check_box :billable, class: "checkbox checkbox-sm checkbox-primary" %>
-          <span class="text-xs">$</span>
-        </label>
         <%= f.submit "Save", class: "btn btn-primary btn-xs rounded-lg" %>
         <button type="button" class="btn btn-ghost btn-xs" data-action="click->inline-edit#cancel">Cancel</button>
       <% end %>

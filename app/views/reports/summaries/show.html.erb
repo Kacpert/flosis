@@ -29,28 +29,19 @@
         <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
             { include_blank: "All" }, class: "select select-bordered select-sm rounded-lg" %>
       </div>
-      <div class="form-control">
-        <label class="label label-text text-xs">Billable</label>
-        <%= f.select :billable, [["Yes", "1"], ["No", "0"]],
-            { include_blank: "All" }, class: "select select-bordered select-sm rounded-lg" %>
-      </div>
       <%= f.submit "Apply", class: "btn btn-primary btn-sm rounded-lg" %>
     </div>
   <% end %>
 
   <%# Stats %>
-  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;">
+  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
     <div class="stat-card">
       <div class="stat-label">Total Hours</div>
       <div class="stat-number"><%= format_duration_hm(@total_seconds) %></div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Billable Hours</div>
-      <div class="stat-number text-success"><%= format_duration_hm(@billable_seconds) %></div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Billable Amount</div>
-      <div class="stat-number">$<%= '%.2f' % @billable_amount %></div>
+      <div class="stat-label">Entries</div>
+      <div class="stat-number"><%= @entries.size %></div>
     </div>
   </div>
 

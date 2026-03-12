@@ -14,7 +14,6 @@ class TimersController < ApplicationController
       description: params[:description],
       project_id: params[:project_id],
       task_id: params[:task_id],
-      billable: params[:project_id].present? ? Project.find_by(id: params[:project_id])&.billable : true,
       tag_ids: Array(params[:tag_ids])
     )
 

@@ -70,7 +70,7 @@
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 1px;
-  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.8) 20%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.8) 80%, rgba(255,255,255,0));
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.9) 20%, rgba(255,255,255,1) 50%, rgba(255,255,255,0.9) 80%, rgba(255,255,255,0));
   z-index: 2;
 }
 /* Subtle purple tint wash */
@@ -135,6 +135,12 @@
   border-radius: 0.625rem;
   border: 1px solid oklch(var(--bc) / 0.08);
   overflow: hidden;
+  box-shadow: 0 1px 3px oklch(var(--bc) / 0.04);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.glow-card:hover {
+  box-shadow: 0 4px 12px oklch(var(--bc) / 0.07);
+  border-color: oklch(var(--bc) / 0.12);
 }
 
 .paper-content {
@@ -266,6 +272,16 @@
 /* ─── Day separators ─── */
 .day-header {
   @apply flex items-center justify-between py-3 px-1;
+  position: relative;
+}
+.day-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, oklch(var(--bc) / 0.08), oklch(var(--bc) / 0.04), transparent);
 }
 .day-header-label {
   @apply text-sm font-semibold text-base-content/70;

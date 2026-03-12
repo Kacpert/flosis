@@ -17,13 +17,37 @@
     <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
         { include_blank: "All projects" },
         class: "select select-bordered select-sm rounded-lg w-36", data: { action: "change->filter#submit" } %>
-    <%= f.select :billable, [["Billable", "1"], ["Non-billable", "0"]],
-        { include_blank: "All" },
-        class: "select select-bordered select-sm rounded-lg w-24", data: { action: "change->filter#submit" } %>
     <%= f.select :tag_id, @tags.map { |t| [t.name, t.id] },
         { include_blank: "All tags" },
         class: "select select-bordered select-sm rounded-lg w-28", data: { action: "change->filter#submit" } %>
   <% end %>
+
+  <%# Week summary stats %>
+  <% week_total = @entries.sum(&:duration_seconds) %>
+  <% today_entries = @entries_by_day[Date.current] || [] %>
+  <% today_total = today_entries.sum(&:duration_seconds) %>
+  <% week_target = 40 * 3600 %>
+  <% progress_pct = [(week_total.to_f / week_target * 100).round, 100].min %>
+  <div class="flex items-center gap-6 px-1">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </div>
+      <div>
+        <div class="text-xs text-base-content/50">Today</div>
+        <div class="text-sm font-bold mono-duration"><%= format_duration(today_total) %></div>
+      </div>
+    </div>
+    <div class="flex-1">
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-[10px] text-base-content/40 font-medium">Weekly goal</span>
+        <span class="text-[10px] text-base-content/40 font-medium mono-duration"><%= format_duration(week_total) %> / 40:00:00</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-base-200/80 overflow-hidden">
+        <div class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-500" style="width: <%= progress_pct %>%"></div>
+      </div>
+    </div>
+  </div>
 
   <%# Entries list with bulk actions %>
   <div data-controller="bulk-select">
@@ -46,11 +70,6 @@
         <%= f.submit "Move", class: "btn btn-ghost btn-xs" %>
       <% end %>
 
-      <%= form_with url: bulk_update_time_entries_path, method: :post, class: "inline" do |f| %>
-        <div data-bulk-select-target="idsContainer"></div>
-        <%= f.hidden_field :bulk_action, value: "toggle_billable" %>
-        <%= f.submit "Toggle Billable", class: "btn btn-ghost btn-xs" %>
-      <% end %>
     </div>
 
     <%# Time entries grouped by day %>

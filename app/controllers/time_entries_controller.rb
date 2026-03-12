@@ -14,10 +14,6 @@ class TimeEntriesController < ApplicationController
       scope = scope.where(project_id: params[:project_id])
     end
 
-    if params[:billable].present?
-      scope = scope.where(billable: params[:billable] == "1")
-    end
-
     if params[:tag_id].present?
       scope = scope.joins(:time_entry_tags).where(time_entry_tags: { tag_id: params[:tag_id] })
     end
@@ -108,8 +104,6 @@ class TimeEntriesController < ApplicationController
     case params[:bulk_action]
     when "change_project"
       entries.update_all(project_id: params[:project_id].presence, task_id: nil)
-    when "toggle_billable"
-      entries.each { |e| e.update(billable: !e.billable?) }
     else
       entries.each { |entry| entry.update(bulk_params) }
     end
@@ -132,11 +126,11 @@ class TimeEntriesController < ApplicationController
 
   def time_entry_params
     params.require(:time_entry).permit(:description, :project_id, :task_id, :started_at, :stopped_at,
-                                       :billable, tag_ids: [])
+                                       tag_ids: [])
   end
 
   def bulk_params
-    params.permit(:project_id, :billable)
+    params.permit(:project_id)
   end
 
   def handle_manual_duration

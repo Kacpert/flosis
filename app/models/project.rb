@@ -28,7 +28,7 @@ class Project < ApplicationRecord
   end
 
   def budget_used_cents
-    time_entries.where.not(stopped_at: nil).where(billable: true).sum("duration_seconds * COALESCE(hourly_rate_cents, 0) / 3600")
+    time_entries.where.not(stopped_at: nil).sum("duration_seconds * COALESCE(hourly_rate_cents, 0) / 3600")
   end
 
   def budget_percentage
