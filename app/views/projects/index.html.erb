@@ -31,7 +31,7 @@
 
         <div class="flex items-center gap-2 mt-3 ml-5">
           <% if project.billable? %>
-            <span class="text-[10px] font-medium px-2 py-0.5 rounded-full" style="color: var(--color-success); background: rgba(76, 175, 80, 0.1)">Billable</span>
+            <span class="text-[10px] font-medium px-2 py-0.5 rounded-full" style="color: var(--color-success); background: var(--color-success-container)">Billable</span>
           <% end %>
           <span class="text-[10px] font-medium px-2 py-0.5 rounded-full" style="color: var(--color-outline); background: var(--color-surface-container)"><%= project.tasks.size %> tasks</span>
         </div>

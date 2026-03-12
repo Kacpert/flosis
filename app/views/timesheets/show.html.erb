@@ -22,7 +22,7 @@
         <tr>
           <th class="min-w-[200px]">Project / Task</th>
           <% @week_days.each do |day| %>
-            <th class="text-center min-w-[80px]" style="<%= day == Date.current ? 'background: rgba(103, 80, 164, 0.08)' : '' %>">
+            <th class="text-center min-w-[80px]" style="<%= day == Date.current ? 'background: rgba(74, 103, 65, 0.08)' : '' %>">
               <div><%= day.strftime("%a") %></div>
               <div class="text-xs" style="color: var(--color-on-surface-variant)"><%= day.strftime("%d") %></div>
             </th>
@@ -51,7 +51,7 @@
               </td>
               <% @week_days.each do |day| %>
                 <% seconds = @grid.dig(key, day) || 0 %>
-                <td class="text-center" style="<%= day == Date.current ? 'background: rgba(103, 80, 164, 0.08)' : '' %>">
+                <td class="text-center" style="<%= day == Date.current ? 'background: rgba(74, 103, 65, 0.08)' : '' %>">
                   <%= form_with url: update_cell_timesheet_path, method: :patch, class: "inline" do |f| %>
                     <%= f.hidden_field :project_id, value: project.id %>
                     <%= f.hidden_field :task_id, value: task&.id %>
@@ -74,7 +74,7 @@
         <tr class="font-bold">
           <td style="color: var(--color-on-surface)">Total</td>
           <% @week_days.each do |day| %>
-            <td class="text-center font-mono" style="color: var(--color-on-surface); <%= day == Date.current ? 'background: rgba(103, 80, 164, 0.08)' : '' %>">
+            <td class="text-center font-mono" style="color: var(--color-on-surface); <%= day == Date.current ? 'background: rgba(74, 103, 65, 0.08)' : '' %>">
               <% total = @day_totals[day] || 0 %>
               <%= total > 0 ? format("%d:%02d", total / 3600, (total % 3600) / 60) : "" %>
             </td>

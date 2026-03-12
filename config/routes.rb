@@ -36,6 +36,7 @@ Rails.application.routes.draw do
   resource :timer, only: [] do
     post :start
     patch :stop
+    patch :update_running
     delete :discard
   end
 

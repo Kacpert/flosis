@@ -110,7 +110,7 @@
         <div class="space-y-0.5">
           <% @today_entries.first(6).each do |entry| %>
             <div class="flex items-center gap-3 p-2 rounded-[var(--radius-sm)] transition-colors group" style="cursor: default;" onmouseover="this.style.background='var(--color-surface-container)'" onmouseout="this.style.background='transparent'">
-              <span class="w-0.5 h-7 rounded-full flex-shrink-0" style="background-color: <%= entry.project&.color || '#CAC4D0' %>"></span>
+              <span class="w-0.5 h-7 rounded-full flex-shrink-0" style="background-color: <%= entry.project&.color || '#CEC8BC' %>"></span>
               <div class="flex-1 min-w-0">
                 <div class="text-sm font-medium truncate" style="color: var(--color-on-surface)"><%= entry.description.presence || "No description" %></div>
                 <div class="text-xs" style="color: var(--color-on-surface-variant)">

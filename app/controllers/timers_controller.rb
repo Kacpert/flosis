@@ -21,6 +21,16 @@ class TimersController < ApplicationController
     redirect_back fallback_location: root_path
   end
 
+  def update_running
+    timer = current_user.running_timer(current_workspace)
+
+    if timer
+      timer.update!(timer_params)
+    end
+
+    redirect_back fallback_location: root_path
+  end
+
   def stop
     timer = current_user.running_timer(current_workspace)
 
@@ -36,5 +46,11 @@ class TimersController < ApplicationController
     timer&.destroy
 
     redirect_back fallback_location: root_path
+  end
+
+  private
+
+  def timer_params
+    params.require(:time_entry).permit(:description, :project_id, :task_id)
   end
 end

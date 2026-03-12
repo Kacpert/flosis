@@ -45,7 +45,7 @@
                 data-chart-data-value='<%= {
                   labels: @week_days.map { |d| d.strftime("%a %-d") },
                   datasets: @grid.map.with_index { |(name, days), i|
-                    colors = %w[#6750A4 #EF4444 #10B981 #F59E0B #8B5CF6 #EC4899 #06B6D4 #F97316]
+                    colors = %w[#4A6741 #EF4444 #10B981 #F59E0B #7A6E5D #EC4899 #06B6D4 #F97316]
                     {
                       label: name,
                       data: @week_days.map { |d| ((days[d] || 0) / 3600.0).round(2) },
@@ -65,7 +65,7 @@
         <tr>
           <th><%= @group_by.titleize %></th>
           <% @week_days.each do |day| %>
-            <th class="text-center" style="<%= day == Date.current ? 'background: rgba(103, 80, 164, 0.05)' : '' %>">
+            <th class="text-center" style="<%= day == Date.current ? 'background: rgba(74, 103, 65, 0.06)' : '' %>">
               <div class="text-xs"><%= day.strftime("%a") %></div>
               <div class="text-[10px]" style="color: var(--color-outline)"><%= day.strftime("%-d") %></div>
             </th>
@@ -79,7 +79,7 @@
             <td class="font-medium text-sm" style="color: var(--color-on-surface)"><%= name %></td>
             <% @week_days.each do |day| %>
               <% seconds = days[day] || 0 %>
-              <td class="text-center mono-duration text-sm" style="<%= day == Date.current ? 'background: rgba(103, 80, 164, 0.05)' : '' %>">
+              <td class="text-center mono-duration text-sm" style="<%= day == Date.current ? 'background: rgba(74, 103, 65, 0.06)' : '' %>">
                 <%= seconds > 0 ? format("%d:%02d", seconds / 3600, (seconds % 3600) / 60) : "" %>
               </td>
             <% end %>
@@ -94,7 +94,7 @@
         <tr class="font-bold">
           <td class="text-sm" style="color: var(--color-on-surface)">Total</td>
           <% @week_days.each do |day| %>
-            <td class="text-center mono-duration text-sm" style="color: var(--color-on-surface); <%= day == Date.current ? 'background: rgba(103, 80, 164, 0.05)' : '' %>">
+            <td class="text-center mono-duration text-sm" style="color: var(--color-on-surface); <%= day == Date.current ? 'background: rgba(74, 103, 65, 0.06)' : '' %>">
               <% total = @day_totals[day] || 0 %>
               <%= total > 0 ? format("%d:%02d", total / 3600, (total % 3600) / 60) : "" %>
             </td>
