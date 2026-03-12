@@ -1,39 +1,44 @@
 <% if @running_timer %>
   <div class="flex items-center gap-3 w-full" data-controller="timer" data-timer-started-at-value="<%= @running_timer.started_at.iso8601 %>">
-    <div class="badge badge-success gap-1 timer-rec-badge">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
-      REC
+    <%# Pulsing indicator %>
+    <div class="flex items-center gap-2">
+      <span class="relative flex h-3 w-3">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75"></span>
+        <span class="relative inline-flex rounded-full h-3 w-3 bg-error"></span>
+      </span>
+      <span class="font-mono text-xl font-bold tracking-tight" data-timer-target="display">00:00:00</span>
     </div>
 
-    <span class="font-mono text-lg font-bold tracking-tight" data-timer-target="display">00:00:00</span>
+    <%# Entry info %>
+    <div class="flex items-center gap-2 flex-1 min-w-0">
+      <% if @running_timer.project %>
+        <span class="flex items-center gap-1.5 px-2 py-1 rounded-md bg-base-200/50">
+          <span class="w-2.5 h-2.5 rounded-full" style="background-color: <%= @running_timer.project.color %>"></span>
+          <span class="text-sm font-medium"><%= @running_timer.project.name %></span>
+        </span>
+      <% end %>
+      <% if @running_timer.task %>
+        <span class="text-sm text-base-content/50"><%= @running_timer.task.name %></span>
+      <% end %>
+      <span class="text-sm text-base-content/60 truncate"><%= @running_timer.description %></span>
+    </div>
 
-    <% if @running_timer.project %>
-      <span class="flex items-center gap-1.5">
-        <%= project_color_dot(@running_timer.project.color) %>
-        <span class="text-sm font-medium"><%= @running_timer.project.name %></span>
-      </span>
-    <% end %>
-
-    <% if @running_timer.task %>
-      <span class="text-sm text-base-content/60"><%= @running_timer.task.name %></span>
-    <% end %>
-
-    <span class="text-sm text-base-content/60 hidden sm:inline"><%= @running_timer.description %></span>
-
+    <%# Tags %>
     <% if @running_timer.tags.any? %>
       <div class="hidden sm:flex gap-1">
         <% @running_timer.tags.each do |tag| %>
-          <span class="badge badge-xs" style="background-color: <%= tag.color %>20; color: <%= tag.color %>"><%= tag.name %></span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded border" style="color: <%= tag.color %>; border-color: <%= tag.color %>40"><%= tag.name %></span>
         <% end %>
       </div>
     <% end %>
 
-    <div class="flex items-center gap-2 ml-auto">
-      <%= button_to stop_timer_path, method: :patch, class: "btn btn-error btn-sm rounded-lg gap-1 shadow-sm" do %>
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+    <%# Stop/Discard buttons %>
+    <div class="flex items-center gap-1.5 ml-auto">
+      <%= button_to stop_timer_path, method: :patch, class: "btn btn-error btn-sm rounded-full gap-1" do %>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
         Stop
       <% end %>
-      <%= button_to discard_timer_path, method: :delete, class: "btn btn-ghost btn-sm rounded-lg",
+      <%= button_to discard_timer_path, method: :delete, class: "btn btn-ghost btn-sm btn-circle",
           data: { turbo_confirm: "Discard this timer?" } do %>
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       <% end %>
@@ -43,78 +48,74 @@
   <div data-controller="timer-mode" class="w-full">
     <%# Timer mode %>
     <div data-timer-mode-target="timerMode">
-      <%= form_with url: start_timer_path, method: :post, class: "timer-input-bar" do |f| %>
+      <%= form_with url: start_timer_path, method: :post, class: "flex items-center gap-2 w-full bg-base-200/40 rounded-xl px-3 py-1.5" do |f| %>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-base-content/30 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         <%= f.text_field :description, placeholder: "What are you working on?",
-            class: "bg-transparent border-none focus:outline-none focus:ring-0 flex-1 min-w-[150px] text-sm placeholder:text-base-content/40" %>
+            class: "bg-transparent border-none flex-1 min-w-[120px] text-sm focus:outline-none placeholder:text-base-content/30" %>
 
-        <div class="hidden sm:flex items-center gap-1.5 border-l border-base-300 pl-3">
-          <%= f.select :project_id,
-              options_from_collection_for_select(Current.workspace&.projects&.active&.order(:name) || [], :id, :name),
-              { include_blank: "Project" },
-              class: "select select-sm select-ghost bg-transparent max-w-[140px] text-sm",
-              data: { controller: "task-loader", action: "change->task-loader#load" } %>
-          <%= f.select :task_id, [],
-              { include_blank: "Task" },
-              class: "select select-sm select-ghost bg-transparent max-w-[120px] text-sm" %>
-        </div>
+        <div class="h-5 w-px bg-base-300 hidden sm:block"></div>
+
+        <%= f.select :project_id,
+            options_from_collection_for_select(Current.workspace&.projects&.active&.order(:name) || [], :id, :name),
+            { include_blank: "Project" },
+            class: "bg-transparent border-none text-sm focus:outline-none max-w-[130px] hidden sm:block cursor-pointer text-base-content/60",
+            data: { controller: "task-loader", action: "change->task-loader#load" } %>
+        <%= f.select :task_id, [],
+            { include_blank: "Task" },
+            class: "bg-transparent border-none text-sm focus:outline-none max-w-[100px] hidden sm:block cursor-pointer text-base-content/60" %>
 
         <%# Tag dropdown %>
         <div class="dropdown dropdown-end hidden sm:block" data-controller="tag-selector">
-          <div tabindex="0" role="button" class="btn btn-sm btn-ghost gap-1 rounded-lg">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
-            <span data-tag-selector-target="label" class="text-xs">Tags</span>
+          <div tabindex="0" role="button" class="btn btn-ghost btn-xs btn-circle">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
           </div>
-          <div tabindex="0" class="dropdown-content z-50 p-2 shadow-lg bg-base-100 rounded-xl w-48 border border-base-300">
+          <div tabindex="0" class="dropdown-content z-50 p-2 shadow-lg bg-base-100 rounded-box w-48 border border-base-300">
             <% (Current.workspace&.tags&.order(:name) || []).each do |tag| %>
-              <label class="flex items-center gap-2 p-1.5 hover:bg-base-200 rounded-lg cursor-pointer transition-colors">
+              <label class="flex items-center gap-2 p-1.5 hover:bg-base-200 rounded cursor-pointer">
                 <input type="checkbox" name="tag_ids[]" value="<%= tag.id %>" class="checkbox checkbox-xs"
                        data-action="change->tag-selector#update" data-tag-selector-target="checkbox">
-                <span class="badge badge-sm" style="background-color: <%= tag.color %>20; color: <%= tag.color %>; border-color: <%= tag.color %>"><%= tag.name %></span>
+                <span class="text-xs" style="color: <%= tag.color %>"><%= tag.name %></span>
               </label>
             <% end %>
           </div>
           <div data-tag-selector-target="hiddenInputs"></div>
         </div>
 
-        <button type="button" class="btn btn-ghost btn-sm btn-circle" data-action="click->timer-mode#toggle" title="Switch to manual entry">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <button type="button" class="btn btn-ghost btn-xs btn-circle" data-action="click->timer-mode#toggle" title="Manual entry">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
         </button>
 
-        <%= f.submit "Start", class: "btn btn-primary btn-sm rounded-lg px-5 shadow-sm font-semibold" %>
+        <%= f.submit "Start", class: "btn btn-primary btn-sm rounded-full px-5 font-semibold" %>
       <% end %>
     </div>
 
     <%# Manual mode %>
     <div data-timer-mode-target="manualMode" class="hidden">
-      <%= form_with url: time_entries_path, method: :post, class: "timer-input-bar" do |f| %>
+      <%= form_with url: time_entries_path, method: :post, class: "flex items-center gap-2 w-full bg-base-200/40 rounded-xl px-3 py-1.5" do |f| %>
         <input type="hidden" name="time_entry[workspace_id]" value="">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-base-content/30 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
         <%= f.text_field "time_entry[description]", placeholder: "What did you work on?",
-            class: "bg-transparent border-none focus:outline-none focus:ring-0 flex-1 min-w-[120px] text-sm placeholder:text-base-content/40" %>
+            class: "bg-transparent border-none flex-1 min-w-[100px] text-sm focus:outline-none placeholder:text-base-content/30" %>
+        <div class="h-5 w-px bg-base-300 hidden sm:block"></div>
+        <%= f.select "time_entry[project_id]",
+            options_from_collection_for_select(Current.workspace&.projects&.active&.order(:name) || [], :id, :name),
+            { include_blank: "Project" },
+            class: "bg-transparent border-none text-sm focus:outline-none max-w-[130px] hidden sm:block cursor-pointer text-base-content/60",
+            data: { controller: "task-loader", action: "change->task-loader#load" } %>
+        <%= f.select "time_entry[task_id]", [],
+            { include_blank: "Task" },
+            class: "bg-transparent border-none text-sm focus:outline-none max-w-[100px] hidden sm:block cursor-pointer text-base-content/60" %>
+        <div class="h-5 w-px bg-base-300 hidden sm:block"></div>
+        <%= f.datetime_local_field "time_entry[started_at]", value: Time.current.strftime("%Y-%m-%dT%H:%M"),
+            class: "bg-transparent border-none text-sm focus:outline-none w-[155px] hidden sm:block text-base-content/60" %>
+        <%= f.text_field "time_entry[duration_manual]", placeholder: "0:00",
+            class: "bg-transparent border-none text-sm focus:outline-none w-14 text-center font-mono" %>
 
-        <div class="hidden sm:flex items-center gap-1.5 border-l border-base-300 pl-3">
-          <%= f.select "time_entry[project_id]",
-              options_from_collection_for_select(Current.workspace&.projects&.active&.order(:name) || [], :id, :name),
-              { include_blank: "Project" },
-              class: "select select-sm select-ghost bg-transparent max-w-[140px] text-sm",
-              data: { controller: "task-loader", action: "change->task-loader#load" } %>
-          <%= f.select "time_entry[task_id]", [],
-              { include_blank: "Task" },
-              class: "select select-sm select-ghost bg-transparent max-w-[120px] text-sm" %>
-        </div>
-
-        <div class="hidden sm:flex items-center gap-1.5 border-l border-base-300 pl-3">
-          <%= f.datetime_local_field "time_entry[started_at]", value: Time.current.strftime("%Y-%m-%dT%H:%M"),
-              class: "input input-sm input-ghost bg-transparent w-[170px] text-sm" %>
-        </div>
-
-        <%= f.text_field "time_entry[duration_manual]", placeholder: "1:30",
-            class: "input input-sm input-bordered rounded-lg w-[70px] text-sm" %>
-
-        <button type="button" class="btn btn-ghost btn-sm btn-circle" data-action="click->timer-mode#toggle" title="Switch to timer">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <button type="button" class="btn btn-ghost btn-xs btn-circle" data-action="click->timer-mode#toggle" title="Timer mode">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </button>
 
-        <%= f.submit "Save", class: "btn btn-success btn-sm rounded-lg px-5 shadow-sm font-semibold" %>
+        <%= f.submit "Save", class: "btn btn-success btn-sm rounded-full px-5 font-semibold" %>
       <% end %>
     </div>
   </div>
