@@ -58,7 +58,9 @@
 
 /* ─── Light sidebar — Finder-style ─── */
 .sidebar-light {
-  background: linear-gradient(180deg, rgba(245,243,250,1) 0%, rgba(240,238,248,1) 100%);
+  background:
+    radial-gradient(ellipse at 100% 50%, rgba(255,255,255,0.45) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(244,242,251,1) 0%, rgba(247,245,253,1) 30%, rgba(249,247,254,1) 70%, rgba(244,242,251,1) 100%);
   color: oklch(var(--bc));
   border-right: none;
   position: relative;
@@ -73,12 +75,14 @@
   background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.9) 20%, rgba(255,255,255,1) 50%, rgba(255,255,255,0.9) 80%, rgba(255,255,255,0));
   z-index: 2;
 }
-/* Subtle purple tint wash */
+/* Light bloom on right edge */
 .sidebar-light::after {
   content: "";
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(175deg, rgba(139,92,246,0.04) 0%, rgba(99,102,241,0.02) 40%, transparent 70%);
+  background:
+    radial-gradient(ellipse at 100% 50%, rgba(255,255,255,0.3) 0%, transparent 45%),
+    linear-gradient(175deg, rgba(139,92,246,0.06) 0%, rgba(99,102,241,0.03) 40%, transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
@@ -145,7 +149,7 @@
 
 .paper-content {
   position: relative;
-  background: linear-gradient(180deg, rgba(245,243,250,1) 0%, rgba(240,238,248,1) 100%);
+  background: linear-gradient(180deg, rgba(246,244,252,1) 0%, rgba(249,247,254,1) 50%, rgba(246,244,252,1) 100%);
   border-radius: 0.75rem;
   border: 1px solid rgba(0,0,0,0.06);
   box-shadow:
@@ -425,3 +429,5 @@
   background: linear-gradient(90deg, #6366f1, #8b5cf6, #6366f1);
   opacity: 0.4;
 }
+
+
