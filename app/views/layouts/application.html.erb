@@ -24,7 +24,7 @@
     <% if current_user && Current.workspace %>
       <div class="flex flex-col min-h-screen">
         <!-- Top timer bar — full width with contour background -->
-        <header class="sticky top-0 z-50 p-2 pb-0 paper-bg">
+        <header class="sticky top-0 z-50 px-2 pt-2 pb-4 paper-bg">
           <div class="timer-top-bar flex items-center gap-3 <%= @running_timer ? 'navbar-timer-running' : '' %>">
             <div class="flex-none lg:hidden">
               <label for="sidebar-drawer" class="btn btn-ghost btn-sm btn-square">
@@ -38,36 +38,12 @@
         </header>
 
         <!-- Sidebar + Content below top bar -->
-        <div class="drawer lg:drawer-open flex-1">
-          <input id="sidebar-drawer" type="checkbox" class="drawer-toggle" />
+        <div class="flex flex-1 items-start">
+          <input id="sidebar-drawer" type="checkbox" class="drawer-toggle hidden" />
 
-          <div class="drawer-content flex flex-col">
-            <!-- Main content — paper feel -->
-            <main class="flex-1 p-4 lg:p-8">
-              <div class="max-w-6xl mx-auto paper-content p-5 lg:p-8">
-                <% if flash[:notice] %>
-                  <div class="alert alert-success mb-5 rounded-xl" data-controller="flash">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    <span><%= flash[:notice] %></span>
-                  </div>
-                <% end %>
-                <% if flash[:alert] %>
-                  <div class="alert alert-error mb-5 rounded-xl" data-controller="flash">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                    <span><%= flash[:alert] %></span>
-                  </div>
-                <% end %>
-
-                <%= yield %>
-              </div>
-            </main>
-          </div>
-
-          <!-- Sidebar -->
-          <div class="drawer-side z-40">
-            <label for="sidebar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
-            <div class="min-h-full w-56 p-2 paper-bg">
-            <aside class="sidebar-light h-full flex flex-col rounded-xl border border-black/[0.06] shadow-sm">
+          <!-- Sidebar — desktop: sticky, mobile: hidden (toggled via drawer) -->
+          <div class="hidden lg:block w-56 flex-shrink-0 px-2 py-2 self-start sticky top-[66px]">
+            <aside class="sidebar-light flex flex-col rounded-xl border border-black/[0.06] shadow-sm overflow-y-auto" style="max-height: calc(100vh - 74px)">
             <!-- Brand -->
             <div class="px-4 pt-4 pb-3">
               <div class="flex items-center gap-2">
@@ -189,8 +165,27 @@
               </div>
             </div>
             </aside>
-            </div>
           </div>
+
+          <!-- Main content -->
+          <main class="flex-1 min-w-0 px-3 py-2 lg:px-4 lg:py-2">
+            <div class="max-w-6xl mx-auto paper-content p-5 lg:p-6">
+              <% if flash[:notice] %>
+                <div class="alert alert-success mb-5 rounded-xl" data-controller="flash">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span><%= flash[:notice] %></span>
+                </div>
+              <% end %>
+              <% if flash[:alert] %>
+                <div class="alert alert-error mb-5 rounded-xl" data-controller="flash">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  <span><%= flash[:alert] %></span>
+                </div>
+              <% end %>
+
+              <%= yield %>
+            </div>
+          </main>
         </div>
       </div>
 

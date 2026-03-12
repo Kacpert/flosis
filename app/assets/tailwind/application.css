@@ -108,7 +108,7 @@
 
 /* ─── Paper feel — main content ─── */
 .paper-bg {
-  background: #f9f8f5;
+  background: #f8f7fa;
 }
 
 /* ─── Timer top bar — contour background ─── */
@@ -131,38 +131,17 @@
 }
 /* ─── Glowing card — shared macOS-style treatment ─── */
 .glow-card {
-  position: relative;
-  background: linear-gradient(180deg, rgba(250,249,255,1) 0%, rgba(255,255,255,1) 30%);
-  border-radius: 0.75rem;
+  background: #ffffff;
+  border-radius: 0.625rem;
   border: 1px solid oklch(var(--bc) / 0.08);
-  box-shadow:
-    0 1px 2px oklch(var(--bc) / 0.05),
-    0 0 0 1px rgba(255,255,255,0.7) inset;
   overflow: hidden;
-}
-/* Glowing top edge highlight */
-.glow-card::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.9) 20%, rgba(255,255,255,1) 50%, rgba(255,255,255,0.9) 80%, rgba(255,255,255,0));
-  z-index: 1;
-}
-/* Subtle purple tint overlay */
-.glow-card::after {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(165deg, rgba(139,92,246,0.03) 0%, transparent 40%, transparent 60%, rgba(99,102,241,0.02) 100%);
-  pointer-events: none;
 }
 
 .paper-content {
   position: relative;
-  background: linear-gradient(180deg, rgba(250,249,255,1) 0%, rgba(255,255,255,1) 30%);
+  background: linear-gradient(180deg, rgba(245,243,250,1) 0%, rgba(240,238,248,1) 100%);
   border-radius: 0.75rem;
-  border: 1px solid oklch(var(--bc) / 0.08);
+  border: 1px solid rgba(0,0,0,0.06);
   box-shadow:
     0 1px 2px oklch(var(--bc) / 0.05),
     0 0 0 1px rgba(255,255,255,0.7) inset;
@@ -179,9 +158,10 @@
 .paper-content::after {
   content: "";
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(165deg, rgba(139,92,246,0.03) 0%, transparent 40%, transparent 60%, rgba(99,102,241,0.02) 100%);
-  pointer-events: none;
+  bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.7) 20%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0.7) 80%, rgba(255,255,255,0));
+  z-index: 1;
 }
 
 /* ─── Responsive helpers ─── */
