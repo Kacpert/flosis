@@ -1,0 +1,50 @@
+<div class="space-y-5">
+  <div class="flex justify-between items-center">
+    <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">Team Members</h1>
+    <%= link_to "Add Member", new_workspace_member_path, class: "m3-btn m3-btn-filled" %>
+  </div>
+
+  <div class="m3-card-outlined overflow-hidden">
+    <table class="m3-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th class="text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @memberships.each do |membership| %>
+          <tr>
+            <td>
+              <div class="flex items-center gap-2.5">
+                <div class="m3-avatar m3-avatar-sm"><%= membership.user.name.first(2).upcase %></div>
+                <span class="text-sm font-medium" style="color: var(--color-on-surface)"><%= membership.user.name %></span>
+              </div>
+            </td>
+            <td class="text-sm" style="color: var(--color-on-surface-variant)"><%= membership.user.email_address %></td>
+            <td>
+              <span class="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full"
+                    style="<%= role_badge_style(membership.role) %>">
+                <%= membership.role %>
+              </span>
+            </td>
+            <td class="text-right">
+              <div class="flex justify-end gap-1">
+                <% unless membership.user == current_user %>
+                  <%= link_to "Edit", edit_workspace_member_path(membership), class: "m3-btn m3-btn-text m3-btn-sm" %>
+                  <%= button_to "Remove", workspace_member_path(membership), method: :delete,
+                      class: "m3-btn m3-btn-text m3-btn-sm", style: "color: var(--color-error)",
+                      data: { turbo_confirm: "Remove #{membership.user.name} from this workspace?" } %>
+                <% else %>
+                  <span class="text-xs px-2 py-1" style="color: var(--color-outline)">You</span>
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

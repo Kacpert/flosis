@@ -41,4 +41,17 @@ module ApplicationHelper
   def project_color_dot(color)
     content_tag(:span, "", class: "project-color-dot", style: "background-color: #{color}")
   end
+
+  def role_badge_style(role)
+    case role.to_s
+    when "owner"
+      "color: var(--color-primary); background: var(--color-primary-container)"
+    when "admin"
+      "color: var(--color-tertiary); background: var(--color-tertiary-container)"
+    when "employee"
+      "color: var(--color-on-surface-variant); background: var(--color-surface-container-high)"
+    when "client"
+      "color: var(--color-secondary); background: var(--color-secondary-container)"
+    end
+  end
 end

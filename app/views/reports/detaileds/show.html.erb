@@ -44,7 +44,7 @@
   <% end %>
 
   <%# Stats %>
-  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;">
+  <div style="display: grid; grid-template-columns: repeat(<%= can_see_money? ? 3 : 2 %>, 1fr); gap: 0.75rem;">
     <div class="stat-card">
       <div class="stat-label">Total</div>
       <div class="stat-number"><%= format_duration_hm(@total_seconds) %></div>
@@ -53,10 +53,12 @@
       <div class="stat-label">Billable</div>
       <div class="stat-number" style="color: var(--color-success)"><%= format_duration_hm(@billable_seconds) %></div>
     </div>
-    <div class="stat-card">
-      <div class="stat-label">Amount</div>
-      <div class="stat-number">$<%= '%.2f' % @billable_amount %></div>
-    </div>
+    <% if can_see_money? %>
+      <div class="stat-card">
+        <div class="stat-label">Amount</div>
+        <div class="stat-number">$<%= '%.2f' % @billable_amount %></div>
+      </div>
+    <% end %>
   </div>
 
   <%# Entries table %>
@@ -71,7 +73,7 @@
           <th>User</th>
           <th>Tags</th>
           <th class="text-right">Duration</th>
-          <th class="text-right">Amount</th>
+          <% if can_see_money? %><th class="text-right">Amount</th><% end %>
         </tr>
       </thead>
       <tbody>
@@ -97,9 +99,11 @@
               </div>
             </td>
             <td class="text-right mono-duration text-sm"><%= entry.formatted_duration %></td>
-            <td class="text-right text-sm" style="color: var(--color-on-surface-variant)">
-              <% if entry.billable? %>$<%= '%.2f' % entry.billable_amount %><% end %>
-            </td>
+            <% if can_see_money? %>
+              <td class="text-right text-sm" style="color: var(--color-on-surface-variant)">
+                <% if entry.billable? %>$<%= '%.2f' % entry.billable_amount %><% end %>
+              </td>
+            <% end %>
           </tr>
         <% end %>
       </tbody>

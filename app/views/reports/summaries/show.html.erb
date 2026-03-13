@@ -39,7 +39,7 @@
   <% end %>
 
   <%# Stats %>
-  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;">
+  <div style="display: grid; grid-template-columns: repeat(<%= can_see_money? ? 3 : 2 %>, 1fr); gap: 0.75rem;">
     <div class="stat-card">
       <div class="stat-label">Total Hours</div>
       <div class="stat-number"><%= format_duration_hm(@total_seconds) %></div>
@@ -48,10 +48,12 @@
       <div class="stat-label">Billable Hours</div>
       <div class="stat-number" style="color: var(--color-success)"><%= format_duration_hm(@billable_seconds) %></div>
     </div>
-    <div class="stat-card">
-      <div class="stat-label">Billable Amount</div>
-      <div class="stat-number">$<%= '%.2f' % @billable_amount %></div>
-    </div>
+    <% if can_see_money? %>
+      <div class="stat-card">
+        <div class="stat-label">Billable Amount</div>
+        <div class="stat-number">$<%= '%.2f' % @billable_amount %></div>
+      </div>
+    <% end %>
   </div>
 
   <% if @chart_data.any? %>

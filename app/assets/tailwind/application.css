@@ -77,6 +77,121 @@
   --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   Dark Theme — Earthy Night
+   Deep soil, charred wood, moonlit moss
+   ═══════════════════════════════════════════════════════════════ */
+:root[data-theme="dark"] {
+  /* Moss green — primary, lighter for dark bg */
+  --color-primary: #A8CFA0;
+  --color-on-primary: #1B3415;
+  --color-primary-container: #2E4A28;
+  --color-on-primary-container: #C4E8BB;
+
+  /* Driftwood — secondary */
+  --color-secondary: #C8BAA4;
+  --color-on-secondary: #332D22;
+  --color-secondary-container: #4A4235;
+  --color-on-secondary-container: #E4D8C8;
+
+  /* Pine bark — tertiary */
+  --color-tertiary: #C4AD96;
+  --color-on-tertiary: #2E2215;
+  --color-tertiary-container: #463929;
+  --color-on-tertiary-container: #E0D0BE;
+
+  /* Error — warm rust on dark */
+  --color-error: #FFB4A8;
+  --color-on-error: #561E14;
+  --color-error-container: #6E2E22;
+  --color-on-error-container: #FFDAD4;
+
+  /* Surfaces — deep soil, charred wood */
+  --color-surface: #1C1B18;
+  --color-surface-dim: #1C1B18;
+  --color-surface-bright: #43413B;
+  --color-on-surface: #E8E2D6;
+  --color-on-surface-variant: #CBC5B6;
+
+  /* Surface containers — layered earth */
+  --color-surface-container-lowest: #141310;
+  --color-surface-container-low: #232119;
+  --color-surface-container: #282620;
+  --color-surface-container-high: #332F28;
+  --color-surface-container-highest: #3E3A32;
+
+  /* Outline — weathered stone */
+  --color-outline: #958F82;
+  --color-outline-variant: #4D493F;
+
+  /* Inverse */
+  --color-inverse-surface: #E8E2D6;
+  --color-inverse-on-surface: #33312C;
+  --color-inverse-primary: #4A6741;
+
+  /* Success — moonlit forest */
+  --color-success: #8ACF7C;
+  --color-on-success: #1B3415;
+  --color-success-container: #2E4A28;
+
+  /* Shadows — deeper for dark mode */
+  --shadow-1: 0px 1px 3px 1px rgba(0,0,0,0.3), 0px 1px 2px 0px rgba(0,0,0,0.5);
+  --shadow-2: 0px 2px 6px 2px rgba(0,0,0,0.3), 0px 1px 2px 0px rgba(0,0,0,0.5);
+  --shadow-3: 0px 4px 8px 3px rgba(0,0,0,0.3), 0px 1px 3px 0px rgba(0,0,0,0.5);
+}
+
+/* Dark-mode specific overrides */
+:root[data-theme="dark"] .m3-timer-pill,
+:root[data-theme="dark"] .m3-timer-pill-wrap {
+  background-color: #4A4235;
+}
+:root[data-theme="dark"] .m3-timer-pill-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23CBC5B6' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+:root[data-theme="dark"] .m3-timer-pill {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23CBC5B6' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+:root[data-theme="dark"] .m3-filter-chip {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23CBC5B6' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+:root[data-theme="dark"] .m3-filter-pill {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23CBC5B6' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+:root[data-theme="dark"] .filter-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23CBC5B6' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+:root[data-theme="dark"] .m3-icon-btn:hover {
+  background: rgba(232, 226, 214, 0.08);
+}
+:root[data-theme="dark"] .m3-btn-outlined:hover {
+  background: rgba(168, 207, 160, 0.08);
+}
+:root[data-theme="dark"] .m3-btn-text:hover {
+  background: rgba(168, 207, 160, 0.08);
+}
+:root[data-theme="dark"] .m3-drawer-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+:root[data-theme="dark"] .m3-dialog-backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+:root[data-theme="dark"] .m3-avatar {
+  background: linear-gradient(135deg, #5C5040, #4A4235);
+}
+:root[data-theme="dark"] .m3-progress-fill {
+  background: linear-gradient(90deg, #8B7355, #A89860, #8ACF7C);
+}
+:root[data-theme="dark"] .running-entry-card {
+  background: linear-gradient(90deg, rgba(168, 207, 160, 0.12) 0%, rgba(140, 135, 110, 0.08) 60%, rgba(74, 66, 53, 0.15) 100%);
+  border-color: rgba(168, 207, 160, 0.15);
+}
+:root[data-theme="dark"] .running-entry-card:hover {
+  background: linear-gradient(90deg, rgba(168, 207, 160, 0.16) 0%, rgba(140, 135, 110, 0.12) 60%, rgba(74, 66, 53, 0.18) 100%);
+}
+:root[data-theme="dark"] .navbar-timer-running {
+  background: linear-gradient(90deg, rgba(168, 207, 160, 0.06), transparent);
+}
+
 /* ─── Base resets ─── */
 @layer base {
   body {

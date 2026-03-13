@@ -43,7 +43,8 @@
 
       <% if is_running %>
         <span class="m3-entry-duration flex-shrink-0" data-timer-target="display">00:00:00</span>
-        <%= button_to stop_timer_path, method: :patch, class: "flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full", style: "background: var(--color-error-container); color: var(--color-error);" do %>
+        <%= button_to stop_timer_path, method: :patch, class: "flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full", style: "background: var(--color-error-container); color: var(--color-error);",
+            data: { turbo_frame: "_top" } do %>
           <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>
         <% end %>
       <% else %>
@@ -52,7 +53,8 @@
         <%# Hover actions %>
         <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
           <%= button_to start_timer_path(description: entry.description, project_id: entry.project_id, task_id: entry.task_id),
-              method: :post, class: "m3-icon-btn m3-icon-btn-sm", title: "Continue" do %>
+              method: :post, class: "m3-icon-btn m3-icon-btn-sm", title: "Continue",
+              data: { turbo_frame: "_top" } do %>
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
           <% end %>
           <button type="button" class="m3-icon-btn m3-icon-btn-sm" data-action="click->inline-edit#edit" title="Edit">

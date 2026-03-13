@@ -1,6 +1,8 @@
 class TimersController < ApplicationController
   include WorkspaceScoped
 
+  before_action :require_employee!
+
   def start
     # Stop any existing running timer first
     existing = current_user.running_timer(current_workspace)

@@ -1,6 +1,7 @@
 class ProjectsController < ApplicationController
   include WorkspaceScoped
 
+  before_action :require_admin!
   before_action :set_project, only: %i[show edit update destroy archive unarchive]
 
   def index

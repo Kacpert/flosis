@@ -1,6 +1,8 @@
 class WorkspaceSettingsController < ApplicationController
   include WorkspaceScoped
 
+  before_action :require_admin!
+
   def show
   end
 

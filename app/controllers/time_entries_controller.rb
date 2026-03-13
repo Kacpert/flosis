@@ -1,6 +1,7 @@
 class TimeEntriesController < ApplicationController
   include WorkspaceScoped
 
+  before_action :require_employee!
   before_action :set_time_entry, only: %i[edit update destroy]
 
   def index

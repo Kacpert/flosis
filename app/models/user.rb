@@ -21,4 +21,26 @@ class User < ApplicationRecord
   def membership_for(workspace)
     workspace_memberships.find_by(workspace: workspace)
   end
+
+  def role_in(workspace)
+    membership_for(workspace)&.role
+  end
+
+  def admin_or_owner?(workspace)
+    role = role_in(workspace)
+    role == "admin" || role == "owner"
+  end
+
+  def at_least_employee?(workspace)
+    role = role_in(workspace)
+    role == "employee" || role == "admin" || role == "owner"
+  end
+
+  def client_role?(workspace)
+    role_in(workspace) == "client"
+  end
+
+  def can_see_money?(workspace)
+    admin_or_owner?(workspace)
+  end
 end

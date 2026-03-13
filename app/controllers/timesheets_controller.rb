@@ -1,6 +1,8 @@
 class TimesheetsController < ApplicationController
   include WorkspaceScoped
 
+  before_action :require_employee!
+
   def show
     @week_start = if params[:week_of]
       Date.parse(params[:week_of]).beginning_of_week(:monday)

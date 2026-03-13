@@ -24,6 +24,7 @@ module WorkspaceScoped
     end
   end
 
+
   def set_running_timer
     return unless Current.workspace
     @running_timer = Current.user
