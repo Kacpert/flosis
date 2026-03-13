@@ -140,6 +140,235 @@
   --shadow-3: 0px 4px 8px 3px rgba(0,0,0,0.3), 0px 1px 3px 0px rgba(0,0,0,0.5);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   Purple Light Theme
+   ═══════════════════════════════════════════════════════════════ */
+:root[data-theme="purple-light"] {
+  --color-primary: #7C4DFF;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #E8DEFF;
+  --color-on-primary-container: #2E0D6E;
+
+  --color-secondary: #7A6E8A;
+  --color-on-secondary: #FFFFFF;
+  --color-secondary-container: #E8DFF0;
+  --color-on-secondary-container: #3B2F4D;
+
+  --color-tertiary: #6B5C7D;
+  --color-on-tertiary: #FFFFFF;
+  --color-tertiary-container: #F0E4FA;
+  --color-on-tertiary-container: #2C2140;
+
+  --color-error: #BA1A1A;
+  --color-on-error: #FFFFFF;
+  --color-error-container: #FFDAD6;
+  --color-on-error-container: #410002;
+
+  --color-surface: #FDFBFF;
+  --color-surface-dim: #DDD9E4;
+  --color-surface-bright: #FDFBFF;
+  --color-on-surface: #1C1B22;
+  --color-on-surface-variant: #605770;
+
+  --color-surface-container-lowest: #FFFFFF;
+  --color-surface-container-low: #F8F2FC;
+  --color-surface-container: #F2ECF6;
+  --color-surface-container-high: #ECE6F0;
+  --color-surface-container-highest: #E6E0EA;
+
+  --color-outline: #837790;
+  --color-outline-variant: #CCC4D9;
+
+  --color-inverse-surface: #322F3B;
+  --color-inverse-on-surface: #F4EFF9;
+  --color-inverse-primary: #CFBCFF;
+
+  --color-success: #3A6B2A;
+  --color-on-success: #FFFFFF;
+  --color-success-container: #C5E8B8;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Purple Dark Theme
+   ═══════════════════════════════════════════════════════════════ */
+:root[data-theme="purple-dark"] {
+  --color-primary: #D4BBFF;
+  --color-on-primary: #3A1890;
+  --color-primary-container: #6B3FC7;
+  --color-on-primary-container: #EDE0FF;
+
+  --color-secondary: #D4C8E2;
+  --color-on-secondary: #362E46;
+  --color-secondary-container: #524868;
+  --color-on-secondary-container: #EDE0FF;
+
+  --color-tertiary: #D0BAE2;
+  --color-on-tertiary: #322644;
+  --color-tertiary-container: #504262;
+  --color-on-tertiary-container: #F2E4FF;
+
+  --color-error: #FFB4AB;
+  --color-on-error: #690005;
+  --color-error-container: #93000A;
+  --color-on-error-container: #FFDAD6;
+
+  --color-surface: #16141E;
+  --color-surface-dim: #16141E;
+  --color-surface-bright: #3E3A4E;
+  --color-on-surface: #ECE6F4;
+  --color-on-surface-variant: #D0C8E0;
+
+  --color-surface-container-lowest: #0F0D16;
+  --color-surface-container-low: #1E1B28;
+  --color-surface-container: #231F30;
+  --color-surface-container-high: #2E293B;
+  --color-surface-container-highest: #393446;
+
+  --color-outline: #A098B4;
+  --color-outline-variant: #504868;
+
+  --color-inverse-surface: #ECE6F4;
+  --color-inverse-on-surface: #322F3B;
+  --color-inverse-primary: #7C4DFF;
+
+  --color-success: #8ACF7C;
+  --color-on-success: #1B3415;
+  --color-success-container: #2E4A28;
+
+  --shadow-1: 0px 1px 3px 1px rgba(100,60,200,0.15), 0px 1px 2px 0px rgba(0,0,0,0.4);
+  --shadow-2: 0px 2px 6px 2px rgba(100,60,200,0.15), 0px 1px 2px 0px rgba(0,0,0,0.4);
+  --shadow-3: 0px 4px 8px 3px rgba(100,60,200,0.2), 0px 1px 3px 0px rgba(0,0,0,0.4);
+}
+
+/* Purple light specific overrides */
+:root[data-theme="purple-light"] .m3-timer-pill,
+:root[data-theme="purple-light"] .m3-timer-pill-wrap {
+  background-color: #E8DEFF;
+}
+:root[data-theme="purple-light"] .m3-timer-pill-select,
+:root[data-theme="purple-light"] .m3-timer-pill,
+:root[data-theme="purple-light"] .m3-filter-chip,
+:root[data-theme="purple-light"] .m3-filter-pill,
+:root[data-theme="purple-light"] .filter-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23605770' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+:root[data-theme="purple-light"] .m3-btn-outlined:hover {
+  background: rgba(124, 77, 255, 0.08);
+}
+:root[data-theme="purple-light"] .m3-btn-text:hover {
+  background: rgba(124, 77, 255, 0.08);
+}
+:root[data-theme="purple-light"] .m3-avatar {
+  background: linear-gradient(135deg, #7C4DFF, #5635A2);
+}
+:root[data-theme="purple-light"] .m3-progress-fill {
+  background: linear-gradient(90deg, #5635A2, #7C4DFF, #A78BFA);
+}
+:root[data-theme="purple-light"] .running-entry-card {
+  background: linear-gradient(90deg, rgba(124, 77, 255, 0.12) 0%, rgba(168, 139, 250, 0.08) 60%, rgba(232, 222, 255, 0.15) 100%);
+  border-color: rgba(124, 77, 255, 0.18);
+}
+:root[data-theme="purple-light"] .running-entry-card:hover {
+  background: linear-gradient(90deg, rgba(124, 77, 255, 0.16) 0%, rgba(168, 139, 250, 0.12) 60%, rgba(232, 222, 255, 0.20) 100%);
+}
+:root[data-theme="purple-light"] .navbar-timer-running {
+  background: linear-gradient(90deg, rgba(124, 77, 255, 0.06), transparent);
+}
+:root[data-theme="purple-light"] .m3-today-badge {
+  background: var(--color-primary);
+}
+:root[data-theme="purple-light"] .m3-nav-rail {
+  background: #FFFFFF;
+}
+
+/* Purple dark specific overrides — glowy */
+:root[data-theme="purple-dark"] .m3-timer-pill,
+:root[data-theme="purple-dark"] .m3-timer-pill-wrap {
+  background-color: #3A3050;
+}
+:root[data-theme="purple-dark"] .m3-timer-pill-select,
+:root[data-theme="purple-dark"] .m3-timer-pill,
+:root[data-theme="purple-dark"] .m3-filter-chip,
+:root[data-theme="purple-dark"] .m3-filter-pill,
+:root[data-theme="purple-dark"] .filter-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23D0C8E0' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+:root[data-theme="purple-dark"] .m3-icon-btn:hover {
+  background: rgba(212, 187, 255, 0.1);
+}
+:root[data-theme="purple-dark"] .m3-btn-outlined:hover {
+  background: rgba(212, 187, 255, 0.1);
+}
+:root[data-theme="purple-dark"] .m3-btn-text:hover {
+  background: rgba(212, 187, 255, 0.1);
+}
+:root[data-theme="purple-dark"] .m3-drawer-overlay {
+  background: rgba(8, 5, 18, 0.7);
+}
+:root[data-theme="purple-dark"] .m3-dialog-backdrop {
+  background: rgba(8, 5, 18, 0.7);
+}
+:root[data-theme="purple-dark"] .m3-avatar {
+  background: linear-gradient(135deg, #7C4DFF, #5635A2);
+  box-shadow: 0 0 8px rgba(124, 77, 255, 0.4);
+}
+:root[data-theme="purple-dark"] .m3-progress-fill {
+  background: linear-gradient(90deg, #6B3FC7, #7C4DFF, #A78BFA, #D4BBFF);
+  box-shadow: 0 0 10px rgba(124, 77, 255, 0.5);
+}
+:root[data-theme="purple-dark"] .m3-progress-track {
+  box-shadow: inset 0 0 6px rgba(124, 77, 255, 0.15);
+}
+:root[data-theme="purple-dark"] .running-entry-card {
+  background: linear-gradient(90deg, rgba(124, 77, 255, 0.15) 0%, rgba(107, 63, 199, 0.08) 60%, rgba(35, 31, 48, 0.2) 100%);
+  border-color: rgba(124, 77, 255, 0.25);
+  box-shadow: 0 0 12px rgba(124, 77, 255, 0.12);
+}
+:root[data-theme="purple-dark"] .running-entry-card:hover {
+  background: linear-gradient(90deg, rgba(124, 77, 255, 0.2) 0%, rgba(107, 63, 199, 0.12) 60%, rgba(35, 31, 48, 0.25) 100%);
+  box-shadow: 0 0 16px rgba(124, 77, 255, 0.18);
+}
+:root[data-theme="purple-dark"] .navbar-timer-running {
+  background: linear-gradient(90deg, rgba(124, 77, 255, 0.1), transparent);
+}
+:root[data-theme="purple-dark"] .m3-nav-item.active {
+  box-shadow: 0 0 10px rgba(124, 77, 255, 0.2);
+}
+:root[data-theme="purple-dark"] .m3-today-badge {
+  background: #7C4DFF;
+  box-shadow: 0 0 8px rgba(124, 77, 255, 0.5);
+}
+:root[data-theme="purple-dark"] .m3-day-total {
+  text-shadow: 0 0 12px rgba(124, 77, 255, 0.4);
+}
+:root[data-theme="purple-dark"] .m3-top-bar {
+  border-bottom-color: rgba(124, 77, 255, 0.15);
+}
+:root[data-theme="purple-dark"] .m3-nav-rail {
+  border-right-color: rgba(124, 77, 255, 0.12);
+}
+:root[data-theme="purple-dark"] .m3-goal-card,
+:root[data-theme="purple-dark"] .m3-entries-card,
+:root[data-theme="purple-dark"] .m3-entry-card {
+  border-color: rgba(124, 77, 255, 0.1);
+}
+:root[data-theme="purple-dark"] .m3-fab {
+  background: #7C4DFF;
+  box-shadow: 0 2px 8px rgba(124, 77, 255, 0.4), 0 4px 16px rgba(124, 77, 255, 0.2);
+}
+:root[data-theme="purple-dark"] .m3-fab:hover {
+  box-shadow: 0 2px 10px rgba(124, 77, 255, 0.5), 0 6px 20px rgba(124, 77, 255, 0.3);
+}
+:root[data-theme="purple-dark"] .turbo-progress-bar {
+  background: linear-gradient(90deg, #7C4DFF, #A78BFA);
+  box-shadow: 0 0 8px rgba(124, 77, 255, 0.6);
+}
+:root[data-theme="purple-dark"] .m3-checkbox-round:checked {
+  background: #7C4DFF;
+  border-color: #7C4DFF;
+  box-shadow: 0 0 6px rgba(124, 77, 255, 0.4);
+}
+
 /* Dark-mode specific overrides */
 :root[data-theme="dark"] .m3-timer-pill,
 :root[data-theme="dark"] .m3-timer-pill-wrap {

@@ -1,32 +1,80 @@
 import { Controller } from "@hotwired/stimulus"
 
+const THEMES = ["light", "dark", "purple-light", "purple-dark"]
+
+const THEME_CONFIG = {
+  "light":        { label: "Light",       icon: "sun" },
+  "dark":         { label: "Dark",        icon: "moon" },
+  "purple-light": { label: "Purple",      icon: "sun" },
+  "purple-dark":  { label: "Purple Dark", icon: "moon" }
+}
+
 export default class extends Controller {
-  static targets = ["icon"]
+  static targets = ["icon", "label", "menu"]
 
   connect() {
-    const saved = localStorage.getItem("theme")
-    if (saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-      document.documentElement.setAttribute("data-theme", "dark")
-    }
-    this.updateIcon()
+    this.applyTheme(this.currentTheme)
+    this.updateUI()
+    this.boundClose = this.closeMenu.bind(this)
   }
 
-  toggle() {
-    const isDark = document.documentElement.getAttribute("data-theme") === "dark"
-    if (isDark) {
+  disconnect() {
+    document.removeEventListener("click", this.boundClose)
+  }
+
+  toggleMenu(event) {
+    event.stopPropagation()
+    if (this.hasMenuTarget) {
+      const isHidden = this.menuTarget.classList.contains("hidden")
+      this.menuTarget.classList.toggle("hidden")
+      if (isHidden) {
+        document.addEventListener("click", this.boundClose)
+      } else {
+        document.removeEventListener("click", this.boundClose)
+      }
+    }
+  }
+
+  closeMenu() {
+    if (this.hasMenuTarget) {
+      this.menuTarget.classList.add("hidden")
+    }
+    document.removeEventListener("click", this.boundClose)
+  }
+
+  select(event) {
+    const theme = event.currentTarget.dataset.theme
+    if (theme && THEMES.includes(theme)) {
+      localStorage.setItem("theme", theme)
+      this.applyTheme(theme)
+      this.updateUI()
+    }
+    this.closeMenu()
+  }
+
+  applyTheme(theme) {
+    if (theme === "light") {
       document.documentElement.removeAttribute("data-theme")
-      localStorage.setItem("theme", "light")
     } else {
-      document.documentElement.setAttribute("data-theme", "dark")
-      localStorage.setItem("theme", "dark")
+      document.documentElement.setAttribute("data-theme", theme)
     }
-    this.updateIcon()
   }
 
-  updateIcon() {
-    if (!this.hasIconTarget) return
-    const isDark = document.documentElement.getAttribute("data-theme") === "dark"
-    this.iconTarget.innerHTML = isDark ? this.sunIcon : this.moonIcon
+  updateUI() {
+    const theme = this.currentTheme
+    const config = THEME_CONFIG[theme]
+    if (this.hasIconTarget) {
+      this.iconTarget.innerHTML = config.icon === "moon" ? this.moonIcon : this.sunIcon
+    }
+    if (this.hasLabelTarget) {
+      this.labelTarget.textContent = config.label
+    }
+  }
+
+  get currentTheme() {
+    const saved = localStorage.getItem("theme")
+    if (saved && THEMES.includes(saved)) return saved
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
   }
 
   get moonIcon() {
