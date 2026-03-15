@@ -165,7 +165,20 @@ export default class extends Controller {
 
   show() {
     if (this.hasDropdownTarget) {
-      this.dropdownTarget.classList.remove("hidden")
+      const rect = this.inputTarget.getBoundingClientRect()
+      const dropdown = this.dropdownTarget
+
+      // Move dropdown to body so it's not clipped by any parent stacking context
+      if (dropdown.parentElement !== document.body) {
+        document.body.appendChild(dropdown)
+      }
+
+      dropdown.style.position = "fixed"
+      dropdown.style.top = `${rect.bottom + 4}px`
+      dropdown.style.left = `${rect.left}px`
+      dropdown.style.width = `${rect.width}px`
+      dropdown.style.zIndex = "99999"
+      dropdown.classList.remove("hidden")
     }
   }
 

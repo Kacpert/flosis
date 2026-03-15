@@ -14,7 +14,7 @@
             autocomplete: "off",
             data: { action: "blur->auto-save#save focus->jira-task-search#focus input->jira-task-search#filter keydown->jira-task-search#keydown", jira_task_search_target: "input" } %>
         <%= f.hidden_field "time_entry[task_id]", value: @running_timer.task_id, data: { jira_task_search_target: "taskId" } %>
-        <div class="hidden absolute left-0 top-full mt-1 w-full rounded-xl shadow-lg z-50 max-h-64 overflow-y-auto" style="background: var(--color-surface-container); border: 1px solid var(--color-outline-variant);" data-jira-task-search-target="dropdown">
+        <div class="hidden absolute left-0 top-full mt-1 w-full rounded-xl shadow-lg z-[9999] max-h-64 overflow-y-auto" style="background: var(--color-surface-container); border: 1px solid var(--color-outline-variant);" data-jira-task-search-target="dropdown">
           <div data-jira-task-search-target="list"></div>
         </div>
       </div>
@@ -67,7 +67,7 @@
               autocomplete: "off",
               data: { action: "focus->jira-task-search#focus input->jira-task-search#filter keydown->jira-task-search#keydown", jira_task_search_target: "input" } %>
           <%= f.hidden_field :task_id, data: { jira_task_search_target: "taskId" } %>
-          <div class="hidden absolute left-0 top-full mt-1 w-full rounded-xl shadow-lg z-50 max-h-64 overflow-y-auto" style="background: var(--color-surface-container); border: 1px solid var(--color-outline-variant); min-width: 320px;" data-jira-task-search-target="dropdown">
+          <div class="hidden absolute left-0 top-full mt-1 w-full rounded-xl shadow-lg z-[9999] max-h-64 overflow-y-auto" style="background: var(--color-surface-container); border: 1px solid var(--color-outline-variant); min-width: 320px;" data-jira-task-search-target="dropdown">
             <div data-jira-task-search-target="list"></div>
           </div>
         </div>
@@ -128,7 +128,7 @@
               autocomplete: "off",
               data: { action: "focus->jira-task-search#focus input->jira-task-search#filter keydown->jira-task-search#keydown", jira_task_search_target: "input" } %>
           <%= f.hidden_field "time_entry[task_id]", data: { jira_task_search_target: "taskId" } %>
-          <div class="hidden absolute left-0 top-full mt-1 w-full rounded-xl shadow-lg z-50 max-h-64 overflow-y-auto" style="background: var(--color-surface-container); border: 1px solid var(--color-outline-variant); min-width: 320px;" data-jira-task-search-target="dropdown">
+          <div class="hidden absolute left-0 top-full mt-1 w-full rounded-xl shadow-lg z-[9999] max-h-64 overflow-y-auto" style="background: var(--color-surface-container); border: 1px solid var(--color-outline-variant); min-width: 320px;" data-jira-task-search-target="dropdown">
             <div data-jira-task-search-target="list"></div>
           </div>
         </div>
