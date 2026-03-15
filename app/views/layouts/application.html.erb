@@ -39,13 +39,13 @@
         </div>
       </header>
 
-      <div class="flex">
+      <div class="flex h-[calc(100vh-3.5rem)]">
         <%# Mobile drawer %>
         <input type="checkbox" id="sidebar-toggle" class="m3-drawer-toggle">
         <label for="sidebar-toggle" class="m3-drawer-overlay"></label>
 
         <%# Sidebar / Nav Rail %>
-        <aside class="m3-drawer-side m3-nav-rail w-64 lg:sticky lg:top-14 h-[calc(100vh-3.5rem)] flex flex-col overflow-y-auto">
+        <aside class="m3-drawer-side m3-nav-rail w-64 lg:block flex-shrink-0 h-full flex flex-col overflow-y-auto">
           <%# Navigation %>
           <nav class="flex-1 px-3 pt-4 space-y-0.5 overflow-y-auto">
             <% unless current_user.client_role?(current_workspace) %>
@@ -180,7 +180,7 @@
         </aside>
 
         <%# Main content %>
-        <main class="flex-1 p-5 lg:p-8 min-w-0">
+        <main class="flex-1 p-5 lg:p-8 min-w-0 overflow-y-auto">
           <div class="max-w-5xl mx-auto">
             <% if flash[:notice] %>
               <div class="m3-alert m3-alert-success mb-4" data-controller="flash">
