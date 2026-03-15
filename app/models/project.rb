@@ -12,6 +12,10 @@ class Project < ApplicationRecord
   scope :active, -> { where(archived: false) }
   scope :archived, -> { where(archived: true) }
 
+  def jira_connected?
+    external_type == "jira"
+  end
+
   PROJECT_COLORS = %w[
     #3B82F6 #EF4444 #10B981 #F59E0B #8B5CF6
     #EC4899 #06B6D4 #F97316 #84CC16 #6366F1

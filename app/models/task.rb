@@ -4,6 +4,9 @@ class Task < ApplicationRecord
 
   enum :status, { active: 0, done: 1 }
 
+  scope :jira_synced, -> { where(external_type: "jira") }
+  scope :local_only, -> { where(external_type: [nil, ""]) }
+
   validates :name, presence: true, uniqueness: { scope: :project_id }
 
   def effective_hourly_rate_cents
