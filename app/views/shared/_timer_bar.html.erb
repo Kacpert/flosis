@@ -148,7 +148,7 @@
         <div class="h-5 w-px timer-desktop-only" style="background: var(--color-outline-variant)"></div>
         <div class="flex items-center gap-1.5 timer-desktop-only">
           <%= f.datetime_local_field "time_entry[started_at]", value: Time.current.strftime("%Y-%m-%dT%H:%M"),
-              class: "bg-transparent border-none text-sm focus:outline-none w-[155px]",
+              class: "bg-transparent border-none text-sm focus:outline-none w-[200px]",
               style: "color: var(--color-on-surface-variant)",
               data: { manual_entry_target: "startTime", action: "change->manual-entry#startTimeChanged" } %>
         </div>

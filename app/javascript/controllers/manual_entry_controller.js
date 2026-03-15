@@ -67,7 +67,7 @@ export default class extends Controller {
     }
 
     const end = new Date(start.getTime() + seconds * 1000)
-    const endStr = end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    const endStr = end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
     this.endTimeTarget.textContent = `→ ${endStr}`
   }
 
