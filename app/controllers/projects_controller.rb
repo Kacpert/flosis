@@ -10,6 +10,7 @@ class ProjectsController < ApplicationController
   end
 
   def show
+    @tab = params[:tab] || "settings"
     @tasks = @project.tasks.order(:name)
     @time_entries = @project.time_entries.completed.includes(:user, :task, :tags).order(started_at: :desc).limit(20)
     @total_seconds = @project.time_entries.completed.sum(:duration_seconds)
@@ -19,6 +20,13 @@ class ProjectsController < ApplicationController
       .group("tasks.id", "tasks.name", "tasks.status")
       .sum(:duration_seconds)
       .sort_by { |_, seconds| -seconds }
+
+    if @tab == "members"
+      @memberships = @project.project_memberships.eager_load(:user).order("users.name")
+      @available_users = current_workspace.users
+        .where.not(id: @project.project_memberships.select(:user_id))
+        .order(:name)
+    end
   end
 
   def new
@@ -74,7 +82,7 @@ class ProjectsController < ApplicationController
   end
 
   def project_params
-    params.require(:project).permit(:name, :client_id, :color,
+    params.require(:project).permit(:name, :client_id, :color, :currency,
                                     :budget_type, :budget_cents, :budget_hours,
                                     :external_type, :external_reference)
   end

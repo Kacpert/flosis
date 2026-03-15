@@ -19,6 +19,7 @@ Rails.application.routes.draw do
   resources :clients
   resources :projects do
     resources :tasks, only: [ :create, :destroy ], shallow: true
+    resources :project_memberships, only: [ :create, :update, :destroy ], path: "members"
     member do
       patch :archive
       patch :unarchive

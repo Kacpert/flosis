@@ -1,98 +1,154 @@
 <div class="space-y-5">
   <div class="flex justify-between items-center">
     <div class="flex items-center gap-3">
-      <%= project_color_dot(@project.color) %>
+      <span class="block w-4 h-4 rounded-full" style="background-color: <%= @project.color %>"></span>
       <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)"><%= @project.name %></h1>
-      <% if @project.client %>
-        <span style="color: var(--color-outline)">·</span>
-        <span class="text-sm" style="color: var(--color-on-surface-variant)"><%= @project.client.name %></span>
-      <% end %>
     </div>
     <div class="flex gap-2">
-      <%= link_to "Edit", edit_project_path(@project), class: "m3-btn m3-btn-text" %>
-      <%= link_to "Back", projects_path, class: "m3-btn m3-btn-text" %>
+      <%= link_to "Edit", edit_project_path(@project), class: "m3-btn m3-btn-outlined m3-btn-sm" %>
+      <% if @project.archived? %>
+        <%= button_to "Restore", unarchive_project_path(@project), method: :patch, class: "m3-btn m3-btn-text m3-btn-sm" %>
+      <% else %>
+        <%= button_to "Archive", archive_project_path(@project), method: :patch, class: "m3-btn m3-btn-text m3-btn-sm",
+            data: { turbo_confirm: "Archive this project?" } %>
+      <% end %>
     </div>
   </div>
 
-  <%# Stats %>
-  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem;">
-    <div class="stat-card">
-      <div class="stat-label">Total Time</div>
-      <div class="stat-number"><%= format_duration_hm(@total_seconds) %></div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Tasks</div>
-      <div class="stat-number"><%= @tasks.size %></div>
-    </div>
-    <% if @project.budget_type != "no_budget" %>
-      <div class="stat-card">
-        <div class="stat-label">Budget</div>
-        <div class="stat-number"><%= @project.budget_percentage %>%</div>
-      </div>
+  <div class="flex gap-0 border-b" style="border-color: var(--color-outline-variant)">
+    <%= link_to project_path(@project, tab: "settings"),
+        class: "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px #{@tab == 'settings' ? '' : 'border-transparent'}",
+        style: @tab == "settings" ? "border-color: var(--color-primary); color: var(--color-primary)" : "color: var(--color-on-surface-variant)" do %>
+      Settings
+    <% end %>
+    <%= link_to project_path(@project, tab: "members"),
+        class: "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px #{@tab == 'members' ? '' : 'border-transparent'}",
+        style: @tab == "members" ? "border-color: var(--color-primary); color: var(--color-primary)" : "color: var(--color-on-surface-variant)" do %>
+      Members (<%= @project.project_memberships.count %>)
     <% end %>
   </div>
 
-  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
-    <%# Tasks %>
-    <div class="stat-card">
-      <h2 class="section-header mb-3">Tasks</h2>
-      <div id="tasks-list" class="space-y-1">
-        <% @tasks.each do |task| %>
-          <%= render "tasks/task", task: task %>
-        <% end %>
-      </div>
-      <%= form_with model: [@project, Task.new], class: "flex gap-2 mt-3" do |f| %>
-        <%= f.text_field :name, placeholder: "Add task...", class: "m3-text-field flex-1", required: true %>
-        <%= f.submit "Add", class: "m3-btn m3-btn-filled m3-btn-sm" %>
-      <% end %>
-    </div>
-
-    <%# Recent entries %>
-    <div class="stat-card">
-      <h2 class="section-header mb-3">Recent Entries</h2>
-      <% if @time_entries.any? %>
-        <div class="space-y-0.5">
-          <% @time_entries.each do |entry| %>
-            <div class="flex items-center justify-between p-2 rounded-[var(--radius-sm)] transition-colors text-sm" onmouseover="this.style.background='var(--color-surface-container)'" onmouseout="this.style.background='transparent'">
-              <div class="min-w-0">
-                <div class="font-medium truncate" style="color: var(--color-on-surface)"><%= entry.description.presence || "No description" %></div>
-                <div class="text-xs" style="color: var(--color-on-surface-variant)">
-                  <%= entry.user.name %> · <%= entry.started_at.strftime("%b %-d") %>
-                </div>
-              </div>
-              <span class="mono-duration font-medium ml-3" style="color: var(--color-on-surface-variant)"><%= entry.formatted_duration %></span>
-            </div>
+  <% if @tab == "settings" %>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="m3-card-elevated p-5">
+        <h3 class="text-sm font-semibold mb-3" style="color: var(--color-on-surface-variant)">Details</h3>
+        <dl class="space-y-2 text-sm">
+          <div class="flex justify-between"><dt style="color: var(--color-outline)">Client</dt><dd><%= @project.client&.name || "—" %></dd></div>
+          <div class="flex justify-between"><dt style="color: var(--color-outline)">Currency</dt><dd><%= @project.currency %></dd></div>
+          <div class="flex justify-between"><dt style="color: var(--color-outline)">Budget</dt><dd><%= @project.budget_type.titleize %></dd></div>
+          <% if @project.money? %>
+            <div class="flex justify-between"><dt style="color: var(--color-outline)">Budget Amount</dt><dd><%= number_to_currency(@project.budget_cents.to_f / 100) %></dd></div>
+          <% elsif @project.hours? %>
+            <div class="flex justify-between"><dt style="color: var(--color-outline)">Budget Hours</dt><dd><%= @project.budget_hours %></dd></div>
           <% end %>
+          <div class="flex justify-between"><dt style="color: var(--color-outline)">Total Time</dt><dd><%= format_duration_hm(@total_seconds) %></dd></div>
+        </dl>
+      </div>
+
+      <% if @project.money? || @project.hours? %>
+        <div class="m3-card-elevated p-5">
+          <h3 class="text-sm font-semibold mb-3" style="color: var(--color-on-surface-variant)">Budget Progress</h3>
+          <div class="text-2xl font-bold" style="color: var(--color-primary)"><%= @project.budget_percentage %>%</div>
+          <div class="w-full h-2 rounded-full mt-2" style="background: var(--color-surface-container-highest)">
+            <div class="h-2 rounded-full" style="width: <%= [@project.budget_percentage, 100].min %>%; background: var(--color-primary)"></div>
+          </div>
         </div>
-      <% else %>
-        <p class="text-sm py-4 text-center" style="color: var(--color-outline)">No entries yet</p>
       <% end %>
     </div>
-  </div>
 
-  <%# Time by Task %>
-  <% if @task_time_recap.any? %>
-    <div class="stat-card">
-      <h2 class="section-header mb-4">Time by Task</h2>
-      <% max_seconds = @task_time_recap.map { |_, s| s }.max %>
-      <div class="space-y-3">
-        <% @task_time_recap.each do |(task_id, task_name, task_status), seconds| %>
-          <div>
-            <div class="flex justify-between items-center mb-1.5">
-              <span class="text-sm font-medium flex items-center gap-2" style="color: var(--color-on-surface)">
-                <%= task_name %>
-                <% if task_status == "done" %>
-                  <span class="text-[10px] font-medium px-2 py-0.5 rounded-full" style="color: var(--color-outline); background: var(--color-surface-container)">Done</span>
-                <% end %>
-              </span>
-              <span class="text-sm mono-duration" style="color: var(--color-on-surface-variant)"><%= format_duration_hm(seconds) %></span>
+    <% if @task_time_recap.any? %>
+      <div class="m3-card-outlined overflow-hidden">
+        <table class="m3-table">
+          <thead><tr><th>Task</th><th>Status</th><th class="text-right">Time</th></tr></thead>
+          <tbody>
+            <% @task_time_recap.each do |(task_id, task_name, task_status), seconds| %>
+              <tr>
+                <td class="text-sm"><%= task_name %></td>
+                <td><span class="text-xs px-2 py-0.5 rounded-full" style="background: var(--color-surface-container-highest); color: var(--color-on-surface-variant)"><%= task_status %></span></td>
+                <td class="text-right text-sm mono-duration"><%= format_duration_hm(seconds) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+
+  <% else %>
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Project Members</h2>
+      <% if @available_users.any? %>
+        <div class="relative" data-controller="dropdown">
+          <button type="button" class="m3-btn m3-btn-filled" data-action="click->dropdown#toggle">Add Member</button>
+          <div class="hidden absolute right-0 top-full mt-1 m3-menu z-50 w-72" data-dropdown-target="menu">
+            <% @available_users.each do |user| %>
+              <%= form_with url: project_project_memberships_path(@project), method: :post, class: "m3-menu-item flex justify-between items-center" do %>
+                <input type="hidden" name="user_id" value="<%= user.id %>">
+                <input type="hidden" name="hourly_rate_dollars" value="0">
+                <div class="flex items-center gap-2">
+                  <div class="m3-avatar m3-avatar-sm"><%= user.name.first(2).upcase %></div>
+                  <div>
+                    <div class="text-sm font-medium"><%= user.name %></div>
+                    <div class="text-xs" style="color: var(--color-outline)"><%= user.email_address %></div>
+                  </div>
+                </div>
+                <button type="submit" class="text-xs font-medium" style="color: var(--color-primary)">Add</button>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="m3-card-outlined overflow-hidden">
+      <% @memberships.each do |membership| %>
+        <div class="p-4 border-b" style="border-color: var(--color-outline-variant)" data-controller="rate-history">
+          <div class="flex justify-between items-center">
+            <div class="flex items-center gap-3">
+              <div class="m3-avatar m3-avatar-sm"><%= membership.user.name.first(2).upcase %></div>
+              <div>
+                <div class="text-sm font-medium" style="color: var(--color-on-surface)"><%= membership.user.name %></div>
+                <div class="text-xs" style="color: var(--color-outline)"><%= membership.user.email_address %></div>
+              </div>
             </div>
-            <div class="w-full h-1.5 rounded-full overflow-hidden" style="background: var(--color-surface-container-highest)">
-              <div class="h-full rounded-full transition-all" style="background: var(--color-primary); opacity: 0.7; width: <%= max_seconds > 0 ? (seconds.to_f / max_seconds * 100).round(1) : 0 %>%"></div>
+            <div class="flex items-center gap-3">
+              <%= form_with url: project_project_membership_path(@project, membership), method: :patch, class: "flex items-center gap-2" do %>
+                <input type="number" name="hourly_rate_dollars" step="0.01" min="0"
+                       value="<%= membership.hourly_rate_cents / 100.0 %>"
+                       class="m3-text-field w-24 text-right text-sm">
+                <span class="text-xs" style="color: var(--color-outline)"><%= @project.currency %>/hr</span>
+                <button type="submit" class="m3-btn m3-btn-text m3-btn-sm">Save</button>
+              <% end %>
+              <button type="button" class="text-xs font-medium" style="color: var(--color-primary)" data-action="click->rate-history#toggle">History</button>
+              <%= button_to "Remove", project_project_membership_path(@project, membership), method: :delete,
+                  class: "text-xs font-medium", style: "color: var(--color-error)",
+                  data: { turbo_confirm: "Remove #{membership.user.name} from this project?" } %>
             </div>
           </div>
-        <% end %>
-      </div>
+
+          <div class="hidden mt-3 ml-11 p-3 rounded-lg" style="background: var(--color-surface-container)" data-rate-history-target="panel">
+            <div class="text-xs font-medium mb-2" style="color: var(--color-outline)">Rate History</div>
+            <% history = membership.rate_changes.order(changed_at: :desc) %>
+            <% history.each_with_index do |rc, idx| %>
+              <div class="flex justify-between text-xs py-1 border-b" style="border-color: var(--color-outline-variant)">
+                <span style="color: <%= idx == 0 ? 'var(--color-on-surface)' : 'var(--color-outline)' %>">
+                  <%= rc.hourly_rate_cents / 100.0 %> <%= @project.currency %>/hr
+                </span>
+                <span style="color: var(--color-outline)">
+                  <%= rc.changed_at.strftime("%b %-d, %Y") %> —
+                  <%= idx == 0 ? "Current" : history[idx - 1].changed_at.strftime("%b %-d, %Y") %>
+                </span>
+              </div>
+            <% end %>
+            <% if history.empty? %>
+              <div class="text-xs" style="color: var(--color-outline)">No rate changes recorded.</div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <% if @memberships.empty? %>
+        <div class="p-8 text-center text-sm" style="color: var(--color-outline)">No members assigned yet.</div>
+      <% end %>
     </div>
   <% end %>
 </div>

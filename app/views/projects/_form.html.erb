@@ -30,6 +30,12 @@
   </div>
 
   <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Currency</label>
+    <%= f.select :currency, Project::CURRENCIES.map { |c| [c, c] },
+        {}, class: "m3-text-field w-full" %>
+  </div>
+
+  <div class="space-y-1">
     <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Budget Type</label>
     <%= f.select :budget_type, Project.budget_types.keys.map { |k| [k.titleize, k] },
         {}, class: "m3-text-field w-full",
