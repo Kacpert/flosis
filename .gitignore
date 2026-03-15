@@ -1,4 +1,7 @@
 
+# Environment variables
+.env
+
 # ClaudeOnRails
 .claude-on-rails/sessions/
 .claude-swarm/
