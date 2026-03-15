@@ -5,46 +5,56 @@
   </div>
 
   <div class="m3-card-outlined overflow-hidden">
-    <table class="m3-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Email</th>
-          <th>Role</th>
-          <th class="text-right">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% @memberships.each do |membership| %>
-          <tr>
-            <td>
-              <div class="flex items-center gap-2.5">
-                <div class="m3-avatar m3-avatar-sm"><%= membership.user.name.first(2).upcase %></div>
-                <span class="text-sm font-medium" style="color: var(--color-on-surface)"><%= membership.user.name %></span>
+    <% @memberships.each do |membership| %>
+      <div class="border-b" style="border-color: var(--color-outline-variant)" data-controller="team-expand">
+        <div class="flex justify-between items-center p-4">
+          <div class="flex items-center gap-2.5">
+            <div class="m3-avatar m3-avatar-sm"><%= membership.user.name.first(2).upcase %></div>
+            <div>
+              <span class="text-sm font-medium" style="color: var(--color-on-surface)"><%= membership.user.name %></span>
+              <div class="text-xs" style="color: var(--color-outline)"><%= membership.user.email_address %></div>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full"
+                  style="<%= role_badge_style(membership.role) %>">
+              <%= membership.role %>
+            </span>
+            <% project_count = membership.user.project_memberships.joins(:project).where(projects: { workspace_id: current_workspace.id }).count %>
+            <span class="text-xs" style="color: var(--color-outline)"><%= project_count %> projects</span>
+            <button type="button" class="text-lg" style="color: var(--color-outline); cursor: pointer" data-action="click->team-expand#toggle" data-team-expand-target="arrow">&#9662;</button>
+            <% unless membership.user == current_user %>
+              <div class="flex gap-1">
+                <%= link_to "Edit", edit_workspace_member_path(membership), class: "m3-btn m3-btn-text m3-btn-sm" %>
+                <%= button_to "Remove", workspace_member_path(membership), method: :delete,
+                    class: "m3-btn m3-btn-text m3-btn-sm", style: "color: var(--color-error)",
+                    data: { turbo_confirm: "Remove #{membership.user.name} from this workspace?" } %>
               </div>
-            </td>
-            <td class="text-sm" style="color: var(--color-on-surface-variant)"><%= membership.user.email_address %></td>
-            <td>
-              <span class="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full"
-                    style="<%= role_badge_style(membership.role) %>">
-                <%= membership.role %>
-              </span>
-            </td>
-            <td class="text-right">
-              <div class="flex justify-end gap-1">
-                <% unless membership.user == current_user %>
-                  <%= link_to "Edit", edit_workspace_member_path(membership), class: "m3-btn m3-btn-text m3-btn-sm" %>
-                  <%= button_to "Remove", workspace_member_path(membership), method: :delete,
-                      class: "m3-btn m3-btn-text m3-btn-sm", style: "color: var(--color-error)",
-                      data: { turbo_confirm: "Remove #{membership.user.name} from this workspace?" } %>
-                <% else %>
-                  <span class="text-xs px-2 py-1" style="color: var(--color-outline)">You</span>
-                <% end %>
+            <% else %>
+              <span class="text-xs px-2 py-1" style="color: var(--color-outline)">You</span>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="hidden pb-4 px-4 ml-11" data-team-expand-target="panel">
+          <div class="p-3 rounded-lg" style="background: var(--color-surface-container)">
+            <div class="text-xs font-medium mb-2" style="color: var(--color-outline)">Assigned Projects</div>
+            <% user_project_memberships = membership.user.project_memberships.joins(:project).where(projects: { workspace_id: current_workspace.id }).includes(:project) %>
+            <% user_project_memberships.each do |pm| %>
+              <div class="flex justify-between text-xs py-1.5 border-b" style="border-color: var(--color-outline-variant)">
+                <div class="flex items-center gap-2">
+                  <span class="block w-2 h-2 rounded-full" style="background-color: <%= pm.project.color %>"></span>
+                  <%= link_to pm.project.name, project_path(pm.project, tab: "members"), class: "font-medium", style: "color: var(--color-on-surface)" %>
+                </div>
+                <span style="color: var(--color-on-surface-variant)"><%= pm.hourly_rate_cents / 100.0 %> <%= pm.project.currency %>/hr</span>
               </div>
-            </td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
+            <% end %>
+            <% if user_project_memberships.empty? %>
+              <div class="text-xs py-1" style="color: var(--color-outline)">Not assigned to any projects.</div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
   </div>
 </div>

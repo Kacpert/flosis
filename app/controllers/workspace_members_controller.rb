@@ -5,7 +5,9 @@ class WorkspaceMembersController < ApplicationController
   before_action :set_membership, only: %i[edit update destroy]
 
   def index
-    @memberships = current_workspace.workspace_memberships.includes(:user).order("users.name")
+    @memberships = current_workspace.workspace_memberships
+      .includes(user: { project_memberships: :project })
+      .order("users.name")
   end
 
   def new
