@@ -76,7 +76,7 @@
           <%= f.text_field :description, placeholder: "Description",
               class: "m3-input-compact flex-1 min-w-[120px]" %>
           <%= f.collection_select :project_id,
-              (Current.workspace&.projects&.active&.order(:name) || []), :id, :name,
+              available_projects, :id, :name,
               { include_blank: "No project" },
               class: "m3-input-compact",
               data: { controller: "task-loader", action: "change->task-loader#load" } %>

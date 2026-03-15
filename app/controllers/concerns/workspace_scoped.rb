@@ -5,12 +5,24 @@ module WorkspaceScoped
     before_action :set_current_workspace
     before_action :set_running_timer
     helper_method :current_workspace
+    helper_method :available_projects
   end
 
   private
 
   def current_workspace
     Current.workspace
+  end
+
+  def available_projects
+    if current_user.admin_or_owner?(current_workspace)
+      current_workspace.projects.active.order(:name)
+    else
+      current_workspace.projects.active
+        .joins(:project_memberships)
+        .where(project_memberships: { user_id: current_user.id })
+        .order(:name)
+    end
   end
 
   def set_current_workspace

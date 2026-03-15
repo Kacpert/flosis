@@ -4,10 +4,18 @@ class TimersController < ApplicationController
   before_action :require_employee!
 
   def start
-    # Stop any existing running timer first
     existing = current_user.running_timer(current_workspace)
     if existing
       existing.update!(stopped_at: Time.current)
+    end
+
+    project = current_workspace.projects.find(params[:project_id]) if params[:project_id].present?
+
+    unless current_user.admin_or_owner?(current_workspace) || project.nil?
+      unless ProjectMembership.exists?(project: project, user: current_user)
+        redirect_back fallback_location: root_path, alert: "You are not assigned to this project."
+        return
+      end
     end
 
     @time_entry = current_workspace.time_entries.create!(

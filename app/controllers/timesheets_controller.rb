@@ -12,7 +12,7 @@ class TimesheetsController < ApplicationController
 
     @week_days = (0..6).map { |i| @week_start + i.days }
 
-    @projects = current_workspace.projects.active.includes(:tasks).order(:name)
+    @projects = available_projects.includes(:tasks)
 
     @entries = current_workspace.time_entries
       .where(user: current_user)
@@ -38,6 +38,14 @@ class TimesheetsController < ApplicationController
 
   def update_cell
     project_id = params[:project_id]
+
+    unless current_user.admin_or_owner?(current_workspace)
+      unless ProjectMembership.exists?(project_id: project_id, user_id: current_user.id)
+        redirect_to timesheet_path, alert: "You are not assigned to this project."
+        return
+      end
+    end
+
     task_id = params[:task_id].presence
     date = Date.parse(params[:date])
     duration_str = params[:duration]

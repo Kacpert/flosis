@@ -26,14 +26,14 @@ class TimeEntriesController < ApplicationController
       .order(started_at: :desc)
 
     @entries_by_day = @entries.group_by { |e| e.started_at.to_date }
-    @projects = current_workspace.projects.active.order(:name)
+    @projects = available_projects
     @tags = current_workspace.tags.order(:name)
     @new_entry = current_workspace.time_entries.build(started_at: Time.current, user: current_user)
   end
 
   def new
     @time_entry = current_workspace.time_entries.build(started_at: Time.current, user: current_user)
-    @projects = current_workspace.projects.active.order(:name)
+    @projects = available_projects
     @tags = current_workspace.tags.order(:name)
   end
 
@@ -49,14 +49,14 @@ class TimeEntriesController < ApplicationController
         format.html { redirect_to time_entries_path(date: @time_entry.started_at.to_date), notice: "Time entry created." }
       end
     else
-      @projects = current_workspace.projects.active.order(:name)
+      @projects = available_projects
       @tags = current_workspace.tags.order(:name)
       render :new, status: :unprocessable_entity
     end
   end
 
   def edit
-    @projects = current_workspace.projects.active.order(:name)
+    @projects = available_projects
     @tags = current_workspace.tags.order(:name)
   end
 
@@ -84,7 +84,7 @@ class TimeEntriesController < ApplicationController
           )
         end
         format.html do
-          @projects = current_workspace.projects.active.order(:name)
+          @projects = available_projects
           @tags = current_workspace.tags.order(:name)
           render :edit, status: :unprocessable_entity
         end
