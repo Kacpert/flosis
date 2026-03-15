@@ -16,6 +16,10 @@ export default class extends Controller {
 
   disconnect() {
     document.removeEventListener("click", this.clickOutside)
+    // Clean up dropdown from body if it was moved there
+    if (this.hasDropdownTarget && this.dropdownTarget.parentElement === document.body) {
+      this.dropdownTarget.remove()
+    }
   }
 
   async projectChanged(event) {
@@ -75,6 +79,7 @@ export default class extends Controller {
   }
 
   focus() {
+    if (this._justSelected) return
     if (!this.jiraConnectedValue || this.tasksValue.length === 0) return
     this.renderList()
     this.show()
@@ -135,6 +140,7 @@ export default class extends Controller {
   }
 
   selectTask(task) {
+    this._justSelected = true
     if (this.hasInputTarget) {
       this.inputTarget.value = task.name
     }
@@ -143,8 +149,9 @@ export default class extends Controller {
     }
     this.hide()
 
-    // Trigger auto-save if available
+    // Trigger auto-save if available, but prevent the blur from reopening the dropdown
     this.inputTarget.dispatchEvent(new Event("blur", { bubbles: true }))
+    setTimeout(() => { this._justSelected = false }, 200)
   }
 
   fuzzyFilter(tasks, query) {
@@ -189,7 +196,8 @@ export default class extends Controller {
   }
 
   clickOutside(event) {
-    if (!this.element.contains(event.target)) {
+    if (!this.element.contains(event.target) &&
+        !(this.hasDropdownTarget && this.dropdownTarget.contains(event.target))) {
       this.hide()
     }
   }
