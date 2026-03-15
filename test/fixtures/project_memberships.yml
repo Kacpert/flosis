@@ -1,0 +1,14 @@
+one_elvium:
+  project: jira_project
+  user: one
+  hourly_rate_cents: 15000
+
+two_elvium:
+  project: jira_project
+  user: two
+  hourly_rate_cents: 10000
+
+one_internal:
+  project: plain_project
+  user: one
+  hourly_rate_cents: 12000
