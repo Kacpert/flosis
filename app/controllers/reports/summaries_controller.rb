@@ -10,8 +10,8 @@ module Reports
       scope = build_scope
 
       @total_seconds = scope.sum(:duration_seconds)
-      @billable_seconds = scope.billable.sum(:duration_seconds)
-      @billable_amount = scope.billable.sum("time_entries.duration_seconds * COALESCE(time_entries.hourly_rate_cents, 0) / 360000.0")
+      @billable_seconds = scope.sum(:duration_seconds)
+      @billable_amount = scope.sum("time_entries.duration_seconds * COALESCE(time_entries.hourly_rate_cents, 0) / 360000.0")
 
       @chart_data = build_chart_data(scope)
 
@@ -119,8 +119,6 @@ module Reports
 
       scope = scope.where(project_id: params[:project_id]) if params[:project_id].present?
       scope = scope.where(user_id: params[:user_id]) if params[:user_id].present?
-      scope = scope.where(billable: params[:billable] == "1") if params[:billable].present?
-
       if params[:client_id].present?
         scope = scope.joins(:project).where(projects: { client_id: params[:client_id] })
       end

@@ -86,10 +86,6 @@
               class: "m3-input-compact" %>
           <%= f.datetime_local_field :started_at, class: "m3-input-compact w-[165px]" %>
           <%= f.datetime_local_field :stopped_at, class: "m3-input-compact w-[165px]" %>
-          <label class="flex items-center gap-1">
-            <%= f.check_box :billable, class: "m3-checkbox" %>
-            <span class="text-xs">$</span>
-          </label>
           <%= f.submit "Save", class: "m3-btn m3-btn-filled m3-btn-sm" %>
           <button type="button" class="m3-btn m3-btn-text m3-btn-sm" data-action="click->inline-edit#cancel">Cancel</button>
         <% end %>

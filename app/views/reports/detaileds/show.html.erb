@@ -34,11 +34,6 @@
         <%= f.select :user_id, @users.map { |u| [u.name, u.id] },
             { include_blank: "All" }, class: "m3-text-field" %>
       </div>
-      <div class="space-y-1">
-        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Billable</label>
-        <%= f.select :billable, [["Yes", "1"], ["No", "0"]],
-            { include_blank: "All" }, class: "m3-text-field" %>
-      </div>
       <%= f.submit "Apply", class: "m3-btn m3-btn-filled m3-btn-sm" %>
     </div>
   <% end %>
@@ -50,7 +45,7 @@
       <div class="stat-number"><%= format_duration_hm(@total_seconds) %></div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Billable</div>
+      <div class="stat-label">Total Hours</div>
       <div class="stat-number" style="color: var(--color-success)"><%= format_duration_hm(@billable_seconds) %></div>
     </div>
     <% if can_see_money? %>
@@ -101,7 +96,7 @@
             <td class="text-right mono-duration text-sm"><%= entry.formatted_duration %></td>
             <% if can_see_money? %>
               <td class="text-right text-sm" style="color: var(--color-on-surface-variant)">
-                <% if entry.billable? %>$<%= '%.2f' % entry.billable_amount %><% end %>
+                $<%= '%.2f' % entry.billable_amount %>
               </td>
             <% end %>
           </tr>

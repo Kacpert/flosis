@@ -65,8 +65,7 @@ class TimesheetsController < ApplicationController
         task_id: task_id,
         started_at: date.to_datetime.change(hour: 9),
         stopped_at: date.to_datetime.change(hour: 9) + duration_seconds.seconds,
-        duration_seconds: duration_seconds,
-        billable: Project.find(project_id).billable
+        duration_seconds: duration_seconds
       )
     end
 

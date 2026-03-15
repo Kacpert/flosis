@@ -10,8 +10,8 @@ module Reports
       @pagy, @entries = pagy(scope.order(started_at: :desc))
 
       @total_seconds = scope.sum(:duration_seconds)
-      @billable_seconds = scope.billable.sum(:duration_seconds)
-      @billable_amount = scope.billable.sum("time_entries.duration_seconds * COALESCE(time_entries.hourly_rate_cents, 0) / 360000.0")
+      @billable_seconds = scope.sum(:duration_seconds)
+      @billable_amount = scope.sum("time_entries.duration_seconds * COALESCE(time_entries.hourly_rate_cents, 0) / 360000.0")
 
       @projects = current_workspace.projects.active.order(:name)
       @clients = current_workspace.clients.active.order(:name)
@@ -27,7 +27,7 @@ module Reports
 
       csv_data = CSV.generate(headers: true) do |csv|
         csv << [ "Date", "Description", "Project", "Client", "Task", "Tags", "User",
-                 "Start", "End", "Duration", "Billable", "Rate", "Amount" ]
+                 "Start", "End", "Duration", "Rate", "Amount" ]
 
         entries.each do |entry|
           csv << [
@@ -41,7 +41,6 @@ module Reports
             entry.started_at.strftime("%H:%M"),
             entry.stopped_at&.strftime("%H:%M"),
             format_duration_csv(entry.duration_seconds),
-            entry.billable? ? "Yes" : "No",
             entry.effective_rate_cents / 100.0,
             entry.billable_amount
           ]
@@ -62,14 +61,13 @@ module Reports
       pdf.text "#{@from} to #{@to}", size: 12
       pdf.move_down 20
 
-      table_data = [ [ "Date", "Description", "Project", "Duration", "Billable", "Amount" ] ]
+      table_data = [ [ "Date", "Description", "Project", "Duration", "Amount" ] ]
       entries.each do |entry|
         table_data << [
           entry.started_at.to_date.to_s,
           entry.description.to_s.truncate(40),
           entry.project&.name.to_s,
           format_duration_csv(entry.duration_seconds),
-          entry.billable? ? "Yes" : "No",
           "$#{'%.2f' % entry.billable_amount}"
         ]
       end
@@ -87,7 +85,7 @@ module Reports
       total_amount = entries.sum(&:billable_amount)
 
       pdf.move_down 10
-      pdf.text "Total: #{format_duration_csv(total_seconds)} | Billable Amount: $#{'%.2f' % total_amount}", style: :bold
+      pdf.text "Total: #{format_duration_csv(total_seconds)} | Amount: $#{'%.2f' % total_amount}", style: :bold
 
       send_data pdf.render, filename: "time-report-#{@from}-to-#{@to}.pdf", type: "application/pdf"
     end
@@ -101,8 +99,6 @@ module Reports
 
       scope = scope.where(project_id: params[:project_id]) if params[:project_id].present?
       scope = scope.where(user_id: params[:user_id]) if params[:user_id].present?
-      scope = scope.where(billable: params[:billable] == "1") if params[:billable].present?
-
       if params[:client_id].present?
         scope = scope.joins(:project).where(projects: { client_id: params[:client_id] })
       end

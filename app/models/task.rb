@@ -8,8 +8,4 @@ class Task < ApplicationRecord
   scope :local_only, -> { where(external_type: [nil, ""]) }
 
   validates :name, presence: true, uniqueness: { scope: :project_id }
-
-  def effective_hourly_rate_cents
-    hourly_rate_cents || project.effective_hourly_rate_cents
-  end
 end

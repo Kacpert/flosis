@@ -87,11 +87,6 @@
         <%= f.submit "Move", class: "m3-btn m3-btn-text m3-btn-sm" %>
       <% end %>
 
-      <%= form_with url: bulk_update_time_entries_path, method: :post, class: "inline" do |f| %>
-        <div data-bulk-select-target="idsContainer"></div>
-        <%= f.hidden_field :bulk_action, value: "toggle_billable" %>
-        <%= f.submit "Toggle Billable", class: "m3-btn m3-btn-text m3-btn-sm" %>
-      <% end %>
     </div>
 
     <%# Inject running timer into today's group if present %>

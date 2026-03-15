@@ -36,6 +36,6 @@ class TasksController < ApplicationController
   private
 
   def task_params
-    params.require(:task).permit(:name, :billable, :hourly_rate_cents)
+    params.require(:task).permit(:name)
   end
 end

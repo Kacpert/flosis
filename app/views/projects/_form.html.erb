@@ -29,21 +29,6 @@
     </div>
   </div>
 
-  <label class="flex items-center gap-3 cursor-pointer">
-    <%= f.check_box :billable, class: "m3-checkbox" %>
-    <span class="text-sm font-medium" style="color: var(--color-on-surface)">Billable</span>
-  </label>
-
-  <div class="space-y-1" data-controller="currency-input">
-    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Hourly Rate ($)</label>
-    <input type="number" step="0.01" min="0"
-           class="m3-text-field w-full"
-           placeholder="Leave blank to use workspace default"
-           data-currency-input-target="dollars"
-           data-action="input->currency-input#update">
-    <%= f.hidden_field :hourly_rate_cents, data: { currency_input_target: "cents" } %>
-  </div>
-
   <div class="space-y-1">
     <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Budget Type</label>
     <%= f.select :budget_type, Project.budget_types.keys.map { |k| [k.titleize, k] },
