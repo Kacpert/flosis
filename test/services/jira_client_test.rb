@@ -47,8 +47,7 @@ class JiraClientTest < ActiveSupport::TestCase
   end
 
   test "fetch_issues returns issues with status category" do
-    stub_request(:get, "#{@base_url}/search")
-      .with(query: hash_including({ "jql" => "project = ELV AND statusCategory != Done ORDER BY status ASC, updated DESC" }))
+    stub_request(:post, "#{@base_url}/search/jql")
       .to_return(
         status: 200,
         body: {
@@ -85,30 +84,16 @@ class JiraClientTest < ActiveSupport::TestCase
   end
 
   test "fetch_issues handles pagination" do
-    stub_request(:get, "#{@base_url}/search")
-      .with(query: hash_including({ "startAt" => "0" }))
+    stub_request(:post, "#{@base_url}/search/jql")
       .to_return(
-        status: 200,
-        body: {
+        { status: 200, body: {
           issues: Array.new(100) { |i| { key: "ELV-#{i}", fields: { summary: "Issue #{i}", status: { name: "To Do", statusCategory: { key: "new" } }, assignee: nil } } },
-          total: 150,
-          startAt: 0,
-          maxResults: 100
-        }.to_json,
-        headers: { "Content-Type" => "application/json" }
-      )
-
-    stub_request(:get, "#{@base_url}/search")
-      .with(query: hash_including({ "startAt" => "100" }))
-      .to_return(
-        status: 200,
-        body: {
+          nextPageToken: "page2"
+        }.to_json, headers: { "Content-Type" => "application/json" } },
+        { status: 200, body: {
           issues: Array.new(50) { |i| { key: "ELV-#{100 + i}", fields: { summary: "Issue #{100 + i}", status: { name: "To Do", statusCategory: { key: "new" } }, assignee: nil } } },
-          total: 150,
-          startAt: 100,
-          maxResults: 100
-        }.to_json,
-        headers: { "Content-Type" => "application/json" }
+          nextPageToken: nil
+        }.to_json, headers: { "Content-Type" => "application/json" } }
       )
 
     issues = @client.fetch_issues("ELV")
@@ -117,8 +102,7 @@ class JiraClientTest < ActiveSupport::TestCase
   end
 
   test "fetch_issues returns empty array on timeout" do
-    stub_request(:get, "#{@base_url}/search")
-      .with(query: hash_including({}))
+    stub_request(:post, "#{@base_url}/search/jql")
       .to_timeout
 
     issues = @client.fetch_issues("ELV")

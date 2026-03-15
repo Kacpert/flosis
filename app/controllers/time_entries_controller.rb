@@ -150,12 +150,19 @@ class TimeEntriesController < ApplicationController
   end
 
   def parse_duration(str)
-    if str.match?(/\A\d+:\d{2}(:\d{2})?\z/)
+    if str.match?(/\A\d{1,3}:\d{2}(:\d{2})?\z/)
       parts = str.split(":").map(&:to_i)
       hours, minutes, seconds = parts[0], parts[1], parts[2] || 0
-      hours * 3600 + minutes * 60 + seconds
-    elsif str.match?(/\A(\d+\.?\d*)\z/)
-      (str.to_f * 3600).to_i
+      return nil if minutes >= 60 || seconds >= 60
+      total = hours * 3600 + minutes * 60 + seconds
+      total > 0 && total <= 86400 ? total : nil
+    elsif str.match?(/\A\d{1,2}\.\d{1,2}\z/)
+      total = (str.to_f * 3600).to_i
+      total > 0 && total <= 86400 ? total : nil
+    elsif str.match?(/\A\d{1,3}\z/)
+      # Plain number: treat as minutes (max 480 = 8 hours)
+      minutes = str.to_i
+      minutes > 0 && minutes <= 480 ? minutes * 60 : nil
     end
   end
 end

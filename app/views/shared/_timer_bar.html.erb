@@ -26,7 +26,7 @@
               options_from_collection_for_select(Current.workspace&.projects&.active&.order(:name) || [], :id, :name, @running_timer.project_id),
               { include_blank: "Project" },
               class: "m3-timer-pill-select",
-              data: { controller: "task-loader", action: "change->task-loader#load change->auto-save#save change->jira-task-search#projectChanged" } %>
+              data: { controller: "task-loader", action: "change->task-loader#load change->auto-save#save change->jira-task-search#projectChanged change->remember-project#save" } %>
         </div>
         <div class="m3-timer-pill-wrap" data-jira-task-select style="<%= @running_timer.project&.jira_connected? ? 'display:none' : '' %>">
           <%= f.select "time_entry[task_id]",
@@ -56,7 +56,7 @@
     </div>
   </div>
 <% else %>
-  <div data-controller="timer-mode" class="w-full">
+  <div data-controller="timer-mode remember-project" class="w-full">
     <%# Timer mode %>
     <div data-timer-mode-target="timerMode">
       <%= form_with url: start_timer_path, method: :post, class: "flex items-center gap-2 w-full", data: { controller: "jira-task-search" } do |f| %>
@@ -79,7 +79,7 @@
               options_from_collection_for_select(Current.workspace&.projects&.active&.order(:name) || [], :id, :name),
               { include_blank: "Project" },
               class: "m3-timer-pill",
-              data: { controller: "task-loader", action: "change->task-loader#load change->jira-task-search#projectChanged" } %>
+              data: { controller: "task-loader", action: "change->task-loader#load change->jira-task-search#projectChanged change->remember-project#save" } %>
         </div>
 
         <div class="timer-desktop-only" data-jira-task-select>
@@ -118,7 +118,7 @@
 
     <%# Manual mode %>
     <div data-timer-mode-target="manualMode" class="hidden">
-      <%= form_with url: time_entries_path, method: :post, class: "flex items-center gap-2 w-full", data: { controller: "jira-task-search" } do |f| %>
+      <%= form_with url: time_entries_path, method: :post, class: "flex items-center gap-2 w-full", data: { controller: "jira-task-search manual-entry" } do |f| %>
         <input type="hidden" name="time_entry[workspace_id]" value="">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" style="color: var(--color-outline)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" /></svg>
         <div class="relative flex-1 min-w-[100px]">
@@ -138,7 +138,7 @@
               options_from_collection_for_select(Current.workspace&.projects&.active&.order(:name) || [], :id, :name),
               { include_blank: "Project" },
               class: "m3-timer-pill",
-              data: { controller: "task-loader", action: "change->task-loader#load change->jira-task-search#projectChanged" } %>
+              data: { controller: "task-loader", action: "change->task-loader#load change->jira-task-search#projectChanged change->remember-project#save" } %>
         </div>
         <div class="timer-desktop-only" data-jira-task-select>
           <%= f.select "time_entry[task_id]", [],
@@ -146,12 +146,18 @@
               class: "m3-timer-pill" %>
         </div>
         <div class="h-5 w-px timer-desktop-only" style="background: var(--color-outline-variant)"></div>
-        <%= f.datetime_local_field "time_entry[started_at]", value: Time.current.strftime("%Y-%m-%dT%H:%M"),
-            class: "bg-transparent border-none text-sm focus:outline-none w-[155px] timer-desktop-only",
-            style: "color: var(--color-on-surface-variant)" %>
+        <div class="flex items-center gap-1.5 timer-desktop-only">
+          <%= f.datetime_local_field "time_entry[started_at]", value: Time.current.strftime("%Y-%m-%dT%H:%M"),
+              class: "bg-transparent border-none text-sm focus:outline-none w-[155px]",
+              style: "color: var(--color-on-surface-variant)",
+              data: { manual_entry_target: "startTime", action: "change->manual-entry#startTimeChanged" } %>
+        </div>
         <%= f.text_field "time_entry[duration_manual]", placeholder: "0:00",
             class: "bg-transparent border-none text-sm focus:outline-none w-14 text-center mono-duration",
-            style: "color: var(--color-on-surface-variant)" %>
+            style: "color: var(--color-on-surface-variant)",
+            maxlength: "7",
+            data: { manual_entry_target: "duration", action: "blur->manual-entry#durationChanged keydown->manual-entry#durationKeydown" } %>
+        <span class="text-xs timer-desktop-only flex-shrink-0" style="color: var(--color-on-surface-variant)" data-manual-entry-target="endTime"></span>
 
         <button type="button" class="m3-icon-btn m3-icon-btn-sm" data-action="click->timer-mode#toggle" title="Timer mode">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" /></svg>
