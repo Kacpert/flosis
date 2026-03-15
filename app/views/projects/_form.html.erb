@@ -66,6 +66,16 @@
     <%= f.hidden_field :budget_cents, data: { currency_input_target: "cents" } %>
   </div>
 
+  <div class="space-y-1" data-controller="jira-project-select" data-jira-project-select-current-key-value="<%= project.external_type == 'jira' ? project.external_reference : '' %>">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Jira Project</label>
+    <select data-jira-project-select-target="select" data-action="change->jira-project-select#select" class="m3-text-field w-full" disabled>
+      <option value="">Loading...</option>
+    </select>
+    <span data-jira-project-select-target="status" class="text-xs" style="color: var(--color-on-surface-variant)"></span>
+    <%= f.hidden_field :external_type, data: { jira_type_field: true } %>
+    <%= f.hidden_field :external_reference, data: { jira_ref_field: true } %>
+  </div>
+
   <div class="flex gap-2">
     <%= f.submit class: "m3-btn m3-btn-filled" %>
     <%= link_to "Cancel", projects_path, class: "m3-btn m3-btn-text" %>

@@ -30,6 +30,7 @@ class ProjectsController < ApplicationController
     @project = current_workspace.projects.build(project_params)
 
     if @project.save
+      JiraSyncService.new(@project).sync if @project.jira_connected?
       redirect_to projects_path, notice: "Project created."
     else
       @clients = current_workspace.clients.active.order(:name)
@@ -43,6 +44,7 @@ class ProjectsController < ApplicationController
 
   def update
     if @project.update(project_params)
+      JiraSyncService.new(@project).sync if @project.jira_connected? && @project.saved_change_to_external_reference?
       redirect_to projects_path, notice: "Project updated."
     else
       @clients = current_workspace.clients.active.order(:name)
@@ -73,6 +75,7 @@ class ProjectsController < ApplicationController
 
   def project_params
     params.require(:project).permit(:name, :client_id, :color, :billable, :hourly_rate_cents,
-                                    :budget_type, :budget_cents, :budget_hours)
+                                    :budget_type, :budget_cents, :budget_hours,
+                                    :external_type, :external_reference)
   end
 end
