@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_13_085615) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_15_161602) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -76,16 +76,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_13_085615) do
   end
 
   create_table "tasks", force: :cascade do |t|
+    t.string "assignee_email"
     t.boolean "billable"
     t.datetime "created_at", null: false
     t.string "external_reference"
     t.string "external_type"
     t.string "external_url"
     t.integer "hourly_rate_cents"
+    t.string "jira_status_name"
     t.string "name", null: false
     t.bigint "project_id", null: false
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.index ["project_id", "external_type", "external_reference"], name: "index_tasks_on_project_external_ref", unique: true, where: "(external_type IS NOT NULL)"
     t.index ["project_id", "name"], name: "index_tasks_on_project_id_and_name", unique: true
     t.index ["project_id"], name: "index_tasks_on_project_id"
   end
