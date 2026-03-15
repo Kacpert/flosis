@@ -37,12 +37,6 @@
         </div>
 
         <div class="space-y-1">
-          <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Time Format</label>
-          <%= f.select :time_format, [["24-hour (14:00)", "twenty_four_hour"], ["12-hour (2:00 PM)", "twelve_hour"]],
-              {}, class: "m3-text-field w-full" %>
-        </div>
-
-        <div class="space-y-1">
           <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Default Hourly Rate ($)</label>
           <input type="number" name="workspace[default_hourly_rate_dollars]" step="0.01" min="0"
                  value="<%= Current.workspace.default_hourly_rate_cents ? (Current.workspace.default_hourly_rate_cents / 100.0) : '' %>"
