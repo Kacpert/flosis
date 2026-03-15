@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_15_212943) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_15_213106) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -65,6 +65,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_15_212943) do
     t.index ["workspace_id", "client_id"], name: "index_projects_on_workspace_id_and_client_id"
     t.index ["workspace_id", "name"], name: "index_projects_on_workspace_id_and_name"
     t.index ["workspace_id"], name: "index_projects_on_workspace_id"
+  end
+
+  create_table "rate_changes", force: :cascade do |t|
+    t.datetime "changed_at", null: false
+    t.bigint "changed_by_id"
+    t.datetime "created_at", null: false
+    t.integer "hourly_rate_cents", null: false
+    t.integer "previous_rate_cents"
+    t.bigint "project_membership_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["changed_by_id"], name: "index_rate_changes_on_changed_by_id"
+    t.index ["project_membership_id"], name: "index_rate_changes_on_project_membership_id"
   end
 
   create_table "sessions", force: :cascade do |t|
@@ -293,6 +305,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_15_212943) do
   add_foreign_key "project_memberships", "users"
   add_foreign_key "projects", "clients"
   add_foreign_key "projects", "workspaces"
+  add_foreign_key "rate_changes", "project_memberships"
+  add_foreign_key "rate_changes", "users", column: "changed_by_id"
   add_foreign_key "sessions", "users"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

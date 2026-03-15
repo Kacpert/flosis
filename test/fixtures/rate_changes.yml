@@ -1,0 +1,6 @@
+one_elvium_initial:
+  project_membership: one_elvium
+  hourly_rate_cents: 15000
+  previous_rate_cents:
+  changed_by: one
+  changed_at: <%= 30.days.ago.iso8601 %>
