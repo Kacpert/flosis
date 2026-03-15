@@ -1,7 +1,7 @@
 class TimeEntry < ApplicationRecord
   belongs_to :workspace
   belongs_to :user
-  belongs_to :project, optional: true
+  belongs_to :project
   belongs_to :task, optional: true
   has_many :time_entry_tags, dependent: :destroy
   has_many :tags, through: :time_entry_tags
@@ -11,13 +11,11 @@ class TimeEntry < ApplicationRecord
   validate :no_duplicate_running_timer, on: :create
 
   before_save :calculate_duration, if: -> { stopped_at.present? }
-  before_save :inherit_billable_from_project, if: -> { project_id_changed? && project.present? }
   before_save :set_hourly_rate, if: -> { stopped_at.present? }
 
   scope :running, -> { where(stopped_at: nil) }
   scope :completed, -> { where.not(stopped_at: nil) }
   scope :in_range, ->(from, to) { where(started_at: from..to) }
-  scope :billable, -> { where(billable: true) }
   scope :for_date, ->(date) { where(started_at: date.beginning_of_day..date.end_of_day) }
 
   def running?
@@ -41,15 +39,11 @@ class TimeEntry < ApplicationRecord
   end
 
   def effective_rate_cents
-    hourly_rate_cents ||
-      task&.hourly_rate_cents ||
-      project&.effective_hourly_rate_cents ||
-      workspace.default_hourly_rate_cents ||
-      0
+    return hourly_rate_cents unless hourly_rate_cents.nil?
+    ProjectMembership.find_by(project_id: project_id, user_id: user_id)&.hourly_rate_cents || 0
   end
 
   def billable_amount_cents
-    return 0 unless billable?
     (duration_seconds / 3600.0 * effective_rate_cents).round
   end
 
@@ -73,10 +67,6 @@ class TimeEntry < ApplicationRecord
 
   def calculate_duration
     self.duration_seconds = (stopped_at - started_at).to_i
-  end
-
-  def inherit_billable_from_project
-    self.billable = project.billable
   end
 
   def set_hourly_rate
