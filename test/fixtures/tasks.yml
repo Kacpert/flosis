@@ -1,0 +1,12 @@
+jira_task:
+  name: "ELV-1 Existing task"
+  project: jira_project
+  external_type: jira
+  external_reference: ELV-1
+  external_url: https://elvium.atlassian.net/browse/ELV-1
+  assignee_email: one@example.com
+  jira_status_name: In Progress
+
+local_task:
+  name: Daily standup
+  project: jira_project

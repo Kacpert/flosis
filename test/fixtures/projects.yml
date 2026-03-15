@@ -1,0 +1,11 @@
+jira_project:
+  name: Elvium
+  workspace: one
+  color: "#3B82F6"
+  external_type: jira
+  external_reference: ELV
+
+plain_project:
+  name: Internal
+  workspace: one
+  color: "#EF4444"

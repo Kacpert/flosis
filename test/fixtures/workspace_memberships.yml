@@ -1,0 +1,9 @@
+one_owner:
+  user: one
+  workspace: one
+  role: 2
+
+two_employee:
+  user: two
+  workspace: one
+  role: 0
