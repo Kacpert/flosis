@@ -23,6 +23,8 @@ Rails.application.routes.draw do
     member do
       patch :archive
       patch :unarchive
+      get :jira_tasks, to: "jira#jira_tasks"
+      post :jira_sync, to: "jira#sync"
     end
   end
   resources :tags
@@ -62,6 +64,9 @@ Rails.application.routes.draw do
 
   # API endpoints for dynamic UI
   get "projects/:project_id/tasks_list", to: "tasks#list", as: :project_tasks_list
+
+  # Jira integration
+  get "jira/projects", to: "jira#projects", as: :jira_projects
 
   get "up" => "rails/health#show", as: :rails_health_check
 end
