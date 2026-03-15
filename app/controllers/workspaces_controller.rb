@@ -24,6 +24,6 @@ class WorkspacesController < ApplicationController
   private
 
   def workspace_params
-    params.require(:workspace).permit(:name, :default_currency, :week_start, :time_format)
+    params.require(:workspace).permit(:name)
   end
 end

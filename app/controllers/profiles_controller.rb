@@ -13,13 +13,7 @@ class ProfilesController < ApplicationController
       end
     end
 
-    user_params = params.require(:user).permit(:name, :email_address, :timezone, :default_hourly_rate_dollars)
-
-    # Convert dollars to cents
-    if params[:user][:default_hourly_rate_dollars].present?
-      user_params[:default_hourly_rate_cents] = (params[:user][:default_hourly_rate_dollars].to_f * 100).round
-    end
-    user_params.delete(:default_hourly_rate_dollars)
+    user_params = params.require(:user).permit(:name, :email_address, :timezone)
 
     # Handle password change
     if params[:user][:password].present?

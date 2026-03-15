@@ -30,13 +30,6 @@
               class: "m3-text-field w-full" %>
         </div>
 
-        <div class="space-y-1">
-          <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Default Hourly Rate ($)</label>
-          <input type="number" name="user[default_hourly_rate_dollars]" step="0.01" min="0"
-                 value="<%= current_user.default_hourly_rate_cents ? (current_user.default_hourly_rate_cents / 100.0) : '' %>"
-                 class="m3-text-field w-full"
-                 placeholder="Your default hourly rate">
-        </div>
       </div>
     </div>
 

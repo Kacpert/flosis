@@ -7,7 +7,5 @@ class Workspace < ApplicationRecord
   has_many :time_entries, dependent: :destroy
   has_many :integrations, dependent: :destroy
 
-  enum :time_format, { twenty_four_hour: 0, twelve_hour: 1 }
-
   validates :name, presence: true
 end

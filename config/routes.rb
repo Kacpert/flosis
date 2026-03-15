@@ -14,7 +14,6 @@ Rails.application.routes.draw do
   root "time_entries#index"
 
   resource :profile, only: [ :show, :update ]
-  resource :workspace_settings, only: [ :show, :update ]
   resources :workspace_members, only: [ :index, :new, :create, :edit, :update, :destroy ]
 
   resources :clients
