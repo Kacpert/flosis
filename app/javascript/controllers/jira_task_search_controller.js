@@ -115,10 +115,16 @@ export default class extends Controller {
       item.addEventListener("mouseenter", () => { item.style.background = "var(--color-surface-container-high)" })
       item.addEventListener("mouseleave", () => { item.style.background = "transparent" })
 
-      const key = document.createElement("span")
-      key.className = "text-xs font-semibold flex-shrink-0"
+      const key = document.createElement("a")
+      key.className = "text-xs font-semibold flex-shrink-0 hover:underline"
       key.style.color = "var(--color-primary)"
       key.textContent = task.external_reference || ""
+      if (task.external_url) {
+        key.href = task.external_url
+        key.target = "_blank"
+        key.rel = "noopener"
+        key.addEventListener("mousedown", (e) => e.stopPropagation())
+      }
 
       const summary = document.createElement("span")
       summary.className = "text-sm flex-1 truncate"

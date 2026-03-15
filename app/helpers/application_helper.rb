@@ -42,6 +42,20 @@ module ApplicationHelper
     content_tag(:span, "", class: "project-color-dot", style: "background-color: #{color}")
   end
 
+  def linkify_jira_keys(text, project: nil)
+    return text if text.blank?
+
+    jira_domain = ENV["JIRA_DOMAIN"]
+    return text if jira_domain.blank?
+
+    text.gsub(/\b([A-Z][A-Z0-9_]+-\d+)\b/) do |match|
+      url = "https://#{jira_domain}/browse/#{match}"
+      link_to(match, url, target: "_blank", rel: "noopener",
+              style: "color: var(--color-primary); font-weight: 600; text-decoration: none;",
+              class: "hover:underline")
+    end.html_safe
+  end
+
   def role_badge_style(role)
     case role.to_s
     when "owner"

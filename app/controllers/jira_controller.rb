@@ -21,6 +21,7 @@ class JiraController < ApplicationController
         name: t.name,
         external_reference: t.external_reference,
         external_type: t.external_type,
+        external_url: t.external_url,
         status_name: t.jira_status_name,
         assignee_email: t.assignee_email
       }

@@ -15,7 +15,7 @@
       <span class="w-[3px] h-8 rounded-full flex-shrink-0" style="background-color: <%= entry.project&.color || '#CEC8BC' %>"></span>
 
       <div class="flex-1 min-w-0">
-        <div class="m3-entry-title truncate"><%= entry.description.presence || "No description" %></div>
+        <div class="m3-entry-title truncate"><%= linkify_jira_keys(entry.description.presence || "No description") %></div>
         <% if entry.project %>
           <div class="m3-entry-subtitle">
             <%= entry.project.name %><% if entry.task %> · <%= entry.task.name %><% end %>
