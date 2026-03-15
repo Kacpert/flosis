@@ -1,6 +1,7 @@
 module Reports
   class DetailedsController < ApplicationController
     include WorkspaceScoped
+    before_action :require_admin!
 
     def show
       @from = params[:from] ? Date.parse(params[:from]) : Date.current.beginning_of_month

@@ -23,7 +23,7 @@ module Authorization
 
   def require_employee!
     unless current_user&.at_least_employee?(current_workspace)
-      redirect_to reports_summary_path, alert: "You don't have permission to access this page."
+      redirect_to root_path, alert: "You don't have permission to access this page."
     end
   end
 

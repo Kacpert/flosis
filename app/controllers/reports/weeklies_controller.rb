@@ -1,6 +1,7 @@
 module Reports
   class WeekliesController < ApplicationController
     include WorkspaceScoped
+    before_action :require_admin!
 
     def show
       @week_start = if params[:week_of]
