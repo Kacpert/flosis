@@ -4,6 +4,7 @@ class User < ApplicationRecord
   has_many :workspace_memberships, dependent: :destroy
   has_many :workspaces, through: :workspace_memberships
   has_many :time_entries, dependent: :restrict_with_error
+  has_many :project_memberships, dependent: :destroy
 
   normalizes :email_address, with: ->(e) { e.strip.downcase }
 

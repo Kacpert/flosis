@@ -3,6 +3,8 @@ class Project < ApplicationRecord
   belongs_to :client, optional: true
   has_many :tasks, dependent: :destroy
   has_many :time_entries, dependent: :nullify
+  has_many :project_memberships, dependent: :destroy
+  has_many :members, through: :project_memberships, source: :user
 
   enum :budget_type, { no_budget: 0, money: 1, hours: 2 }
 
@@ -15,6 +17,8 @@ class Project < ApplicationRecord
   def jira_connected?
     external_type == "jira"
   end
+
+  CURRENCIES = %w[USD EUR GBP CAD AUD JPY CHF PLN].freeze
 
   PROJECT_COLORS = %w[
     #3B82F6 #EF4444 #10B981 #F59E0B #8B5CF6

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_15_213106) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_15_213229) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -55,6 +55,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_15_213106) do
     t.bigint "client_id"
     t.string "color", limit: 7, default: "#3B82F6", null: false
     t.datetime "created_at", null: false
+    t.string "currency", limit: 3, default: "USD", null: false
     t.string "external_reference"
     t.string "external_type"
     t.integer "hourly_rate_cents"

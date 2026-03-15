@@ -22,4 +22,15 @@ class ProjectMembershipTest < ActiveSupport::TestCase
     pm = ProjectMembership.new(project: projects(:plain_project), user: users(:two))
     assert_equal 0, pm.hourly_rate_cents
   end
+
+  test "destroying workspace membership destroys project memberships" do
+    ws_membership = workspace_memberships(:two_employee)
+    user = users(:two)
+    # two_elvium fixture exists
+    assert ProjectMembership.exists?(user: user, project: projects(:jira_project))
+
+    ws_membership.destroy
+
+    assert_not ProjectMembership.exists?(user: user, project: projects(:jira_project))
+  end
 end
