@@ -6,7 +6,11 @@ export default class extends Controller {
 
   connect() {
     this.clickOutside = this.clickOutside.bind(this)
-    document.addEventListener("click", this.clickOutside)
+    document.addEventListener("mousedown", this.clickOutside)
+
+    // Store direct references before we move elements to body
+    this._dropdown = this.hasDropdownTarget ? this.dropdownTarget : null
+    this._list = this.hasListTarget ? this.listTarget : null
 
     // If already connected to Jira (running timer), load tasks on page load
     if (this.jiraConnectedValue) {
@@ -15,10 +19,9 @@ export default class extends Controller {
   }
 
   disconnect() {
-    document.removeEventListener("click", this.clickOutside)
-    // Clean up dropdown from body if it was moved there
-    if (this.hasDropdownTarget && this.dropdownTarget.parentElement === document.body) {
-      this.dropdownTarget.remove()
+    document.removeEventListener("mousedown", this.clickOutside)
+    if (this._dropdown && this._dropdown.parentElement === document.body) {
+      this._dropdown.remove()
     }
   }
 
@@ -92,17 +95,17 @@ export default class extends Controller {
   }
 
   renderList(query = "") {
-    if (!this.hasListTarget) return
+    if (!this._list) return
 
     const tasks = this.fuzzyFilter(this.tasksValue, query)
-    this.listTarget.innerHTML = ""
+    this._list.innerHTML = ""
 
     if (tasks.length === 0) {
       const empty = document.createElement("div")
       empty.className = "px-3 py-2 text-sm"
       empty.style.color = "var(--color-on-surface-variant)"
       empty.textContent = "No matching tasks"
-      this.listTarget.appendChild(empty)
+      this._list.appendChild(empty)
       return
     }
 
@@ -134,13 +137,15 @@ export default class extends Controller {
         item.appendChild(badge)
       }
 
-      item.addEventListener("click", () => this.selectTask(task))
-      this.listTarget.appendChild(item)
+      item.addEventListener("mousedown", (e) => {
+        e.preventDefault() // Prevent blur on input
+        this.selectTask(task)
+      })
+      this._list.appendChild(item)
     })
   }
 
   selectTask(task) {
-    this._justSelected = true
     if (this.hasInputTarget) {
       this.inputTarget.value = task.name
     }
@@ -149,9 +154,10 @@ export default class extends Controller {
     }
     this.hide()
 
-    // Trigger auto-save if available, but prevent the blur from reopening the dropdown
+    // Trigger auto-save if available
+    this._justSelected = true
     this.inputTarget.dispatchEvent(new Event("blur", { bubbles: true }))
-    setTimeout(() => { this._justSelected = false }, 200)
+    setTimeout(() => { this._justSelected = false }, 300)
   }
 
   fuzzyFilter(tasks, query) {
@@ -161,7 +167,6 @@ export default class extends Controller {
     return tasks.filter(t => {
       const name = t.name.toLowerCase()
       const ref = (t.external_reference || "").toLowerCase()
-      // Fuzzy match: all query chars appear in order within the name
       let qi = 0
       for (let i = 0; i < name.length && qi < q.length; i++) {
         if (name[i] === q[qi]) qi++
@@ -171,33 +176,34 @@ export default class extends Controller {
   }
 
   show() {
-    if (this.hasDropdownTarget) {
-      const rect = this.inputTarget.getBoundingClientRect()
-      const dropdown = this.dropdownTarget
+    if (!this._dropdown) return
 
-      // Move dropdown to body so it's not clipped by any parent stacking context
-      if (dropdown.parentElement !== document.body) {
-        document.body.appendChild(dropdown)
-      }
+    const rect = this.inputTarget.getBoundingClientRect()
 
-      dropdown.style.position = "fixed"
-      dropdown.style.top = `${rect.bottom + 4}px`
-      dropdown.style.left = `${rect.left}px`
-      dropdown.style.width = `${rect.width}px`
-      dropdown.style.zIndex = "99999"
-      dropdown.classList.remove("hidden")
+    // Move dropdown to body so it's not clipped by any parent stacking context
+    if (this._dropdown.parentElement !== document.body) {
+      document.body.appendChild(this._dropdown)
     }
+
+    this._dropdown.style.position = "fixed"
+    this._dropdown.style.top = `${rect.bottom + 4}px`
+    this._dropdown.style.left = `${rect.left}px`
+    this._dropdown.style.width = `${rect.width}px`
+    this._dropdown.style.zIndex = "99999"
+    this._dropdown.classList.remove("hidden")
   }
 
   hide() {
-    if (this.hasDropdownTarget) {
-      this.dropdownTarget.classList.add("hidden")
+    if (this._dropdown) {
+      this._dropdown.classList.add("hidden")
     }
   }
 
   clickOutside(event) {
-    if (!this.element.contains(event.target) &&
-        !(this.hasDropdownTarget && this.dropdownTarget.contains(event.target))) {
+    if (!this._dropdown) return
+    if (this._dropdown.classList.contains("hidden")) return
+
+    if (!this.element.contains(event.target) && !this._dropdown.contains(event.target)) {
       this.hide()
     }
   }
