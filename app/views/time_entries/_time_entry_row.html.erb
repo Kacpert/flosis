@@ -72,7 +72,7 @@
     <%# Edit mode (inline) %>
     <% unless is_running %>
       <div class="<%= local_assigns[:editing] ? '' : 'hidden' %> flex-1" data-inline-edit-target="form">
-        <%= form_with model: entry, url: time_entry_path(entry), method: :patch, class: "flex items-center gap-2 flex-wrap w-full", data: { action: "keydown->inline-edit#submitOnEnter" } do |f| %>
+        <%= form_with model: entry, url: time_entry_path(entry), method: :patch, class: "flex items-center gap-2 flex-wrap w-full", data: { action: "keydown->inline-edit#submitOnEnter", controller: "manual-entry" } do |f| %>
           <%= f.text_field :description, placeholder: "Description",
               class: "m3-input-compact flex-1 min-w-[120px]" %>
           <%= f.collection_select :project_id,
@@ -84,8 +84,35 @@
               (entry.project ? entry.project.tasks.active : []), :id, :name,
               { include_blank: "No task" },
               class: "m3-input-compact" %>
-          <%= f.datetime_local_field :started_at, class: "m3-input-compact w-[165px]" %>
-          <%= f.datetime_local_field :stopped_at, class: "m3-input-compact w-[165px]" %>
+          <input type="text" value="<%= entry.started_at.strftime('%Y-%m-%d') %>"
+                 class="m3-input-compact w-[100px]"
+                 data-controller="datepicker"
+                 data-datepicker-first-day-of-week-value="1"
+                 data-manual-entry-target="startDate"
+                 data-action="datepicker:change->manual-entry#dateChanged"
+                 readonly>
+          <input type="text" value="<%= entry.started_at.strftime('%H:%M') %>"
+                 class="m3-input-compact w-[60px] text-center" style="font-family: var(--font-mono)"
+                 maxlength="5"
+                 data-manual-entry-target="startTime"
+                 data-action="blur->manual-entry#startTimeChanged keydown->manual-entry#timeKeydown">
+          <span style="color: var(--color-outline)">→</span>
+          <input type="text" value="<%= entry.stopped_at.strftime('%H:%M') %>"
+                 class="m3-input-compact w-[60px] text-center" style="font-family: var(--font-mono)"
+                 maxlength="5"
+                 data-manual-entry-target="endTime"
+                 data-action="blur->manual-entry#endTimeChanged keydown->manual-entry#timeKeydown">
+          <span class="m3-overnight-badge hidden" data-manual-entry-target="overnightBadge"
+                data-action="click->manual-entry#toggleEndDate">+1d</span>
+          <div class="hidden" data-manual-entry-target="endDateWrap">
+            <input type="hidden"
+                   data-controller="datepicker"
+                   data-datepicker-first-day-of-week-value="1"
+                   data-manual-entry-target="endDate"
+                   data-action="datepicker:change->manual-entry#endDateChanged">
+          </div>
+          <%= f.hidden_field :started_at, data: { manual_entry_target: "startedAt" } %>
+          <%= f.hidden_field :stopped_at, data: { manual_entry_target: "stoppedAt" } %>
           <%= f.submit "Save", class: "m3-btn m3-btn-filled m3-btn-sm" %>
           <button type="button" class="m3-btn m3-btn-text m3-btn-sm" data-action="click->inline-edit#cancel">Cancel</button>
         <% end %>
