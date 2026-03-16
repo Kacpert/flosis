@@ -1,3 +1,61 @@
 <turbo-frame id="jira-board-content">
-  <div>List view</div>
+  <% all_tasks = @tasks_by_column.values.flatten %>
+  <% if all_tasks.empty? %>
+    <%= render "empty_state", message: "No tasks found." %>
+  <% else %>
+    <div class="m3-card-outlined overflow-hidden">
+      <table class="m3-table w-full">
+        <thead>
+          <tr>
+            <th class="text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--color-on-surface-variant)">Key</th>
+            <th class="text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--color-on-surface-variant)">Summary</th>
+            <th class="text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--color-on-surface-variant)">Status</th>
+            <th class="text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--color-on-surface-variant)">Assignee</th>
+            <th class="text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--color-on-surface-variant)">Priority</th>
+            <th class="text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--color-on-surface-variant)">Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% all_tasks.each do |task| %>
+            <tr class="cursor-pointer transition-colors"
+                style="border-bottom: 1px solid var(--color-outline-variant)"
+                onmouseover="this.style.background='var(--color-surface-container)'"
+                onmouseout="this.style.background='transparent'"
+                data-action="click->jira-task-modal#open"
+                data-task-id="<%= task.id %>"
+                data-task-url="<%= jira_task_path(task) %>">
+              <td class="py-3 px-4">
+                <a href="<%= task.external_url %>" target="_blank" rel="noopener"
+                   class="text-sm font-semibold hover:underline"
+                   style="color: var(--color-primary)"
+                   onclick="event.stopPropagation()">
+                  <%= task.external_reference %>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                  </svg>
+                </a>
+              </td>
+              <td class="py-3 px-4 text-sm max-w-xs truncate" style="color: var(--color-on-surface)">
+                <%= task.name.sub(/\A#{Regexp.escape(task.external_reference.to_s)}\s*/, '') %>
+              </td>
+              <td class="py-3 px-4">
+                <span class="text-xs px-2 py-0.5 rounded-full" style="background: var(--color-secondary-container); color: var(--color-on-secondary-container)">
+                  <%= task.jira_status_name %>
+                </span>
+              </td>
+              <td class="py-3 px-4 text-sm" style="color: var(--color-on-surface-variant)">
+                <%= task.assignee_email&.split("@")&.first || "—" %>
+              </td>
+              <td class="py-3 px-4 text-sm" style="color: var(--color-on-surface-variant)">
+                <%= task.priority || "—" %>
+              </td>
+              <td class="py-3 px-4 text-sm" style="color: var(--color-on-surface-variant)">
+                <%= task.issue_type || "—" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
 </turbo-frame>

@@ -1,1 +1,115 @@
-<h1>Jira Tasks</h1>
+<% content_for(:title, "Jira Tasks") %>
+
+<div class="space-y-5" data-controller="jira-tasks" data-jira-tasks-current-view-value="<%= @view_mode %>">
+  <%# Header %>
+  <div class="flex justify-between items-center">
+    <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">Jira Tasks</h1>
+    <% if @selected_project %>
+      <button type="button"
+              class="m3-btn m3-btn-outlined m3-btn-sm flex items-center gap-1.5"
+              data-jira-tasks-target="refreshButton"
+              data-action="click->jira-tasks#refresh">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.182" />
+        </svg>
+        Refresh
+      </button>
+    <% end %>
+  </div>
+
+  <%# Filter bar %>
+  <div class="flex flex-wrap items-center gap-3 p-3 rounded-xl" style="background: var(--color-surface-container)">
+    <div class="flex-shrink-0">
+      <select class="m3-text-field text-sm min-w-[180px]"
+              data-jira-tasks-target="projectSelect"
+              data-action="change->jira-tasks#projectChanged">
+        <% @jira_projects.each do |project| %>
+          <option value="<%= project.id %>" <%= "selected" if @selected_project == project %>>
+            <%= project.name %>
+          </option>
+        <% end %>
+      </select>
+    </div>
+
+    <% if @boards&.any? %>
+      <div class="flex-shrink-0">
+        <select class="m3-text-field text-sm min-w-[150px]"
+                data-jira-tasks-target="boardSelect"
+                data-action="change->jira-tasks#boardChanged">
+          <% @boards.each do |board| %>
+            <option value="<%= board.id %>" <%= "selected" if @selected_board == board %>>
+              <%= board.name %>
+            </option>
+          <% end %>
+        </select>
+      </div>
+
+      <% if @sprints&.any? %>
+        <div class="flex-shrink-0">
+          <select class="m3-text-field text-sm min-w-[150px]"
+                  data-jira-tasks-target="sprintSelect"
+                  data-action="change->jira-tasks#sprintChanged">
+            <option value="">All sprints</option>
+            <% @sprints.each do |sprint| %>
+              <option value="<%= sprint.id %>" <%= "selected" if @selected_sprint == sprint %>>
+                <%= sprint.name %> (<%= sprint.state %>)
+              </option>
+            <% end %>
+          </select>
+        </div>
+      <% end %>
+    <% end %>
+
+    <div class="ml-auto flex rounded-lg overflow-hidden border" style="border-color: var(--color-outline-variant)">
+      <button type="button"
+              class="px-3 py-1.5 text-sm font-medium transition-colors"
+              style="<%= @view_mode == 'kanban' ? 'background: var(--color-primary); color: var(--color-on-primary)' : 'background: var(--color-surface); color: var(--color-on-surface-variant)' %>"
+              data-action="click->jira-tasks#toggleView"
+              data-jira-tasks-target="viewToggle"
+              data-view="kanban">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
+        </svg>
+        Board
+      </button>
+      <button type="button"
+              class="px-3 py-1.5 text-sm font-medium transition-colors"
+              style="<%= @view_mode == 'list' ? 'background: var(--color-primary); color: var(--color-on-primary)' : 'background: var(--color-surface); color: var(--color-on-surface-variant)' %>"
+              data-action="click->jira-tasks#toggleView"
+              data-jira-tasks-target="viewToggle"
+              data-view="list">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+        </svg>
+        List
+      </button>
+    </div>
+  </div>
+
+  <%# Board content %>
+  <turbo-frame id="jira-board-content"
+               data-jira-tasks-target="boardContent"
+               <% if @selected_project && @selected_board %>
+                 src="<%= board_data_jira_tasks_path(project_id: @selected_project.id, board_id: @selected_board.id, sprint_id: @selected_sprint&.id, view: @view_mode) %>"
+               <% end %>
+               >
+    <% if @jira_projects.empty? %>
+      <%= render "empty_state", message: "No projects with Jira integration found." %>
+    <% elsif @selected_project && @boards&.empty? %>
+      <%= render "empty_state", message: "No boards found for #{@selected_project.name}. Try refreshing." %>
+    <% else %>
+      <div class="flex items-center justify-center py-12">
+        <div class="animate-spin h-6 w-6 border-2 rounded-full" style="border-color: var(--color-outline-variant); border-top-color: var(--color-primary)"></div>
+      </div>
+    <% end %>
+  </turbo-frame>
+
+  <%# Task detail modal %>
+  <div data-controller="jira-task-modal" data-jira-task-modal-target="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+    <div class="absolute inset-0" style="background: rgba(0,0,0,0.5)" data-action="click->jira-task-modal#close"></div>
+    <div class="relative m3-card-elevated max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" style="z-index: 1">
+      <turbo-frame id="jira-task-detail" data-jira-task-modal-target="content">
+      </turbo-frame>
+    </div>
+  </div>
+</div>

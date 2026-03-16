@@ -1,3 +1,106 @@
 <turbo-frame id="jira-task-detail">
-  <div>Task detail</div>
+  <div class="p-6 space-y-5">
+    <div class="flex items-start justify-between">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <a href="<%= @task.external_url %>" target="_blank" rel="noopener"
+             class="text-sm font-semibold hover:underline"
+             style="color: var(--color-primary)">
+            <%= @task.external_reference %>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+            </svg>
+          </a>
+        </div>
+        <h2 class="text-xl font-bold" style="color: var(--color-on-surface)">
+          <%= @task.name.sub(/\A#{Regexp.escape(@task.external_reference.to_s)}\s*/, '') %>
+        </h2>
+      </div>
+      <button type="button" class="p-1 rounded-lg transition-colors" style="color: var(--color-on-surface-variant)"
+              data-action="click->jira-task-modal#close"
+              onmouseover="this.style.background='var(--color-surface-container-high)'"
+              onmouseout="this.style.background='transparent'">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <span class="text-xs px-2 py-1 rounded-full font-medium" style="background: var(--color-secondary-container); color: var(--color-on-secondary-container)">
+        <%= @task.jira_status_name %>
+      </span>
+      <% if @task.issue_type.present? %>
+        <span class="text-xs px-2 py-1 rounded-full font-medium" style="background: var(--color-tertiary-container); color: var(--color-on-tertiary-container)">
+          <%= @task.issue_type %>
+        </span>
+      <% end %>
+    </div>
+
+    <% if @task.description.present? %>
+      <div>
+        <h3 class="text-sm font-semibold mb-2" style="color: var(--color-on-surface-variant)">Description</h3>
+        <div class="text-sm leading-relaxed whitespace-pre-wrap p-3 rounded-lg" style="color: var(--color-on-surface); background: var(--color-surface-container-low)">
+          <%= @task.description %>
+        </div>
+      </div>
+    <% end %>
+
+    <div>
+      <h3 class="text-sm font-semibold mb-2" style="color: var(--color-on-surface-variant)">Details</h3>
+      <div class="grid grid-cols-2 gap-y-3 gap-x-6 text-sm">
+        <div>
+          <dt style="color: var(--color-outline)">Assignee</dt>
+          <dd class="font-medium" style="color: var(--color-on-surface)"><%= @task.assignee_email || "Unassigned" %></dd>
+        </div>
+        <div>
+          <dt style="color: var(--color-outline)">Reporter</dt>
+          <dd class="font-medium" style="color: var(--color-on-surface)"><%= @task.reporter_email || "—" %></dd>
+        </div>
+        <div>
+          <dt style="color: var(--color-outline)">Priority</dt>
+          <dd class="font-medium" style="color: var(--color-on-surface)"><%= @task.priority || "—" %></dd>
+        </div>
+        <div>
+          <dt style="color: var(--color-outline)">Sprint</dt>
+          <dd class="font-medium" style="color: var(--color-on-surface)"><%= @task.sprint_name || "—" %></dd>
+        </div>
+
+        <% if @task.labels.present? %>
+          <% labels = begin; JSON.parse(@task.labels); rescue; []; end %>
+          <% if labels.any? %>
+            <div class="col-span-2">
+              <dt style="color: var(--color-outline)">Labels</dt>
+              <dd class="flex flex-wrap gap-1 mt-0.5">
+                <% labels.each do |label| %>
+                  <span class="text-xs px-2 py-0.5 rounded-full" style="background: var(--color-surface-container-highest); color: var(--color-on-surface-variant)">
+                    <%= label %>
+                  </span>
+                <% end %>
+              </dd>
+            </div>
+          <% end %>
+        <% end %>
+
+        <% if @task.time_estimate_seconds.present? && @task.time_estimate_seconds > 0 %>
+          <div>
+            <dt style="color: var(--color-outline)">Estimate</dt>
+            <dd class="font-medium" style="color: var(--color-on-surface)">
+              <%= @task.time_estimate_seconds / 3600 %>h <%= (@task.time_estimate_seconds % 3600) / 60 %>m
+            </dd>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="pt-2">
+      <a href="<%= @task.external_url %>" target="_blank" rel="noopener"
+         class="m3-btn m3-btn-filled inline-flex items-center gap-2">
+        View in Jira
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+        </svg>
+      </a>
+    </div>
+  </div>
 </turbo-frame>
