@@ -41,8 +41,6 @@ class TimeEntriesController < ApplicationController
     @time_entry = current_workspace.time_entries.build(time_entry_params)
     @time_entry.user = current_user
 
-    handle_manual_duration
-
     if @time_entry.save
       respond_to do |format|
         format.turbo_stream { redirect_to time_entries_path(date: @time_entry.started_at.to_date) }
@@ -61,8 +59,6 @@ class TimeEntriesController < ApplicationController
   end
 
   def update
-    handle_manual_duration
-
     if @time_entry.update(time_entry_params)
       respond_to do |format|
         format.turbo_stream do
@@ -134,29 +130,4 @@ class TimeEntriesController < ApplicationController
     params.permit(:project_id)
   end
 
-  def handle_manual_duration
-    if params[:time_entry][:duration_manual].present?
-      duration = parse_duration(params[:time_entry][:duration_manual])
-      if duration && @time_entry.started_at
-        @time_entry.stopped_at = @time_entry.started_at + duration.seconds
-      end
-    end
-  end
-
-  def parse_duration(str)
-    if str.match?(/\A\d{1,3}:\d{2}(:\d{2})?\z/)
-      parts = str.split(":").map(&:to_i)
-      hours, minutes, seconds = parts[0], parts[1], parts[2] || 0
-      return nil if minutes >= 60 || seconds >= 60
-      total = hours * 3600 + minutes * 60 + seconds
-      total > 0 && total <= 86400 ? total : nil
-    elsif str.match?(/\A\d{1,2}\.\d{1,2}\z/)
-      total = (str.to_f * 3600).to_i
-      total > 0 && total <= 86400 ? total : nil
-    elsif str.match?(/\A\d{1,3}\z/)
-      # Plain number: treat as minutes (max 480 = 8 hours)
-      minutes = str.to_i
-      minutes > 0 && minutes <= 480 ? minutes * 60 : nil
-    end
-  end
 end
