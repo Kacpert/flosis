@@ -1516,3 +1516,47 @@ span.flatpickr-weekday {
   border-top: 1px solid var(--color-outline-variant);
   margin: 1em 0;
 }
+
+/* Chat bubbles */
+.chat-bubble {
+  max-width: 85%;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.875rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.chat-bubble-user {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-bottom-right-radius: 0.25rem;
+}
+
+.chat-bubble-assistant {
+  background: var(--color-surface-container-highest);
+  color: var(--color-on-surface);
+  border-bottom-left-radius: 0.25rem;
+}
+
+.chat-bubble-assistant code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  background: var(--color-surface-container);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+}
+
+.chat-bubble-assistant pre {
+  background: var(--color-surface-container);
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.chat-bubble-assistant pre code {
+  background: none;
+  padding: 0;
+}

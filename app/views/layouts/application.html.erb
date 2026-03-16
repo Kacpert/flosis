@@ -45,7 +45,7 @@
         <label for="sidebar-toggle" class="m3-drawer-overlay"></label>
 
         <%# Sidebar / Nav Rail %>
-        <aside class="m3-drawer-side m3-nav-rail w-64 lg:block flex-shrink-0 h-full flex flex-col overflow-y-auto">
+        <aside id="app-sidebar" class="m3-drawer-side m3-nav-rail w-64 lg:block flex-shrink-0 h-full flex flex-col overflow-y-auto">
           <%# Navigation %>
           <nav class="flex-1 px-3 pt-4 space-y-0.5 overflow-y-auto">
             <% unless current_user.client_role?(current_workspace) %>
