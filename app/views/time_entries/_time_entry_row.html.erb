@@ -105,11 +105,13 @@
           <span class="m3-overnight-badge hidden" data-manual-entry-target="overnightBadge"
                 data-action="click->manual-entry#toggleEndDate">+1d</span>
           <div class="hidden" data-manual-entry-target="endDateWrap">
-            <input type="hidden"
-                   data-controller="datepicker"
-                   data-datepicker-first-day-of-week-value="1"
-                   data-manual-entry-target="endDate"
-                   data-action="datepicker:change->manual-entry#endDateChanged">
+            <div class="w-0 h-0 overflow-hidden">
+              <input type="text"
+                     data-controller="datepicker"
+                     data-datepicker-first-day-of-week-value="1"
+                     data-manual-entry-target="endDate"
+                     data-action="datepicker:change->manual-entry#endDateChanged">
+            </div>
           </div>
           <%= f.hidden_field :started_at, data: { manual_entry_target: "startedAt" } %>
           <%= f.hidden_field :stopped_at, data: { manual_entry_target: "stoppedAt" } %>
