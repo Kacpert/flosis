@@ -73,6 +73,9 @@ Rails.application.routes.draw do
       get :board_data
       post :refresh
     end
+    resource :chat_session, only: [:create, :show] do
+      post :message
+    end
   end
 
   get "up" => "rails/health#show", as: :rails_health_check
