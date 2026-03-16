@@ -1,5 +1,8 @@
 <div class="max-w-lg mx-auto">
-  <h1 class="text-2xl font-bold mb-4" style="color: var(--color-on-surface)">Edit Project</h1>
+  <div class="flex justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Edit Project</h1>
+    <%= link_to "Members", project_path(@project, tab: "members"), class: "m3-btn m3-btn-outlined m3-btn-sm" %>
+  </div>
   <div class="m3-card-elevated p-6">
     <%= render "form", project: @project, url: project_path(@project), clients: @clients %>
   </div>

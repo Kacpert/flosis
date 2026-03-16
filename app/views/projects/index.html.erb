@@ -14,11 +14,11 @@
 
   <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;">
     <% @projects.each do |project| %>
-      <div class="project-card">
+      <div class="project-card" style="cursor: pointer" onclick="window.location='<%= project_path(project) %>'">
         <div class="flex items-start justify-between mb-1">
           <div class="flex items-center gap-2">
             <%= project_color_dot(project.color) %>
-            <%= link_to project.name, project_path(project), class: "font-semibold text-sm transition-colors", style: "color: var(--color-on-surface);", onmouseover: "this.style.color='var(--color-primary)'", onmouseout: "this.style.color='var(--color-on-surface)'" %>
+            <span class="font-semibold text-sm" style="color: var(--color-on-surface)"><%= project.name %></span>
           </div>
           <% if project.archived? %>
             <span class="text-[10px] font-medium px-2 py-0.5 rounded-full" style="color: var(--color-outline); background: var(--color-surface-container)">Archived</span>
@@ -45,7 +45,7 @@
           </div>
         <% end %>
 
-        <div class="flex justify-end gap-1 mt-4 pt-3" style="border-top: 1px solid var(--color-outline-variant)">
+        <div class="flex justify-end gap-1 mt-4 pt-3" style="border-top: 1px solid var(--color-outline-variant)" onclick="event.stopPropagation()">
           <%= link_to "Edit", edit_project_path(project), class: "m3-btn m3-btn-text m3-btn-sm" %>
           <% if project.archived? %>
             <%= button_to "Restore", unarchive_project_path(project), method: :patch, class: "m3-btn m3-btn-text m3-btn-sm" %>
