@@ -1,0 +1,15 @@
+design_sprint:
+  jira_board: design_board
+  jira_sprint_id: 569
+  name: Design Sprint
+  state: active
+  start_date: 2026-03-01
+  end_date: 2026-03-15
+
+closed_sprint:
+  jira_board: design_board
+  jira_sprint_id: 33
+  name: Old Sprint
+  state: closed
+  start_date: 2026-02-01
+  end_date: 2026-02-28

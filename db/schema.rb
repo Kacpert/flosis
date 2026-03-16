@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_15_215716) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_16_122819) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -33,6 +33,50 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_15_215716) do
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
     t.index ["workspace_id"], name: "index_integrations_on_workspace_id"
+  end
+
+  create_table "jira_board_column_statuses", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "jira_board_column_id", null: false
+    t.string "jira_status_id", null: false
+    t.string "jira_status_name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["jira_board_column_id", "jira_status_id"], name: "idx_board_col_statuses_on_col_and_status", unique: true
+    t.index ["jira_board_column_id"], name: "index_jira_board_column_statuses_on_jira_board_column_id"
+  end
+
+  create_table "jira_board_columns", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "jira_board_id", null: false
+    t.string "name", null: false
+    t.integer "position", null: false
+    t.datetime "updated_at", null: false
+    t.index ["jira_board_id", "position"], name: "index_jira_board_columns_on_jira_board_id_and_position", unique: true
+    t.index ["jira_board_id"], name: "index_jira_board_columns_on_jira_board_id"
+  end
+
+  create_table "jira_boards", force: :cascade do |t|
+    t.string "board_type", null: false
+    t.datetime "created_at", null: false
+    t.integer "jira_board_id", null: false
+    t.string "name", null: false
+    t.bigint "project_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["project_id", "jira_board_id"], name: "index_jira_boards_on_project_id_and_jira_board_id", unique: true
+    t.index ["project_id"], name: "index_jira_boards_on_project_id"
+  end
+
+  create_table "jira_sprints", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "end_date"
+    t.bigint "jira_board_id", null: false
+    t.integer "jira_sprint_id", null: false
+    t.string "name", null: false
+    t.datetime "start_date"
+    t.string "state", null: false
+    t.datetime "updated_at", null: false
+    t.index ["jira_board_id", "jira_sprint_id"], name: "index_jira_sprints_on_jira_board_id_and_jira_sprint_id", unique: true
+    t.index ["jira_board_id"], name: "index_jira_sprints_on_jira_board_id"
   end
 
   create_table "project_memberships", force: :cascade do |t|
@@ -221,13 +265,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_15_215716) do
   create_table "tasks", force: :cascade do |t|
     t.string "assignee_email"
     t.datetime "created_at", null: false
+    t.text "description"
     t.string "external_reference"
     t.string "external_type"
     t.string "external_url"
+    t.string "issue_type"
     t.string "jira_status_name"
+    t.text "labels"
     t.string "name", null: false
+    t.string "priority"
     t.bigint "project_id", null: false
+    t.string "reporter_email"
+    t.integer "sprint_id"
+    t.string "sprint_name"
     t.integer "status", default: 0, null: false
+    t.integer "time_estimate_seconds"
     t.datetime "updated_at", null: false
     t.index ["project_id", "external_type", "external_reference"], name: "index_tasks_on_project_external_ref", unique: true, where: "(external_type IS NOT NULL)"
     t.index ["project_id", "name"], name: "index_tasks_on_project_id_and_name", unique: true
@@ -292,6 +344,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_15_215716) do
 
   add_foreign_key "clients", "workspaces"
   add_foreign_key "integrations", "workspaces"
+  add_foreign_key "jira_board_column_statuses", "jira_board_columns"
+  add_foreign_key "jira_board_columns", "jira_boards"
+  add_foreign_key "jira_boards", "projects"
+  add_foreign_key "jira_sprints", "jira_boards"
   add_foreign_key "project_memberships", "projects"
   add_foreign_key "project_memberships", "users"
   add_foreign_key "projects", "clients"

@@ -1,0 +1,14 @@
+todo_column:
+  jira_board: design_board
+  name: "TO DO (DESIGN)"
+  position: 0
+
+in_progress_column:
+  jira_board: design_board
+  name: "IN PROGRESS (DESIGN)"
+  position: 1
+
+done_column:
+  jira_board: design_board
+  name: "DONE (DESIGN)"
+  position: 2

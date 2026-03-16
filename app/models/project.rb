@@ -2,6 +2,7 @@ class Project < ApplicationRecord
   belongs_to :workspace
   belongs_to :client, optional: true
   has_many :tasks, dependent: :destroy
+  has_many :jira_boards, dependent: :destroy
   has_many :time_entries, dependent: :nullify
   has_many :project_memberships, dependent: :destroy
   has_many :members, through: :project_memberships, source: :user

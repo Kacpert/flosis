@@ -1,0 +1,14 @@
+todo_status:
+  jira_board_column: todo_column
+  jira_status_name: "To Do"
+  jira_status_id: "10001"
+
+in_progress_status:
+  jira_board_column: in_progress_column
+  jira_status_name: "In Progress"
+  jira_status_id: "10002"
+
+done_status:
+  jira_board_column: done_column
+  jira_status_name: "Done"
+  jira_status_id: "10003"

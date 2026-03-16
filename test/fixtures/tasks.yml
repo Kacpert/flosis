@@ -6,6 +6,14 @@ jira_task:
   external_url: https://elvium.atlassian.net/browse/ELV-1
   assignee_email: one@example.com
   jira_status_name: In Progress
+  description: "This is a test task description"
+  priority: High
+  issue_type: Story
+  labels: '["Feature","HR"]'
+  reporter_email: reporter@example.com
+  sprint_name: Design Sprint
+  sprint_id: 569
+  time_estimate_seconds: 3600
 
 local_task:
   name: Daily standup
