@@ -39,7 +39,7 @@ class JiraClient
     loop do
       body = {
         jql: "project = #{project_key} AND statusCategory != Done ORDER BY status ASC, updated DESC",
-        fields: ["summary", "status", "assignee"],
+        fields: ["summary", "status", "assignee", "description", "priority", "issuetype", "labels", "reporter", "sprint", "timeoriginalestimate"],
         maxResults: 100
       }
       body[:nextPageToken] = next_page_token if next_page_token
@@ -57,6 +57,65 @@ class JiraClient
     results
   end
 
+  def fetch_boards(project_key)
+    return [] unless project_key.match?(PROJECT_KEY_FORMAT)
+
+    results = []
+    start_at = 0
+
+    loop do
+      data = get("/rest/agile/1.0/board", projectKeyOrId: project_key, startAt: start_at, maxResults: 50)
+      return [] unless data
+
+      values = data["values"] || []
+      results.concat(values.map { |b| { id: b["id"], name: b["name"], type: b["type"] } })
+
+      break if data["isLast"] != false
+      start_at += values.length
+    end
+
+    results
+  end
+
+  def fetch_board_configuration(board_id)
+    data = get("/rest/agile/1.0/board/#{board_id}/configuration")
+    return [] unless data
+
+    columns = data.dig("columnConfig", "columns") || []
+    columns.map do |col|
+      {
+        name: col["name"],
+        statuses: (col["statuses"] || []).map { |s| { id: s["id"] } }
+      }
+    end
+  end
+
+  def fetch_sprints(board_id)
+    results = []
+    start_at = 0
+
+    loop do
+      data = get("/rest/agile/1.0/board/#{board_id}/sprint", startAt: start_at, maxResults: 50)
+      return [] unless data
+
+      values = data["values"] || []
+      results.concat(values.map { |s|
+        {
+          id: s["id"],
+          name: s["name"],
+          state: s["state"],
+          start_date: s["startDate"],
+          end_date: s["endDate"]
+        }
+      })
+
+      break if data["isLast"] != false
+      start_at += values.length
+    end
+
+    results
+  end
+
   private
 
   def parse_issue(issue)
@@ -69,8 +128,39 @@ class JiraClient
       status_category: status["key"],
       status_name: fields.dig("status", "name"),
       assignee_email: fields.dig("assignee", "emailAddress"),
-      url: "https://#{@domain}/browse/#{issue['key']}"
+      url: "https://#{@domain}/browse/#{issue['key']}",
+      description: adf_to_text(fields["description"]),
+      priority: fields.dig("priority", "name"),
+      issue_type: fields.dig("issuetype", "name"),
+      labels: fields["labels"] || [],
+      reporter_email: fields.dig("reporter", "emailAddress"),
+      sprint_id: fields.dig("sprint", "id"),
+      sprint_name: fields.dig("sprint", "name"),
+      time_estimate_seconds: fields["timeoriginalestimate"]
     }
+  end
+
+  def adf_to_text(node)
+    return nil if node.nil?
+    return node["text"] if node["type"] == "text"
+
+    content = node["content"]
+    return "" unless content.is_a?(Array)
+
+    parts = content.map { |child| adf_to_text(child) }.compact
+
+    case node["type"]
+    when "doc"
+      parts.join("\n\n")
+    when "paragraph", "heading", "blockquote", "codeBlock"
+      parts.join
+    when "bulletList", "orderedList"
+      parts.map { |p| "- #{p}" }.join("\n")
+    when "listItem"
+      parts.join
+    else
+      parts.join
+    end
   end
 
   def post(path, body = {})
