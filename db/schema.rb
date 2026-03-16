@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_15_213229) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_15_215716) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -48,7 +48,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_15_213229) do
 
   create_table "projects", force: :cascade do |t|
     t.boolean "archived", default: false, null: false
-    t.boolean "billable", default: true, null: false
     t.integer "budget_cents"
     t.decimal "budget_hours", precision: 10, scale: 2
     t.integer "budget_type", default: 0, null: false
@@ -58,7 +57,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_15_213229) do
     t.string "currency", limit: 3, default: "USD", null: false
     t.string "external_reference"
     t.string "external_type"
-    t.integer "hourly_rate_cents"
     t.string "name", null: false
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
@@ -222,12 +220,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_15_213229) do
 
   create_table "tasks", force: :cascade do |t|
     t.string "assignee_email"
-    t.boolean "billable"
     t.datetime "created_at", null: false
     t.string "external_reference"
     t.string "external_type"
     t.string "external_url"
-    t.integer "hourly_rate_cents"
     t.string "jira_status_name"
     t.string "name", null: false
     t.bigint "project_id", null: false
@@ -239,12 +235,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_15_213229) do
   end
 
   create_table "time_entries", force: :cascade do |t|
-    t.boolean "billable", default: true, null: false
     t.datetime "created_at", null: false
     t.text "description"
     t.integer "duration_seconds", default: 0, null: false
     t.integer "hourly_rate_cents"
-    t.bigint "project_id"
+    t.bigint "project_id", null: false
     t.datetime "started_at", null: false
     t.datetime "stopped_at"
     t.bigint "task_id"
@@ -270,7 +265,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_15_213229) do
 
   create_table "users", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.integer "default_hourly_rate_cents", default: 0
     t.string "email_address", null: false
     t.string "name", null: false
     t.string "password_digest", null: false
@@ -292,12 +286,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_15_213229) do
 
   create_table "workspaces", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.string "default_currency", limit: 3, default: "USD", null: false
-    t.integer "default_hourly_rate_cents", default: 0
     t.string "name", null: false
-    t.integer "time_format", default: 0, null: false
     t.datetime "updated_at", null: false
-    t.integer "week_start", default: 1, null: false
   end
 
   add_foreign_key "clients", "workspaces"
