@@ -56,6 +56,12 @@ class JiraControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "sync triggers sync and redirects" do
+    stub_request(:get, /rest\/agile\/1.0\/board\?/)
+      .to_return(
+        status: 200,
+        body: { values: [], isLast: true }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
     stub_request(:post, "https://test.atlassian.net/rest/api/3/search/jql")
       .to_return(
         status: 200,
