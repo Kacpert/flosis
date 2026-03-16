@@ -11,15 +11,16 @@ class JiraClientAgileTest < ActiveSupport::TestCase
     @agile_url = "https://test.atlassian.net/rest/agile/1.0"
   end
 
-  test "fetch_boards returns boards for a project" do
+  test "fetch_boards returns boards for a project filtered by location" do
     stub_request(:get, "#{@agile_url}/board")
-      .with(query: hash_including("projectKeyOrId" => "ELV"))
+      .with(query: hash_including("startAt" => "0"))
       .to_return(
         status: 200,
         body: {
           values: [
-            { id: 101, name: "Design", type: "scrum" },
-            { id: 102, name: "DEV board", type: "scrum" }
+            { id: 101, name: "Design", type: "scrum", location: { projectKey: "ELV" } },
+            { id: 102, name: "DEV board", type: "scrum", location: { projectKey: "ELV" } },
+            { id: 200, name: "Other board", type: "kanban", location: { projectKey: "OTHER" } }
           ],
           isLast: true
         }.to_json,
@@ -35,7 +36,7 @@ class JiraClientAgileTest < ActiveSupport::TestCase
 
   test "fetch_boards returns empty array on failure" do
     stub_request(:get, "#{@agile_url}/board")
-      .with(query: hash_including("projectKeyOrId" => "ELV"))
+      .with(query: hash_including("startAt" => "0"))
       .to_return(status: 500)
 
     assert_equal [], @client.fetch_boards("ELV")
@@ -98,6 +99,58 @@ class JiraClientAgileTest < ActiveSupport::TestCase
       .to_return(status: 500)
 
     assert_equal [], @client.fetch_sprints(101)
+  end
+
+  test "fetch_sprint_issue_keys returns issue keys for a sprint" do
+    stub_request(:get, "#{@agile_url}/sprint/568/issue")
+      .with(query: hash_including("startAt" => "0"))
+      .to_return(
+        status: 200,
+        body: {
+          issues: [
+            { key: "DEV-101", fields: { summary: "Task 1" } },
+            { key: "DEV-102", fields: { summary: "Task 2" } }
+          ],
+          total: 2
+        }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+    keys = @client.fetch_sprint_issue_keys(568)
+    assert_equal ["DEV-101", "DEV-102"], keys
+  end
+
+  test "fetch_sprint_issue_keys returns empty on failure" do
+    stub_request(:get, "#{@agile_url}/sprint/999/issue")
+      .with(query: hash_including("startAt" => "0"))
+      .to_return(status: 404)
+
+    assert_equal [], @client.fetch_sprint_issue_keys(999)
+  end
+
+  test "fetch_statuses returns id-to-name map" do
+    stub_request(:get, "https://test.atlassian.net/rest/api/3/status")
+      .to_return(
+        status: 200,
+        body: [
+          { "id" => "10001", "name" => "To Do" },
+          { "id" => "3", "name" => "In Progress" },
+          { "id" => "10003", "name" => "Done" }
+        ].to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+    statuses = @client.fetch_statuses
+    assert_equal "To Do", statuses["10001"]
+    assert_equal "In Progress", statuses["3"]
+    assert_equal "Done", statuses["10003"]
+  end
+
+  test "fetch_statuses returns empty hash on failure" do
+    stub_request(:get, "https://test.atlassian.net/rest/api/3/status")
+      .to_return(status: 500)
+
+    assert_equal({}, @client.fetch_statuses)
   end
 
   test "adf_to_text extracts text from ADF document" do

@@ -56,18 +56,7 @@ class JiraControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "sync triggers sync and redirects" do
-    stub_request(:get, /rest\/agile\/1.0\/board\?/)
-      .to_return(
-        status: 200,
-        body: { values: [], isLast: true }.to_json,
-        headers: { "Content-Type" => "application/json" }
-      )
-    stub_request(:post, "https://test.atlassian.net/rest/api/3/search/jql")
-      .to_return(
-        status: 200,
-        body: { issues: [] }.to_json,
-        headers: { "Content-Type" => "application/json" }
-      )
+    stub_jira_sync_requests
 
     post jira_sync_project_path(@project)
 
@@ -88,5 +77,16 @@ class JiraControllerTest < ActionDispatch::IntegrationTest
     get jira_projects_path, as: :json
 
     assert_redirected_to root_path
+  end
+
+  private
+
+  def stub_jira_sync_requests
+    stub_request(:get, /rest\/agile\/1.0\/board\?/)
+      .to_return(status: 200, body: { values: [], isLast: true }.to_json, headers: { "Content-Type" => "application/json" })
+    stub_request(:get, "https://test.atlassian.net/rest/api/3/status")
+      .to_return(status: 200, body: [].to_json, headers: { "Content-Type" => "application/json" })
+    stub_request(:post, "https://test.atlassian.net/rest/api/3/search/jql")
+      .to_return(status: 200, body: { issues: [] }.to_json, headers: { "Content-Type" => "application/json" })
   end
 end

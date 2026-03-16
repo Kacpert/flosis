@@ -36,8 +36,8 @@ class JiraTasksController < ApplicationController
 
     tasks = @selected_project.tasks.jira_synced
     if params[:sprint_id].present?
-      sprint = @selected_board.jira_sprints.find(params[:sprint_id])
-      tasks = tasks.where(sprint_id: sprint.jira_sprint_id)
+      @selected_sprint = @selected_board.jira_sprints.find(params[:sprint_id])
+      tasks = tasks.where(sprint_id: @selected_sprint.jira_sprint_id)
     end
 
     @tasks_by_column = {}
@@ -51,7 +51,18 @@ class JiraTasksController < ApplicationController
 
   def show
     @task = Task.joins(:project).where(projects: { workspace_id: current_workspace.id }).find(params[:id])
-    render partial: "task_detail"
+
+    if turbo_frame_request?
+      render partial: "task_detail"
+    else
+      @selected_project = @task.project
+      @boards = @selected_project.jira_boards.order(:name)
+      @selected_board = @boards.find_by(id: params[:board_id]) || @boards.first
+      if @selected_board
+        @sprints = @selected_board.jira_sprints.active_or_future.order(:name)
+        @selected_sprint = @sprints.find_by(id: params[:sprint_id]) if params[:sprint_id].present?
+      end
+    end
   end
 
   def refresh

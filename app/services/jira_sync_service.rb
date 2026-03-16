@@ -9,6 +9,7 @@ class JiraSyncService
 
     sync_boards
     sync_issues
+    sync_sprint_assignments
   end
 
   private
@@ -17,6 +18,7 @@ class JiraSyncService
     boards_data = @client.fetch_boards(@project.external_reference)
     return if boards_data.nil?
 
+    status_names = @client.fetch_statuses
     synced_board_ids = []
 
     boards_data.each do |board_data|
@@ -24,14 +26,14 @@ class JiraSyncService
       board.update!(name: board_data[:name], board_type: board_data[:type])
       synced_board_ids << board.id
 
-      sync_board_columns(board, board_data[:id])
+      sync_board_columns(board, board_data[:id], status_names)
       sync_sprints(board, board_data[:id])
     end
 
     @project.jira_boards.where.not(id: synced_board_ids).destroy_all
   end
 
-  def sync_board_columns(board, jira_board_id)
+  def sync_board_columns(board, jira_board_id, status_names)
     columns_data = @client.fetch_board_configuration(jira_board_id)
     return if columns_data.nil?
 
@@ -42,20 +44,21 @@ class JiraSyncService
       column.update!(name: col_data[:name])
       synced_column_ids << column.id
 
-      sync_column_statuses(column, col_data[:statuses])
+      sync_column_statuses(column, col_data[:statuses], status_names)
     end
 
     board.jira_board_columns.where.not(id: synced_column_ids).destroy_all
   end
 
-  def sync_column_statuses(column, statuses_data)
+  def sync_column_statuses(column, statuses_data, status_names)
     return if statuses_data.nil?
 
     synced_status_ids = []
 
     statuses_data.each do |status_data|
       status = column.jira_board_column_statuses.find_or_initialize_by(jira_status_id: status_data[:id])
-      status.update!(jira_status_name: status_data[:name] || "Unknown")
+      resolved_name = status_names[status_data[:id].to_s] || "Unknown"
+      status.update!(jira_status_name: resolved_name)
       synced_status_ids << status.id
     end
 
@@ -82,6 +85,22 @@ class JiraSyncService
     board.jira_sprints.where.not(id: synced_sprint_ids).destroy_all
   end
 
+  def sync_sprint_assignments
+    # Clear all sprint assignments first, then reassign from active/future sprints
+    @project.tasks.jira_synced.where.not(sprint_id: nil).update_all(sprint_id: nil, sprint_name: nil)
+
+    @project.jira_boards.each do |board|
+      board.jira_sprints.where(state: %w[active future]).find_each do |sprint|
+        issue_keys = @client.fetch_sprint_issue_keys(sprint.jira_sprint_id)
+        next if issue_keys.empty?
+
+        @project.tasks.jira_synced
+          .where(external_reference: issue_keys)
+          .update_all(sprint_id: sprint.jira_sprint_id, sprint_name: sprint.name)
+      end
+    end
+  end
+
   def sync_issues
     issues = @client.fetch_issues(@project.external_reference)
     return if issues.nil?
@@ -103,13 +122,16 @@ class JiraSyncService
       name: name,
       external_url: issue[:url],
       assignee_email: issue[:assignee_email],
+      assignee_name: issue[:assignee_name],
       jira_status_name: issue[:status_name],
       status: map_status(issue[:status_category]),
       description: issue[:description],
+      description_adf: issue[:description_adf],
       priority: issue[:priority],
       issue_type: issue[:issue_type],
       labels: issue[:labels]&.to_json,
       reporter_email: issue[:reporter_email],
+      reporter_name: issue[:reporter_name],
       sprint_id: issue[:sprint_id],
       sprint_name: issue[:sprint_name],
       time_estimate_seconds: issue[:time_estimate_seconds]

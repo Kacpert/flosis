@@ -5,18 +5,22 @@ export default class extends Controller {
   static values = { currentView: { type: String, default: "kanban" } }
 
   projectChanged() {
-    const projectId = this.projectSelectTarget.value
-    if (!projectId) return
-
-    window.location.href = `/jira_tasks?project_id=${projectId}&view=${this.currentViewValue}`
+    // Reset board and sprint when project changes
+    if (this.hasBoardSelectTarget) this.boardSelectTarget.value = ""
+    if (this.hasSprintSelectTarget) this.sprintSelectTarget.value = ""
+    this.navigateWithParams()
   }
 
   boardChanged() {
-    this.reloadBoardContent()
+    // Reset sprint when board changes since sprints are board-specific
+    if (this.hasSprintSelectTarget) {
+      this.sprintSelectTarget.value = ""
+    }
+    this.navigateWithParams()
   }
 
   sprintChanged() {
-    this.reloadBoardContent()
+    this.navigateWithParams()
   }
 
   toggleView(event) {
@@ -24,14 +28,7 @@ export default class extends Controller {
     if (view === this.currentViewValue) return
 
     this.currentViewValue = view
-
-    this.viewToggleTargets.forEach(btn => {
-      const isActive = btn.dataset.view === view
-      btn.style.background = isActive ? "var(--color-primary)" : "var(--color-surface)"
-      btn.style.color = isActive ? "var(--color-on-primary)" : "var(--color-on-surface-variant)"
-    })
-
-    this.reloadBoardContent()
+    this.navigateWithParams()
   }
 
   refresh() {
@@ -42,11 +39,7 @@ export default class extends Controller {
     btn.disabled = true
     btn.innerHTML = `<svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Syncing...`
 
-    const params = new URLSearchParams({ project_id: projectId })
-    if (this.hasBoardSelectTarget) params.set("board_id", this.boardSelectTarget.value)
-    if (this.hasSprintSelectTarget && this.sprintSelectTarget.value) params.set("sprint_id", this.sprintSelectTarget.value)
-    params.set("view", this.currentViewValue)
-
+    const params = this.buildParams()
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
 
     fetch(`/jira_tasks/refresh?${params}`, {
@@ -66,23 +59,27 @@ export default class extends Controller {
     })
   }
 
-  reloadBoardContent() {
-    if (!this.hasBoardContentTarget) return
+  // private
 
-    const projectId = this.hasProjectSelectTarget ? this.projectSelectTarget.value : null
-    const boardId = this.hasBoardSelectTarget ? this.boardSelectTarget.value : null
-    if (!projectId || !boardId) return
+  navigateWithParams() {
+    const params = this.buildParams()
+    window.location.href = `/jira_tasks?${params}`
+  }
 
-    const params = new URLSearchParams({
-      project_id: projectId,
-      board_id: boardId,
-      view: this.currentViewValue
-    })
+  buildParams() {
+    const params = new URLSearchParams()
 
+    if (this.hasProjectSelectTarget && this.projectSelectTarget.value) {
+      params.set("project_id", this.projectSelectTarget.value)
+    }
+    if (this.hasBoardSelectTarget && this.boardSelectTarget.value) {
+      params.set("board_id", this.boardSelectTarget.value)
+    }
     if (this.hasSprintSelectTarget && this.sprintSelectTarget.value) {
       params.set("sprint_id", this.sprintSelectTarget.value)
     }
+    params.set("view", this.currentViewValue)
 
-    this.boardContentTarget.src = `/jira_tasks/board_data?${params}`
+    return params
   }
 }

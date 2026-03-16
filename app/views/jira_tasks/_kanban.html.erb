@@ -2,10 +2,10 @@
   <% if @columns.empty? %>
     <%= render "empty_state", message: "No columns configured for this board." %>
   <% else %>
-    <div class="flex gap-4 overflow-x-auto pb-4" style="min-height: 400px">
+    <div class="flex gap-3 overflow-x-auto pb-4" style="min-height: 400px">
       <% @columns.each do |column| %>
         <% tasks = @tasks_by_column[column.id] || [] %>
-        <div class="flex-shrink-0 w-64 flex flex-col">
+        <div class="flex-1 min-w-[180px] flex flex-col">
           <div class="flex items-center justify-between px-3 py-2 rounded-t-lg" style="background: var(--color-surface-container-high)">
             <span class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-on-surface-variant)">
               <%= column.name %>
@@ -26,7 +26,7 @@
                    data-task-id="<%= task.id %>"
                    data-task-url="<%= jira_task_path(task) %>">
                 <div class="flex items-center justify-between mb-1.5">
-                  <a href="<%= task.external_url %>" target="_blank" rel="noopener"
+                  <a href="<%= jira_task_path(task, project_id: @selected_project&.id, board_id: @selected_board&.id, sprint_id: @selected_sprint&.id) %>"
                      class="text-xs font-semibold hover:underline"
                      style="color: var(--color-primary)"
                      onclick="event.stopPropagation()">
@@ -60,9 +60,10 @@
                     <span></span>
                   <% end %>
 
-                  <% if task.assignee_email.present? %>
-                    <div class="m3-avatar" style="width: 24px; height: 24px; font-size: 0.6rem">
-                      <%= task.assignee_email.first(2).upcase %>
+                  <% assignee = task.assignee_name || task.assignee_email %>
+                  <% if assignee.present? %>
+                    <div class="m3-avatar" style="width: 24px; height: 24px; font-size: 0.6rem" title="<%= assignee %>">
+                      <%= assignee.split.map(&:first).join.first(2).upcase %>
                     </div>
                   <% end %>
                 </div>

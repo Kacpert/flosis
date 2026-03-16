@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_16_122819) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_16_200829) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -264,8 +264,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_16_122819) do
 
   create_table "tasks", force: :cascade do |t|
     t.string "assignee_email"
+    t.string "assignee_name"
     t.datetime "created_at", null: false
     t.text "description"
+    t.text "description_adf"
     t.string "external_reference"
     t.string "external_type"
     t.string "external_url"
@@ -276,6 +278,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_16_122819) do
     t.string "priority"
     t.bigint "project_id", null: false
     t.string "reporter_email"
+    t.string "reporter_name"
     t.integer "sprint_id"
     t.string "sprint_name"
     t.integer "status", default: 0, null: false

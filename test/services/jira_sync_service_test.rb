@@ -36,6 +36,8 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
     expected_issues = issues
     Class.new do
       define_method(:fetch_boards) { |_key| [] }
+      define_method(:fetch_statuses) { {} }
+      define_method(:fetch_sprint_issue_keys) { |_sprint_id| [] }
       define_method(:fetch_issues) do |key|
         raise "Expected #{expected_key}, got #{key}" unless key == expected_key
         expected_issues

@@ -1,6 +1,7 @@
 <% content_for(:title, "Jira Tasks") %>
+<% content_for(:full_width, true) %>
 
-<div class="space-y-5" data-controller="jira-tasks" data-jira-tasks-current-view-value="<%= @view_mode %>">
+<div class="space-y-5" data-controller="jira-tasks jira-task-modal" data-jira-tasks-current-view-value="<%= @view_mode %>">
   <%# Header %>
   <div class="flex justify-between items-center">
     <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">Jira Tasks</h1>
@@ -105,7 +106,7 @@
   </turbo-frame>
 
   <%# Task detail modal %>
-  <div data-controller="jira-task-modal" data-jira-task-modal-target="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+  <div data-jira-task-modal-target="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
     <div class="absolute inset-0" style="background: rgba(0,0,0,0.5)" data-action="click->jira-task-modal#close"></div>
     <div class="relative m3-card-elevated max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" style="z-index: 1">
       <turbo-frame id="jira-task-detail" data-jira-task-modal-target="content">

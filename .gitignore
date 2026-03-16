@@ -2,6 +2,9 @@
 # Environment variables
 .env
 
+# Superpowers
+.superpowers/
+
 # ClaudeOnRails
 .claude-on-rails/sessions/
 .claude-swarm/
@@ -9,3 +12,4 @@ claude-swarm.log
 
 /app/assets/builds/*
 !/app/assets/builds/.keep
+tmp

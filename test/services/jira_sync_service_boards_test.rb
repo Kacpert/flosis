@@ -5,12 +5,13 @@ class JiraSyncServiceBoardsTest < ActiveSupport::TestCase
     @project = projects(:jira_project)
   end
 
-  def build_mock_client(boards: [], board_configs: {}, sprints: {}, issues: [])
+  def build_mock_client(boards: [], board_configs: {}, sprints: {}, issues: [], statuses: {}, sprint_issues: {})
     boards_data = boards
     configs = board_configs
     sprints_data = sprints
     issues_data = issues
-    project_key = @project.external_reference
+    statuses_data = statuses
+    sprint_issues_data = sprint_issues
 
     Class.new do
       define_method(:fetch_boards) { |_key| boards_data }
@@ -24,6 +25,12 @@ class JiraSyncServiceBoardsTest < ActiveSupport::TestCase
       end
 
       define_method(:fetch_issues) { |_key| issues_data }
+
+      define_method(:fetch_statuses) { statuses_data }
+
+      define_method(:fetch_sprint_issue_keys) do |sprint_id|
+        sprint_issues_data[sprint_id] || []
+      end
     end.new
   end
 
@@ -53,7 +60,7 @@ class JiraSyncServiceBoardsTest < ActiveSupport::TestCase
     assert_equal "Design Renamed", board.name
   end
 
-  test "syncs board columns and statuses" do
+  test "syncs board columns and statuses with resolved names" do
     client = build_mock_client(
       boards: [{ id: 101, name: "Design", type: "scrum" }],
       board_configs: {
@@ -61,7 +68,8 @@ class JiraSyncServiceBoardsTest < ActiveSupport::TestCase
           { name: "TODO", statuses: [{ id: "10001" }, { id: "10004" }] },
           { name: "DONE", statuses: [{ id: "10003" }] }
         ]
-      }
+      },
+      statuses: { "10001" => "To Do", "10003" => "Done", "10004" => "Open" }
     )
 
     JiraSyncService.new(@project, client: client).sync
@@ -71,6 +79,9 @@ class JiraSyncServiceBoardsTest < ActiveSupport::TestCase
     todo_col = board.jira_board_columns.find_by(name: "TODO")
     assert_equal 0, todo_col.position
     assert_equal 2, todo_col.jira_board_column_statuses.count
+
+    status_names = todo_col.jira_board_column_statuses.pluck(:jira_status_name).sort
+    assert_equal ["Open", "To Do"], status_names
   end
 
   test "syncs sprints" do
@@ -121,8 +132,8 @@ class JiraSyncServiceBoardsTest < ActiveSupport::TestCase
           issue_type: "Bug",
           labels: ["backend"],
           reporter_email: "reporter@example.com",
-          sprint_id: 569,
-          sprint_name: "Design Sprint",
+          sprint_id: nil,
+          sprint_name: nil,
           time_estimate_seconds: 1800
         }
       ]
@@ -136,8 +147,25 @@ class JiraSyncServiceBoardsTest < ActiveSupport::TestCase
     assert_equal "Bug", task.issue_type
     assert_equal '["backend"]', task.labels
     assert_equal "reporter@example.com", task.reporter_email
+    assert_equal 1800, task.time_estimate_seconds
+  end
+
+  test "syncs sprint assignments from agile API" do
+    client = build_mock_client(
+      boards: [{ id: 101, name: "Design", type: "scrum" }],
+      board_configs: { 101 => [] },
+      sprints: {
+        101 => [
+          { id: 569, name: "Design Sprint", state: "active", start_date: nil, end_date: nil }
+        ]
+      },
+      sprint_issues: { 569 => ["ELV-1"] }
+    )
+
+    JiraSyncService.new(@project, client: client).sync
+
+    task = tasks(:jira_task).reload
     assert_equal 569, task.sprint_id
     assert_equal "Design Sprint", task.sprint_name
-    assert_equal 1800, task.time_estimate_seconds
   end
 end

@@ -3,13 +3,10 @@
     <div class="flex items-start justify-between">
       <div>
         <div class="flex items-center gap-2 mb-1">
-          <a href="<%= @task.external_url %>" target="_blank" rel="noopener"
+          <a href="<%= jira_task_path(@task) %>"
              class="text-sm font-semibold hover:underline"
              style="color: var(--color-primary)">
             <%= @task.external_reference %>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-            </svg>
           </a>
         </div>
         <h2 class="text-xl font-bold" style="color: var(--color-on-surface)">
@@ -40,8 +37,12 @@
     <% if @task.description.present? %>
       <div>
         <h3 class="text-sm font-semibold mb-2" style="color: var(--color-on-surface-variant)">Description</h3>
-        <div class="text-sm leading-relaxed whitespace-pre-wrap p-3 rounded-lg" style="color: var(--color-on-surface); background: var(--color-surface-container-low)">
-          <%= @task.description %>
+        <div class="adf-content text-sm leading-relaxed p-3 rounded-lg" style="color: var(--color-on-surface); background: var(--color-surface-container-low)">
+          <% if @task.description_adf.present? %>
+            <%= adf_to_html(@task.description_adf) %>
+          <% else %>
+            <div class="whitespace-pre-wrap"><%= @task.description %></div>
+          <% end %>
         </div>
       </div>
     <% end %>
@@ -51,11 +52,11 @@
       <div class="grid grid-cols-2 gap-y-3 gap-x-6 text-sm">
         <div>
           <dt style="color: var(--color-outline)">Assignee</dt>
-          <dd class="font-medium" style="color: var(--color-on-surface)"><%= @task.assignee_email || "Unassigned" %></dd>
+          <dd class="font-medium" style="color: var(--color-on-surface)"><%= @task.assignee_name || @task.assignee_email || "Unassigned" %></dd>
         </div>
         <div>
           <dt style="color: var(--color-outline)">Reporter</dt>
-          <dd class="font-medium" style="color: var(--color-on-surface)"><%= @task.reporter_email || "—" %></dd>
+          <dd class="font-medium" style="color: var(--color-on-surface)"><%= @task.reporter_name || @task.reporter_email || "—" %></dd>
         </div>
         <div>
           <dt style="color: var(--color-outline)">Priority</dt>

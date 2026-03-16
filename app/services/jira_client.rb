@@ -64,11 +64,15 @@ class JiraClient
     start_at = 0
 
     loop do
-      data = get("/rest/agile/1.0/board", projectKeyOrId: project_key, startAt: start_at, maxResults: 50)
+      data = get("/rest/agile/1.0/board", startAt: start_at, maxResults: 50)
       return [] unless data
 
       values = data["values"] || []
-      results.concat(values.map { |b| { id: b["id"], name: b["name"], type: b["type"] } })
+      values.each do |b|
+        next unless b.dig("location", "projectKey") == project_key
+
+        results << { id: b["id"], name: b["name"], type: b["type"] }
+      end
 
       break if data["isLast"] != false
       start_at += values.length
@@ -88,6 +92,31 @@ class JiraClient
         statuses: (col["statuses"] || []).map { |s| { id: s["id"] } }
       }
     end
+  end
+
+  def fetch_sprint_issue_keys(sprint_id)
+    results = []
+    start_at = 0
+
+    loop do
+      data = get("/rest/agile/1.0/sprint/#{sprint_id}/issue", fields: "summary", maxResults: 100, startAt: start_at)
+      return [] unless data
+
+      issues = data["issues"] || []
+      results.concat(issues.map { |i| i["key"] })
+
+      break if start_at + issues.length >= (data["total"] || 0)
+      start_at += issues.length
+    end
+
+    results
+  end
+
+  def fetch_statuses
+    data = get("/rest/api/3/status")
+    return {} unless data.is_a?(Array)
+
+    data.each_with_object({}) { |s, map| map[s["id"]] = s["name"] }
   end
 
   def fetch_sprints(board_id)
@@ -128,12 +157,15 @@ class JiraClient
       status_category: status["key"],
       status_name: fields.dig("status", "name"),
       assignee_email: fields.dig("assignee", "emailAddress"),
+      assignee_name: fields.dig("assignee", "displayName"),
       url: "https://#{@domain}/browse/#{issue['key']}",
       description: adf_to_text(fields["description"]),
+      description_adf: fields["description"]&.to_json,
       priority: fields.dig("priority", "name"),
       issue_type: fields.dig("issuetype", "name"),
       labels: fields["labels"] || [],
       reporter_email: fields.dig("reporter", "emailAddress"),
+      reporter_name: fields.dig("reporter", "displayName"),
       sprint_id: fields.dig("sprint", "id"),
       sprint_name: fields.dig("sprint", "name"),
       time_estimate_seconds: fields["timeoriginalestimate"]

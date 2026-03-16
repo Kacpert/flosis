@@ -25,14 +25,11 @@
                 data-task-id="<%= task.id %>"
                 data-task-url="<%= jira_task_path(task) %>">
               <td class="py-3 px-4">
-                <a href="<%= task.external_url %>" target="_blank" rel="noopener"
+                <a href="<%= jira_task_path(task, project_id: @selected_project&.id, board_id: @selected_board&.id, sprint_id: @selected_sprint&.id) %>"
                    class="text-sm font-semibold hover:underline"
                    style="color: var(--color-primary)"
                    onclick="event.stopPropagation()">
                   <%= task.external_reference %>
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                  </svg>
                 </a>
               </td>
               <td class="py-3 px-4 text-sm max-w-xs truncate" style="color: var(--color-on-surface)">
@@ -44,7 +41,7 @@
                 </span>
               </td>
               <td class="py-3 px-4 text-sm" style="color: var(--color-on-surface-variant)">
-                <%= task.assignee_email&.split("@")&.first || "—" %>
+                <%= task.assignee_name || task.assignee_email&.split("@")&.first || "—" %>
               </td>
               <td class="py-3 px-4 text-sm" style="color: var(--color-on-surface-variant)">
                 <%= task.priority || "—" %>
