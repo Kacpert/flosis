@@ -1,0 +1,9 @@
+greeting:
+  chat_session: one
+  role: assistant
+  content: "I've read the ticket. What would you like to work on?"
+
+user_first:
+  chat_session: one
+  role: user
+  content: "Start with the data model"

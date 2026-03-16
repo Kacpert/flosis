@@ -10,9 +10,18 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_16_213443) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_16_214010) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "chat_messages", force: :cascade do |t|
+    t.bigint "chat_session_id", null: false
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.string "role", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id"], name: "index_chat_messages_on_chat_session_id"
+  end
 
   create_table "chat_sessions", force: :cascade do |t|
     t.string "claude_session_id", null: false
@@ -360,6 +369,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_16_213443) do
     t.datetime "updated_at", null: false
   end
 
+  add_foreign_key "chat_messages", "chat_sessions"
   add_foreign_key "chat_sessions", "tasks"
   add_foreign_key "chat_sessions", "users"
   add_foreign_key "chat_sessions", "workspaces"
