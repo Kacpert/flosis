@@ -68,5 +68,12 @@ Rails.application.routes.draw do
   # Jira integration
   get "jira/projects", to: "jira#projects", as: :jira_projects
 
+  resources :jira_tasks, only: [:index, :show] do
+    collection do
+      get :board_data
+      post :refresh
+    end
+  end
+
   get "up" => "rails/health#show", as: :rails_health_check
 end
