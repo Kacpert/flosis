@@ -21,14 +21,18 @@ export default class extends Controller {
       }
     }
 
-    this.picker = flatpickr(this.element, options)
-
     if (this.triggerButtonValue) {
       this.triggerEl = document.querySelector(this.triggerButtonValue)
       if (this.triggerEl) {
-        this.openHandler = (e) => { e.preventDefault(); this.picker.open() }
-        this.triggerEl.addEventListener("click", this.openHandler)
+        options.positionElement = this.triggerEl
       }
+    }
+
+    this.picker = flatpickr(this.element, options)
+
+    if (this.triggerEl) {
+      this.openHandler = (e) => { e.preventDefault(); this.picker.open() }
+      this.triggerEl.addEventListener("click", this.openHandler)
     }
   }
 
