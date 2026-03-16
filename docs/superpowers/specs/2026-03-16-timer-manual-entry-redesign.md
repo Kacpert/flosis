@@ -117,7 +117,7 @@ When the user has explicitly set an end date override (via the +1d badge picker)
 
 ### Date Button → Flatpickr Trigger
 
-The date button is a styled `<button>` element. Flatpickr is initialized on a hidden `<input>` adjacent to the button, using flatpickr's `wrap: false` mode. The button's click handler calls `this.picker.open()` programmatically. The hidden input holds the date value in `Y-m-d` format. The button's visible text is updated via JS when the date changes (formatted as "16 Mar").
+The date button is a styled `<button>` element. Flatpickr is initialized on a hidden `<input>` adjacent to the button. The button's click handler calls `this.picker.open()` programmatically to open the calendar. The hidden input holds the date value in `Y-m-d` format. The button's visible text is updated via JS when the date changes (formatted as "16 Mar").
 
 ### Theme Support
 
@@ -151,9 +151,9 @@ This ensures the picker looks correct across all 4 themes (default, dark, purple
 2. **`app/javascript/controllers/manual_entry_controller.js`** — Rewrite with triangular calculation, time formatting, overnight detection
 3. **`app/javascript/controllers/datepicker_controller.js`** — Add date-only mode support, configure for calendar button trigger
 4. **`app/assets/tailwind/application.css`** — Add flatpickr theme overrides using CSS variables, time input styles, +1d badge styles
-5. **`app/controllers/time_entries_controller.rb`** — Ensure `stopped_at` is accepted in strong params (partially exists), handle both duration_manual and stopped_at submission
-6. **`app/views/time_entries/_form.html.erb`** — Update edit form with same date/time input pattern
-7. **`app/views/time_entries/_time_entry_row.html.erb`** — Update inline edit row: use start/end time HH:MM inputs and duration, but keep it compact (no separate date button — use the existing date from the entry, editable via a small flatpickr trigger if needed)
+5. **`app/controllers/time_entries_controller.rb`** — Ensure `stopped_at` is accepted in strong params. Remove `handle_manual_duration` method and its call sites (lines 44, 64, 137–144) — this becomes dead code since forms no longer submit `duration_manual`.
+6. **`app/views/time_entries/_form.html.erb`** — Update edit form with same date/time input pattern. Remove `duration_manual` field. Wire up `manual_entry_controller` Stimulus controller to enable triangular calculation. The form will have: date picker, start time, end time, and duration — same as timer bar but in a full-page layout.
+7. **`app/views/time_entries/_time_entry_row.html.erb`** — Update inline edit row: use start/end time HH:MM inputs and duration, keep it compact (no separate date button — use the existing date from the entry, editable via a small flatpickr trigger if needed). Wire up `manual_entry_controller` for triangular calculation. Pre-populate all fields from the existing entry's `started_at`/`stopped_at`.
 
 ## Notes
 
