@@ -1307,3 +1307,159 @@ input.m3-text-field::placeholder {
   height: 2.25rem;
 }
 .filter-select:focus { border-color: var(--color-primary); outline: none; }
+
+/* ─── Flatpickr Nordic Theme Override ─── */
+.flatpickr-calendar {
+  background: var(--color-surface-container) !important;
+  border: 1px solid var(--color-outline-variant) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-3) !important;
+  font-family: var(--font-sans) !important;
+}
+
+.flatpickr-months .flatpickr-month,
+.flatpickr-current-month {
+  color: var(--color-on-surface) !important;
+  fill: var(--color-on-surface) !important;
+}
+
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month {
+  color: var(--color-on-surface-variant) !important;
+  fill: var(--color-on-surface-variant) !important;
+}
+
+.flatpickr-months .flatpickr-prev-month:hover,
+.flatpickr-months .flatpickr-next-month:hover {
+  color: var(--color-primary) !important;
+  fill: var(--color-primary) !important;
+}
+
+span.flatpickr-weekday {
+  color: var(--color-outline) !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+}
+
+.flatpickr-day {
+  color: var(--color-on-surface) !important;
+  border-radius: var(--radius-sm) !important;
+  font-size: 12px !important;
+}
+
+.flatpickr-day:hover {
+  background: var(--color-surface-container-high) !important;
+  border-color: transparent !important;
+}
+
+.flatpickr-day.today {
+  border-color: var(--color-primary) !important;
+}
+
+.flatpickr-day.selected {
+  background: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay {
+  color: var(--color-on-surface-variant) !important;
+}
+
+.flatpickr-current-month input.cur-year,
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+  color: var(--color-on-surface) !important;
+  background: transparent !important;
+  font-weight: 600 !important;
+}
+
+/* ─── Timer Time Input ─── */
+.m3-time-input {
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  color: var(--color-on-surface);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  width: 60px;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.m3-time-input:focus {
+  border-color: var(--color-primary);
+}
+
+.m3-time-input::placeholder {
+  color: var(--color-outline);
+}
+
+/* ─── Timer Date Button ─── */
+.m3-date-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-container-low);
+  border: 1px solid var(--color-outline-variant);
+  color: var(--color-on-surface);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.m3-date-btn:hover {
+  background: var(--color-surface-container);
+  border-color: var(--color-outline);
+}
+
+.m3-date-btn svg {
+  color: var(--color-primary);
+}
+
+/* ─── Timer Duration Pill ─── */
+.m3-duration-pill {
+  background: var(--color-primary-container);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  color: var(--color-on-primary-container);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  width: 64px;
+  border: none;
+  outline: none;
+}
+
+.m3-duration-pill:focus {
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+.m3-duration-pill::placeholder {
+  color: var(--color-on-primary-container);
+  opacity: 0.5;
+}
+
+/* ─── Overnight Badge ─── */
+.m3-overnight-badge {
+  background: var(--color-tertiary-container);
+  color: var(--color-on-tertiary-container);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.m3-overnight-badge:hover {
+  opacity: 0.8;
+}
