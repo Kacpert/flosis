@@ -10,9 +10,24 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_16_200829) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_16_213443) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "chat_sessions", force: :cascade do |t|
+    t.string "claude_session_id", null: false
+    t.string "codebase_path", null: false
+    t.datetime "created_at", null: false
+    t.string "status", default: "active", null: false
+    t.bigint "task_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["task_id", "user_id", "status"], name: "idx_chat_sessions_active_per_task_user", unique: true, where: "((status)::text = 'active'::text)"
+    t.index ["task_id"], name: "index_chat_sessions_on_task_id"
+    t.index ["user_id"], name: "index_chat_sessions_on_user_id"
+    t.index ["workspace_id"], name: "index_chat_sessions_on_workspace_id"
+  end
 
   create_table "clients", force: :cascade do |t|
     t.boolean "archived", default: false, null: false
@@ -345,6 +360,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_16_200829) do
     t.datetime "updated_at", null: false
   end
 
+  add_foreign_key "chat_sessions", "tasks"
+  add_foreign_key "chat_sessions", "users"
+  add_foreign_key "chat_sessions", "workspaces"
   add_foreign_key "clients", "workspaces"
   add_foreign_key "integrations", "workspaces"
   add_foreign_key "jira_board_column_statuses", "jira_board_columns"

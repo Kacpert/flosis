@@ -6,6 +6,7 @@ class Workspace < ApplicationRecord
   has_many :tags, dependent: :destroy
   has_many :time_entries, dependent: :destroy
   has_many :integrations, dependent: :destroy
+  has_many :chat_sessions, dependent: :destroy
 
   validates :name, presence: true
 end

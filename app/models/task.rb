@@ -1,6 +1,7 @@
 class Task < ApplicationRecord
   belongs_to :project
   has_many :time_entries, dependent: :nullify
+  has_many :chat_sessions, dependent: :destroy
 
   enum :status, { active: 0, done: 1 }
 
