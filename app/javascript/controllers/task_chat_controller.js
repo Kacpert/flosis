@@ -14,6 +14,7 @@ export default class extends Controller {
   connect() {
     this.abortController = null
     this.sidebar = document.querySelector("aside.m3-drawer-side")
+    this.mainElement = this.element.closest("main")
     this.beforeVisitHandler = () => this.closeChat()
     document.addEventListener("turbo:before-visit", this.beforeVisitHandler)
   }
@@ -26,7 +27,7 @@ export default class extends Controller {
 
   async openChat() {
     if (this.stateValue !== "normal") return
-    this.chatPanelTarget.classList.remove("hidden")
+    this.chatPanelTarget.style.display = "flex"
     this.stateValue = "sideBySide"
     this.applyState()
     if (!this.hasSessionValue) {
@@ -42,17 +43,17 @@ export default class extends Controller {
     this.applyState()
   }
 
-  expandChat() {
-    if (this.stateValue !== "sideBySide") return
-    this.stateValue = "fullscreen"
+  toggleExpand() {
+    if (this.stateValue === "sideBySide") {
+      this.stateValue = "fullscreen"
+    } else if (this.stateValue === "fullscreen") {
+      this.stateValue = "sideBySide"
+    }
     this.applyState()
   }
 
-  shrinkChat() {
-    if (this.stateValue !== "fullscreen") return
-    this.stateValue = "sideBySide"
-    this.applyState()
-  }
+  expandChat() { this.toggleExpand() }
+  shrinkChat() { this.toggleExpand() }
 
   applyState() {
     const state = this.stateValue
@@ -66,17 +67,27 @@ export default class extends Controller {
       this.taskContentTarget.style.display = state === "fullscreen" ? "none" : ""
     }
     if (this.hasChatPanelTarget) {
-      this.chatPanelTarget.classList.toggle("hidden", state === "normal")
-      if (state === "fullscreen") {
+      if (state === "normal") {
+        this.chatPanelTarget.style.display = "none"
+      } else if (state === "fullscreen") {
+        this.chatPanelTarget.style.display = "flex"
         this.chatPanelTarget.style.width = "100%"
         this.chatPanelTarget.style.maxWidth = "720px"
         this.chatPanelTarget.style.margin = "0 auto"
         this.chatPanelTarget.style.borderLeft = "none"
+        this.chatPanelTarget.style.position = "static"
+        this.chatPanelTarget.style.height = this.computeChatHeight()
+        this.chatPanelTarget.style.alignSelf = ""
       } else {
-        this.chatPanelTarget.style.width = ""
+        this.chatPanelTarget.style.display = "flex"
+        this.chatPanelTarget.style.width = "45%"
         this.chatPanelTarget.style.maxWidth = ""
         this.chatPanelTarget.style.margin = ""
         this.chatPanelTarget.style.borderLeft = ""
+        this.chatPanelTarget.style.position = "sticky"
+        this.chatPanelTarget.style.top = "0"
+        this.chatPanelTarget.style.height = this.computeChatHeight()
+        this.chatPanelTarget.style.alignSelf = "flex-start"
       }
     }
     if (this.hasBreadcrumbTarget) {
@@ -141,6 +152,7 @@ export default class extends Controller {
     const assistantBubble = this.appendMessage("assistant", "")
     const textSpan = assistantBubble.querySelector("[data-chat-text]")
     this.abortController = new AbortController()
+    let fullText = ""
     try {
       const response = await fetch(this.messageUrlValue, {
         method: "POST",
@@ -163,11 +175,14 @@ export default class extends Controller {
           try {
             const data = JSON.parse(jsonStr)
             if (data.done) {
-              // Stream complete
+              // Stream complete — render final markdown
+              textSpan.innerHTML = this.renderMarkdown(fullText)
             } else if (data.error) {
-              textSpan.textContent += `\n[Error: ${data.error}]`
+              fullText += `\n[Error: ${data.error}]`
+              textSpan.textContent = fullText
             } else {
-              textSpan.textContent += data
+              fullText += data
+              textSpan.textContent = fullText
             }
           } catch {
             // Not valid JSON, skip
@@ -175,9 +190,12 @@ export default class extends Controller {
         }
         this.scrollToBottom()
       }
+      // Final render in case no done event was received
+      if (fullText) textSpan.innerHTML = this.renderMarkdown(fullText)
     } catch (e) {
       if (e.name !== "AbortError") {
-        textSpan.textContent += "\n[Connection interrupted]"
+        fullText += "\n[Connection interrupted]"
+        textSpan.textContent = fullText
       }
     } finally {
       input.disabled = false
@@ -201,7 +219,11 @@ export default class extends Controller {
     bubble.className = role === "user" ? "chat-bubble chat-bubble-user" : "chat-bubble chat-bubble-assistant"
     const textSpan = document.createElement("span")
     textSpan.setAttribute("data-chat-text", "")
-    textSpan.textContent = content
+    if (role === "assistant" && content) {
+      textSpan.innerHTML = this.renderMarkdown(content)
+    } else {
+      textSpan.textContent = content
+    }
     bubble.appendChild(textSpan)
     wrapper.appendChild(bubble)
     this.chatMessagesTarget.appendChild(wrapper)
@@ -222,6 +244,16 @@ export default class extends Controller {
     this.chatMessagesTarget.innerHTML = `<div class="flex justify-center py-8"><span class="text-sm" style="color: var(--color-error)">${message}</span></div>`
   }
 
+  computeChatHeight() {
+    if (!this.mainElement) return "calc(100vh - 6rem)"
+    // Use the main element's visible height minus the space above the flex container
+    const mainRect = this.mainElement.getBoundingClientRect()
+    const flexContainer = this.chatPanelTarget.parentElement
+    const flexRect = flexContainer.getBoundingClientRect()
+    const available = mainRect.bottom - flexRect.top
+    return `${Math.max(available, 300)}px`
+  }
+
   scrollToBottom() {
     if (this.hasChatMessagesTarget) {
       this.chatMessagesTarget.scrollTop = this.chatMessagesTarget.scrollHeight
@@ -233,6 +265,27 @@ export default class extends Controller {
       this.abortController.abort()
       this.abortController = null
     }
+  }
+
+  renderMarkdown(text) {
+    // Escape HTML first to prevent XSS
+    const escaped = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+    // Code blocks
+    let html = escaped.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, _lang, code) =>
+      `<pre><code>${code.trim()}</code></pre>`)
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, "<code>$1</code>")
+    // Bold
+    html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    // Italic
+    html = html.replace(/\*(.+?)\*/g, "<em>$1</em>")
+    // Line breaks
+    html = html.replace(/\n/g, "<br>")
+    return html
   }
 
   headers() {
