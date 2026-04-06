@@ -1,0 +1,9 @@
+Hi <%= @user.name %>,
+
+Your time off request has been approved by <%= @reviewer.name %>.
+
+Dates: <%= @holiday_request.start_date.strftime("%b %-d, %Y") %> - <%= @holiday_request.end_date.strftime("%b %-d, %Y") %>
+Duration: <%= @holiday_request.business_days %> days
+<% if @holiday_request.note.present? %>
+Note: <%= @holiday_request.note %>
+<% end %>
