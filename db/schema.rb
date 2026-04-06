@@ -10,7 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_16_214010) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_06_092615) do
+  # These are extensions that must be enabled in order to support this database
+  enable_extension "pg_catalog.plpgsql"
+
   create_table "chat_messages", force: :cascade do |t|
     t.bigint "chat_session_id", null: false
     t.text "content", null: false
@@ -29,7 +32,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_16_214010) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "workspace_id", null: false
-    t.index ["task_id", "user_id", "status"], name: "idx_chat_sessions_active_per_task_user", unique: true
+    t.index ["task_id", "user_id", "status"], name: "idx_chat_sessions_active_per_task_user", unique: true, where: "((status)::text = 'active'::text)"
     t.index ["task_id"], name: "index_chat_sessions_on_task_id"
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
     t.index ["workspace_id"], name: "index_chat_sessions_on_workspace_id"
@@ -46,9 +49,47 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_16_214010) do
     t.index ["workspace_id"], name: "index_clients_on_workspace_id"
   end
 
+  create_table "holiday_balance_entries", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.integer "days", null: false
+    t.integer "entry_type", null: false
+    t.bigint "holiday_request_id"
+    t.text "note"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["created_by_id"], name: "index_holiday_balance_entries_on_created_by_id"
+    t.index ["holiday_request_id"], name: "index_holiday_balance_entries_on_holiday_request_id"
+    t.index ["user_id", "entry_type"], name: "index_holiday_balance_entries_on_user_id_and_entry_type"
+    t.index ["user_id"], name: "index_holiday_balance_entries_on_user_id"
+    t.index ["workspace_id", "user_id"], name: "index_holiday_balance_entries_on_workspace_id_and_user_id"
+    t.index ["workspace_id"], name: "index_holiday_balance_entries_on_workspace_id"
+  end
+
+  create_table "holiday_requests", force: :cascade do |t|
+    t.integer "business_days", null: false
+    t.datetime "created_at", null: false
+    t.date "end_date", null: false
+    t.text "note"
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_id"
+    t.date "start_date", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["reviewed_by_id"], name: "index_holiday_requests_on_reviewed_by_id"
+    t.index ["user_id", "start_date", "end_date"], name: "index_holiday_requests_on_user_id_and_start_date_and_end_date"
+    t.index ["user_id"], name: "index_holiday_requests_on_user_id"
+    t.index ["workspace_id", "status"], name: "index_holiday_requests_on_workspace_id_and_status"
+    t.index ["workspace_id", "user_id"], name: "index_holiday_requests_on_workspace_id_and_user_id"
+    t.index ["workspace_id"], name: "index_holiday_requests_on_workspace_id"
+  end
+
   create_table "integrations", force: :cascade do |t|
     t.boolean "active", default: false, null: false
-    t.json "config", default: {}, null: false
+    t.jsonb "config", default: {}, null: false
     t.datetime "created_at", null: false
     t.string "provider", null: false
     t.datetime "updated_at", null: false
@@ -305,7 +346,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_16_214010) do
     t.integer "status", default: 0, null: false
     t.integer "time_estimate_seconds"
     t.datetime "updated_at", null: false
-    t.index ["project_id", "external_type", "external_reference"], name: "index_tasks_on_project_external_ref", unique: true
+    t.index ["project_id", "external_type", "external_reference"], name: "index_tasks_on_project_external_ref", unique: true, where: "(external_type IS NOT NULL)"
     t.index ["project_id", "name"], name: "index_tasks_on_project_id_and_name", unique: true
     t.index ["project_id"], name: "index_tasks_on_project_id"
   end
@@ -371,6 +412,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_16_214010) do
   add_foreign_key "chat_sessions", "users"
   add_foreign_key "chat_sessions", "workspaces"
   add_foreign_key "clients", "workspaces"
+  add_foreign_key "holiday_balance_entries", "holiday_requests"
+  add_foreign_key "holiday_balance_entries", "users"
+  add_foreign_key "holiday_balance_entries", "users", column: "created_by_id"
+  add_foreign_key "holiday_balance_entries", "workspaces"
+  add_foreign_key "holiday_requests", "users"
+  add_foreign_key "holiday_requests", "users", column: "reviewed_by_id"
+  add_foreign_key "holiday_requests", "workspaces"
   add_foreign_key "integrations", "workspaces"
   add_foreign_key "jira_board_column_statuses", "jira_board_columns"
   add_foreign_key "jira_board_columns", "jira_boards"
