@@ -1,4 +1,4 @@
 class ApplicationMailer < ActionMailer::Base
-  default from: "Clar <kacper@rubyonsaas.com>"
+  default from: "Clar <support@rubyonsaas.com>"
   layout "mailer"
 end
