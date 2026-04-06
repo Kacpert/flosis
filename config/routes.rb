@@ -17,6 +17,7 @@ Rails.application.routes.draw do
   resources :workspace_members, only: [ :index, :new, :create, :edit, :update, :destroy ]
 
   resources :clients
+  resources :feedback_meetings
   resources :projects do
     resources :tasks, only: [ :create, :destroy ], shallow: true
     resources :project_memberships, only: [ :create, :update, :destroy ], path: "members"
