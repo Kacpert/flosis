@@ -1,5 +1,9 @@
 app_dir = File.expand_path("../../..", __FILE__)
-shared_dir = File.expand_path("../../../../shared", __FILE__)
+# Resolve the real path first (follows symlinks), then navigate to shared
+real_app_dir = File.realpath(app_dir)
+# real_app_dir = /home/.../app/releases/TIMESTAMP
+# Go up 2 levels to get /home/.../app, then into shared
+shared_dir = File.join(File.expand_path("../..", real_app_dir), "shared")
 
 directory app_dir
 environment "production"
