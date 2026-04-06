@@ -1,4 +1,4 @@
-<div class="space-y-4">
+<div class="space-y-4" data-controller="timesheet-expand">
   <div class="flex justify-between items-center">
     <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Timesheet</h1>
   </div>
@@ -31,14 +31,22 @@
         </tr>
       </thead>
       <tbody>
-        <% @rows.each do |row| %>
+        <% @rows.each_with_index do |row, idx| %>
             <% project = row[:project] %>
             <% task = row[:task] %>
             <% key = row[:key] %>
             <% row_total = @week_days.sum { |d| @grid.dig(key, d) || 0 } %>
-            <tr>
+            <% details = @entry_details[key] || [] %>
+            <% auto_expand = @rows.size == 1 %>
+            <tr class="cursor-pointer hover:opacity-80"
+                data-action="click->timesheet-expand#toggle"
+                data-timesheet-expand-target="row"
+                data-row-index="<%= idx %>">
               <td>
                 <div class="flex items-center gap-2">
+                  <span data-timesheet-expand-target="arrow" data-row-index="<%= idx %>"
+                        class="text-xs transition-transform duration-200 <%= auto_expand ? 'rotate-90' : '' %>"
+                        style="color: var(--color-on-surface-variant)">&#9654;</span>
                   <%= project_color_dot(project.color) %>
                   <div>
                     <div class="font-medium text-sm" style="color: var(--color-on-surface)"><%= project.name %></div>
@@ -50,7 +58,8 @@
               </td>
               <% @week_days.each do |day| %>
                 <% seconds = @grid.dig(key, day) || 0 %>
-                <td class="text-center" style="<%= day == Date.current ? 'background: rgba(74, 103, 65, 0.08)' : '' %>">
+                <td class="text-center" style="<%= day == Date.current ? 'background: rgba(74, 103, 65, 0.08)' : '' %>"
+                    data-action="click->timesheet-expand#stopPropagation">
                   <%= form_with url: update_cell_timesheet_path, method: :patch, class: "inline" do |f| %>
                     <%= f.hidden_field :project_id, value: project.id %>
                     <%= f.hidden_field :task_id, value: task&.id %>
@@ -64,6 +73,35 @@
               <% end %>
               <td class="text-center font-mono font-bold text-sm" style="color: var(--color-on-surface)">
                 <%= row_total > 0 ? format("%d:%02d", row_total / 3600, (row_total % 3600) / 60) : "" %>
+              </td>
+            </tr>
+            <!-- Expanded detail rows -->
+            <tr data-timesheet-expand-target="detail" data-row-index="<%= idx %>"
+                class="<%= auto_expand ? '' : 'hidden' %>">
+              <td colspan="<%= @week_days.size + 2 %>" class="!pt-0 !pb-3 !px-4">
+                <div class="ml-6 border-l-2 pl-3 space-y-2" style="border-color: <%= project.color %>">
+                  <% details.sort_by(&:started_at).each do |entry| %>
+                    <div class="flex items-start gap-3 py-1">
+                      <div class="text-xs font-mono whitespace-nowrap" style="color: var(--color-on-surface-variant)">
+                        <%= entry.started_at.strftime("%a %d") %>
+                      </div>
+                      <div class="text-xs font-mono whitespace-nowrap" style="color: var(--color-on-surface-variant)">
+                        <%= entry.started_at.strftime("%H:%M") %>-<%= entry.stopped_at.strftime("%H:%M") %>
+                      </div>
+                      <div class="text-xs font-mono whitespace-nowrap" style="color: var(--color-on-surface)">
+                        <%= format("%d:%02d", entry.duration_seconds / 3600, (entry.duration_seconds % 3600) / 60) %>
+                      </div>
+                      <% if entry.description.present? %>
+                        <div class="text-xs" style="color: var(--color-on-surface-variant)">
+                          <%= entry.description %>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                  <% if details.empty? %>
+                    <div class="text-xs py-1" style="color: var(--color-on-surface-variant)">No entries</div>
+                  <% end %>
+                </div>
               </td>
             </tr>
         <% end %>

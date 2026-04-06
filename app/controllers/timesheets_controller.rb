@@ -33,6 +33,14 @@ class TimesheetsController < ApplicationController
       { project: entry.project, task: entry.task, key: [project_id, task_id] }
     }
 
+    # Entry details grouped by [project_id, task_id] for expanded view
+    @entry_details = {}
+    @entries.each do |entry|
+      key = [ entry.project_id, entry.task_id ]
+      @entry_details[key] ||= []
+      @entry_details[key] << entry
+    end
+
     # Daily totals
     @day_totals = {}
     @week_days.each do |day|
