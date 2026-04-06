@@ -15,7 +15,7 @@ class RegistrationsController < ApplicationController
     end
 
     start_new_session_for @user
-    redirect_to root_path, notice: "Welcome to Gold!"
+    redirect_to root_path, notice: "Welcome to Clar!"
   rescue ActiveRecord::RecordInvalid
     render :new, status: :unprocessable_entity
   end

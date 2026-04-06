@@ -10,7 +10,7 @@
   <%# Empty state for new users %>
   <% if @active_projects_count == 0 && @today_entries.empty? %>
     <div class="m3-card-elevated text-center py-10">
-      <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Welcome to Gold</h2>
+      <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Welcome to Clar</h2>
       <p class="text-sm max-w-sm mx-auto mt-2" style="color: var(--color-on-surface-variant)">Create a project and start your first timer to see how your time flows.</p>
       <% if current_user.admin_or_owner?(current_workspace) %>
         <div class="flex justify-center gap-3 mt-5">
