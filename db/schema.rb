@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_06_092615) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_06_093958) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -47,6 +47,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_092615) do
     t.bigint "workspace_id", null: false
     t.index ["workspace_id", "name"], name: "index_clients_on_workspace_id_and_name", unique: true
     t.index ["workspace_id"], name: "index_clients_on_workspace_id"
+  end
+
+  create_table "feedback_meetings", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "creator_id", null: false
+    t.bigint "employee_id", null: false
+    t.text "notes"
+    t.boolean "notes_visible", default: false, null: false
+    t.datetime "scheduled_at", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["creator_id"], name: "index_feedback_meetings_on_creator_id"
+    t.index ["employee_id"], name: "index_feedback_meetings_on_employee_id"
+    t.index ["workspace_id", "employee_id"], name: "index_feedback_meetings_on_workspace_id_and_employee_id"
+    t.index ["workspace_id", "scheduled_at"], name: "index_feedback_meetings_on_workspace_id_and_scheduled_at"
+    t.index ["workspace_id"], name: "index_feedback_meetings_on_workspace_id"
   end
 
   create_table "holiday_balance_entries", force: :cascade do |t|
@@ -412,6 +429,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_092615) do
   add_foreign_key "chat_sessions", "users"
   add_foreign_key "chat_sessions", "workspaces"
   add_foreign_key "clients", "workspaces"
+  add_foreign_key "feedback_meetings", "users", column: "creator_id"
+  add_foreign_key "feedback_meetings", "users", column: "employee_id"
+  add_foreign_key "feedback_meetings", "workspaces"
   add_foreign_key "holiday_balance_entries", "holiday_requests"
   add_foreign_key "holiday_balance_entries", "users"
   add_foreign_key "holiday_balance_entries", "users", column: "created_by_id"
