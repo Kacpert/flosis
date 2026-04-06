@@ -31,7 +31,6 @@
       <% end %>
     </div>
 
-    <% show_notes = current_user.admin_or_owner?(current_workspace) || @feedback_meeting.notes_visible %>
     <div>
       <div class="flex items-center gap-2 mb-2">
         <div class="text-xs font-medium" style="color: var(--color-outline)">Notes</div>
@@ -41,7 +40,7 @@
           </span>
         <% end %>
       </div>
-      <% if show_notes %>
+      <% if @show_notes %>
         <% if @feedback_meeting.notes.present? %>
           <div class="text-sm whitespace-pre-wrap" style="color: var(--color-on-surface)"><%= @feedback_meeting.notes %></div>
         <% else %>

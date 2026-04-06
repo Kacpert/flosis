@@ -7,8 +7,7 @@
 
   <div class="space-y-1">
     <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Employee</label>
-    <%= f.select :employee_id,
-        current_workspace.workspace_memberships.where(role: [:employee, :admin, :owner]).includes(:user).map { |m| [m.user.name, m.user.id] },
+    <%= f.select :employee_id, @employees,
         { prompt: "Select employee" },
         class: "m3-text-field w-full", required: true %>
   </div>

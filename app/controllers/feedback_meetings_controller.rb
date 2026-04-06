@@ -3,12 +3,14 @@ class FeedbackMeetingsController < ApplicationController
 
   before_action :require_admin!, only: %i[new create edit update destroy]
   before_action :set_feedback_meeting, only: %i[show edit update destroy]
+  before_action :set_employees, only: %i[new create edit update]
 
   def index
     @feedback_meetings = scoped_meetings.recent.includes(:employee, :creator)
   end
 
   def show
+    @show_notes = current_user.admin_or_owner?(current_workspace) || @feedback_meeting.notes_visible
   end
 
   def new
@@ -54,6 +56,13 @@ class FeedbackMeetingsController < ApplicationController
 
   def set_feedback_meeting
     @feedback_meeting = scoped_meetings.find(params[:id])
+  end
+
+  def set_employees
+    @employees = current_workspace.workspace_memberships
+      .where(role: [:employee, :admin, :owner])
+      .includes(:user)
+      .map { |m| [m.user.name, m.user.id] }
   end
 
   def feedback_meeting_params
