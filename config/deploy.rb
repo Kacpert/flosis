@@ -20,6 +20,7 @@ set :bundle_without, %w[development test].join(" ")
 
 # Environment - needed for native gems (libffi, libyaml built from source)
 set :default_env, {
+  "PATH" => "$HOME/.local/bin:$HOME/.rbenv/bin:$HOME/.rbenv/shims:$PATH",
   "LD_LIBRARY_PATH" => "$HOME/.local/lib:$LD_LIBRARY_PATH",
   "PKG_CONFIG_PATH" => "$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH",
   "TMPDIR" => "$HOME/tmp"
