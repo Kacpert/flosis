@@ -18,7 +18,4 @@ pidfile "#{shared_dir}/tmp/pids/puma.pid"
 state_path "#{shared_dir}/tmp/pids/puma.state"
 stdout_redirect "#{shared_dir}/log/puma.stdout.log", "#{shared_dir}/log/puma.stderr.log", true
 
-# Run Solid Queue inside Puma
-plugin :solid_queue
-
 preload_app!

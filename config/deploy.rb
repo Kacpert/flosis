@@ -92,8 +92,36 @@ namespace :puma do
   end
 end
 
+namespace :solid_queue do
+  desc "Start Solid Queue worker"
+  task :start do
+    on roles(:app) do
+      within current_path do
+        with rails_env: fetch(:rails_env), tmpdir: "$HOME/tmp" do
+          execute "nohup", "bundle", "exec", "rake", "solid_queue:start", "> #{shared_path}/log/solid_queue.log 2>&1 &"
+        end
+      end
+    end
+  end
+
+  desc "Stop Solid Queue worker"
+  task :stop do
+    on roles(:app) do
+      execute "pkill -f 'solid_queue:start' 2>/dev/null || true"
+    end
+  end
+
+  desc "Restart Solid Queue worker"
+  task :restart do
+    invoke "solid_queue:stop"
+    sleep 2
+    invoke "solid_queue:start"
+  end
+end
+
 namespace :deploy do
-  after :publishing, :restart_puma do
+  after :publishing, :restart_services do
     invoke "puma:restart"
+    invoke "solid_queue:restart"
   end
 end
