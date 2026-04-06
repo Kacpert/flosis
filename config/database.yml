@@ -65,3 +65,12 @@ production:
     password: <%= ENV["DB_PASSWORD"] %>
     host: <%= ENV.fetch("DB_HOST", "localhost") %>
     port: 3306
+  cache:
+    <<: *primary_production
+    migrations_paths: db/cache_migrate
+  queue:
+    <<: *primary_production
+    migrations_paths: db/queue_migrate
+  cable:
+    <<: *primary_production
+    migrations_paths: db/cable_migrate
