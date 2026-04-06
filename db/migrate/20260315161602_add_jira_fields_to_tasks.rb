@@ -3,7 +3,6 @@ class AddJiraFieldsToTasks < ActiveRecord::Migration[8.1]
     add_column :tasks, :assignee_email, :string
     add_column :tasks, :jira_status_name, :string
     add_index :tasks, [:project_id, :external_type, :external_reference], unique: true,
-              name: "index_tasks_on_project_external_ref",
-              where: "external_type IS NOT NULL"
+              name: "index_tasks_on_project_external_ref"
   end
 end

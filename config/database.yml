@@ -57,19 +57,11 @@ test:
 #
 production:
   primary: &primary_production
-    <<: *default
-    database: gold_production
-    username: gold
-    password: <%= ENV["GOLD_DATABASE_PASSWORD"] %>
-  cache:
-    <<: *primary_production
-    database: gold_production_cache
-    migrations_paths: db/cache_migrate
-  queue:
-    <<: *primary_production
-    database: gold_production_queue
-    migrations_paths: db/queue_migrate
-  cable:
-    <<: *primary_production
-    database: gold_production_cable
-    migrations_paths: db/cable_migrate
+    adapter: mysql2
+    encoding: utf8mb4
+    collation: utf8mb4_unicode_ci
+    database: <%= ENV.fetch("DB_NAME", "host420646_clar") %>
+    username: <%= ENV.fetch("DB_USERNAME", "host420646_clar") %>
+    password: <%= ENV["DB_PASSWORD"] %>
+    host: <%= ENV.fetch("DB_HOST", "localhost") %>
+    port: 3306

@@ -1,13 +1,15 @@
 source "https://rubygems.org"
 
-gem "dotenv-rails", groups: [:development, :test]
+gem "dotenv-rails"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 8.1.2"
 # The modern asset pipeline for Rails [https://github.com/rails/propshaft]
 gem "propshaft"
-# Use postgresql as the database for Active Record
-gem "pg", "~> 1.1"
+# Use postgresql as the database for Active Record (development/test)
+gem "pg", "~> 1.1", groups: [:development, :test]
+# Use MySQL for production hosting
+gem "mysql2", "~> 0.5", groups: [:production]
 # Use the Puma web server [https://github.com/puma/puma]
 gem "puma", ">= 5.0"
 # Use JavaScript with ESM import maps [https://github.com/rails/importmap-rails]
@@ -73,6 +75,12 @@ group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
   gem "claude-on-rails"
+
+  # Deployment
+  gem "capistrano", "~> 3.20", require: false
+  gem "capistrano-rails", "~> 1.6", require: false
+  gem "capistrano-rbenv", "~> 2.2", require: false
+  gem "capistrano-bundler", "~> 2.1", require: false
 end
 
 group :test do

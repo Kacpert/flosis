@@ -10,6 +10,6 @@ class CreateChatSessions < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :chat_sessions, [:task_id, :user_id, :status], unique: true, where: "status = 'active'", name: "idx_chat_sessions_active_per_task_user"
+    add_index :chat_sessions, [:task_id, :user_id, :status], unique: true, name: "idx_chat_sessions_active_per_task_user"
   end
 end

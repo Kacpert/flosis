@@ -11,9 +11,6 @@
 # It's strongly recommended that you check this file into your version control system.
 
 ActiveRecord::Schema[8.1].define(version: 2026_03_16_214010) do
-  # These are extensions that must be enabled in order to support this database
-  enable_extension "pg_catalog.plpgsql"
-
   create_table "chat_messages", force: :cascade do |t|
     t.bigint "chat_session_id", null: false
     t.text "content", null: false
@@ -32,7 +29,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_16_214010) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "workspace_id", null: false
-    t.index ["task_id", "user_id", "status"], name: "idx_chat_sessions_active_per_task_user", unique: true, where: "((status)::text = 'active'::text)"
+    t.index ["task_id", "user_id", "status"], name: "idx_chat_sessions_active_per_task_user", unique: true
     t.index ["task_id"], name: "index_chat_sessions_on_task_id"
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
     t.index ["workspace_id"], name: "index_chat_sessions_on_workspace_id"
@@ -51,7 +48,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_16_214010) do
 
   create_table "integrations", force: :cascade do |t|
     t.boolean "active", default: false, null: false
-    t.jsonb "config", default: {}, null: false
+    t.json "config", default: {}, null: false
     t.datetime "created_at", null: false
     t.string "provider", null: false
     t.datetime "updated_at", null: false
@@ -308,7 +305,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_16_214010) do
     t.integer "status", default: 0, null: false
     t.integer "time_estimate_seconds"
     t.datetime "updated_at", null: false
-    t.index ["project_id", "external_type", "external_reference"], name: "index_tasks_on_project_external_ref", unique: true, where: "(external_type IS NOT NULL)"
+    t.index ["project_id", "external_type", "external_reference"], name: "index_tasks_on_project_external_ref", unique: true
     t.index ["project_id", "name"], name: "index_tasks_on_project_id_and_name", unique: true
     t.index ["project_id"], name: "index_tasks_on_project_id"
   end
