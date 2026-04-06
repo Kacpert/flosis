@@ -1,1 +1,104 @@
-<h1>Balance History</h1>
+<div class="space-y-6">
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">
+        <% if current_user.admin_or_owner?(current_workspace) && params[:view] == "team" %>
+          Team Holiday Balances
+        <% elsif @target_user != current_user %>
+          Balance History — <%= @target_user.name %>
+        <% else %>
+          My Balance History
+        <% end %>
+      </h1>
+    </div>
+    <div class="flex items-center gap-3">
+      <% if @target_user %>
+        <div class="text-right">
+          <div class="text-2xl font-bold" style="color: var(--color-primary)"><%= @balance %></div>
+          <div class="text-xs" style="color: var(--color-outline)">days remaining</div>
+        </div>
+        <% if current_user.admin_or_owner?(current_workspace) && @target_user != current_user %>
+          <%= link_to "Adjust Balance", new_holiday_balance_entry_path(user_id: @target_user.id), class: "m3-btn m3-btn-filled" %>
+        <% end %>
+      <% end %>
+      <%= link_to "Back to Holidays", holiday_requests_path, class: "m3-btn m3-btn-text" %>
+    </div>
+  </div>
+
+  <%# Year filter %>
+  <% unless params[:view] == "team" %>
+    <div class="flex gap-2">
+      <%= link_to "All", holiday_balance_entries_path(user_id: @target_user&.id),
+          class: "m3-btn #{params[:year].blank? ? 'm3-btn-filled' : 'm3-btn-outlined'} m3-btn-sm" %>
+      <% (Date.current.year.downto(Date.current.year - 2)).each do |year| %>
+        <%= link_to year, holiday_balance_entries_path(user_id: @target_user&.id, year: year),
+            class: "m3-btn #{params[:year].to_i == year ? 'm3-btn-filled' : 'm3-btn-outlined'} m3-btn-sm" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# Team overview for admins %>
+  <% if current_user.admin_or_owner?(current_workspace) && params[:view] == "team" %>
+    <div class="m3-card-outlined overflow-hidden">
+      <% current_workspace.workspace_memberships.where.not(role: :client).includes(:user).order("users.name").each do |membership| %>
+        <div class="flex items-center justify-between p-4 border-b" style="border-color: var(--color-outline-variant)">
+          <div class="flex items-center gap-3">
+            <div class="m3-avatar m3-avatar-sm"><%= membership.user.name.first(2).upcase %></div>
+            <div>
+              <span class="text-sm font-medium" style="color: var(--color-on-surface)"><%= membership.user.name %></span>
+              <div class="text-xs" style="color: var(--color-outline)"><%= membership.role %></div>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <span class="text-lg font-bold" style="color: var(--color-primary)"><%= membership.user.holiday_balance(current_workspace) %></span>
+              <span class="text-xs" style="color: var(--color-outline)">days</span>
+            </div>
+            <div class="flex gap-1">
+              <%= link_to "History", holiday_balance_entries_path(user_id: membership.user.id), class: "m3-btn m3-btn-text m3-btn-sm" %>
+              <%= link_to "Adjust", new_holiday_balance_entry_path(user_id: membership.user.id), class: "m3-btn m3-btn-outlined m3-btn-sm" %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <%# Ledger entries %>
+    <% if @entries.any? %>
+      <div class="m3-card-outlined overflow-hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr style="background: var(--color-surface-container)">
+              <th class="text-left p-3 font-medium" style="color: var(--color-on-surface-variant)">Date</th>
+              <th class="text-left p-3 font-medium" style="color: var(--color-on-surface-variant)">Type</th>
+              <th class="text-right p-3 font-medium" style="color: var(--color-on-surface-variant)">Days</th>
+              <th class="text-left p-3 font-medium" style="color: var(--color-on-surface-variant)">Note</th>
+              <th class="text-left p-3 font-medium" style="color: var(--color-on-surface-variant)">By</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @entries.each do |entry| %>
+              <tr class="border-t" style="border-color: var(--color-outline-variant)">
+                <td class="p-3" style="color: var(--color-on-surface)"><%= entry.created_at.strftime("%b %-d, %Y") %></td>
+                <td class="p-3">
+                  <span class="text-xs font-medium uppercase tracking-wider" style="color: var(--color-on-surface-variant)">
+                    <%= entry.entry_type.humanize %>
+                  </span>
+                </td>
+                <td class="p-3 text-right font-medium" style="color: <%= entry.days > 0 ? '#4CAF50' : 'var(--color-error)' %>">
+                  <%= entry.days > 0 ? "+#{entry.days}" : entry.days %>
+                </td>
+                <td class="p-3" style="color: var(--color-on-surface-variant)"><%= entry.note %></td>
+                <td class="p-3" style="color: var(--color-outline)"><%= entry.created_by&.name || "System" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <div class="m3-card-outlined p-6 text-center">
+        <p class="text-sm" style="color: var(--color-outline)">No balance history yet.</p>
+      </div>
+    <% end %>
+  <% end %>
+</div>

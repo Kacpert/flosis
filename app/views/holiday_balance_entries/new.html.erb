@@ -1,7 +1,42 @@
-<h1>Adjust Balance</h1>
-<%= form_with model: @entry, url: holiday_balance_entries_path do |f| %>
-  <%= f.hidden_field :user_id, value: @target_user.id %>
-  <%= f.number_field :days %>
-  <%= f.text_area :note %>
-  <%= f.submit %>
-<% end %>
+<div class="max-w-lg mx-auto space-y-6">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Adjust Balance — <%= @target_user.name %></h1>
+    <%= link_to "Back", holiday_balance_entries_path(user_id: @target_user.id), class: "m3-btn m3-btn-text" %>
+  </div>
+
+  <div class="text-right">
+    <div class="text-2xl font-bold" style="color: var(--color-primary)"><%= @balance %></div>
+    <div class="text-xs" style="color: var(--color-outline)">current balance</div>
+  </div>
+
+  <%= form_with model: @entry, url: holiday_balance_entries_path, class: "space-y-6" do |f| %>
+    <% if @entry.errors.any? %>
+      <div class="m3-alert m3-alert-error">
+        <ul class="list-disc pl-4 text-sm">
+          <% @entry.errors.full_messages.each do |message| %>
+            <li><%= message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <%= f.hidden_field :user_id, value: @target_user.id %>
+
+    <div class="m3-card-elevated p-6 space-y-4">
+      <div class="space-y-1">
+        <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Days</label>
+        <%= f.number_field :days, class: "m3-text-field w-full", required: true, placeholder: "e.g. 5 or -3" %>
+        <p class="text-xs" style="color: var(--color-outline)">Positive to add days, negative to remove.</p>
+      </div>
+
+      <div class="space-y-1">
+        <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Note (required)</label>
+        <%= f.text_area :note, class: "m3-text-field w-full", rows: 3, required: true, placeholder: "Reason for adjustment..." %>
+      </div>
+    </div>
+
+    <div class="flex gap-2">
+      <%= f.submit "Adjust Balance", class: "m3-btn m3-btn-filled" %>
+    </div>
+  <% end %>
+</div>
