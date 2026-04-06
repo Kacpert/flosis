@@ -1,0 +1,7 @@
+<h1>Adjust Balance</h1>
+<%= form_with model: @entry, url: holiday_balance_entries_path do |f| %>
+  <%= f.hidden_field :user_id, value: @target_user.id %>
+  <%= f.number_field :days %>
+  <%= f.text_area :note %>
+  <%= f.submit %>
+<% end %>
