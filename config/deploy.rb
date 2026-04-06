@@ -57,7 +57,8 @@ namespace :puma do
     on roles(:app) do
       within current_path do
         with rails_env: fetch(:rails_env) do
-          execute :bundle, "exec", "puma", "-C", "config/puma/production.rb", "-e", "production", "--daemon"
+          # Puma 7 removed --daemon flag, use nohup + background instead
+          execute "nohup", "bundle", "exec", "puma", "-C", "config/puma/production.rb", "-e", "production", "> /dev/null 2>&1 &"
         end
       end
     end
