@@ -1,0 +1,40 @@
+<%= form_with model: feedback_meeting, url: url, class: "space-y-4" do |f| %>
+  <% if feedback_meeting.errors.any? %>
+    <div class="m3-alert m3-alert-error">
+      <ul><% feedback_meeting.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %></ul>
+    </div>
+  <% end %>
+
+  <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Employee</label>
+    <%= f.select :employee_id,
+        current_workspace.workspace_memberships.where(role: [:employee, :admin, :owner]).includes(:user).map { |m| [m.user.name, m.user.id] },
+        { prompt: "Select employee" },
+        class: "m3-text-field w-full", required: true %>
+  </div>
+
+  <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Title</label>
+    <%= f.text_field :title, class: "m3-text-field w-full", required: true %>
+  </div>
+
+  <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Scheduled At</label>
+    <%= f.datetime_local_field :scheduled_at, class: "m3-text-field w-full", required: true %>
+  </div>
+
+  <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Notes</label>
+    <%= f.text_area :notes, class: "m3-text-field w-full", rows: 6 %>
+  </div>
+
+  <label class="flex items-center gap-3 cursor-pointer">
+    <%= f.check_box :notes_visible, class: "m3-checkbox" %>
+    <span class="text-sm font-medium" style="color: var(--color-on-surface)">Share notes with employee</span>
+  </label>
+
+  <div class="flex gap-2">
+    <%= f.submit class: "m3-btn m3-btn-filled" %>
+    <%= link_to "Cancel", feedback_meetings_path, class: "m3-btn m3-btn-text" %>
+  </div>
+<% end %>

@@ -1,0 +1,78 @@
+<div class="space-y-5">
+  <div class="flex justify-between items-center">
+    <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">Feedback Meetings</h1>
+    <% if current_user.admin_or_owner?(current_workspace) %>
+      <%= link_to "New Meeting", new_feedback_meeting_path, class: "m3-btn m3-btn-filled" %>
+    <% end %>
+  </div>
+
+  <div class="m3-card-outlined overflow-hidden">
+    <table class="m3-table">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <% if current_user.admin_or_owner?(current_workspace) %>
+            <th>Employee</th>
+          <% end %>
+          <th>Scheduled</th>
+          <% if current_user.admin_or_owner?(current_workspace) %>
+            <th>Notes Shared</th>
+            <th></th>
+          <% end %>
+        </tr>
+      </thead>
+      <tbody>
+        <% @feedback_meetings.each do |meeting| %>
+          <tr>
+            <td class="font-medium">
+              <%= link_to meeting.title, feedback_meeting_path(meeting), style: "color: var(--color-on-surface); text-decoration: none; transition: color 0.15s;", onmouseover: "this.style.color='var(--color-primary)'", onmouseout: "this.style.color='var(--color-on-surface)'" %>
+            </td>
+            <% if current_user.admin_or_owner?(current_workspace) %>
+              <td>
+                <div class="flex items-center gap-2">
+                  <div class="m3-avatar m3-avatar-sm"><%= meeting.employee.name.first(2).upcase %></div>
+                  <span class="text-sm" style="color: var(--color-on-surface)"><%= meeting.employee.name %></span>
+                </div>
+              </td>
+            <% end %>
+            <td class="text-sm" style="color: var(--color-on-surface-variant)"><%= meeting.scheduled_at.strftime("%b %d, %Y at %H:%M") %></td>
+            <% if current_user.admin_or_owner?(current_workspace) %>
+              <td>
+                <span class="text-xs font-medium px-2 py-0.5 rounded-full" style="<%= meeting.notes_visible ? 'color: var(--color-primary); background: var(--color-primary-container)' : 'color: var(--color-outline); background: var(--color-surface-container)' %>">
+                  <%= meeting.notes_visible ? "Yes" : "No" %>
+                </span>
+              </td>
+              <td class="text-right">
+                <div class="flex justify-end gap-1">
+                  <%= link_to "Edit", edit_feedback_meeting_path(meeting), class: "m3-btn m3-btn-text m3-btn-sm" %>
+                  <%= button_to "Delete", feedback_meeting_path(meeting), method: :delete,
+                      class: "m3-btn m3-btn-text m3-btn-sm", style: "color: var(--color-error)",
+                      data: { turbo_confirm: "Delete this feedback meeting?" } %>
+                </div>
+              </td>
+            <% end %>
+          </tr>
+        <% end %>
+        <% if @feedback_meetings.empty? %>
+          <tr>
+            <td colspan="<%= current_user.admin_or_owner?(current_workspace) ? 5 : 2 %>">
+              <div class="empty-state">
+                <div class="empty-state-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
+                </div>
+                <p class="empty-state-title">No feedback meetings</p>
+                <p class="empty-state-desc">
+                  <% if current_user.admin_or_owner?(current_workspace) %>
+                    Schedule a feedback meeting with a team member.
+                  <% else %>
+                    No feedback meetings scheduled for you yet.
+                  <% end %>
+                </p>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

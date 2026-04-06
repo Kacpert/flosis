@@ -1,0 +1,55 @@
+<div class="space-y-4">
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)"><%= @feedback_meeting.title %></h1>
+      <p class="mt-1 text-sm" style="color: var(--color-on-surface-variant)">
+        Scheduled for <%= @feedback_meeting.scheduled_at.strftime("%B %d, %Y at %H:%M") %>
+      </p>
+    </div>
+    <div class="flex gap-2">
+      <% if current_user.admin_or_owner?(current_workspace) %>
+        <%= link_to "Edit", edit_feedback_meeting_path(@feedback_meeting), class: "m3-btn m3-btn-text" %>
+      <% end %>
+      <%= link_to "Back", feedback_meetings_path, class: "m3-btn m3-btn-text" %>
+    </div>
+  </div>
+
+  <div class="m3-card-elevated p-6 space-y-4">
+    <div class="flex gap-8">
+      <div>
+        <div class="text-xs font-medium mb-1" style="color: var(--color-outline)">Employee</div>
+        <div class="flex items-center gap-2">
+          <div class="m3-avatar m3-avatar-sm"><%= @feedback_meeting.employee.name.first(2).upcase %></div>
+          <span class="text-sm font-medium" style="color: var(--color-on-surface)"><%= @feedback_meeting.employee.name %></span>
+        </div>
+      </div>
+      <% if current_user.admin_or_owner?(current_workspace) %>
+        <div>
+          <div class="text-xs font-medium mb-1" style="color: var(--color-outline)">Created by</div>
+          <span class="text-sm" style="color: var(--color-on-surface)"><%= @feedback_meeting.creator.name %></span>
+        </div>
+      <% end %>
+    </div>
+
+    <% show_notes = current_user.admin_or_owner?(current_workspace) || @feedback_meeting.notes_visible %>
+    <div>
+      <div class="flex items-center gap-2 mb-2">
+        <div class="text-xs font-medium" style="color: var(--color-outline)">Notes</div>
+        <% if current_user.admin_or_owner?(current_workspace) %>
+          <span class="text-xs font-medium px-2 py-0.5 rounded-full" style="<%= @feedback_meeting.notes_visible ? 'color: var(--color-primary); background: var(--color-primary-container)' : 'color: var(--color-outline); background: var(--color-surface-container)' %>">
+            <%= @feedback_meeting.notes_visible ? "Visible to employee" : "Hidden from employee" %>
+          </span>
+        <% end %>
+      </div>
+      <% if show_notes %>
+        <% if @feedback_meeting.notes.present? %>
+          <div class="text-sm whitespace-pre-wrap" style="color: var(--color-on-surface)"><%= @feedback_meeting.notes %></div>
+        <% else %>
+          <p class="text-sm" style="color: var(--color-on-surface-variant)">No notes yet.</p>
+        <% end %>
+      <% else %>
+        <p class="text-sm" style="color: var(--color-on-surface-variant)">Notes are not shared yet.</p>
+      <% end %>
+    </div>
+  </div>
+</div>
