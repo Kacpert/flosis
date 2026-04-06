@@ -1,0 +1,27 @@
+kacper_pending:
+  user: one
+  workspace: one
+  start_date: "2026-05-04"
+  end_date: "2026-05-08"
+  business_days: 5
+  note: "Spring vacation"
+  status: 0
+
+kacper_approved:
+  user: one
+  workspace: one
+  start_date: "2026-07-01"
+  end_date: "2026-07-03"
+  business_days: 3
+  note: "Long weekend trip"
+  status: 1
+  reviewed_by: one
+
+other_user_pending:
+  user: two
+  workspace: one
+  start_date: "2026-06-15"
+  end_date: "2026-06-19"
+  business_days: 5
+  note: "Summer break"
+  status: 0
