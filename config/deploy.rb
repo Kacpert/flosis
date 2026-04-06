@@ -39,6 +39,9 @@ set :keep_releases, 3
 # Shared hosting has noexec on /tmp, use home tmp dir
 set :tmp_dir, "/home/host420646/tmp"
 
+# Precompile assets locally and upload to server
+set :assets_roles, []  # Disable remote asset precompilation
+
 # Puma
 set :puma_bind, "tcp://127.0.0.1:3001"
 set :puma_threads, [0, 3]
