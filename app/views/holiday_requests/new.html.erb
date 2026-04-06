@@ -1,7 +1,54 @@
-<h1>Request Time Off</h1>
-<%= form_with model: @holiday_request, url: holiday_requests_path do |f| %>
-  <%= f.date_field :start_date %>
-  <%= f.date_field :end_date %>
-  <%= f.text_area :note %>
-  <%= f.submit %>
-<% end %>
+<div class="max-w-lg mx-auto space-y-6">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Request Time Off</h1>
+    <%= link_to "Back", holiday_requests_path, class: "m3-btn m3-btn-text" %>
+  </div>
+
+  <div class="text-right">
+    <div class="text-2xl font-bold" style="color: var(--color-primary)"><%= @balance %></div>
+    <div class="text-xs" style="color: var(--color-outline)">days remaining</div>
+  </div>
+
+  <%= form_with model: @holiday_request, url: holiday_requests_path, class: "space-y-6",
+      data: { controller: "business-days" } do |f| %>
+    <% if @holiday_request.errors.any? %>
+      <div class="m3-alert m3-alert-error">
+        <ul class="list-disc pl-4 text-sm">
+          <% @holiday_request.errors.full_messages.each do |message| %>
+            <li><%= message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div class="m3-card-elevated p-6 space-y-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div class="space-y-1">
+          <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Start Date</label>
+          <%= f.date_field :start_date, class: "m3-text-field w-full", required: true,
+              min: Date.current.to_s,
+              data: { action: "change->business-days#compute", business_days_target: "startDate" } %>
+        </div>
+        <div class="space-y-1">
+          <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">End Date</label>
+          <%= f.date_field :end_date, class: "m3-text-field w-full", required: true,
+              min: Date.current.to_s,
+              data: { action: "change->business-days#compute", business_days_target: "endDate" } %>
+        </div>
+      </div>
+
+      <div class="text-sm" style="color: var(--color-on-surface-variant)">
+        Business days: <strong data-business-days-target="count">-</strong>
+      </div>
+
+      <div class="space-y-1">
+        <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Note (optional)</label>
+        <%= f.text_area :note, class: "m3-text-field w-full", rows: 3, placeholder: "Reason for time off..." %>
+      </div>
+    </div>
+
+    <div class="flex gap-2">
+      <%= f.submit "Submit Request", class: "m3-btn m3-btn-filled" %>
+    </div>
+  <% end %>
+</div>

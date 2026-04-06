@@ -1,1 +1,103 @@
-<h1>Holidays</h1>
+<div class="space-y-6">
+  <div class="flex justify-between items-center">
+    <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">Holidays</h1>
+    <div class="flex items-center gap-3">
+      <div class="text-right">
+        <div class="text-2xl font-bold" style="color: var(--color-primary)"><%= @balance %></div>
+        <div class="text-xs" style="color: var(--color-outline)">days remaining</div>
+      </div>
+      <%= link_to "Request Time Off", new_holiday_request_path, class: "m3-btn m3-btn-filled" %>
+    </div>
+  </div>
+
+  <%# Admin: Pending Requests %>
+  <% if current_user.admin_or_owner?(current_workspace) && @pending_requests&.any? %>
+    <div class="space-y-2">
+      <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Pending Approval</h2>
+      <div class="m3-card-outlined overflow-hidden">
+        <% @pending_requests.each do |request| %>
+          <div class="flex items-center justify-between p-4 border-b" style="border-color: var(--color-outline-variant)">
+            <div class="flex items-center gap-3">
+              <div class="m3-avatar m3-avatar-sm"><%= request.user.name.first(2).upcase %></div>
+              <div>
+                <div class="text-sm font-medium" style="color: var(--color-on-surface)"><%= request.user.name %></div>
+                <div class="text-xs" style="color: var(--color-outline)">
+                  <%= request.start_date.strftime("%b %-d") %> &ndash; <%= request.end_date.strftime("%b %-d, %Y") %>
+                  &middot; <%= request.business_days %> days
+                </div>
+                <% if request.note.present? %>
+                  <div class="text-xs mt-0.5" style="color: var(--color-on-surface-variant)"><%= request.note %></div>
+                <% end %>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <%= button_to "Approve", approve_holiday_request_path(request), method: :patch, class: "m3-btn m3-btn-filled m3-btn-sm" %>
+              <%= button_to "Cancel", cancel_holiday_request_path(request), method: :patch, class: "m3-btn m3-btn-outlined m3-btn-sm",
+                  data: { turbo_confirm: "Cancel this request?" } %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# My Requests %>
+  <div class="space-y-2">
+    <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">My Requests</h2>
+    <% if @my_requests.any? %>
+      <div class="m3-card-outlined overflow-hidden">
+        <% @my_requests.each do |request| %>
+          <div class="flex items-center justify-between p-4 border-b" style="border-color: var(--color-outline-variant)">
+            <div>
+              <div class="text-sm font-medium" style="color: var(--color-on-surface)">
+                <%= request.start_date.strftime("%b %-d") %> &ndash; <%= request.end_date.strftime("%b %-d, %Y") %>
+                &middot; <%= request.business_days %> days
+              </div>
+              <% if request.note.present? %>
+                <div class="text-xs mt-0.5" style="color: var(--color-on-surface-variant)"><%= request.note %></div>
+              <% end %>
+            </div>
+            <span class="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full"
+                  style="<%= holiday_status_style(request.status) %>">
+              <%= request.status %>
+            </span>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="m3-card-outlined p-6 text-center">
+        <p class="text-sm" style="color: var(--color-outline)">No time off requests yet.</p>
+      </div>
+    <% end %>
+  </div>
+
+  <%# Team upcoming holidays %>
+  <% if @team_upcoming.any? %>
+    <div class="space-y-2">
+      <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Team Time Off</h2>
+      <div class="m3-card-outlined overflow-hidden">
+        <% @team_upcoming.each do |request| %>
+          <div class="flex items-center gap-3 p-4 border-b" style="border-color: var(--color-outline-variant)">
+            <div class="m3-avatar m3-avatar-sm"><%= request.user.name.first(2).upcase %></div>
+            <div>
+              <div class="text-sm font-medium" style="color: var(--color-on-surface)"><%= request.user.name %></div>
+              <div class="text-xs" style="color: var(--color-outline)">
+                <%= request.start_date.strftime("%b %-d") %> &ndash; <%= request.end_date.strftime("%b %-d, %Y") %>
+                &middot; <%= request.business_days %> days
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Balance History Link %>
+  <div class="text-center">
+    <%= link_to "View balance history", holiday_balance_entries_path, class: "text-sm font-medium", style: "color: var(--color-primary)" %>
+    <% if current_user.admin_or_owner?(current_workspace) %>
+      &middot;
+      <%= link_to "Manage team balances", holiday_balance_entries_path(view: "team"), class: "text-sm font-medium", style: "color: var(--color-primary)" %>
+    <% end %>
+  </div>
+</div>
