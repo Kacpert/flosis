@@ -7,6 +7,7 @@ class Workspace < ApplicationRecord
   has_many :time_entries, dependent: :destroy
   has_many :integrations, dependent: :destroy
   has_many :chat_sessions, dependent: :destroy
+  has_many :feedback_meetings, dependent: :destroy
 
   has_many :holiday_requests, dependent: :destroy
   has_many :holiday_balance_entries, dependent: :destroy

@@ -7,6 +7,8 @@ class User < ApplicationRecord
   has_many :time_entries, dependent: :restrict_with_error
   has_many :project_memberships, dependent: :destroy
   has_many :chat_sessions, dependent: :destroy
+  has_many :created_feedback_meetings, class_name: "FeedbackMeeting", foreign_key: :creator_id, dependent: :destroy
+  has_many :feedback_meetings, foreign_key: :employee_id, dependent: :destroy
 
   normalizes :email_address, with: ->(e) { e.strip.downcase }
 

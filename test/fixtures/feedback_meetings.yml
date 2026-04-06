@@ -1,0 +1,17 @@
+one:
+  workspace: one
+  creator: one
+  employee: two
+  title: Q1 Performance Review
+  scheduled_at: <%= 3.days.from_now.to_fs(:db) %>
+  notes: Great performance this quarter.
+  notes_visible: false
+
+visible_notes:
+  workspace: one
+  creator: one
+  employee: two
+  title: Q2 Goal Setting
+  scheduled_at: <%= 10.days.from_now.to_fs(:db) %>
+  notes: Set goals for next quarter.
+  notes_visible: true
