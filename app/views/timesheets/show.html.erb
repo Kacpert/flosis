@@ -31,11 +31,10 @@
         </tr>
       </thead>
       <tbody>
-        <% @projects.each do |project| %>
-          <% project_tasks = project.tasks.active %>
-          <% rows = project_tasks.any? ? project_tasks : [nil] %>
-          <% rows.each do |task| %>
-            <% key = [project.id, task&.id] %>
+        <% @rows.each do |row| %>
+            <% project = row[:project] %>
+            <% task = row[:task] %>
+            <% key = row[:key] %>
             <% row_total = @week_days.sum { |d| @grid.dig(key, d) || 0 } %>
             <tr>
               <td>
@@ -67,7 +66,6 @@
                 <%= row_total > 0 ? format("%d:%02d", row_total / 3600, (row_total % 3600) / 60) : "" %>
               </td>
             </tr>
-          <% end %>
         <% end %>
       </tbody>
       <tfoot>
@@ -88,10 +86,9 @@
     </table>
   </div>
 
-  <% if @projects.empty? %>
+  <% if @rows.empty? %>
     <div class="text-center py-8" style="color: var(--color-on-surface-variant)">
-      <p>Create some projects first to use the timesheet.</p>
-      <%= link_to "Create Project", new_project_path, class: "m3-btn m3-btn-filled m3-btn-sm mt-2" %>
+      <p>No time entries for this week. Track time from the Time Entries page.</p>
     </div>
   <% end %>
 </div>
