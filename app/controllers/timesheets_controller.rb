@@ -58,7 +58,7 @@ class TimesheetsController < ApplicationController
     @month_start = @month_date.beginning_of_month
     @month_end = @month_date.end_of_month
 
-    # Get all weeks (Monday-based) that overlap this month
+    # Calendar grid: weeks as rows, Mon-Sun as columns
     @weeks = []
     week_start = @month_start.beginning_of_week(:monday)
     while week_start <= @month_end
@@ -66,34 +66,28 @@ class TimesheetsController < ApplicationController
       week_start += 7.days
     end
 
+    # Fetch entries for the full calendar range (includes overflow days from prev/next month)
+    calendar_start = @weeks.first
+    calendar_end = @weeks.last + 6.days
     @entries = current_workspace.time_entries
       .where(user: current_user)
       .completed
-      .in_range(@month_start.beginning_of_day, @month_end.end_of_day)
+      .in_range(calendar_start.beginning_of_day, calendar_end.end_of_day)
       .includes(:project, :task)
 
-    # Build per-week totals
+    # Per-day totals: { date => seconds }
+    @day_totals = Hash.new(0)
+    @entries.each do |entry|
+      @day_totals[entry.started_at.to_date] += entry.duration_seconds
+    end
+
+    # Per-week totals
     @week_totals = {}
     @weeks.each do |ws|
-      week_end = ws + 6.days
-      @week_totals[ws] = @entries
-        .select { |e| e.started_at.to_date >= ws && e.started_at.to_date <= week_end && e.started_at.to_date >= @month_start && e.started_at.to_date <= @month_end }
-        .sum(&:duration_seconds)
+      @week_totals[ws] = (0..6).sum { |i| @day_totals[ws + i.days] }
     end
 
-    # Build per-project totals for the month
-    @project_totals = {}
-    @entries.each do |entry|
-      project = entry.project
-      @project_totals[project] ||= { total: 0, weeks: {} }
-      @project_totals[project][:total] += entry.duration_seconds
-      week_key = entry.started_at.to_date.beginning_of_week(:monday)
-      if @weeks.include?(week_key)
-        @project_totals[project][:weeks][week_key] = (@project_totals[project][:weeks][week_key] || 0) + entry.duration_seconds
-      end
-    end
-
-    @grand_total = @entries.sum(&:duration_seconds)
+    @grand_total = @day_totals.select { |d, _| d >= @month_start && d <= @month_end }.values.sum
   end
 
   def update_cell

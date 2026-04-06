@@ -29,51 +29,44 @@
   </div>
 
   <div class="m3-card-outlined overflow-x-auto">
-    <table class="m3-table">
+    <table class="m3-table w-full">
       <thead>
         <tr>
-          <th class="min-w-[200px]">Project</th>
-          <% @weeks.each do |ws| %>
-            <th class="text-center min-w-[100px]">
-              <% week_end = [ws + 6.days, @month_end].min %>
-              <%= link_to timesheet_path(week_of: ws), class: "hover:underline", style: "color: var(--color-primary)" do %>
-                <div class="text-xs"><%= ws.strftime("%b %d") %> - <%= week_end.strftime("%d") %></div>
-              <% end %>
-            </th>
+          <% %w[Mon Tue Wed Thu Fri Sat Sun].each do |day_name| %>
+            <th class="text-center min-w-[80px]"><%= day_name %></th>
           <% end %>
-          <th class="text-center">Total</th>
+          <th class="text-center min-w-[80px]">Total</th>
         </tr>
       </thead>
       <tbody>
-        <% @project_totals.each do |project, data| %>
-          <tr>
-            <td>
-              <div class="flex items-center gap-2">
-                <%= project_color_dot(project.color) %>
-                <span class="font-medium text-sm" style="color: var(--color-on-surface)"><%= project.name %></span>
-              </div>
-            </td>
-            <% @weeks.each do |ws| %>
-              <td class="text-center font-mono text-sm" style="color: var(--color-on-surface)">
-                <% seconds = data[:weeks][ws] || 0 %>
-                <%= seconds > 0 ? format("%d:%02d", seconds / 3600, (seconds % 3600) / 60) : "" %>
+        <% @weeks.each do |week_start| %>
+          <% week_total = @week_totals[week_start] || 0 %>
+          <tr class="group cursor-pointer transition-colors"
+              onclick="window.location='<%= timesheet_path(week_of: week_start) %>'">
+            <% (0..6).each do |i| %>
+              <% day = week_start + i.days %>
+              <% in_month = day.month == @month_date.month %>
+              <% is_today = day == Date.current %>
+              <% seconds = @day_totals[day] %>
+              <td class="text-center align-top py-2 group-hover:!bg-[rgba(74,103,65,0.08)] transition-colors"
+                  style="<%= is_today ? 'background: rgba(74, 103, 65, 0.12)' : '' %>; <%= in_month ? '' : 'opacity: 0.35' %>">
+                <div class="text-xs font-medium mb-1" style="color: var(--color-on-surface-variant)"><%= day.day %></div>
+                <% if seconds > 0 %>
+                  <div class="text-sm font-mono font-medium" style="color: var(--color-on-surface)">
+                    <%= format("%d:%02d", seconds / 3600, (seconds % 3600) / 60) %>
+                  </div>
+                <% end %>
               </td>
             <% end %>
-            <td class="text-center font-mono font-bold text-sm" style="color: var(--color-on-surface)">
-              <%= data[:total] > 0 ? format("%d:%02d", data[:total] / 3600, (data[:total] % 3600) / 60) : "" %>
+            <td class="text-center align-middle font-mono font-bold text-sm group-hover:!bg-[rgba(74,103,65,0.08)] transition-colors" style="color: var(--color-on-surface)">
+              <%= week_total > 0 ? format("%d:%02d", week_total / 3600, (week_total % 3600) / 60) : "" %>
             </td>
           </tr>
         <% end %>
       </tbody>
       <tfoot>
         <tr class="font-bold">
-          <td style="color: var(--color-on-surface)">Total</td>
-          <% @weeks.each do |ws| %>
-            <td class="text-center font-mono" style="color: var(--color-on-surface)">
-              <% total = @week_totals[ws] || 0 %>
-              <%= total > 0 ? format("%d:%02d", total / 3600, (total % 3600) / 60) : "" %>
-            </td>
-          <% end %>
+          <td colspan="7" class="text-right pr-4" style="color: var(--color-on-surface)">Month Total</td>
           <td class="text-center font-mono" style="color: var(--color-on-surface)">
             <%= @grand_total > 0 ? format("%d:%02d", @grand_total / 3600, (@grand_total % 3600) / 60) : "0:00" %>
           </td>
@@ -82,7 +75,7 @@
     </table>
   </div>
 
-  <% if @project_totals.empty? %>
+  <% if @entries.empty? %>
     <div class="text-center py-8" style="color: var(--color-on-surface-variant)">
       <p>No time entries for this month.</p>
     </div>
