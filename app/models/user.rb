@@ -1,6 +1,10 @@
 class User < ApplicationRecord
   has_secure_password
   include Holidayable
+
+  generates_token_for :invitation, expires_in: 1.week do
+    password_salt&.last(10)
+  end
   has_many :sessions, dependent: :destroy
   has_many :workspace_memberships, dependent: :destroy
   has_many :workspaces, through: :workspace_memberships

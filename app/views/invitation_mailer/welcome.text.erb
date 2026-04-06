@@ -3,9 +3,9 @@ Hi <%= @user.name %>,
 You've been invited to join <%= @workspace.name %> on Clar.
 
 To get started, set your password here:
-<%= edit_password_url(@user.password_reset_token) %>
+<%= edit_password_url(@user.generate_token_for(:invitation)) %>
 
-This link will expire in <%= distance_of_time_in_words(0, @user.password_reset_token_expires_in) %>.
+This link will expire in 1 week.
 
 After setting your password, sign in at <%= root_url %>.
 

@@ -4,8 +4,8 @@
 
 <p>To get started, set your password using the link below:</p>
 
-<p><%= link_to "Set Your Password", edit_password_url(@user.password_reset_token) %></p>
+<p><%= link_to "Set Your Password", edit_password_url(@user.generate_token_for(:invitation)) %></p>
 
-<p>This link will expire in <%= distance_of_time_in_words(0, @user.password_reset_token_expires_in) %>. After setting your password, you can sign in at <%= link_to "clar.rubyonsaas.com", root_url %>.</p>
+<p>This link will expire in 1 week. After setting your password, you can sign in at <%= link_to "clar.rubyonsaas.com", root_url %>.</p>
 
 <p>Welcome aboard!</p>
