@@ -29,45 +29,54 @@
   </div>
 
   <div class="m3-card-outlined overflow-x-auto">
-    <table class="m3-table w-full">
+    <table class="w-full border-collapse">
       <thead>
         <tr>
           <% %w[Mon Tue Wed Thu Fri Sat Sun].each do |day_name| %>
-            <th class="text-center min-w-[80px]"><%= day_name %></th>
+            <th class="py-3 px-2 text-center text-sm font-medium" style="color: var(--color-on-surface-variant); width: 12.5%"><%= day_name %></th>
           <% end %>
-          <th class="text-center min-w-[80px]">Total</th>
+          <th class="py-3 px-2 text-center text-sm font-medium" style="color: var(--color-on-surface-variant); width: 12.5%">Total</th>
         </tr>
       </thead>
       <tbody>
         <% @weeks.each do |week_start| %>
-          <% week_total = @week_totals[week_start] || 0 %>
-          <tr class="group cursor-pointer transition-colors"
+          <% week_total_seconds = 0 %>
+          <% week_has_month_days = (0..6).any? { |i| (week_start + i.days).month == @month_date.month } %>
+          <% next unless week_has_month_days %>
+          <tr class="group cursor-pointer border-t transition-colors"
+              style="border-color: var(--color-outline-variant)"
               onclick="window.location='<%= timesheet_path(week_of: week_start) %>'">
             <% (0..6).each do |i| %>
               <% day = week_start + i.days %>
-              <% in_month = day.month == @month_date.month %>
+              <% in_month = day.month == @month_date.month && day.year == @month_date.year %>
               <% is_today = day == Date.current %>
-              <% seconds = @day_totals[day] %>
-              <td class="text-center align-top py-2 group-hover:!bg-[rgba(74,103,65,0.08)] transition-colors"
-                  style="<%= is_today ? 'background: rgba(74, 103, 65, 0.12)' : '' %>; <%= in_month ? '' : 'opacity: 0.35' %>">
-                <div class="text-xs font-medium mb-1" style="color: var(--color-on-surface-variant)"><%= day.day %></div>
-                <% if seconds > 0 %>
-                  <div class="text-sm font-mono font-medium" style="color: var(--color-on-surface)">
-                    <%= format("%d:%02d", seconds / 3600, (seconds % 3600) / 60) %>
+              <% seconds = in_month ? @day_totals[day] : 0 %>
+              <% week_total_seconds += seconds %>
+              <td class="py-3 px-2 text-center align-top group-hover:!bg-[rgba(74,103,65,0.08)] transition-colors"
+                  style="<%= is_today ? 'background: rgba(74, 103, 65, 0.12)' : '' %>">
+                <% if in_month %>
+                  <div class="text-xs font-medium mb-1 <%= is_today ? 'inline-flex items-center justify-center w-6 h-6 rounded-full' : '' %>"
+                       style="color: var(--color-on-surface); <%= is_today ? 'background: var(--color-primary); color: var(--color-on-primary)' : '' %>">
+                    <%= day.day %>
                   </div>
+                  <% if seconds > 0 %>
+                    <div class="text-sm font-mono font-medium" style="color: var(--color-primary)">
+                      <%= format("%d:%02d", seconds / 3600, (seconds % 3600) / 60) %>
+                    </div>
+                  <% end %>
                 <% end %>
               </td>
             <% end %>
-            <td class="text-center align-middle font-mono font-bold text-sm group-hover:!bg-[rgba(74,103,65,0.08)] transition-colors" style="color: var(--color-on-surface)">
-              <%= week_total > 0 ? format("%d:%02d", week_total / 3600, (week_total % 3600) / 60) : "" %>
+            <td class="py-3 px-2 text-center align-middle font-mono font-bold text-sm group-hover:!bg-[rgba(74,103,65,0.08)] transition-colors" style="color: var(--color-on-surface)">
+              <%= week_total_seconds > 0 ? format("%d:%02d", week_total_seconds / 3600, (week_total_seconds % 3600) / 60) : "" %>
             </td>
           </tr>
         <% end %>
       </tbody>
       <tfoot>
-        <tr class="font-bold">
-          <td colspan="7" class="text-right pr-4" style="color: var(--color-on-surface)">Month Total</td>
-          <td class="text-center font-mono" style="color: var(--color-on-surface)">
+        <tr class="border-t" style="border-color: var(--color-outline-variant)">
+          <td colspan="7" class="py-3 px-2 text-right font-bold text-sm" style="color: var(--color-on-surface)">Month Total</td>
+          <td class="py-3 px-2 text-center font-mono font-bold text-sm" style="color: var(--color-on-surface)">
             <%= @grand_total > 0 ? format("%d:%02d", @grand_total / 3600, (@grand_total % 3600) / 60) : "0:00" %>
           </td>
         </tr>
