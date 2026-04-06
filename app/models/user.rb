@@ -1,5 +1,6 @@
 class User < ApplicationRecord
   has_secure_password
+  include Holidayable
   has_many :sessions, dependent: :destroy
   has_many :workspace_memberships, dependent: :destroy
   has_many :workspaces, through: :workspace_memberships

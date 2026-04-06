@@ -8,5 +8,8 @@ class Workspace < ApplicationRecord
   has_many :integrations, dependent: :destroy
   has_many :chat_sessions, dependent: :destroy
 
+  has_many :holiday_requests, dependent: :destroy
+  has_many :holiday_balance_entries, dependent: :destroy
+
   validates :name, presence: true
 end

@@ -60,4 +60,17 @@ class HolidayBalanceEntryTest < ActiveSupport::TestCase
     assert_equal 2, HolidayBalanceEntry.entry_types[:deduction]
     assert_equal 3, HolidayBalanceEntry.entry_types[:reversal]
   end
+
+  test "user holiday_balance sums all entries for workspace" do
+    user = users(:one)
+    workspace = workspaces(:one)
+    # Fixtures: kacper_initial_grant (15) + kacper_yearly_grant (20) = 35
+    assert_equal 35, user.holiday_balance(workspace)
+  end
+
+  test "user holiday_balance returns 0 with no entries" do
+    user = users(:two)
+    workspace = workspaces(:two)
+    assert_equal 0, user.holiday_balance(workspace)
+  end
 end
