@@ -13,9 +13,10 @@ set :rbenv_ruby, File.read(".ruby-version").strip
 set :rbenv_prefix, "RBENV_ROOT=#{fetch(:rbenv_path)} RBENV_VERSION=#{fetch(:rbenv_ruby)} #{fetch(:rbenv_path)}/bin/rbenv exec"
 set :rbenv_map_bins, %w[rake gem bundle ruby rails puma pumactl]
 
-# Bundler
-set :bundle_flags, "--deployment --without development test"
+# Bundler - Bundler 4.x uses config instead of flags
+set :bundle_flags, nil
 set :bundle_path, -> { shared_path.join("bundle") }
+set :bundle_without, %w[development test].join(" ")
 
 # Environment - needed for native gems (libffi, libyaml built from source)
 set :default_env, {
