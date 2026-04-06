@@ -25,7 +25,8 @@ gem "jbuilder"
 gem "bcrypt", "~> 3.1.7"
 
 # Tailwind CSS [https://github.com/rails/tailwindcss-rails]
-gem "tailwindcss-rails", "~> 4.2"
+# Only needed locally for asset precompilation (assets are rsynced to production)
+gem "tailwindcss-rails", "~> 4.2", groups: [:development, :test]
 
 # PDF generation
 gem "prawn", "~> 2.5"
@@ -49,10 +50,11 @@ gem "solid_cable"
 gem "bootsnap", require: false
 
 # Deploy this application anywhere as a Docker container [https://kamal-deploy.org]
-gem "kamal", require: false
+gem "kamal", require: false, groups: [:development]
 
 # Add HTTP asset caching/compression and X-Sendfile acceleration to Puma [https://github.com/basecamp/thruster/]
-gem "thruster", require: false
+# Not needed on shared hosting (using .htaccess reverse proxy)
+gem "thruster", require: false, groups: [:development]
 
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
 gem "image_processing", "~> 1.2"
