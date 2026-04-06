@@ -29,6 +29,15 @@ Rails.application.routes.draw do
   end
   resources :tags
 
+  resources :holiday_requests, only: [:index, :new, :create] do
+    member do
+      patch :approve
+      patch :cancel
+    end
+  end
+
+  resources :holiday_balance_entries, only: [:index, :new, :create]
+
   resources :time_entries do
     collection do
       post :bulk_update
