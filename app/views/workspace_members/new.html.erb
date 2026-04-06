@@ -14,13 +14,7 @@
       <div class="space-y-1">
         <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Email</label>
         <%= f.email_field :email_address, class: "m3-text-field w-full", required: true, placeholder: "email@example.com" %>
-        <p class="text-xs" style="color: var(--color-outline)">If this email is already registered, the existing user will be added to the workspace.</p>
-      </div>
-
-      <div class="space-y-1">
-        <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Password</label>
-        <%= f.password_field :password, class: "m3-text-field w-full", placeholder: "For new users only" %>
-        <p class="text-xs" style="color: var(--color-outline)">Required only if creating a new user. Ignored for existing users.</p>
+        <p class="text-xs" style="color: var(--color-outline)">New users will receive an invitation email to set their password. Existing users will be notified they've been added.</p>
       </div>
 
       <div class="space-y-1">
