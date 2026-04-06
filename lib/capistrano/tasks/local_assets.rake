@@ -6,8 +6,9 @@ namespace :deploy do
     end
 
     on roles(:web) do |host|
+      port = host.port || host.netssh_options[:port] || 22
       run_locally do
-        execute "rsync -avz --delete -e 'ssh -p #{host.port}' public/assets/ #{host.user}@#{host.hostname}:#{shared_path}/public/assets/"
+        execute "rsync -avz --delete -e 'ssh -p #{port}' public/assets/ #{host.user}@#{host.hostname}:#{shared_path}/public/assets/"
       end
     end
 
