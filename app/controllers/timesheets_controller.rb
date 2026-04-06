@@ -12,8 +12,6 @@ class TimesheetsController < ApplicationController
 
     @week_days = (0..6).map { |i| @week_start + i.days }
 
-    @all_projects = available_projects.includes(:tasks)
-
     @entries = current_workspace.time_entries
       .where(user: current_user)
       .completed
@@ -29,12 +27,11 @@ class TimesheetsController < ApplicationController
       @grid[key][date] = (@grid[key][date] || 0) + entry.duration_seconds
     end
 
-    # Only show rows that have entries this week
+    # Build rows from actual entries (not from available_projects)
     @rows = @grid.keys.map { |project_id, task_id|
-      project = @all_projects.detect { |p| p.id == project_id }
-      task = project&.tasks&.detect { |t| t.id == task_id } if task_id
-      { project: project, task: task, key: [project_id, task_id] }
-    }.select { |r| r[:project] }
+      entry = @entries.detect { |e| e.project_id == project_id && e.task_id == task_id }
+      { project: entry.project, task: entry.task, key: [project_id, task_id] }
+    }
 
     # Daily totals
     @day_totals = {}
