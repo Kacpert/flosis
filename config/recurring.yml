@@ -16,3 +16,6 @@ production:
   jira_sync:
     class: JiraSyncJob
     schedule: every 15 minutes
+  holiday_yearly_grant:
+    class: HolidayYearlyGrantJob
+    schedule: at 12am on January 1
