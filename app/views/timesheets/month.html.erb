@@ -1,0 +1,90 @@
+<div class="space-y-4">
+  <div class="flex justify-between items-center">
+    <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Timesheet</h1>
+    <div class="inline-flex rounded-full p-0.5" style="background: var(--color-surface-variant)">
+      <%= link_to timesheet_path(week_of: @month_start.beginning_of_week(:monday)), class: "px-4 py-1.5 rounded-full text-sm font-medium transition-colors", style: "color: var(--color-on-surface-variant)" do %>
+        Week
+      <% end %>
+      <%= link_to month_timesheet_path(month: @month_date.strftime("%Y-%m")), class: "px-4 py-1.5 rounded-full text-sm font-medium transition-colors", style: "background: var(--color-primary-container); color: var(--color-on-primary-container)" do %>
+        Month
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Month navigation -->
+  <div class="flex items-center justify-between">
+    <%= link_to month_timesheet_path(month: (@month_date - 1.month).strftime("%Y-%m")), class: "m3-btn m3-btn-text m3-btn-sm" do %>
+      &larr; Previous
+    <% end %>
+    <span class="font-medium" style="color: var(--color-on-surface)">
+      <%= @month_date.strftime("%B %Y") %>
+    </span>
+    <% if @month_date < Date.current.beginning_of_month %>
+      <%= link_to month_timesheet_path(month: (@month_date + 1.month).strftime("%Y-%m")), class: "m3-btn m3-btn-text m3-btn-sm" do %>
+        Next &rarr;
+      <% end %>
+    <% else %>
+      <span class="m3-btn m3-btn-text m3-btn-sm invisible">Next &rarr;</span>
+    <% end %>
+  </div>
+
+  <div class="m3-card-outlined overflow-x-auto">
+    <table class="m3-table">
+      <thead>
+        <tr>
+          <th class="min-w-[200px]">Project</th>
+          <% @weeks.each do |ws| %>
+            <th class="text-center min-w-[100px]">
+              <% week_end = [ws + 6.days, @month_end].min %>
+              <%= link_to timesheet_path(week_of: ws), class: "hover:underline", style: "color: var(--color-primary)" do %>
+                <div class="text-xs"><%= ws.strftime("%b %d") %> - <%= week_end.strftime("%d") %></div>
+              <% end %>
+            </th>
+          <% end %>
+          <th class="text-center">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @project_totals.each do |project, data| %>
+          <tr>
+            <td>
+              <div class="flex items-center gap-2">
+                <%= project_color_dot(project.color) %>
+                <span class="font-medium text-sm" style="color: var(--color-on-surface)"><%= project.name %></span>
+              </div>
+            </td>
+            <% @weeks.each do |ws| %>
+              <td class="text-center font-mono text-sm" style="color: var(--color-on-surface)">
+                <% seconds = data[:weeks][ws] || 0 %>
+                <%= seconds > 0 ? format("%d:%02d", seconds / 3600, (seconds % 3600) / 60) : "" %>
+              </td>
+            <% end %>
+            <td class="text-center font-mono font-bold text-sm" style="color: var(--color-on-surface)">
+              <%= data[:total] > 0 ? format("%d:%02d", data[:total] / 3600, (data[:total] % 3600) / 60) : "" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+      <tfoot>
+        <tr class="font-bold">
+          <td style="color: var(--color-on-surface)">Total</td>
+          <% @weeks.each do |ws| %>
+            <td class="text-center font-mono" style="color: var(--color-on-surface)">
+              <% total = @week_totals[ws] || 0 %>
+              <%= total > 0 ? format("%d:%02d", total / 3600, (total % 3600) / 60) : "" %>
+            </td>
+          <% end %>
+          <td class="text-center font-mono" style="color: var(--color-on-surface)">
+            <%= @grand_total > 0 ? format("%d:%02d", @grand_total / 3600, (@grand_total % 3600) / 60) : "0:00" %>
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <% if @project_totals.empty? %>
+    <div class="text-center py-8" style="color: var(--color-on-surface-variant)">
+      <p>No time entries for this month.</p>
+    </div>
+  <% end %>
+</div>

@@ -48,6 +48,54 @@ class TimesheetsController < ApplicationController
     end
   end
 
+  def month
+    @month_date = if params[:month]
+      Date.parse(params[:month] + "-01")
+    else
+      Date.current.beginning_of_month
+    end
+
+    @month_start = @month_date.beginning_of_month
+    @month_end = @month_date.end_of_month
+
+    # Get all weeks (Monday-based) that overlap this month
+    @weeks = []
+    week_start = @month_start.beginning_of_week(:monday)
+    while week_start <= @month_end
+      @weeks << week_start
+      week_start += 7.days
+    end
+
+    @entries = current_workspace.time_entries
+      .where(user: current_user)
+      .completed
+      .in_range(@month_start.beginning_of_day, @month_end.end_of_day)
+      .includes(:project, :task)
+
+    # Build per-week totals
+    @week_totals = {}
+    @weeks.each do |ws|
+      week_end = ws + 6.days
+      @week_totals[ws] = @entries
+        .select { |e| e.started_at.to_date >= ws && e.started_at.to_date <= week_end && e.started_at.to_date >= @month_start && e.started_at.to_date <= @month_end }
+        .sum(&:duration_seconds)
+    end
+
+    # Build per-project totals for the month
+    @project_totals = {}
+    @entries.each do |entry|
+      project = entry.project
+      @project_totals[project] ||= { total: 0, weeks: {} }
+      @project_totals[project][:total] += entry.duration_seconds
+      week_key = entry.started_at.to_date.beginning_of_week(:monday)
+      if @weeks.include?(week_key)
+        @project_totals[project][:weeks][week_key] = (@project_totals[project][:weeks][week_key] || 0) + entry.duration_seconds
+      end
+    end
+
+    @grand_total = @entries.sum(&:duration_seconds)
+  end
+
   def update_cell
     project_id = params[:project_id]
 

@@ -55,6 +55,7 @@ Rails.application.routes.draw do
 
   resource :timesheet, only: [ :show ] do
     patch :update_cell
+    get :month
   end
 
   namespace :reports do

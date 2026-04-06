@@ -1,6 +1,14 @@
 <div class="space-y-4" data-controller="timesheet-expand">
   <div class="flex justify-between items-center">
     <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Timesheet</h1>
+    <div class="inline-flex rounded-full p-0.5" style="background: var(--color-surface-variant)">
+      <%= link_to timesheet_path(week_of: @week_start), class: "px-4 py-1.5 rounded-full text-sm font-medium transition-colors", style: "background: var(--color-primary-container); color: var(--color-on-primary-container)" do %>
+        Week
+      <% end %>
+      <%= link_to month_timesheet_path(month: @week_start.strftime("%Y-%m")), class: "px-4 py-1.5 rounded-full text-sm font-medium transition-colors", style: "color: var(--color-on-surface-variant)" do %>
+        Month
+      <% end %>
+    </div>
   </div>
 
   <!-- Week navigation -->
@@ -11,8 +19,12 @@
     <span class="font-medium" style="color: var(--color-on-surface)">
       <%= @week_start.strftime("%b %d") %> - <%= (@week_start + 6.days).strftime("%b %d, %Y") %>
     </span>
-    <%= link_to timesheet_path(week_of: (@week_start + 7.days)), class: "m3-btn m3-btn-text m3-btn-sm" do %>
-      Next &rarr;
+    <% if @week_start < Date.current.beginning_of_week(:monday) %>
+      <%= link_to timesheet_path(week_of: (@week_start + 7.days)), class: "m3-btn m3-btn-text m3-btn-sm" do %>
+        Next &rarr;
+      <% end %>
+    <% else %>
+      <span class="m3-btn m3-btn-text m3-btn-sm invisible">Next &rarr;</span>
     <% end %>
   </div>
 
