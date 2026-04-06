@@ -1,0 +1,7 @@
+<h1>Request Time Off</h1>
+<%= form_with model: @holiday_request, url: holiday_requests_path do |f| %>
+  <%= f.date_field :start_date %>
+  <%= f.date_field :end_date %>
+  <%= f.text_area :note %>
+  <%= f.submit %>
+<% end %>
