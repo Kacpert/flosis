@@ -62,7 +62,7 @@ class FeedbackMeetingsControllerTest < ActionDispatch::IntegrationTest
     patch feedback_meeting_path(@meeting), params: {
       feedback_meeting: { title: "Updated Title" }
     }
-    assert_redirected_to feedback_meeting_path(@meeting)
+    assert_redirected_to feedback_meetings_path(meeting_id: @meeting.id)
     assert_equal "Updated Title", @meeting.reload.title
   end
 

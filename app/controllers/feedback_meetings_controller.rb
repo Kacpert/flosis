@@ -7,6 +7,13 @@ class FeedbackMeetingsController < ApplicationController
 
   def index
     @feedback_meetings = scoped_meetings.recent.includes(:employee, :creator)
+    if params[:meeting_id].present?
+      @selected_meeting = scoped_meetings.find_by(id: params[:meeting_id])
+    end
+    @selected_meeting ||= @feedback_meetings.first
+    if @selected_meeting
+      @show_notes = current_user.admin_or_owner?(current_workspace) || @selected_meeting.notes_visible
+    end
   end
 
   def show
@@ -33,7 +40,7 @@ class FeedbackMeetingsController < ApplicationController
 
   def update
     if @feedback_meeting.update(feedback_meeting_params)
-      redirect_to feedback_meeting_path(@feedback_meeting), notice: "Feedback meeting updated."
+      redirect_to feedback_meetings_path(meeting_id: @feedback_meeting.id), notice: "Feedback meeting updated."
     else
       render :edit, status: :unprocessable_entity
     end
