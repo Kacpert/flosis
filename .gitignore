@@ -3,6 +3,15 @@
 .env
 .env.production
 
+# Logs
+/log/*.log
+
+# Bundle config
+.bundle/config
+
+# Screenshots
+*.png
+
 # Superpowers
 .superpowers/
 
