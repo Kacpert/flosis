@@ -144,7 +144,7 @@ module Reports
             row = []
             row << entry.project&.name.to_s if show_project
             row << entry.task&.name.to_s
-            row << entry.description.to_s.truncate(60)
+            row << entry.description.to_s.truncate(50)
             row << time_str
             row << format_duration_csv(entry.duration_seconds)
             table_data << row
@@ -158,13 +158,7 @@ module Reports
             table_data << total_row
           end
 
-          col_widths = if show_project
-            { 0 => 90, 1 => 80, 2 => 200, 3 => 70, 4 => 55 }
-          else
-            { 0 => 90, 1 => 260, 2 => 80, 3 => 55 }
-          end
-
-          pdf.table(table_data, header: true, width: pdf.bounds.width, cell_style: { size: 8, padding: [4, 6] }, column_widths: col_widths) do
+          pdf.table(table_data, header: true, width: pdf.bounds.width, cell_style: { size: 8, padding: [4, 5] }) do
             row(0).font_style = :bold
             row(0).background_color = "F5F5F5"
             row(0).size = 7
