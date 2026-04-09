@@ -62,43 +62,122 @@ module Reports
       @from = params[:from] ? Date.parse(params[:from]) : last_month.beginning_of_month
       @to = params[:to] ? Date.parse(params[:to]) : last_month.end_of_month
 
-      entries = build_scope.order(started_at: :asc)
+      entries = build_scope.order(started_at: :asc).to_a
+      project = current_workspace.projects.find_by(id: params[:project_id])
+      total_seconds = entries.sum(&:duration_seconds)
 
-      pdf = Prawn::Document.new(page_size: "A4", page_layout: :landscape)
+      # Group by user, sorted by most hours
+      entries_by_user = {}
+      entries.each do |entry|
+        entries_by_user[entry.user] ||= []
+        entries_by_user[entry.user] << entry
+      end
+      entries_by_user = entries_by_user.sort_by { |_, ents| -ents.sum(&:duration_seconds) }
+
+      pdf = Prawn::Document.new(page_size: "A4")
       font_dir = Rails.root.join("app/assets/fonts")
       pdf.font_families.update("Inter" => {
         normal: font_dir.join("Inter-Regular.ttf").to_s,
         bold: font_dir.join("Inter-Bold.ttf").to_s
       })
       pdf.font "Inter"
-      pdf.text "Detailed Report", size: 20, style: :bold
-      pdf.text "#{@from} to #{@to}", size: 12
-      pdf.move_down 20
 
-      table_data = [[ "Date", "User", "Project", "Task", "Description", "Duration" ]]
-      entries.each do |entry|
-        table_data << [
-          entry.started_at.to_date.to_s,
-          entry.user.name,
-          entry.project&.name.to_s,
-          entry.task&.name.to_s,
-          entry.description.to_s.truncate(40),
-          format_duration_csv(entry.duration_seconds)
-        ]
-      end
+      # --- Title ---
+      title = project ? "#{project.name} — Detailed Report" : "Detailed Report"
+      pdf.text title, size: 18, style: :bold
+      pdf.text "#{@from.strftime('%B %d, %Y')} to #{@to.strftime('%B %d, %Y')}", size: 10, color: "666666"
+      pdf.move_down 5
+      pdf.text "Total: #{format_duration_csv(total_seconds)}", size: 12, style: :bold
+      pdf.move_down 15
 
-      if table_data.size > 1
-        pdf.table(table_data, header: true, width: pdf.bounds.width) do
-          row(0).font_style = :bold
-          row(0).background_color = "DDDDDD"
+      # --- Team Recap Table ---
+      if entries_by_user.size > 1
+        pdf.text "Team Overview", size: 13, style: :bold
+        pdf.move_down 8
+
+        recap_data = [[ "Team Member", "Hours", "%" ]]
+        entries_by_user.each do |user, ents|
+          user_seconds = ents.sum(&:duration_seconds)
+          pct = total_seconds > 0 ? (user_seconds.to_f / total_seconds * 100).round(1) : 0
+          recap_data << [ user.name, format_duration_csv(user_seconds), "#{pct}%" ]
         end
-      else
-        pdf.text "No time entries found for this period."
+
+        pdf.table(recap_data, header: true, width: pdf.bounds.width, cell_style: { size: 9, padding: [6, 8] }) do
+          row(0).font_style = :bold
+          row(0).background_color = "F0F0F0"
+          column(1).align = :right
+          column(2).align = :right
+        end
+        pdf.move_down 20
       end
 
-      total_seconds = entries.sum(&:duration_seconds)
-      pdf.move_down 10
-      pdf.text "Total: #{format_duration_csv(total_seconds)}", style: :bold
+      # --- Per-User Sections ---
+      entries_by_user.each_with_index do |(user, user_entries), idx|
+        user_seconds = user_entries.sum(&:duration_seconds)
+        user_pct = total_seconds > 0 ? (user_seconds.to_f / total_seconds * 100).round(1) : 0
+
+        # Start new page for each user after the first if needed
+        pdf.start_new_page if idx > 0
+
+        # User header
+        pdf.text user.name, size: 14, style: :bold
+        pdf.text "#{format_duration_csv(user_seconds)} (#{user_pct}%)", size: 10, color: "666666"
+        pdf.move_down 10
+
+        # Group entries by date
+        by_date = user_entries.group_by { |e| e.started_at.to_date }.sort_by(&:first)
+
+        by_date.each do |date, day_entries|
+          day_total = day_entries.sum(&:duration_seconds)
+
+          # Date header row
+          pdf.text "#{date.strftime('%a, %b %-d')}", size: 9, style: :bold, color: "444444"
+          pdf.move_down 4
+
+          # Entries table for this date
+          show_project = project.nil?
+          headers = show_project ? [ "Project", "Task", "Notes", "Time", "Duration" ] : [ "Task", "Notes", "Time", "Duration" ]
+
+          table_data = [ headers ]
+          day_entries.sort_by(&:started_at).each do |entry|
+            time_str = "#{entry.started_at.strftime('%H:%M')}-#{entry.stopped_at&.strftime('%H:%M')}"
+            row = []
+            row << entry.project&.name.to_s if show_project
+            row << entry.task&.name.to_s
+            row << entry.description.to_s.truncate(60)
+            row << time_str
+            row << format_duration_csv(entry.duration_seconds)
+            table_data << row
+          end
+
+          # Day total row
+          if day_entries.size > 1
+            total_row = Array.new(headers.size - 1, "")
+            total_row[0] = { content: "Day total", font_style: :bold }
+            total_row << { content: format_duration_csv(day_total), font_style: :bold }
+            table_data << total_row
+          end
+
+          col_widths = if show_project
+            { 0 => 90, 1 => 80, 2 => 200, 3 => 70, 4 => 55 }
+          else
+            { 0 => 90, 1 => 260, 2 => 80, 3 => 55 }
+          end
+
+          pdf.table(table_data, header: true, width: pdf.bounds.width, cell_style: { size: 8, padding: [4, 6] }, column_widths: col_widths) do
+            row(0).font_style = :bold
+            row(0).background_color = "F5F5F5"
+            row(0).size = 7
+            column(-1).align = :right
+            column(-2).align = :center
+          end
+          pdf.move_down 8
+        end
+      end
+
+      if entries.empty?
+        pdf.text "No time entries found for this period.", size: 11, color: "999999"
+      end
 
       send_data pdf.render, filename: "detailed-report-#{@from}-to-#{@to}.pdf", type: "application/pdf"
     end
