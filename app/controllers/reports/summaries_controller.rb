@@ -77,6 +77,12 @@ module Reports
         .sort_by { |d| -d[:seconds] }
 
       pdf = Prawn::Document.new(page_size: "A4")
+      font_dir = Rails.root.join("app/assets/fonts")
+      pdf.font_families.update("Inter" => {
+        normal: font_dir.join("Inter-Regular.ttf").to_s,
+        bold: font_dir.join("Inter-Bold.ttf").to_s
+      })
+      pdf.font "Inter"
       pdf.text "Summary Report", size: 20, style: :bold
       pdf.text "#{@from} to #{@to}", size: 12
       pdf.move_down 20

@@ -102,6 +102,12 @@ module Reports
       end
 
       pdf = Prawn::Document.new(page_size: "A4", page_layout: :landscape)
+      font_dir = Rails.root.join("app/assets/fonts")
+      pdf.font_families.update("Inter" => {
+        normal: font_dir.join("Inter-Regular.ttf").to_s,
+        bold: font_dir.join("Inter-Bold.ttf").to_s
+      })
+      pdf.font "Inter"
       pdf.text "Weekly Report", size: 20, style: :bold
       pdf.text "#{@week_start.strftime('%b %d')} - #{(@week_start + 6.days).strftime('%b %d, %Y')} (by #{@group_by})", size: 12
       pdf.move_down 20
