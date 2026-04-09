@@ -14,7 +14,12 @@ Rails.application.routes.draw do
   root "time_entries#index"
 
   resource :profile, only: [ :show, :update ]
-  resources :workspace_members, only: [ :index, :new, :create, :edit, :update, :destroy ]
+  resources :workspace_members, only: [ :index, :new, :create, :edit, :update, :destroy ] do
+    member do
+      post :become
+    end
+  end
+  post :stop_impersonating, to: "workspace_members#stop_impersonating"
 
   resources :clients
   resources :feedback_meetings

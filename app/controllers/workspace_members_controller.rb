@@ -1,8 +1,8 @@
 class WorkspaceMembersController < ApplicationController
   include WorkspaceScoped
 
-  before_action :require_admin!
-  before_action :set_membership, only: %i[edit update destroy]
+  before_action :require_admin!, except: [ :stop_impersonating ]
+  before_action :set_membership, only: %i[edit update destroy become]
 
   def index
     @memberships = current_workspace.workspace_memberships
@@ -84,6 +84,38 @@ class WorkspaceMembersController < ApplicationController
     name = @membership.user.name
     @membership.destroy
     redirect_to workspace_members_path, notice: "#{name} removed.", status: :see_other
+  end
+
+  def become
+    target_user = @membership.user
+
+    if target_user == current_user
+      redirect_to workspace_members_path, alert: "You're already logged in as this user."
+      return
+    end
+
+    # Store admin session so we can switch back
+    cookies.signed[:admin_session_id] = { value: Current.session.id, httponly: true, same_site: :lax }
+
+    # Create a new session for the target user
+    start_new_session_for(target_user)
+    redirect_to root_path, notice: "Now viewing as #{target_user.name}"
+  end
+
+  def stop_impersonating
+    admin_session = Session.find_by(id: cookies.signed[:admin_session_id])
+
+    unless admin_session
+      redirect_to root_path, alert: "No admin session found."
+      return
+    end
+
+    # Restore admin session
+    Current.session = admin_session
+    cookies.signed.permanent[:session_id] = { value: admin_session.id, httponly: true, same_site: :lax }
+    cookies.delete(:admin_session_id)
+
+    redirect_to workspace_members_path, notice: "Switched back to your account."
   end
 
   private

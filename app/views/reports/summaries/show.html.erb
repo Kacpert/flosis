@@ -1,124 +1,139 @@
 <div class="space-y-5">
   <div class="flex justify-between items-center">
-    <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">Summary Report</h1>
+    <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">Monthly Report</h1>
     <div class="flex gap-2">
-      <%= link_to "CSV", export_csv_reports_summary_path(request.query_parameters), class: "m3-btn m3-btn-text m3-btn-sm" %>
-      <%= link_to "PDF", export_pdf_reports_summary_path(request.query_parameters), class: "m3-btn m3-btn-text m3-btn-sm" %>
+      <%= link_to "CSV", export_csv_reports_summary_path(from: @from, to: @to), class: "m3-btn m3-btn-text m3-btn-sm" %>
+      <%= link_to "PDF", export_pdf_reports_summary_path(from: @from, to: @to), class: "m3-btn m3-btn-text m3-btn-sm" %>
     </div>
   </div>
 
-  <%# Filters %>
+  <%# Month navigation %>
+  <% nav_params = params[:project_id].present? ? { project_id: params[:project_id] } : {} %>
+  <div class="flex items-center justify-between">
+    <% prev_month = @from - 1.month %>
+    <%= link_to reports_summary_path(nav_params.merge(from: prev_month.beginning_of_month, to: prev_month.end_of_month)), class: "m3-btn m3-btn-text m3-btn-sm" do %>
+      &larr; Previous
+    <% end %>
+    <span class="font-medium" style="color: var(--color-on-surface)">
+      <%= @from.strftime("%B %Y") %>
+    </span>
+    <% if @from < Date.current.beginning_of_month %>
+      <% next_month = @from + 1.month %>
+      <%= link_to reports_summary_path(nav_params.merge(from: next_month.beginning_of_month, to: next_month.end_of_month)), class: "m3-btn m3-btn-text m3-btn-sm" do %>
+        Next &rarr;
+      <% end %>
+    <% else %>
+      <span class="m3-btn m3-btn-text m3-btn-sm invisible">Next &rarr;</span>
+    <% end %>
+  </div>
+
+  <%# Project filter %>
   <%= form_with url: reports_summary_path, method: :get, class: "filter-panel" do |f| %>
-    <%= render "shared/date_range_presets" %>
+    <%= f.hidden_field :from, value: @from %>
+    <%= f.hidden_field :to, value: @to %>
     <div class="flex flex-wrap gap-3 items-end">
-      <div class="space-y-1">
-        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">From</label>
-        <%= f.date_field :from, value: @from, class: "m3-text-field" %>
-      </div>
-      <div class="space-y-1">
-        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">To</label>
-        <%= f.date_field :to, value: @to, class: "m3-text-field" %>
-      </div>
-      <div class="space-y-1">
-        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Group by</label>
-        <%= f.select :group_by, [["Project", "project"], ["Client", "client"], ["User", "user"], ["Tag", "tag"]],
-            { selected: @group_by }, class: "m3-text-field" %>
-      </div>
       <div class="space-y-1">
         <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Project</label>
         <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
-            { include_blank: "All" }, class: "m3-text-field" %>
+            { include_blank: "All Projects", selected: params[:project_id] }, class: "m3-text-field" %>
       </div>
       <%= f.submit "Apply", class: "m3-btn m3-btn-filled m3-btn-sm" %>
     </div>
   <% end %>
 
-  <%# Stats %>
-  <div style="display: grid; grid-template-columns: repeat(<%= can_see_money? ? 3 : 2 %>, 1fr); gap: 0.75rem;">
-    <div class="stat-card">
-      <div class="stat-label">Total Hours</div>
-      <div class="stat-number"><%= format_duration_hm(@total_seconds) %></div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Total Hours</div>
-      <div class="stat-number" style="color: var(--color-success)"><%= format_duration_hm(@billable_seconds) %></div>
-    </div>
-    <% if can_see_money? %>
-      <div class="stat-card">
-        <div class="stat-label">Amount</div>
-        <div class="stat-number">$<%= '%.2f' % @billable_amount %></div>
-      </div>
-    <% end %>
+  <%# Total hours stat %>
+  <div class="stat-card">
+    <div class="stat-label">Total Hours</div>
+    <div class="stat-number"><%= format_duration_hm(@total_seconds) %></div>
   </div>
 
-  <% if @chart_data.any? %>
-    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
-      <%# Pie chart %>
-      <div class="stat-card">
-        <h2 class="section-header mb-3">Distribution</h2>
-        <div class="h-72">
-          <canvas data-controller="chart"
-                  data-chart-type-value="pie"
-                  data-chart-data-value='<%= {
-                    labels: @chart_data.map { |d| d[:name] },
-                    datasets: [{
-                      data: @chart_data.map { |d| (d[:seconds] / 3600.0).round(2) },
-                      backgroundColor: @chart_data.map { |d| d[:color] }
-                    }]
-                  }.to_json %>'></canvas>
-        </div>
-      </div>
-
-      <%# Bar chart %>
-      <div class="stat-card">
-        <h2 class="section-header mb-3">Daily Breakdown</h2>
-        <div class="h-72">
-          <canvas data-controller="chart"
-                  data-chart-type-value="bar"
-                  data-chart-data-value='<%= {
-                    labels: @daily_data.map { |d| d[:date] },
-                    datasets: [{
-                      label: "Hours",
-                      data: @daily_data.map { |d| (d[:seconds] / 3600.0).round(2) },
-                      backgroundColor: "#4A6741"
-                    }]
-                  }.to_json %>'></canvas>
-        </div>
-      </div>
-    </div>
-
-    <%# Data table %>
+  <% if @user_data.any? %>
+    <%# Team Overview - User breakdown %>
     <div class="m3-card-outlined overflow-hidden">
+      <div class="px-4 py-3 border-b" style="border-color: var(--color-outline-variant)">
+        <h2 class="text-base font-bold" style="color: var(--color-on-surface)">Team Overview</h2>
+      </div>
       <table class="m3-table">
         <thead>
           <tr>
-            <th><%= @group_by.titleize %></th>
+            <th>Team Member</th>
             <th class="text-right">Hours</th>
             <th class="text-right">%</th>
+            <th style="width: 40%"></th>
           </tr>
         </thead>
         <tbody>
-          <% @chart_data.sort_by { |d| -d[:seconds] }.each do |data| %>
+          <% @user_data.each do |data| %>
+            <% pct = @total_seconds > 0 ? (data[:seconds].to_f / @total_seconds * 100).round(1) : 0 %>
             <tr>
-              <td class="flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: <%= data[:color] %>"></span>
-                <%= link_to data[:name], reports_detailed_path(from: @from, to: @to, "#{@group_by}_id": data[:id]),
-                    style: "color: var(--color-on-surface); text-decoration: none; transition: color 0.15s;", onmouseover: "this.style.color='var(--color-primary)'", onmouseout: "this.style.color='var(--color-on-surface)'" %>
+              <td class="font-medium text-sm" style="color: var(--color-on-surface)"><%= data[:name] %></td>
+              <td class="text-right font-mono text-sm" style="color: var(--color-on-surface)">
+                <%= format("%d:%02d", data[:seconds] / 3600, (data[:seconds] % 3600) / 60) %>
               </td>
-              <td class="text-right mono-duration"><%= format_duration_hm(data[:seconds]) %></td>
-              <td class="text-right" style="color: var(--color-on-surface-variant)"><%= @total_seconds > 0 ? (data[:seconds].to_f / @total_seconds * 100).round(1) : 0 %>%</td>
+              <td class="text-right text-sm" style="color: var(--color-on-surface-variant)"><%= pct %>%</td>
+              <td>
+                <div class="w-full rounded-full h-2" style="background: var(--color-surface-variant)">
+                  <div class="h-2 rounded-full" style="width: <%= pct %>%; background: var(--color-primary)"></div>
+                </div>
+              </td>
             </tr>
           <% end %>
         </tbody>
       </table>
     </div>
+
+    <%# Per-project breakdown %>
+    <% @projects_summary.each do |project_id, project| %>
+      <div class="m3-card-outlined overflow-hidden">
+        <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color: var(--color-outline-variant)">
+          <div class="flex items-center gap-2">
+            <%= project_color_dot(project[:color]) %>
+            <h2 class="text-base font-bold" style="color: var(--color-on-surface)">
+              <%= link_to project[:name], reports_detailed_path(from: @from, to: @to, project_id: project_id),
+                  style: "color: var(--color-on-surface); text-decoration: none;",
+                  onmouseover: "this.style.color='var(--color-primary)'",
+                  onmouseout: "this.style.color='var(--color-on-surface)'" %>
+            </h2>
+          </div>
+          <span class="font-mono font-bold text-sm" style="color: var(--color-on-surface)">
+            <%= format("%d:%02d", project[:total] / 3600, (project[:total] % 3600) / 60) %>
+          </span>
+        </div>
+        <table class="m3-table">
+          <thead>
+            <tr>
+              <th>Team Member</th>
+              <th class="text-right">Hours</th>
+              <th class="text-right">% of project</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% project[:users].sort_by { |_, v| -v[:seconds] }.each do |user_id, user| %>
+              <% pct = project[:total] > 0 ? (user[:seconds].to_f / project[:total] * 100).round(1) : 0 %>
+              <tr>
+                <td class="text-sm" style="color: var(--color-on-surface)">
+                  <%= link_to user[:name], reports_detailed_path(from: @from, to: @to, project_id: project_id, user_id: user_id),
+                      style: "color: var(--color-on-surface); text-decoration: none;",
+                      onmouseover: "this.style.color='var(--color-primary)'",
+                      onmouseout: "this.style.color='var(--color-on-surface)'" %>
+                </td>
+                <td class="text-right font-mono text-sm" style="color: var(--color-on-surface)">
+                  <%= format("%d:%02d", user[:seconds] / 3600, (user[:seconds] % 3600) / 60) %>
+                </td>
+                <td class="text-right text-sm" style="color: var(--color-on-surface-variant)"><%= pct %>%</td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
   <% else %>
     <div class="empty-state">
       <div class="empty-state-icon">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
       </div>
       <p class="empty-state-title">No data for this period</p>
-      <p class="empty-state-desc">Adjust your filters or date range</p>
+      <p class="empty-state-desc">Try a different month</p>
     </div>
   <% end %>
 </div>

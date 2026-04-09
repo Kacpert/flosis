@@ -25,6 +25,9 @@
             <button type="button" class="text-lg" style="color: var(--color-outline); cursor: pointer" data-action="click->team-expand#toggle" data-team-expand-target="arrow">&#9662;</button>
             <% unless membership.user == current_user %>
               <div class="flex gap-1">
+                <%= button_to "Become", become_workspace_member_path(membership), method: :post,
+                    class: "m3-btn m3-btn-text m3-btn-sm",
+                    data: { turbo_confirm: "Log in as #{membership.user.name}?" } %>
                 <%= link_to "Edit", edit_workspace_member_path(membership), class: "m3-btn m3-btn-text m3-btn-sm" %>
                 <%= button_to "Remove", workspace_member_path(membership), method: :delete,
                     class: "m3-btn m3-btn-text m3-btn-sm", style: "color: var(--color-error)",

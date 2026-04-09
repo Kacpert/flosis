@@ -1,6 +1,14 @@
 <div class="space-y-5">
   <div class="flex justify-between items-center">
-    <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">Detailed Report</h1>
+    <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">
+      <% if @project %>
+        <%= link_to "Reports", reports_summary_path(from: @from, to: @to), style: "color: var(--color-on-surface-variant); text-decoration: none;", onmouseover: "this.style.color='var(--color-primary)'", onmouseout: "this.style.color='var(--color-on-surface-variant)'" %>
+        <span style="color: var(--color-on-surface-variant)">/</span>
+        <span style="color: var(--color-on-surface)"><%= @project.name %></span>
+      <% else %>
+        Detailed Report
+      <% end %>
+    </h1>
     <div class="flex gap-2">
       <%= link_to "CSV", export_csv_reports_detailed_path(request.query_parameters), class: "m3-btn m3-btn-text m3-btn-sm" %>
       <%= link_to "PDF", export_pdf_reports_detailed_path(request.query_parameters), class: "m3-btn m3-btn-text m3-btn-sm" %>
@@ -9,7 +17,6 @@
 
   <%# Filters %>
   <%= form_with url: reports_detailed_path, method: :get, class: "filter-panel" do |f| %>
-    <%= render "shared/date_range_presets" %>
     <div class="flex flex-wrap gap-3 items-end">
       <div class="space-y-1">
         <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">From</label>
@@ -22,99 +29,107 @@
       <div class="space-y-1">
         <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Project</label>
         <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
-            { include_blank: "All" }, class: "m3-text-field" %>
-      </div>
-      <div class="space-y-1">
-        <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Client</label>
-        <%= f.select :client_id, @clients.map { |c| [c.name, c.id] },
-            { include_blank: "All" }, class: "m3-text-field" %>
+            { include_blank: "All Projects", selected: params[:project_id] }, class: "m3-text-field" %>
       </div>
       <div class="space-y-1">
         <label class="text-xs font-medium" style="color: var(--color-on-surface-variant)">User</label>
         <%= f.select :user_id, @users.map { |u| [u.name, u.id] },
-            { include_blank: "All" }, class: "m3-text-field" %>
+            { include_blank: "All Users", selected: params[:user_id] }, class: "m3-text-field" %>
       </div>
       <%= f.submit "Apply", class: "m3-btn m3-btn-filled m3-btn-sm" %>
     </div>
   <% end %>
 
   <%# Stats %>
-  <div style="display: grid; grid-template-columns: repeat(<%= can_see_money? ? 3 : 2 %>, 1fr); gap: 0.75rem;">
-    <div class="stat-card">
-      <div class="stat-label">Total</div>
+  <div class="flex gap-3">
+    <div class="stat-card flex-1">
+      <div class="stat-label">Total Hours</div>
       <div class="stat-number"><%= format_duration_hm(@total_seconds) %></div>
     </div>
-    <div class="stat-card">
-      <div class="stat-label">Total Hours</div>
-      <div class="stat-number" style="color: var(--color-success)"><%= format_duration_hm(@billable_seconds) %></div>
+    <div class="stat-card flex-1">
+      <div class="stat-label">Team Members</div>
+      <div class="stat-number"><%= @entries_by_user.size %></div>
     </div>
-    <% if can_see_money? %>
-      <div class="stat-card">
-        <div class="stat-label">Amount</div>
-        <div class="stat-number">$<%= '%.2f' % @billable_amount %></div>
+  </div>
+
+  <% if @entries_by_user.any? %>
+    <% @entries_by_user.each do |user, entries| %>
+      <% user_total = entries.sum(&:duration_seconds) %>
+      <% user_pct = @total_seconds > 0 ? (user_total.to_f / @total_seconds * 100).round(1) : 0 %>
+
+      <div class="m3-card-outlined overflow-hidden">
+        <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color: var(--color-outline-variant)">
+          <h2 class="text-base font-bold" style="color: var(--color-on-surface)"><%= user.name %></h2>
+          <div class="flex items-center gap-3">
+            <span class="text-sm" style="color: var(--color-on-surface-variant)"><%= user_pct %>%</span>
+            <span class="font-mono font-bold text-sm" style="color: var(--color-on-surface)">
+              <%= format("%d:%02d", user_total / 3600, (user_total % 3600) / 60) %>
+            </span>
+          </div>
+        </div>
+
+        <%# Group entries by date for this user %>
+        <% entries_by_date = entries.group_by { |e| e.started_at.to_date }.sort_by(&:first) %>
+        <table class="m3-table">
+          <thead>
+            <tr>
+              <th style="width: 80px">Date</th>
+              <% unless @project %><th>Project</th><% end %>
+              <th>Task</th>
+              <th>Notes</th>
+              <th class="text-center" style="width: 100px">Time</th>
+              <th class="text-right" style="width: 70px">Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% entries_by_date.each do |date, day_entries| %>
+              <% day_entries.sort_by(&:started_at).each_with_index do |entry, i| %>
+                <tr>
+                  <% if i == 0 %>
+                    <td rowspan="<%= day_entries.size %>" class="text-sm font-medium align-top" style="color: var(--color-on-surface)">
+                      <div><%= date.strftime("%a") %></div>
+                      <div class="text-xs" style="color: var(--color-on-surface-variant)"><%= date.strftime("%b %-d") %></div>
+                    </td>
+                  <% end %>
+                  <% unless @project %>
+                    <td class="text-sm" style="color: var(--color-on-surface)">
+                      <span class="flex items-center gap-1.5">
+                        <%= project_color_dot(entry.project&.color) %>
+                        <span><%= entry.project&.name %></span>
+                      </span>
+                    </td>
+                  <% end %>
+                  <td class="text-sm" style="color: var(--color-on-surface-variant)"><%= entry.task&.name %></td>
+                  <td class="text-sm" style="color: var(--color-on-surface)"><%= entry.description %></td>
+                  <td class="text-center text-xs font-mono" style="color: var(--color-on-surface-variant)">
+                    <%= entry.started_at.strftime("%H:%M") %>&ndash;<%= entry.stopped_at&.strftime("%H:%M") %>
+                  </td>
+                  <td class="text-right font-mono text-sm" style="color: var(--color-on-surface)">
+                    <%= format("%d:%02d", entry.duration_seconds / 3600, (entry.duration_seconds % 3600) / 60) %>
+                  </td>
+                </tr>
+              <% end %>
+              <%# Day subtotal %>
+              <% day_total = day_entries.sum(&:duration_seconds) %>
+              <% if day_entries.size > 1 %>
+                <tr style="background: var(--color-surface-variant); background: rgba(0,0,0,0.02)">
+                  <td colspan="<%= @project ? 4 : 5 %>" class="text-right text-xs font-medium" style="color: var(--color-on-surface-variant)">
+                    Day total
+                  </td>
+                  <td class="text-right font-mono text-sm font-medium" style="color: var(--color-on-surface)">
+                    <%= format("%d:%02d", day_total / 3600, (day_total % 3600) / 60) %>
+                  </td>
+                </tr>
+              <% end %>
+            <% end %>
+          </tbody>
+        </table>
       </div>
     <% end %>
-  </div>
-
-  <%# Entries table %>
-  <div class="m3-card-outlined overflow-x-auto">
-    <table class="m3-table">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Description</th>
-          <th>Project</th>
-          <th>Task</th>
-          <th>User</th>
-          <th>Tags</th>
-          <th class="text-right">Duration</th>
-          <% if can_see_money? %><th class="text-right">Amount</th><% end %>
-        </tr>
-      </thead>
-      <tbody>
-        <% @entries.each do |entry| %>
-          <tr>
-            <td class="text-sm" style="color: var(--color-on-surface-variant)"><%= entry.started_at.strftime("%b %-d") %></td>
-            <td class="text-sm max-w-xs truncate" style="color: var(--color-on-surface)"><%= entry.description %></td>
-            <td>
-              <% if entry.project %>
-                <span class="flex items-center gap-1.5">
-                  <%= project_color_dot(entry.project.color) %>
-                  <span class="text-sm"><%= entry.project.name %></span>
-                </span>
-              <% end %>
-            </td>
-            <td class="text-sm" style="color: var(--color-on-surface-variant)"><%= entry.task&.name %></td>
-            <td class="text-sm" style="color: var(--color-on-surface-variant)"><%= entry.user.name %></td>
-            <td>
-              <div class="flex gap-1">
-                <% entry.tags.each do |tag| %>
-                  <span class="m3-tag-chip" style="color: <%= tag.color %>; border-color: <%= tag.color %>30; background-color: <%= tag.color %>10"><%= tag.name %></span>
-                <% end %>
-              </div>
-            </td>
-            <td class="text-right mono-duration text-sm"><%= entry.formatted_duration %></td>
-            <% if can_see_money? %>
-              <td class="text-right text-sm" style="color: var(--color-on-surface-variant)">
-                $<%= '%.2f' % entry.billable_amount %>
-              </td>
-            <% end %>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
-  </div>
-
-  <% if @entries.empty? %>
+  <% else %>
     <div class="empty-state">
       <p class="empty-state-title">No entries for this period</p>
       <p class="empty-state-desc">Adjust your filters or date range</p>
-    </div>
-  <% end %>
-
-  <% if @pagy.pages > 1 %>
-    <div class="flex justify-center">
-      <%== pagy_nav(@pagy) %>
     </div>
   <% end %>
 </div>

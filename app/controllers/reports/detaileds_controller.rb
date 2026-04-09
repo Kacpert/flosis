@@ -4,72 +4,80 @@ module Reports
     before_action :require_admin!
 
     def show
-      @from = params[:from] ? Date.parse(params[:from]) : Date.current.beginning_of_month
-      @to = params[:to] ? Date.parse(params[:to]) : Date.current
+      last_month = Date.current.prev_month
+      @from = params[:from] ? Date.parse(params[:from]) : last_month.beginning_of_month
+      @to = params[:to] ? Date.parse(params[:to]) : last_month.end_of_month
 
       scope = build_scope
-      @pagy, @entries = pagy(scope.order(started_at: :desc))
+      @entries = scope.order(started_at: :asc)
 
       @total_seconds = scope.sum(:duration_seconds)
-      @billable_seconds = scope.sum(:duration_seconds)
-      @billable_amount = scope.sum("time_entries.duration_seconds * COALESCE(time_entries.hourly_rate_cents, 0) / 360000.0")
 
+      # Group entries by user
+      @entries_by_user = {}
+      @entries.each do |entry|
+        user = entry.user
+        @entries_by_user[user] ||= []
+        @entries_by_user[user] << entry
+      end
+      @entries_by_user = @entries_by_user.sort_by { |user, entries| -entries.sum(&:duration_seconds) }
+
+      # User totals for header stats
+      @user_totals = @entries_by_user.map { |user, entries| { user: user, seconds: entries.sum(&:duration_seconds) } }
+
+      @project = current_workspace.projects.find_by(id: params[:project_id])
       @projects = current_workspace.projects.active.order(:name)
-      @clients = current_workspace.clients.active.order(:name)
-      @tags = current_workspace.tags.order(:name)
       @users = current_workspace.users.order(:name)
     end
 
     def export_csv
-      @from = params[:from] ? Date.parse(params[:from]) : Date.current.beginning_of_month
-      @to = params[:to] ? Date.parse(params[:to]) : Date.current
+      last_month = Date.current.prev_month
+      @from = params[:from] ? Date.parse(params[:from]) : last_month.beginning_of_month
+      @to = params[:to] ? Date.parse(params[:to]) : last_month.end_of_month
 
-      entries = build_scope.order(started_at: :desc)
+      entries = build_scope.order(started_at: :asc)
 
       csv_data = CSV.generate(headers: true) do |csv|
-        csv << [ "Date", "Description", "Project", "Client", "Task", "Tags", "User",
-                 "Start", "End", "Duration", "Rate", "Amount" ]
+        csv << [ "Date", "User", "Project", "Task", "Description", "Start", "End", "Duration" ]
 
         entries.each do |entry|
           csv << [
             entry.started_at.to_date,
-            entry.description,
-            entry.project&.name,
-            entry.project&.client&.name,
-            entry.task&.name,
-            entry.tags.map(&:name).join(", "),
             entry.user.name,
+            entry.project&.name,
+            entry.task&.name,
+            entry.description,
             entry.started_at.strftime("%H:%M"),
             entry.stopped_at&.strftime("%H:%M"),
-            format_duration_csv(entry.duration_seconds),
-            entry.effective_rate_cents / 100.0,
-            entry.billable_amount
+            format_duration_csv(entry.duration_seconds)
           ]
         end
       end
 
-      send_data csv_data, filename: "time-report-#{@from}-to-#{@to}.csv", type: "text/csv"
+      send_data csv_data, filename: "detailed-report-#{@from}-to-#{@to}.csv", type: "text/csv"
     end
 
     def export_pdf
-      @from = params[:from] ? Date.parse(params[:from]) : Date.current.beginning_of_month
-      @to = params[:to] ? Date.parse(params[:to]) : Date.current
+      last_month = Date.current.prev_month
+      @from = params[:from] ? Date.parse(params[:from]) : last_month.beginning_of_month
+      @to = params[:to] ? Date.parse(params[:to]) : last_month.end_of_month
 
-      entries = build_scope.order(started_at: :desc)
+      entries = build_scope.order(started_at: :asc)
 
       pdf = Prawn::Document.new(page_size: "A4", page_layout: :landscape)
-      pdf.text "Time Report", size: 20, style: :bold
+      pdf.text "Detailed Report", size: 20, style: :bold
       pdf.text "#{@from} to #{@to}", size: 12
       pdf.move_down 20
 
-      table_data = [ [ "Date", "Description", "Project", "Duration", "Amount" ] ]
+      table_data = [[ "Date", "User", "Project", "Task", "Description", "Duration" ]]
       entries.each do |entry|
         table_data << [
           entry.started_at.to_date.to_s,
-          entry.description.to_s.truncate(40),
+          entry.user.name,
           entry.project&.name.to_s,
-          format_duration_csv(entry.duration_seconds),
-          "$#{'%.2f' % entry.billable_amount}"
+          entry.task&.name.to_s,
+          entry.description.to_s.truncate(40),
+          format_duration_csv(entry.duration_seconds)
         ]
       end
 
@@ -83,12 +91,10 @@ module Reports
       end
 
       total_seconds = entries.sum(&:duration_seconds)
-      total_amount = entries.sum(&:billable_amount)
-
       pdf.move_down 10
-      pdf.text "Total: #{format_duration_csv(total_seconds)} | Amount: $#{'%.2f' % total_amount}", style: :bold
+      pdf.text "Total: #{format_duration_csv(total_seconds)}", style: :bold
 
-      send_data pdf.render, filename: "time-report-#{@from}-to-#{@to}.pdf", type: "application/pdf"
+      send_data pdf.render, filename: "detailed-report-#{@from}-to-#{@to}.pdf", type: "application/pdf"
     end
 
     private
@@ -96,17 +102,10 @@ module Reports
     def build_scope
       scope = current_workspace.time_entries.completed
         .in_range(@from.beginning_of_day, @to.end_of_day)
-        .includes(:project, :task, :tags, :user, project: :client)
+        .includes(:project, :task, :user)
 
       scope = scope.where(project_id: params[:project_id]) if params[:project_id].present?
       scope = scope.where(user_id: params[:user_id]) if params[:user_id].present?
-      if params[:client_id].present?
-        scope = scope.joins(:project).where(projects: { client_id: params[:client_id] })
-      end
-
-      if params[:tag_id].present?
-        scope = scope.joins(:time_entry_tags).where(time_entry_tags: { tag_id: params[:tag_id] })
-      end
 
       scope
     end
