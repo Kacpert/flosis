@@ -12,6 +12,16 @@ imported = TimeEntry.where("created_at >= ? AND created_at < ?", IMPORT_WINDOW_S
   .includes(:user, :project).to_a
 puts "Loaded #{imported.size} imported entries"
 
+# Name mapping: CSV names -> DB names
+NAME_MAP = {
+  "Kacper Tarchała" => "Kacper",
+  "Paweł Kremienowski" => "Paweł Kremienowski"
+}.freeze
+
+def normalize_name(csv_name)
+  NAME_MAP[csv_name] || csv_name
+end
+
 # Index by [user_name, project_name, duration_min, description]
 entries_by_key = {}
 imported.each do |entry|
@@ -33,7 +43,7 @@ CSV.parse(STDIN.read, headers: true).each do |row|
   start_hour = row["start_hour"].to_i
   start_min = row["start_min"].to_i
 
-  key = [employee, project, duration_min, description]
+  key = [normalize_name(employee), project, duration_min, description]
   candidates = entries_by_key[key]
 
   unless candidates && candidates.any?
