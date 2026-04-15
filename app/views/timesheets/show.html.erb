@@ -1,5 +1,5 @@
 <div class="space-y-4" data-controller="timesheet-expand">
-  <% user_param = @viewed_user != current_user ? { user_id: @viewed_user.id } : {} %>
+  <% user_param = @viewed_user && @viewed_user != current_user ? { user_id: @viewed_user.id } : {} %>
   <div class="flex justify-between items-center">
     <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Timesheet</h1>
     <div class="flex items-center gap-3">

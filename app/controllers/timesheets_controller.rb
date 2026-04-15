@@ -2,6 +2,7 @@ class TimesheetsController < ApplicationController
   include WorkspaceScoped
 
   before_action :require_employee!
+  before_action :set_viewed_user
 
   def show
     @week_start = if params[:week_of]
@@ -13,7 +14,7 @@ class TimesheetsController < ApplicationController
     @week_days = (0..6).map { |i| @week_start + i.days }
 
     @entries = current_workspace.time_entries
-      .where(user: current_user)
+      .where(user: @viewed_user)
       .completed
       .in_range(@week_start.beginning_of_day, (@week_start + 6.days).end_of_day)
       .includes(:project, :task)
@@ -70,7 +71,7 @@ class TimesheetsController < ApplicationController
     calendar_start = @weeks.first
     calendar_end = @weeks.last + 6.days
     @entries = current_workspace.time_entries
-      .where(user: current_user)
+      .where(user: @viewed_user)
       .completed
       .in_range(calendar_start.beginning_of_day, calendar_end.end_of_day)
       .includes(:project, :task)
@@ -135,6 +136,15 @@ class TimesheetsController < ApplicationController
   end
 
   private
+
+  def set_viewed_user
+    if params[:user_id].present? && current_user.admin_or_owner?(current_workspace)
+      @viewed_user = current_workspace.users.find_by(id: params[:user_id]) || current_user
+    else
+      @viewed_user = current_user
+    end
+    @users = current_user.admin_or_owner?(current_workspace) ? current_workspace.users.order(:name) : []
+  end
 
   def parse_timesheet_duration(str)
     return nil if str.blank?
