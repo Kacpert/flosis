@@ -1,26 +1,39 @@
 <div class="space-y-4">
+  <% user_param = @viewed_user != current_user ? { user_id: @viewed_user.id } : {} %>
   <div class="flex justify-between items-center">
     <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Timesheet</h1>
-    <div class="inline-flex rounded-full p-0.5" style="background: var(--color-surface-variant)">
-      <%= link_to timesheet_path(week_of: @month_start.beginning_of_week(:monday)), class: "px-4 py-1.5 rounded-full text-sm font-medium transition-colors", style: "color: var(--color-on-surface-variant)" do %>
-        Week
+    <div class="flex items-center gap-3">
+      <% if @users.any? %>
+        <%= form_with url: month_timesheet_path, method: :get, class: "flex items-center gap-2" do |f| %>
+          <%= f.hidden_field :month, value: @month_date.strftime("%Y-%m") %>
+          <%= f.select :user_id, @users.map { |u| [u.name, u.id] },
+              { selected: @viewed_user.id }, class: "m3-text-field text-sm", onchange: "this.form.requestSubmit()" %>
+        <% end %>
       <% end %>
-      <%= link_to month_timesheet_path(month: @month_date.strftime("%Y-%m")), class: "px-4 py-1.5 rounded-full text-sm font-medium transition-colors", style: "background: var(--color-primary-container); color: var(--color-on-primary-container)" do %>
-        Month
-      <% end %>
+      <div class="inline-flex rounded-full p-0.5" style="background: var(--color-surface-variant)">
+        <%= link_to timesheet_path(week_of: @month_start.beginning_of_week(:monday), **user_param), class: "px-4 py-1.5 rounded-full text-sm font-medium transition-colors", style: "color: var(--color-on-surface-variant)" do %>
+          Week
+        <% end %>
+        <%= link_to month_timesheet_path(month: @month_date.strftime("%Y-%m"), **user_param), class: "px-4 py-1.5 rounded-full text-sm font-medium transition-colors", style: "background: var(--color-primary-container); color: var(--color-on-primary-container)" do %>
+          Month
+        <% end %>
+      </div>
     </div>
   </div>
 
   <!-- Month navigation -->
   <div class="flex items-center justify-between">
-    <%= link_to month_timesheet_path(month: (@month_date - 1.month).strftime("%Y-%m")), class: "m3-btn m3-btn-text m3-btn-sm" do %>
+    <%= link_to month_timesheet_path(month: (@month_date - 1.month).strftime("%Y-%m"), **user_param), class: "m3-btn m3-btn-text m3-btn-sm" do %>
       &larr; Previous
     <% end %>
     <span class="font-medium" style="color: var(--color-on-surface)">
       <%= @month_date.strftime("%B %Y") %>
+      <% if @viewed_user != current_user %>
+        <span class="text-sm font-normal" style="color: var(--color-on-surface-variant)">— <%= @viewed_user.name %></span>
+      <% end %>
     </span>
     <% if @month_date < Date.current.beginning_of_month %>
-      <%= link_to month_timesheet_path(month: (@month_date + 1.month).strftime("%Y-%m")), class: "m3-btn m3-btn-text m3-btn-sm" do %>
+      <%= link_to month_timesheet_path(month: (@month_date + 1.month).strftime("%Y-%m"), **user_param), class: "m3-btn m3-btn-text m3-btn-sm" do %>
         Next &rarr;
       <% end %>
     <% else %>
@@ -45,7 +58,7 @@
           <% next unless week_has_month_days %>
           <tr class="group cursor-pointer border-t transition-colors"
               style="border-color: var(--color-outline-variant)"
-              onclick="window.location='<%= timesheet_path(week_of: week_start) %>'">
+              onclick="window.location='<%= timesheet_path(week_of: week_start, **user_param) %>'">
             <% (0..6).each do |i| %>
               <% day = week_start + i.days %>
               <% in_month = day.month == @month_date.month && day.year == @month_date.year %>
