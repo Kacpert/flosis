@@ -63,12 +63,11 @@ class ClaudeCliService
     end
 
     cmd += ["--resume", session_id] if session_id
-    cmd += ["--add-dir", @codebase_path]
     cmd
   end
 
   def run_claude(cmd, message)
-    IO.popen(cmd, "r+") do |io|
+    IO.popen(cmd, "r+", chdir: @codebase_path) do |io|
       io.write(message)
       io.close_write
       io.read
@@ -76,7 +75,7 @@ class ClaudeCliService
   end
 
   def popen_streaming(cmd, message, &block)
-    IO.popen(cmd, "r+") do |io|
+    IO.popen(cmd, "r+", chdir: @codebase_path) do |io|
       io.write(message)
       io.close_write
       io.each_line { |line| block.call(line.strip) if line.strip.present? }
