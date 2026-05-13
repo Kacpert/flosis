@@ -39,7 +39,7 @@ class JiraClient
     loop do
       body = {
         jql: "project = #{project_key} AND statusCategory != Done ORDER BY status ASC, updated DESC",
-        fields: ["summary", "status", "assignee", "description", "priority", "issuetype", "labels", "reporter", "sprint", "timeoriginalestimate"],
+        fields: ["summary", "status", "assignee", "description", "priority", "issuetype", "labels", "reporter", "sprint", "timeoriginalestimate", "attachment"],
         maxResults: 100
       }
       body[:nextPageToken] = next_page_token if next_page_token
@@ -168,8 +168,67 @@ class JiraClient
       reporter_name: fields.dig("reporter", "displayName"),
       sprint_id: fields.dig("sprint", "id"),
       sprint_name: fields.dig("sprint", "name"),
-      time_estimate_seconds: fields["timeoriginalestimate"]
+      time_estimate_seconds: fields["timeoriginalestimate"],
+      attachments: parse_attachments(fields["attachment"])
     }
+  end
+
+  def parse_attachments(list)
+    return [] unless list.is_a?(Array)
+
+    list.map do |a|
+      {
+        jira_id: a["id"],
+        filename: a["filename"],
+        mime_type: a["mimeType"],
+        size: a["size"],
+        content_url: a["content"],
+        created: a["created"]
+      }
+    end
+  end
+
+  # Download a Jira attachment's binary content. `url` is the authenticated
+  # content URL from the issue payload.
+  def download_attachment(url)
+    uri = URI(url)
+    request = Net::HTTP::Get.new(uri)
+    request["Authorization"] = "Basic #{Base64.strict_encode64("#{@email}:#{@api_token}")}"
+    request["Accept"] = "*/*"
+
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = (uri.scheme == "https")
+    http.open_timeout = TIMEOUT
+    http.read_timeout = 30
+
+    response = http.request(request)
+
+    case response
+    when Net::HTTPRedirection
+      download_redirect(response["Location"])
+    when Net::HTTPSuccess
+      response.body
+    else
+      Rails.logger.warn("[JiraClient] Attachment download failed: #{response.code} #{response.message}")
+      nil
+    end
+  rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED => e
+    Rails.logger.warn("[JiraClient] Attachment download error: #{e.message}")
+    nil
+  end
+
+  def download_redirect(url)
+    uri = URI(url)
+    request = Net::HTTP::Get.new(uri)
+    # Signed S3 URL — no auth header needed (and would break the signature)
+
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = (uri.scheme == "https")
+    http.open_timeout = TIMEOUT
+    http.read_timeout = 30
+
+    response = http.request(request)
+    response.is_a?(Net::HTTPSuccess) ? response.body : nil
   end
 
   def adf_to_text(node)

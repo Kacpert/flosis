@@ -124,6 +124,7 @@ class ChatSessionsController < ApplicationController
     desc = @task.description.presence || "(no description provided)"
     title = @task.name.sub(/\A#{Regexp.escape(@task.external_reference.to_s)}\s*/, "")
     ref = @task.external_reference
+    attachments_section = build_attachments_section(@task)
 
     <<~PROMPT
       # Role
@@ -138,6 +139,7 @@ class ChatSessionsController < ApplicationController
       ```
       #{desc}
       ```
+      #{attachments_section}
 
       # How you must operate
 
@@ -185,6 +187,29 @@ class ChatSessionsController < ApplicationController
 
       Read the existing ticket description above. Briefly (1–2 sentences) acknowledge what you understand so far, then ask your **first** clarifying question. Do not list multiple questions.
     PROMPT
+  end
+
+  def build_attachments_section(task)
+    return "" unless task.attachments.attached?
+
+    dir = task.attachments_disk_dir
+    return "" if dir.blank?
+
+    files = task.attachments.map do |att|
+      File.join(dir, att.filename.to_s.gsub(/[^\w.\- ]/, "_").gsub(/\s+/, "_"))
+    end
+    return "" if files.empty?
+
+    listing = files.map { |p| "- #{p}" }.join("\n")
+
+    <<~SECTION
+
+      # Attachments on this ticket
+
+      The ticket has #{files.size} attached file(s). Use the `Read` tool on these paths to view them — screenshots usually carry the most context, so read them before asking questions about the UI:
+
+      #{listing}
+    SECTION
   end
 
   def session_json(chat_session)

@@ -140,11 +140,65 @@ class JiraSyncService
     ActiveRecord::Base.transaction(requires_new: true) do
       task.save!
     end
+
+    sync_attachments(task, issue[:attachments] || [])
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
     task.name = "#{issue[:key]} #{issue[:summary]} [#{issue[:key]}]"
     ActiveRecord::Base.transaction(requires_new: true) { task.save! }
+    sync_attachments(task, issue[:attachments] || [])
   rescue StandardError => e
     Rails.logger.warn("[JiraSyncService] Failed to sync #{issue[:key]}: #{e.message}")
+  end
+
+  def sync_attachments(task, attachments)
+    return if attachments.empty?
+
+    existing_jira_ids = task.attachments.map { |a| a.blob.metadata["jira_id"].to_s }.to_set
+    incoming_jira_ids = attachments.map { |a| a[:jira_id].to_s }.to_set
+
+    # Remove attachments that are no longer on the Jira issue
+    task.attachments.each do |att|
+      jira_id = att.blob.metadata["jira_id"].to_s
+      att.purge if jira_id.present? && !incoming_jira_ids.include?(jira_id)
+    end
+
+    # Fetch and store any new ones
+    attachments.each do |meta|
+      next if existing_jira_ids.include?(meta[:jira_id].to_s)
+
+      data = @client.download_attachment(meta[:content_url])
+      next unless data
+
+      task.attachments.attach(
+        io: StringIO.new(data),
+        filename: meta[:filename],
+        content_type: meta[:mime_type],
+        metadata: { jira_id: meta[:jira_id], created: meta[:created] }
+      )
+    end
+
+    # Mirror to disk so Claude can read paths directly.
+    sync_attachments_to_disk(task)
+  rescue StandardError => e
+    Rails.logger.warn("[JiraSyncService] Attachment sync failed for #{task.external_reference}: #{e.message}")
+  end
+
+  def sync_attachments_to_disk(task)
+    dir = task.attachments_disk_dir
+    return unless dir
+
+    FileUtils.mkdir_p(dir)
+    # Clear and rewrite the directory so it reflects current attachments
+    Dir.glob(File.join(dir, "*")).each { |f| File.delete(f) if File.file?(f) }
+
+    task.attachments.each do |att|
+      path = File.join(dir, sanitize_filename(att.filename.to_s))
+      File.open(path, "wb") { |f| f.write(att.download) }
+    end
+  end
+
+  def sanitize_filename(name)
+    name.gsub(/[^\w.\- ]/, "_").gsub(/\s+/, "_")
   end
 
   def build_name(key, summary)
