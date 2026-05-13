@@ -39,7 +39,7 @@ class JiraClient
     loop do
       body = {
         jql: "project = #{project_key} AND statusCategory != Done ORDER BY status ASC, updated DESC",
-        fields: ["summary", "status", "assignee", "description", "priority", "issuetype", "labels", "reporter", "sprint", "timeoriginalestimate", "attachment"],
+        fields: ["summary", "status", "assignee", "description", "priority", "issuetype", "labels", "reporter", "sprint", "timeoriginalestimate", "attachment", "comment"],
         maxResults: 100
       }
       body[:nextPageToken] = next_page_token if next_page_token
@@ -212,8 +212,25 @@ class JiraClient
       sprint_id: fields.dig("sprint", "id"),
       sprint_name: fields.dig("sprint", "name"),
       time_estimate_seconds: fields["timeoriginalestimate"],
-      attachments: parse_attachments(fields["attachment"])
+      attachments: parse_attachments(fields["attachment"]),
+      comments: parse_comments(fields.dig("comment", "comments"))
     }
+  end
+
+  def parse_comments(list)
+    return [] unless list.is_a?(Array)
+
+    list.map do |c|
+      {
+        jira_id: c["id"],
+        author_name: c.dig("author", "displayName"),
+        author_email: c.dig("author", "emailAddress"),
+        body: adf_to_text(c["body"]),
+        body_adf: c["body"]&.to_json,
+        created: c["created"],
+        updated: c["updated"]
+      }
+    end
   end
 
   def parse_attachments(list)

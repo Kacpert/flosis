@@ -125,6 +125,7 @@ class ChatSessionsController < ApplicationController
     title = @task.name.sub(/\A#{Regexp.escape(@task.external_reference.to_s)}\s*/, "")
     ref = @task.external_reference
     attachments_section = build_attachments_section(@task)
+    comments_section = build_comments_section(@task)
 
     <<~PROMPT
       # Role
@@ -139,7 +140,7 @@ class ChatSessionsController < ApplicationController
       ```
       #{desc}
       ```
-      #{attachments_section}
+      #{comments_section}#{attachments_section}
 
       # How you must operate
 
@@ -187,6 +188,26 @@ class ChatSessionsController < ApplicationController
 
       Read the existing ticket description above. Briefly (1–2 sentences) acknowledge what you understand so far, then ask your **first** clarifying question. Do not list multiple questions.
     PROMPT
+  end
+
+  def build_comments_section(task)
+    comments = task.jira_comments.ordered
+    return "" if comments.empty?
+
+    formatted = comments.map do |c|
+      author = c.author_name.presence || c.author_email.presence || "Unknown"
+      when_at = c.jira_created_at&.strftime("%Y-%m-%d %H:%M") || ""
+      "**#{author}** (#{when_at}):\n#{c.body.to_s.strip}"
+    end.join("\n\n---\n\n")
+
+    <<~SECTION
+
+      # Comments on this ticket
+
+      There #{comments.size == 1 ? "is 1 comment" : "are #{comments.size} comments"}. Often the most important context lives here — read them carefully before asking questions:
+
+      #{formatted}
+    SECTION
   end
 
   def build_attachments_section(task)

@@ -142,12 +142,35 @@ class JiraSyncService
     end
 
     sync_attachments(task, issue[:attachments] || [])
+    sync_comments(task, issue[:comments] || [])
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
     task.name = "#{issue[:key]} #{issue[:summary]} [#{issue[:key]}]"
     ActiveRecord::Base.transaction(requires_new: true) { task.save! }
     sync_attachments(task, issue[:attachments] || [])
+    sync_comments(task, issue[:comments] || [])
   rescue StandardError => e
     Rails.logger.warn("[JiraSyncService] Failed to sync #{issue[:key]}: #{e.message}")
+  end
+
+  def sync_comments(task, comments)
+    incoming_ids = comments.map { |c| c[:jira_id].to_s }
+    # Remove comments that disappeared on Jira
+    task.jira_comments.where.not(jira_comment_id: incoming_ids).destroy_all if incoming_ids.any?
+    task.jira_comments.destroy_all if comments.empty?
+
+    comments.each do |c|
+      comment = task.jira_comments.find_or_initialize_by(jira_comment_id: c[:jira_id].to_s)
+      comment.update!(
+        author_name: c[:author_name],
+        author_email: c[:author_email],
+        body: c[:body],
+        body_adf: c[:body_adf],
+        jira_created_at: c[:created],
+        jira_updated_at: c[:updated]
+      )
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[JiraSyncService] Comment sync failed for #{task.external_reference}: #{e.message}")
   end
 
   def sync_attachments(task, attachments)

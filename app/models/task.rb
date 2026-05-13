@@ -2,6 +2,7 @@ class Task < ApplicationRecord
   belongs_to :project
   has_many :time_entries, dependent: :nullify
   has_many :chat_sessions, dependent: :destroy
+  has_many :jira_comments, dependent: :destroy
   has_many_attached :attachments
 
   enum :status, { active: 0, done: 1 }
