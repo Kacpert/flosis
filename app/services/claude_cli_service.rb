@@ -24,6 +24,18 @@ class ClaudeCliService
     raise ClaudeCliError, "Claude CLI not found. Install it with: npm install -g @anthropic-ai/claude-code"
   end
 
+  # Start a brand-new session with the given prompt, streaming raw JSON lines
+  # back to the caller. Yields :keepalive periodically so the caller can
+  # write SSE keepalives.
+  def send_initial_streaming(prompt:, &block)
+    cmd = build_command(streaming: true)
+    popen_streaming(cmd, prompt) do |line|
+      block.call(line) if block_given?
+    end
+  rescue Errno::ENOENT
+    raise ClaudeCliError, "Claude CLI not found"
+  end
+
   # Send a message to an existing session and stream the response line by line.
   # Yields each raw JSON line from the subprocess.
   # Returns { session_id: String, response: String }

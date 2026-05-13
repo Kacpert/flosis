@@ -112,19 +112,57 @@ export default class extends Controller {
   }
 
   async createSession() {
+    this.showLoading()
     try {
-      this.showLoading()
       const response = await fetch(this.createUrlValue, {
         method: "POST",
         headers: this.headers()
       })
-      const data = await response.json()
-      if (data.error) {
-        this.showError(data.error)
+
+      // Server streams the initial response as SSE. Read incrementally so
+      // the user sees progress and the connection survives long Claude
+      // tool runs.
+      this.chatMessagesTarget.innerHTML = ""
+      const assistantBubble = this.appendMessage("assistant", "")
+      const textSpan = assistantBubble.querySelector("[data-chat-text]")
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+      let fullText = ""
+      let gotDone = false
+      let gotError = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop()
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue
+          const jsonStr = line.slice(6)
+          let data
+          try { data = JSON.parse(jsonStr) } catch { continue }
+          if (data.done) {
+            gotDone = true
+            textSpan.innerHTML = this.renderMarkdown(fullText)
+          } else if (data.error) {
+            gotError = data.error
+          } else {
+            fullText += data
+            textSpan.textContent = fullText
+          }
+        }
+        this.scrollToBottom()
+      }
+      if (fullText) textSpan.innerHTML = this.renderMarkdown(fullText)
+
+      if (gotError) {
+        this.showError(gotError)
         return
       }
       this.hasSessionValue = true
-      this.renderMessages(data.chat_session.messages)
     } catch (e) {
       this.showError("Failed to start chat session")
     }

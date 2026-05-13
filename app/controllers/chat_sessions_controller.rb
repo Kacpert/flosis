@@ -13,36 +13,65 @@ class ChatSessionsController < ApplicationController
       return
     end
 
+    # The initial investigation can take 1–3 minutes (Claude reads code,
+    # downloads Figma frames, etc.). A normal JSON POST will time out at
+    # the proxy. Stream as SSE just like #message.
+    response.headers["Content-Type"] = "text/event-stream"
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["X-Accel-Buffering"] = "no"
+
     service = ClaudeCliService.new
     prompt = build_initial_prompt
+    full_response = ""
+    new_session_id = nil
 
     begin
-      result = service.start_session(prompt: prompt)
+      service.send_initial_streaming(prompt: prompt) do |line|
+        if line == :keepalive
+          response.stream.write(": keepalive\n\n")
+          next
+        end
+
+        data = JSON.parse(line) rescue nil
+        next unless data
+
+        if data["type"] == "assistant"
+          text = data.dig("message", "content")&.filter_map { |c| c["text"] }&.join("")
+          if text.present?
+            full_response += text
+            response.stream.write("data: #{text.to_json}\n\n")
+          end
+        elsif data["type"] == "result"
+          full_response = data["result"] if data["result"].present?
+          new_session_id = data["session_id"]
+        elsif data["type"] == "system" && data["session_id"]
+          # Some events expose the session id before the final result; keep
+          # the latest seen value as a fallback.
+          new_session_id ||= data["session_id"]
+        end
+      end
+
+      if new_session_id.present? && full_response.present?
+        @chat_session = ChatSession.create!(
+          task: @task,
+          workspace: current_workspace,
+          user: current_user,
+          claude_session_id: new_session_id,
+          codebase_path: ClaudeCliService::DEFAULT_CODEBASE_PATH
+        )
+        @chat_session.chat_messages.create!(role: "assistant", content: full_response)
+        extract_and_save_drafts(full_response)
+        response.stream.write("data: #{ { 'done' => true, 'session_id' => @chat_session.id }.to_json }\n\n")
+      else
+        response.stream.write("data: #{ { 'error' => 'Claude did not return a session ID' }.to_json }\n\n")
+      end
     rescue ClaudeCliService::ClaudeCliError => e
-      render json: { error: e.message }, status: :service_unavailable
-      return
+      response.stream.write("data: #{ { 'error' => e.message }.to_json }\n\n")
+    rescue IOError, Errno::EPIPE
+      # client disconnected
+    ensure
+      response.stream.close
     end
-
-    unless result[:session_id].present?
-      render json: { error: "Claude did not return a session ID" }, status: :service_unavailable
-      return
-    end
-
-    @chat_session = ChatSession.create!(
-      task: @task,
-      workspace: current_workspace,
-      user: current_user,
-      claude_session_id: result[:session_id],
-      codebase_path: ClaudeCliService::DEFAULT_CODEBASE_PATH
-    )
-
-    @chat_session.chat_messages.create!(
-      role: "assistant",
-      content: result[:response]
-    )
-    extract_and_save_drafts(result[:response].to_s)
-
-    render json: session_json(@chat_session)
   end
 
   def show
