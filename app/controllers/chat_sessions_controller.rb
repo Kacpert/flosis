@@ -183,8 +183,9 @@ class ChatSessionsController < ApplicationController
       - List the top-level `app/` directory to learn the domain.
       - Identify the 2–5 files most likely involved in this ticket (models, controllers, views, services). Read them.
       - If there are screenshots in the attachments list, read them with the `Read` tool — they usually carry critical UI context.
+      - **Figma links.** If the ticket description or any comment contains a Figma URL (figma.com/design/... or figma.com/file/...), you have access to a Figma MCP server with an authenticated read-only token. Call the `figma` MCP tools (e.g. `get_figma_data` / `download_figma_images`) on every Figma URL you find so you can see the design — node tree, text content, structure, and rendered images of relevant frames. The design is usually the single most important piece of context for UI tickets.
 
-      Do all of this with your tools (Read, Grep, Glob). Do **not** narrate it to the user — just do it silently. Once you have a real understanding of the current code, you may ask your first clarifying question.
+      Do all of this with your tools (Read, Grep, Glob, figma MCP). Do **not** narrate it to the user — just do it silently. Once you have a real understanding of the current code AND any designs, you may ask your first clarifying question.
 
       ## Step 2 — Ask product/UX/business questions only, one at a time
 
