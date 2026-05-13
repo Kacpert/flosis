@@ -39,7 +39,7 @@ class JiraClient
     loop do
       body = {
         jql: "project = #{project_key} AND statusCategory != Done ORDER BY status ASC, updated DESC",
-        fields: ["summary", "status", "assignee", "description", "priority", "issuetype", "labels", "reporter", "sprint", "timeoriginalestimate", "attachment", "comment"],
+        fields: ["summary", "status", "assignee", "description", "priority", "issuetype", "labels", "reporter", "sprint", "timeoriginalestimate", "attachment"],
         maxResults: 100
       }
       body[:nextPageToken] = next_page_token if next_page_token
@@ -145,6 +145,24 @@ class JiraClient
     results
   end
 
+  # Fetch every comment for an issue via the dedicated endpoint, paginating.
+  # The embedded "comment" field in /issue/{key} is capped at 100, so busy
+  # tickets silently lose tail comments — this method handles that.
+  def fetch_all_comments(issue_key)
+    results = []
+    start_at = 0
+    loop do
+      data = get("/rest/api/3/issue/#{issue_key}/comment", startAt: start_at, maxResults: 100)
+      return [] unless data
+      batch = data["comments"] || []
+      results.concat(batch)
+      start_at += batch.size
+      total = data["total"].to_i
+      break if start_at >= total || batch.empty?
+    end
+    parse_comments(results)
+  end
+
   # Download a Jira attachment's binary content. `url` is the authenticated
   # content URL from the issue payload.
   def download_attachment(url)
@@ -212,8 +230,7 @@ class JiraClient
       sprint_id: fields.dig("sprint", "id"),
       sprint_name: fields.dig("sprint", "name"),
       time_estimate_seconds: fields["timeoriginalestimate"],
-      attachments: parse_attachments(fields["attachment"]),
-      comments: parse_comments(fields.dig("comment", "comments"))
+      attachments: parse_attachments(fields["attachment"])
     }
   end
 

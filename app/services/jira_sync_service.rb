@@ -142,12 +142,12 @@ class JiraSyncService
     end
 
     sync_attachments(task, issue[:attachments] || [])
-    sync_comments(task, issue[:comments] || [])
+    sync_comments(task, @client.fetch_all_comments(issue[:key]))
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
     task.name = "#{issue[:key]} #{issue[:summary]} [#{issue[:key]}]"
     ActiveRecord::Base.transaction(requires_new: true) { task.save! }
     sync_attachments(task, issue[:attachments] || [])
-    sync_comments(task, issue[:comments] || [])
+    sync_comments(task, @client.fetch_all_comments(issue[:key]))
   rescue StandardError => e
     Rails.logger.warn("[JiraSyncService] Failed to sync #{issue[:key]}: #{e.message}")
   end
