@@ -24,7 +24,7 @@
                    style="background: var(--color-surface); border: 1px solid var(--color-outline-variant)"
                    data-action="click->jira-task-modal#open"
                    data-task-id="<%= task.id %>"
-                   data-task-url="<%= jira_task_path(task) %>">
+                   data-task-url="<%= jira_task_path(task, project_id: @selected_project&.id, board_id: @selected_board&.id, sprint_id: @selected_sprint&.id) %>">
                 <div class="flex items-center justify-between mb-1.5">
                   <a href="<%= jira_task_path(task, project_id: @selected_project&.id, board_id: @selected_board&.id, sprint_id: @selected_sprint&.id) %>"
                      class="text-xs font-semibold hover:underline"

@@ -3,9 +3,10 @@
     <div class="flex items-start justify-between">
       <div>
         <div class="flex items-center gap-2 mb-1">
-          <a href="<%= jira_task_path(@task) %>"
+          <a href="<%= jira_task_path(@task, board_id: params[:board_id], project_id: params[:project_id], sprint_id: params[:sprint_id]) %>"
              class="text-sm font-semibold hover:underline"
-             style="color: var(--color-primary)">
+             style="color: var(--color-primary)"
+             data-turbo-frame="_top">
             <%= @task.external_reference %>
           </a>
         </div>

@@ -23,7 +23,7 @@
                 onmouseout="this.style.background='transparent'"
                 data-action="click->jira-task-modal#open"
                 data-task-id="<%= task.id %>"
-                data-task-url="<%= jira_task_path(task) %>">
+                data-task-url="<%= jira_task_path(task, project_id: @selected_project&.id, board_id: @selected_board&.id, sprint_id: @selected_sprint&.id) %>">
               <td class="py-3 px-4">
                 <a href="<%= jira_task_path(task, project_id: @selected_project&.id, board_id: @selected_board&.id, sprint_id: @selected_sprint&.id) %>"
                    class="text-sm font-semibold hover:underline"
