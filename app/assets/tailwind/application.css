@@ -1605,3 +1605,28 @@ span.flatpickr-weekday {
 
 .chat-bubble-assistant strong { font-weight: 600; }
 .chat-bubble-assistant em { font-style: italic; }
+
+/* Elevated card for the AI's refined ticket draft */
+.chat-bubble-assistant .chat-draft {
+  margin: 0.75rem -0.25rem;
+  padding: 0.875rem 1rem 0.75rem 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-primary);
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.10), 0 1px 0 rgba(0,0,0,0.04);
+  position: relative;
+}
+.chat-bubble-assistant .chat-draft__label {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  background: var(--color-primary-container);
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  margin-bottom: 0.5rem;
+}
+.chat-bubble-assistant .chat-draft > :nth-child(2) { margin-top: 0; }
+.chat-bubble-assistant .chat-draft > :last-child { margin-bottom: 0; }

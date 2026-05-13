@@ -274,9 +274,18 @@ export default class extends Controller {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
 
+    // Pull out <draft>…</draft> blocks first. The inner content is rendered
+    // recursively and wrapped in a styled card so it stands out as the AI's
+    // refined ticket description.
+    const draftBlocks = []
+    let preDraft = text.replace(/<draft>\s*([\s\S]*?)\s*<\/draft>/g, (_m, body) => {
+      draftBlocks.push(body)
+      return `\nDRAFTBLOCK${draftBlocks.length - 1}\n`
+    })
+
     // Extract fenced code blocks first so their content isn't transformed
     const codeBlocks = []
-    let src = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, _lang, code) => {
+    let src = preDraft.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, _lang, code) => {
       codeBlocks.push(`<pre><code>${escape(code.replace(/\n$/, ""))}</code></pre>`)
       return ` CODEBLOCK${codeBlocks.length - 1} `
     })
@@ -333,6 +342,13 @@ export default class extends Controller {
     let html = out.join("")
     // Restore code blocks
     html = html.replace(/ CODEBLOCK(\d+) /g, (_m, i) => codeBlocks[parseInt(i, 10)])
+    // Restore draft blocks: render each inner body as markdown, wrap in card.
+    html = html.replace(/<p>\s*DRAFTBLOCK(\d+)\s*<\/p>|DRAFTBLOCK(\d+)/g, (_m, a, b) => {
+      const idx = parseInt(a ?? b, 10)
+      const body = draftBlocks[idx]
+      const inner = this.renderMarkdown(body)
+      return `<div class="chat-draft"><div class="chat-draft__label">AI refined ticket description</div>${inner}</div>`
+    })
     return html
   }
 
