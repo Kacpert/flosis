@@ -90,7 +90,7 @@ Rails.application.routes.draw do
       post :refresh
     end
     resources :task_drafts, only: [:index]
-    resource :chat_session, only: [:create, :show] do
+    resource :chat_session, only: [:create, :show, :destroy] do
       post :message
     end
   end

@@ -55,6 +55,13 @@ class ChatSessionsController < ApplicationController
     end
   end
 
+  def destroy
+    # Soft-archive (status: closed) so prior conversations remain in the DB
+    # but no longer show up in chat. TaskDrafts are intentionally preserved.
+    @task.chat_sessions.active.update_all(status: "closed")
+    head :no_content
+  end
+
   def message
     @chat_session = ChatSession.find_active_for(@task, current_user)
 
@@ -69,7 +76,7 @@ class ChatSessionsController < ApplicationController
       return
     end
 
-    @chat_session.chat_messages.create!(role: "user", content: user_content)
+    @chat_session.chat_messages.create!(role: "user", content: user_content, user: current_user)
 
     response.headers["Content-Type"] = "text/event-stream"
     response.headers["Cache-Control"] = "no-cache"
@@ -286,8 +293,14 @@ class ChatSessionsController < ApplicationController
         id: chat_session.id,
         claude_session_id: chat_session.claude_session_id,
         status: chat_session.status,
-        messages: chat_session.chat_messages.ordered.map do |msg|
-          { id: msg.id, role: msg.role, content: msg.content, created_at: msg.created_at }
+        messages: chat_session.chat_messages.includes(:user).ordered.map do |msg|
+          {
+            id: msg.id,
+            role: msg.role,
+            content: msg.content,
+            created_at: msg.created_at,
+            author: msg.user&.name
+          }
         end
       }
     }

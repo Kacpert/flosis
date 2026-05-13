@@ -8,6 +8,7 @@ export default class extends Controller {
     createUrl: String,
     messageUrl: String,
     taskId: Number,
+    currentUserName: { type: String, default: "" },
     hasSession: { type: Boolean, default: false }
   }
 
@@ -148,7 +149,7 @@ export default class extends Controller {
     if (!content) return
     input.value = ""
     input.disabled = true
-    this.appendMessage("user", content)
+    this.appendMessage("user", content, this.currentUserNameValue || null)
     const assistantBubble = this.appendMessage("assistant", "")
     const textSpan = assistantBubble.querySelector("[data-chat-text]")
     this.abortController = new AbortController()
@@ -212,9 +213,17 @@ export default class extends Controller {
     }
   }
 
-  appendMessage(role, content) {
+  appendMessage(role, content, author = null) {
     const wrapper = document.createElement("div")
-    wrapper.className = role === "user" ? "flex justify-end" : "flex justify-start"
+    wrapper.className = role === "user" ? "flex flex-col items-end" : "flex flex-col items-start"
+
+    if (role === "user" && author) {
+      const label = document.createElement("div")
+      label.textContent = author
+      label.style.cssText = "font-size: 0.6875rem; color: var(--color-outline); margin-bottom: 0.125rem; padding-right: 0.5rem;"
+      wrapper.appendChild(label)
+    }
+
     const bubble = document.createElement("div")
     bubble.className = role === "user" ? "chat-bubble chat-bubble-user" : "chat-bubble chat-bubble-assistant"
     const textSpan = document.createElement("span")
@@ -233,7 +242,28 @@ export default class extends Controller {
 
   renderMessages(messages) {
     this.chatMessagesTarget.innerHTML = ""
-    messages.forEach(msg => this.appendMessage(msg.role, msg.content))
+    messages.forEach(msg => this.appendMessage(msg.role, msg.content, msg.author))
+  }
+
+  async resetConversation() {
+    if (!confirm("Reset this conversation? The current chat will be hidden and a new conversation will start.\n\nDrafts created so far will remain available.")) return
+
+    this.abortIfStreaming()
+    try {
+      const response = await fetch(this.createUrlValue, {
+        method: "DELETE",
+        headers: this.headers()
+      })
+      if (!response.ok && response.status !== 204) {
+        this.showError("Failed to reset conversation")
+        return
+      }
+      this.hasSessionValue = false
+      this.chatMessagesTarget.innerHTML = ""
+      await this.createSession()
+    } catch (e) {
+      this.showError("Failed to reset conversation")
+    }
   }
 
   showLoading() {

@@ -6,6 +6,7 @@
      data-task-chat-create-url-value="<%= jira_task_chat_session_path(@task) %>"
      data-task-chat-message-url-value="<%= message_jira_task_chat_session_path(@task) %>"
      data-task-chat-task-id-value="<%= @task.id %>"
+     data-task-chat-current-user-name-value="<%= current_user.name %>"
      data-task-chat-has-session-value="<%= ChatSession.find_active_for(@task, current_user).present? %>">
 
   <%# Normal breadcrumb — visible in normal state %>

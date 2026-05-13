@@ -11,7 +11,12 @@ class ChatSession < ApplicationRecord
 
   scope :active, -> { where(status: "active") }
 
-  def self.find_active_for(task, user)
-    active.find_by(task: task, user: user)
+  # Sessions are now shared across the workspace: one active session per
+  # task, whoever opens the chat sees the same conversation. `user` is the
+  # current viewer, used to scope to the workspace.
+  def self.find_active_for(task, user = nil)
+    scope = active.where(task: task)
+    scope = scope.where(workspace_id: user.workspaces.pluck(:id)) if user
+    scope.order(created_at: :desc).first
   end
 end
