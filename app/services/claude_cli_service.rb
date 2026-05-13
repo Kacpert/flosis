@@ -54,6 +54,16 @@ class ClaudeCliService
 
   private
 
+  ALLOWED_TOOLS = %w[
+    Read
+    Glob
+    Grep
+    WebFetch
+    WebSearch
+    mcp__figma__get_figma_data
+    mcp__figma__download_figma_images
+  ].freeze
+
   def build_command(session_id: nil, streaming: false)
     cmd = [CLAUDE_CMD, "-p"]
 
@@ -64,6 +74,9 @@ class ClaudeCliService
     end
 
     cmd += ["--resume", session_id] if session_id
+    # Pre-approve the tools we want the chat assistant to use without
+    # prompting. -p (non-interactive) refuses any tool not on this list.
+    ALLOWED_TOOLS.each { |t| cmd += ["--allowedTools", t] }
     cmd
   end
 
