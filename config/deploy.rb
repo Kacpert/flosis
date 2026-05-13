@@ -107,7 +107,12 @@ namespace :solid_queue do
   desc "Stop Solid Queue worker"
   task :stop do
     on roles(:app) do
+      # Match the actual supervisor + worker processes; the previous pattern
+      # only caught the rake-launching shell, leaving orphan processes that
+      # held DB connections across deploys.
+      execute "pkill -f 'solid-queue-' 2>/dev/null || true"
       execute "pkill -f 'solid_queue:start' 2>/dev/null || true"
+      execute :sleep, 2
     end
   end
 
