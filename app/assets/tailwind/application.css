@@ -1560,3 +1560,47 @@ span.flatpickr-weekday {
   background: none;
   padding: 0;
 }
+
+.chat-bubble-assistant {
+  white-space: normal;
+}
+
+.chat-bubble-assistant p {
+  margin: 0 0 0.5rem 0;
+}
+.chat-bubble-assistant p:last-child { margin-bottom: 0; }
+
+.chat-bubble-assistant h1,
+.chat-bubble-assistant h2,
+.chat-bubble-assistant h3,
+.chat-bubble-assistant h4,
+.chat-bubble-assistant h5,
+.chat-bubble-assistant h6 {
+  font-weight: 600;
+  margin: 0.75rem 0 0.375rem 0;
+  line-height: 1.3;
+}
+.chat-bubble-assistant h1 { font-size: 1.0625rem; }
+.chat-bubble-assistant h2 { font-size: 1rem; }
+.chat-bubble-assistant h3 { font-size: 0.9375rem; }
+.chat-bubble-assistant h4,
+.chat-bubble-assistant h5,
+.chat-bubble-assistant h6 { font-size: 0.875rem; }
+.chat-bubble-assistant > :first-child { margin-top: 0; }
+
+.chat-bubble-assistant ul,
+.chat-bubble-assistant ol {
+  margin: 0.25rem 0 0.5rem 1.25rem;
+  padding: 0;
+}
+.chat-bubble-assistant ul { list-style: disc; }
+.chat-bubble-assistant ol { list-style: decimal; }
+.chat-bubble-assistant li { margin: 0.125rem 0; }
+
+.chat-bubble-assistant a {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.chat-bubble-assistant strong { font-weight: 600; }
+.chat-bubble-assistant em { font-style: italic; }

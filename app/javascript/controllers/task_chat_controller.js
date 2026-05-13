@@ -268,24 +268,87 @@ export default class extends Controller {
   }
 
   renderMarkdown(text) {
-    // Escape HTML first to prevent XSS
-    const escaped = text
+    const escape = (s) => s
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
-    // Code blocks
-    let html = escaped.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, _lang, code) =>
-      `<pre><code>${code.trim()}</code></pre>`)
-    // Inline code
-    html = html.replace(/`([^`]+)`/g, "<code>$1</code>")
-    // Bold
-    html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    // Italic
-    html = html.replace(/\*(.+?)\*/g, "<em>$1</em>")
-    // Line breaks
-    html = html.replace(/\n/g, "<br>")
+
+    // Extract fenced code blocks first so their content isn't transformed
+    const codeBlocks = []
+    let src = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, _lang, code) => {
+      codeBlocks.push(`<pre><code>${escape(code.replace(/\n$/, ""))}</code></pre>`)
+      return ` CODEBLOCK${codeBlocks.length - 1} `
+    })
+
+    src = escape(src)
+
+    const lines = src.split("\n")
+    const out = []
+    let inUl = false
+    let inOl = false
+    let paraBuf = []
+
+    const flushPara = () => {
+      if (paraBuf.length) {
+        out.push(`<p>${paraBuf.join(" ")}</p>`)
+        paraBuf = []
+      }
+    }
+    const closeLists = () => {
+      if (inUl) { out.push("</ul>"); inUl = false }
+      if (inOl) { out.push("</ol>"); inOl = false }
+    }
+
+    for (const rawLine of lines) {
+      const line = rawLine
+      if (/^\s*$/.test(line)) { flushPara(); closeLists(); continue }
+
+      let m
+      if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
+        flushPara(); closeLists()
+        const level = m[1].length
+        out.push(`<h${level}>${this.inlineMd(m[2])}</h${level}>`)
+        continue
+      }
+      if ((m = line.match(/^\s*[-*]\s+(.*)$/))) {
+        flushPara()
+        if (inOl) { out.push("</ol>"); inOl = false }
+        if (!inUl) { out.push("<ul>"); inUl = true }
+        out.push(`<li>${this.inlineMd(m[1])}</li>`)
+        continue
+      }
+      if ((m = line.match(/^\s*\d+\.\s+(.*)$/))) {
+        flushPara()
+        if (inUl) { out.push("</ul>"); inUl = false }
+        if (!inOl) { out.push("<ol>"); inOl = true }
+        out.push(`<li>${this.inlineMd(m[1])}</li>`)
+        continue
+      }
+      closeLists()
+      paraBuf.push(this.inlineMd(line))
+    }
+    flushPara(); closeLists()
+
+    let html = out.join("")
+    // Restore code blocks
+    html = html.replace(/ CODEBLOCK(\d+) /g, (_m, i) => codeBlocks[parseInt(i, 10)])
     return html
+  }
+
+  inlineMd(s) {
+    // Already HTML-escaped; just apply inline markdown
+    let h = s
+    // Inline code
+    h = h.replace(/`([^`]+)`/g, "<code>$1</code>")
+    // Bold
+    h = h.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    // Italic (single * not adjacent to space)
+    h = h.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, "$1<em>$2</em>")
+    // Links [text](url)
+    h = h.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    return h
   }
 
   headers() {
