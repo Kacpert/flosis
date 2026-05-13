@@ -183,7 +183,11 @@ class ChatSessionsController < ApplicationController
       - List the top-level `app/` directory to learn the domain.
       - Identify the 2–5 files most likely involved in this ticket (models, controllers, views, services). Read them.
       - If there are screenshots in the attachments list, read them with the `Read` tool — they usually carry critical UI context.
-      - **Figma links.** If the ticket description or any comment contains a Figma URL (figma.com/design/... or figma.com/file/...), you have access to a Figma MCP server with an authenticated read-only token. Call the `figma` MCP tools (e.g. `get_figma_data` / `download_figma_images`) on every Figma URL you find so you can see the design — node tree, text content, structure, and rendered images of relevant frames. The design is usually the single most important piece of context for UI tickets.
+      - **Figma links.** If the ticket description or any comment contains a Figma URL (figma.com/design/... or figma.com/file/...), you have access to a Figma MCP server with an authenticated read-only token. For **every** Figma URL you must do BOTH:
+        1. Call `mcp__figma__get_figma_data` for the node tree (text, structure, component names).
+        2. Call `mcp__figma__download_figma_images` to download the rendered PNGs of the relevant frames and then `Read` those PNG files. Visual details (color coding, spacing, micro-copy in icons, badges, empty states) are routinely the deciding factor for UI tickets and are NOT in the node tree alone.
+
+        Don't stop after the node tree. If the file is too large for a single PNG, request individual frame IDs separately and read each one. If a node hits Read's pixel limit, ask for a smaller scale or fetch a sub-frame — don't give up.
 
       Do all of this with your tools (Read, Grep, Glob, figma MCP). Do **not** narrate it to the user — just do it silently. Once you have a real understanding of the current code AND any designs, you may ask your first clarifying question.
 
