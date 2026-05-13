@@ -328,9 +328,9 @@
           <%# AI draft modal %>
           <div data-task-draft-target="overlay"
                data-action="click->task-draft#close keydown@window->task-draft#handleKeydown"
-               style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1100; align-items: center; justify-content: center; padding: 2rem;">
+               style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1100; align-items: flex-start; justify-content: center; padding: 5rem 2rem 2rem;">
             <div data-action="click->task-draft#stopPropagation"
-                 style="background: var(--color-surface); border-radius: 12px; max-width: 900px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(0,0,0,0.35);">
+                 style="background: var(--color-surface); border-radius: 12px; max-width: 900px; width: 100%; max-height: calc(100vh - 7rem); display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(0,0,0,0.35);">
               <div class="flex items-center justify-between px-5 py-4" style="border-bottom: 1px solid var(--color-outline-variant);">
                 <div class="flex items-center gap-3">
                   <h3 class="text-base font-semibold" style="color: var(--color-on-surface)">AI refined ticket — <%= @task.external_reference %></h3>
