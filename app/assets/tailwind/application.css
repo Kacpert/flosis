@@ -1590,12 +1590,13 @@ span.flatpickr-weekday {
 
 .chat-bubble-assistant ul,
 .chat-bubble-assistant ol {
-  margin: 0.25rem 0 0.5rem 1.25rem;
-  padding: 0;
+  margin: 0.25rem 0 0.5rem 0;
+  padding-left: 1.5rem;
+  list-style-position: outside;
 }
-.chat-bubble-assistant ul { list-style: disc; }
-.chat-bubble-assistant ol { list-style: decimal; }
-.chat-bubble-assistant li { margin: 0.125rem 0; }
+.chat-bubble-assistant ul { list-style-type: disc; }
+.chat-bubble-assistant ol { list-style-type: decimal; }
+.chat-bubble-assistant li { margin: 0.125rem 0; display: list-item; }
 
 .chat-bubble-assistant a {
   color: var(--color-primary);
