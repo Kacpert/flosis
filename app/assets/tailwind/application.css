@@ -1606,6 +1606,16 @@ span.flatpickr-weekday {
 .chat-bubble-assistant strong { font-weight: 600; }
 .chat-bubble-assistant em { font-style: italic; }
 
+@keyframes chat-thinking-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+  40% { transform: translateY(-3px); opacity: 1; }
+}
+
+@keyframes chat-cursor-blink {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* Elevated card for the AI's refined ticket draft */
 .chat-bubble-assistant .chat-draft {
   margin: 0.75rem -0.25rem;

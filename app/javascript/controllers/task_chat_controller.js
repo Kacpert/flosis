@@ -112,60 +112,83 @@ export default class extends Controller {
   }
 
   async createSession() {
-    this.showLoading()
+    this.chatMessagesTarget.innerHTML = ""
+    const assistantBubble = this.appendMessage("assistant", "")
+    const textSpan = assistantBubble.querySelector("[data-chat-text]")
+    this.showThinking(textSpan)
+
     try {
       const response = await fetch(this.createUrlValue, {
         method: "POST",
         headers: this.headers()
       })
-
-      // Server streams the initial response as SSE. Read incrementally so
-      // the user sees progress and the connection survives long Claude
-      // tool runs.
-      this.chatMessagesTarget.innerHTML = ""
-      const assistantBubble = this.appendMessage("assistant", "")
-      const textSpan = assistantBubble.querySelector("[data-chat-text]")
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ""
-      let fullText = ""
-      let gotDone = false
-      let gotError = null
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split("\n")
-        buffer = lines.pop()
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue
-          const jsonStr = line.slice(6)
-          let data
-          try { data = JSON.parse(jsonStr) } catch { continue }
-          if (data.done) {
-            gotDone = true
-            textSpan.innerHTML = this.renderMarkdown(fullText)
-          } else if (data.error) {
-            gotError = data.error
-          } else {
-            fullText += data
-            textSpan.textContent = fullText
-          }
-        }
-        this.scrollToBottom()
-      }
-      if (fullText) textSpan.innerHTML = this.renderMarkdown(fullText)
-
-      if (gotError) {
-        this.showError(gotError)
+      const result = await this.consumeSSE(response, textSpan)
+      if (result.error) {
+        this.showError(result.error)
         return
       }
       this.hasSessionValue = true
     } catch (e) {
       this.showError("Failed to start chat session")
     }
+  }
+
+  // Reads an SSE response body, streaming text into `textSpan` as it arrives.
+  // Returns { fullText, error } when the stream completes.
+  async consumeSSE(response, textSpan) {
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ""
+    let fullText = ""
+    let error = null
+    let thinking = true
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split("\n")
+      buffer = lines.pop()
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue
+        const jsonStr = line.slice(6)
+        let data
+        try { data = JSON.parse(jsonStr) } catch { continue }
+        if (data.done) {
+          // final marker — nothing else to do, we'll re-render below
+        } else if (data.error) {
+          error = data.error
+        } else if (typeof data === "string") {
+          if (thinking) { this.hideThinking(textSpan); thinking = false }
+          fullText += data
+          textSpan.innerHTML = this.renderMarkdown(fullText) + this.streamingCursor()
+        }
+      }
+      this.scrollToBottom()
+    }
+
+    if (thinking) this.hideThinking(textSpan)
+    if (fullText) textSpan.innerHTML = this.renderMarkdown(fullText)
+    return { fullText, error }
+  }
+
+  showThinking(textSpan) {
+    textSpan.innerHTML = `
+      <span class="chat-thinking" aria-label="Claude is thinking" style="display: inline-flex; gap: 0.25rem; align-items: center; padding: 0.15rem 0;">
+        <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--color-on-surface-variant); animation: chat-thinking-bounce 1.2s infinite ease-in-out;"></span>
+        <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--color-on-surface-variant); animation: chat-thinking-bounce 1.2s infinite ease-in-out 0.15s;"></span>
+        <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--color-on-surface-variant); animation: chat-thinking-bounce 1.2s infinite ease-in-out 0.3s;"></span>
+      </span>
+    `
+  }
+
+  hideThinking(textSpan) {
+    const dots = textSpan.querySelector(".chat-thinking")
+    if (dots) dots.remove()
+  }
+
+  streamingCursor() {
+    return '<span class="chat-cursor" style="display: inline-block; width: 6px; height: 1em; background: var(--color-on-surface-variant); margin-left: 1px; vertical-align: text-bottom; animation: chat-cursor-blink 1s steps(2) infinite;"></span>'
   }
 
   async loadSession() {
@@ -190,8 +213,8 @@ export default class extends Controller {
     this.appendMessage("user", content, this.currentUserNameValue || null)
     const assistantBubble = this.appendMessage("assistant", "")
     const textSpan = assistantBubble.querySelector("[data-chat-text]")
+    this.showThinking(textSpan)
     this.abortController = new AbortController()
-    let fullText = ""
     try {
       const response = await fetch(this.messageUrlValue, {
         method: "POST",
@@ -199,42 +222,11 @@ export default class extends Controller {
         body: JSON.stringify({ content }),
         signal: this.abortController.signal
       })
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ""
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split("\n")
-        buffer = lines.pop()
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue
-          const jsonStr = line.slice(6)
-          try {
-            const data = JSON.parse(jsonStr)
-            if (data.done) {
-              // Stream complete — render final markdown
-              textSpan.innerHTML = this.renderMarkdown(fullText)
-            } else if (data.error) {
-              fullText += `\n[Error: ${data.error}]`
-              textSpan.textContent = fullText
-            } else {
-              fullText += data
-              textSpan.textContent = fullText
-            }
-          } catch {
-            // Not valid JSON, skip
-          }
-        }
-        this.scrollToBottom()
-      }
-      // Final render in case no done event was received
-      if (fullText) textSpan.innerHTML = this.renderMarkdown(fullText)
+      await this.consumeSSE(response, textSpan)
     } catch (e) {
       if (e.name !== "AbortError") {
-        fullText += "\n[Connection interrupted]"
-        textSpan.textContent = fullText
+        this.hideThinking(textSpan)
+        textSpan.textContent = (textSpan.textContent || "") + "\n[Connection interrupted]"
       }
     } finally {
       input.disabled = false

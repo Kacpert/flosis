@@ -218,7 +218,7 @@ class ChatSessionsController < ApplicationController
 
         Don't stop after the node tree. If the file is too large for a single PNG, request individual frame IDs separately and read each one. If a node hits Read's pixel limit, ask for a smaller scale or fetch a sub-frame — don't give up.
 
-      Do all of this with your tools (Read, Grep, Glob, figma MCP). Do **not** narrate it to the user — just do it silently. Once you have a real understanding of the current code AND any designs, you may ask your first clarifying question.
+      Do all of this with your tools (Read, Grep, Glob, figma MCP). Do **not** narrate any of it. Don't say "let me read X", "now let me load the Figma", "I'll check Y" — go completely silent until you're ready to post your first user-facing message. Your first message should be a 1–2 sentence summary of what you found (referencing concrete files) followed by your first clarifying question. **Do not emit any text before that summary.**
 
       ## Step 2 — Ask product/UX/business questions only, one at a time
 
