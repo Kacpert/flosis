@@ -40,6 +40,7 @@ class ChatSessionsController < ApplicationController
       role: "assistant",
       content: result[:response]
     )
+    extract_and_save_drafts(result[:response].to_s)
 
     render json: session_json(@chat_session)
   end
@@ -82,6 +83,11 @@ class ChatSessionsController < ApplicationController
         session_id: @chat_session.claude_session_id,
         message: user_content
       ) do |line|
+        if line == :keepalive
+          response.stream.write(": keepalive\n\n")
+          next
+        end
+
         data = JSON.parse(line) rescue nil
         next unless data
 
@@ -101,18 +107,36 @@ class ChatSessionsController < ApplicationController
         @chat_session.update!(claude_session_id: result[:session_id])
       end
 
-      @chat_session.chat_messages.create!(role: "assistant", content: full_response) if full_response.present?
+      persist_assistant_response(full_response)
 
     rescue ClaudeCliService::ClaudeCliError => e
       response.stream.write("data: #{{"error" => e.message}.to_json}\n\n")
     rescue IOError, Errno::EPIPE
-      @chat_session.chat_messages.create!(role: "assistant", content: full_response) if full_response.present?
+      persist_assistant_response(full_response)
     ensure
       response.stream.close
     end
   end
 
   private
+
+  def persist_assistant_response(full_response)
+    return if full_response.blank?
+
+    @chat_session.chat_messages.create!(role: "assistant", content: full_response)
+    extract_and_save_drafts(full_response)
+  end
+
+  DRAFT_REGEX = %r{<draft>\s*(.*?)\s*</draft>}m
+
+  def extract_and_save_drafts(text)
+    text.scan(DRAFT_REGEX).each do |(body)|
+      next if body.blank?
+      @task.task_drafts.create!(content: body.strip, source: "ai")
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[ChatSessions] Draft extraction failed: #{e.message}")
+  end
 
   def set_task
     @task = Task.joins(:project)
@@ -144,49 +168,72 @@ class ChatSessionsController < ApplicationController
 
       # How you must operate
 
-      1. **Read the existing description first.** Identify what's already known and what's missing.
-      2. **Investigate the codebase yourself** to answer technical questions. Read files, grep for relevant models/views/controllers, follow references. Never ask the user technical questions you can answer by reading code — which gem to use, which file to put something in, what the schema looks like, what an existing method does, etc.
-      3. **Ask the user ONE question at a time.** Ask only product/UX/business questions that *cannot* be answered from code. Examples of good questions:
-         - Who is this for? (which role, which user type)
-         - Where in the user flow does this appear?
-         - What should happen when [data is missing / user has no permission / value is invalid / network fails]?
-         - What does success look like? How do we know it works?
-         - Are there constraints we should respect (legal, business rules, deadlines)?
-         - For integrations: where is the API documentation? What credentials should we use (sandbox vs prod)? Are there rate limits or auth specifics?
-      4. **Never ask technical questions.** Do NOT ask: which library, which design pattern, schema/migration details, file paths, refactoring strategy. Figure these out by reading the code.
-      5. **Don't dump everything at once.** Short messages. One question per turn. Build the picture gradually.
-      6. **When you have enough to specify the ticket**, ask the user "Should I draft the final ticket description now?" If they say yes, output the final ticket in **markdown** using exactly this structure:
+      ## Step 1 — Investigate the code FIRST, before any question
 
-         ```
-         ## Background
-         (1–3 sentences: why this exists, what problem it solves)
+      Before your first message to the user, do an upfront investigation of the Elvium codebase:
 
-         ## User story
-         As a [role], I want [outcome], so that [benefit].
+      - Read `CLAUDE.md` if it exists.
+      - List the top-level `app/` directory to learn the domain.
+      - Identify the 2–5 files most likely involved in this ticket (models, controllers, views, services). Read them.
+      - If there are screenshots in the attachments list, read them with the `Read` tool — they usually carry critical UI context.
 
-         ## Requirements
-         - bullet list of concrete requirements
-         - each one specific and testable
+      Do all of this with your tools (Read, Grep, Glob). Do **not** narrate it to the user — just do it silently. Once you have a real understanding of the current code, you may ask your first clarifying question.
 
-         ## Acceptance criteria
-         - [ ] checkbox-style criteria a QA or developer can verify
+      ## Step 2 — Ask product/UX/business questions only, one at a time
 
-         ## Technical notes
-         (Files/models/components involved — what you found in the codebase. Not implementation steps, just pointers.)
+      Every question must reference what you found in the code. Example: *"I see `Survey` already has `aggregation_threshold` — what should be the default value for new surveys?"* — NOT *"How should aggregation work?"*
 
-         ## Integration / external dependencies
-         (Only if relevant — API endpoints, credentials, docs links, rate limits)
+      Good questions to ask:
+      - Who is this for? Which role, which user type?
+      - Where in the user flow does this appear?
+      - What should happen when [data is missing / user has no permission / value is invalid / network fails]?
+      - What does success look like? How do we know it works?
+      - Constraints? (Legal, business, deadlines.)
+      - For integrations: API docs link? Sandbox vs prod credentials? Rate limits? Auth specifics?
 
-         ## Out of scope
-         - what this ticket explicitly does not cover
+      **Never ask technical questions.** Do NOT ask: which library, which design pattern, schema/migration details, file paths, refactoring strategy. Read the code instead.
 
-         ## Open questions
-         (Only if any remain — otherwise omit this section)
-         ```
+      One question per turn. Short messages. Build the picture gradually.
+
+      ## Step 3 — Draft the ticket
+
+      When you have enough, ask: *"Should I draft the final ticket description now?"*. If the user says yes, output the ticket inside `<draft>...</draft>` tags, in markdown, using this exact structure:
+
+      <draft>
+      ## Background
+      (1–3 sentences: why this exists, what problem it solves)
+
+      ## User story
+      As a [role], I want [outcome], so that [benefit].
+
+      ## Requirements
+      - bullet list of concrete, testable requirements
+
+      ## Acceptance criteria
+      - [ ] checkbox-style criteria a QA or developer can verify
+
+      ## Technical notes
+      Specific files / models / components involved (use real paths from the codebase you read — e.g. `app/models/survey.rb`). Not implementation steps; just pointers.
+
+      ## Integration / external dependencies
+      (Only if relevant — API endpoints, credentials, docs links, rate limits)
+
+      ## Out of scope
+      - what this ticket explicitly does not cover
+
+      ## Open questions
+      (Only if any remain — otherwise omit this section)
+      </draft>
+
+      The `<draft>` and `</draft>` markers are **mandatory** — the system uses them to save the draft as a versioned record the user can copy into Jira. Do not put anything outside the tags besides a one-line lead-in like "Here's the refined ticket:".
+
+      ## Step 4 — Revisions
+
+      If the user asks for changes after the first draft, produce a fully revised ticket in a **new** `<draft>...</draft>` block — don't show a diff and don't reuse the old block. Each `<draft>` block becomes a new saved version, and the user always has access to the previous ones.
 
       # Start now
 
-      Read the existing ticket description above. Briefly (1–2 sentences) acknowledge what you understand so far, then ask your **first** clarifying question. Do not list multiple questions.
+      Do your upfront investigation silently, then post your first message: a brief 1–2 sentence summary of what you found (mentioning concrete files where useful) followed by your first clarifying question. No multi-question lists.
     PROMPT
   end
 

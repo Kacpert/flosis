@@ -89,6 +89,7 @@ Rails.application.routes.draw do
       get :board_data
       post :refresh
     end
+    resources :task_drafts, only: [:index]
     resource :chat_session, only: [:create, :show] do
       post :message
     end

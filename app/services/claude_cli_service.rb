@@ -34,6 +34,7 @@ class ClaudeCliService
 
     popen_streaming(cmd, message) do |line|
       block.call(line) if block_given?
+      next if line == :keepalive
 
       data = JSON.parse(line) rescue nil
       next unless data
@@ -74,11 +75,38 @@ class ClaudeCliService
     end
   end
 
-  def popen_streaming(cmd, message, &block)
+  def popen_streaming(cmd, message, keepalive_interval: 10, &block)
     IO.popen(cmd, "r+", chdir: @codebase_path) do |io|
       io.write(message)
       io.close_write
-      io.each_line { |line| block.call(line.strip) if line.strip.present? }
+
+      buffer = +""
+      loop do
+        ready = IO.select([io], nil, nil, keepalive_interval)
+        if ready.nil?
+          # Idle — let the caller send a keepalive
+          block.call(:keepalive)
+          next
+        end
+
+        chunk = begin
+          io.read_nonblock(8192)
+        rescue IO::WaitReadable
+          next
+        rescue EOFError
+          nil
+        end
+        break if chunk.nil?
+
+        buffer << chunk
+        while (newline_idx = buffer.index("\n"))
+          line = buffer.slice!(0..newline_idx).chomp
+          block.call(line) if line.length > 0
+        end
+      end
+
+      # Flush trailing partial line, if any
+      block.call(buffer.strip) if buffer.strip.length > 0
     end
   end
 end
