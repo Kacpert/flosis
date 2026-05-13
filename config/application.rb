@@ -8,14 +8,17 @@ Bundler.require(*Rails.groups)
 
 module Gold
   class Application < Rails::Application
+    # Ensure active_storage.queues is initialized before load_defaults
+    # (workaround for Rails 8.1 on some platforms — load_defaults calls
+    # config.active_storage.queues.analysis = ..., which crashes if queues
+    # is nil). Set queues to an OrderedOptions so attribute assignment works,
+    # without replacing the whole active_storage config object.
+    if config.respond_to?(:active_storage) && config.active_storage.respond_to?(:queues) && config.active_storage.queues.nil?
+      config.active_storage.queues = ActiveSupport::OrderedOptions.new
+    end
+
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults 8.1
-
-    # Ensure active_storage.queues is initialized (defensive — Rails 8.1.2 on
-    # some platforms leaves this nil and breaks ActiveJob defaults).
-    if config.respond_to?(:active_storage) && config.active_storage.respond_to?(:queues) && config.active_storage.queues.nil?
-      config.active_storage.queues = ActiveSupport::InheritableOptions.new
-    end
 
     # Please, add to the `ignore` list any other `lib` subdirectories that do
     # not contain `.rb` files, or that should not be reloaded or eager loaded.
