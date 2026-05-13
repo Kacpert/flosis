@@ -16,3 +16,10 @@ ActiveSupport.on_load(:active_storage_blob) do
     ActiveStorage::Blob.service = ActiveStorage::Blob.services.fetch(service_name)
   end
 end
+
+# Force-enable ActiveStorage routes and (re)load the gem's routes file so
+# rails_blob_path / rails_blob_url / etc. exist. The AS engine's draw_routes
+# initializer does not run in this app's boot.
+ActiveStorage.draw_routes = true unless ActiveStorage.draw_routes
+load(Gem.loaded_specs["activestorage"].full_gem_path + "/config/routes.rb")
+
