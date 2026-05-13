@@ -58,9 +58,36 @@ module AdfHelper
       render_media_node(node)
     when "mediaInline"
       render_media_node(node)
+    when "inlineCard", "embedCard", "blockCard"
+      render_card_node(node)
     else
       children_html
     end
+  end
+
+  def render_card_node(node)
+    url = node.dig("attrs", "url").to_s
+    return "" if url.blank?
+    safe_url = ERB::Util.html_escape(url)
+    label = link_label_for(url)
+    "<a href=\"#{safe_url}\" target=\"_blank\" rel=\"noopener\" class=\"adf-smartlink\">#{label}</a>"
+  end
+
+  def link_label_for(url)
+    host = URI(url).host rescue nil
+    icon = case host
+           when /figma\.com/ then "🎨 Figma"
+           when /loom\.com/ then "🎥 Loom"
+           when /github\.com/ then "🐙 GitHub"
+           when /linear\.app/ then "📋 Linear"
+           when /notion\.so/ then "📝 Notion"
+           when /docs\.google\.com/ then "📄 Google Doc"
+           when /drive\.google\.com/ then "📁 Google Drive"
+           when /atlassian\.net/ then "📌 Jira"
+           when /slack\.com/ then "💬 Slack"
+           else "🔗 Link"
+           end
+    "<span style=\"display: inline-flex; align-items: center; gap: 0.25rem;\">#{icon} <span style=\"text-decoration: underline; color: var(--color-primary);\">#{ERB::Util.html_escape(host || url)}</span></span>"
   end
 
   def render_media_node(node)

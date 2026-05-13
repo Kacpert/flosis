@@ -252,6 +252,15 @@ class JiraClient
     return nil if node.nil?
     return node["text"] if node["type"] == "text"
 
+    case node["type"]
+    when "inlineCard", "embedCard", "blockCard"
+      url = node.dig("attrs", "url")
+      return url.to_s if url
+      return ""
+    when "hardBreak"
+      return "\n"
+    end
+
     content = node["content"]
     return "" unless content.is_a?(Array)
 
