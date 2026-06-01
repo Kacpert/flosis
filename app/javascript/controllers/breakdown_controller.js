@@ -158,6 +158,20 @@ export default class extends Controller {
             ${acBlock}
             ${figmaBlock}
             ${deps}
+            <div class="bd-copy-row">
+              <button type="button" class="bd-copy-btn" aria-label="Copy title" title="Copy title"
+                data-action="click->breakdown#copyField"
+                data-field="title"
+                data-value="${this.escape(st.title || "")}">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25"/></svg>
+              </button>
+              <button type="button" class="bd-copy-btn" aria-label="Copy description" title="Copy description"
+                data-action="click->breakdown#copyField"
+                data-field="description"
+                data-value="${this.escape(st.description || "")}">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h7.5M8.25 12h7.5m-7.5 5.25h4.5M3.75 4.5h16.5a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H3.75a.75.75 0 01-.75-.75V5.25a.75.75 0 01.75-.75z"/></svg>
+              </button>
+            </div>
           </div>
         </div>`
       }).join("")
@@ -184,6 +198,20 @@ export default class extends Controller {
     const open = card.dataset.open === "true"
     card.dataset.open = open ? "false" : "true"
     body.style.display = open ? "none" : "block"
+  }
+
+  // Copy a single sub-task field (title or description). The value is carried
+  // on the button's data-value so we don't depend on DOM structure. Stops
+  // propagation so the click doesn't collapse the expanded card.
+  async copyField(event) {
+    event.stopPropagation()
+    const btn = event.currentTarget
+    const value = btn.dataset.value || ""
+    try {
+      await navigator.clipboard.writeText(value)
+      btn.classList.add("bd-copy-btn--ok")
+      setTimeout(() => btn.classList.remove("bd-copy-btn--ok"), 1200)
+    } catch (e) { /* clipboard unavailable */ }
   }
 
   async copyAll() {

@@ -1813,6 +1813,34 @@ span.flatpickr-weekday {
 }
 .bd-figma__link:hover { filter: brightness(0.96); }
 
+.bd-copy-row {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+}
+.bd-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 8px;
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.bd-copy-btn:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+.bd-copy-btn--ok {
+  background: var(--color-primary-container);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary-container);
+}
+
 .bd-chevron { flex-shrink: 0; transition: transform 0.15s ease; color: var(--color-outline); }
 .bd-subtask[data-open="true"] .bd-chevron { transform: rotate(90deg); }
 
