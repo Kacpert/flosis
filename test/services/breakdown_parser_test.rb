@@ -8,7 +8,6 @@ class BreakdownParserTest < ActiveSupport::TestCase
   test "parses a valid broken-down result" do
     json = {
       needs_breakdown: true,
-      total_points: 13,
       strategy: "Split by role",
       warning: nil,
       subtasks: [
@@ -19,11 +18,39 @@ class BreakdownParserTest < ActiveSupport::TestCase
 
     result = BreakdownParser.extract_latest(block(json))
     assert result.present?
-    assert_equal 13, result["total_points"]
+    assert_equal 13, result["total_points"], "total is the server-computed sum of slices (8+5)"
     assert_equal true, result["needs_breakdown"]
     assert_equal 2, result["subtasks"].length
     assert_equal "Manager flow", result["subtasks"].first["title"]
     assert_equal ["Manager flow"], result["subtasks"].last["depends_on"]
+  end
+
+  test "total_points is the sum of slices and may exceed 21" do
+    json = {
+      needs_breakdown: true, strategy: "Big epic",
+      subtasks: [
+        { title: "A", points: 13, description: "x", order: 1, depends_on: [] },
+        { title: "B", points: 8, description: "y", order: 2, depends_on: [] },
+        { title: "C", points: 8, description: "z", order: 3, depends_on: [] },
+        { title: "D", points: 5, description: "w", order: 4, depends_on: [] },
+        { title: "E", points: 3, description: "v", order: 5, depends_on: [] }
+      ]
+    }.to_json
+    result = BreakdownParser.extract_latest(block(json))
+    assert result.present?, "a >21 total must be accepted, not rejected"
+    assert_equal 37, result["total_points"], "13+8+8+5+3 = 37, not capped to a Fibonacci value"
+  end
+
+  test "ignores AI-provided total_points and recomputes from slices" do
+    json = {
+      needs_breakdown: true, total_points: 999, strategy: "x",
+      subtasks: [
+        { title: "A", points: 8, description: "y", order: 1, depends_on: [] },
+        { title: "B", points: 5, description: "z", order: 2, depends_on: [] }
+      ]
+    }.to_json
+    result = BreakdownParser.extract_latest(block(json))
+    assert_equal 13, result["total_points"], "AI's bogus 999 is ignored; server sums 8+5"
   end
 
   test "accepts a small task with needs_breakdown false and no subtasks" do
@@ -42,7 +69,9 @@ class BreakdownParserTest < ActiveSupport::TestCase
     assert_nil BreakdownParser.extract_latest(block(json))
   end
 
-  test "rejects non-Fibonacci total_points" do
+  test "rejects non-Fibonacci whole-task estimate for an un-split task" do
+    # When there are no slices, total_points IS the whole-task estimate and
+    # must itself be Fibonacci. 7 is not.
     json = { needs_breakdown: false, total_points: 7, strategy: "x", subtasks: [] }.to_json
     assert_nil BreakdownParser.extract_latest(block(json))
   end

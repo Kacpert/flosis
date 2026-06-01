@@ -79,16 +79,13 @@ namespace :puma do
 
   desc "Restart puma"
   task :restart do
-    on roles(:app) do
-      within current_path do
-        pidfile = shared_path.join("tmp/pids/puma.pid")
-        if test "[ -f #{pidfile} ]" and test("kill -0 $(cat #{pidfile}) 2>/dev/null")
-          execute :kill, "-USR1", capture(:cat, pidfile)
-        else
-          invoke "puma:start"
-        end
-      end
-    end
+    # Puma runs in single mode here (workers 0), where SIGUSR1 is only a
+    # phased restart for clustered mode and does NOT reload application code —
+    # it just reopens logs, leaving the old release running after a deploy.
+    # Do a full stop + start so the new release is actually picked up.
+    invoke "puma:stop"
+    sleep 1
+    invoke "puma:start"
   end
 end
 

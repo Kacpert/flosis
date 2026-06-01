@@ -67,15 +67,16 @@ class BreakdownChatSessionsController < ApplicationController
 
       ## Estimation & breakdown rules — read carefully
 
-      - **Estimate ONLY in Fibonacci story points: 1, 2, 3, 5, 8, 13, 21.** Never any other number.
-      - Each sub-task must be **≤ 13**, and **21 is the absolute maximum**. If a slice would exceed 21, split it further.
+      - **Each sub-task's points MUST be a Fibonacci value: 1, 2, 3, 5, 8, 13, 21.** Never any other number for a sub-task.
+      - Each sub-task should be **≤ 13**, and **21 is the absolute maximum**. If a slice would exceed 21, split it further.
+      - **Do NOT cap the overall total.** The whole feature's size is simply the SUM of the slices and may well be far more than 21 (a big epic might total 40, 60+). Don't shrink slices or drop scope to make the total "fit" — size each slice honestly and let the total be whatever it adds up to. (The system computes and displays the total from the slices; you don't need to total it yourself.)
       - Sub-tasks are **vertical slices**: each is mostly stand-alone and delivers end-to-end value on its own, and together they build the whole feature.
       - **FORBIDDEN: layer-based splits.** Do NOT create tasks like "set up the database", "build the backend", then "build the frontend". Each sub-task must be independently shippable and cut across the stack as needed.
       - Prefer splitting by **role / user flow / domain** (e.g. for an HR onboarding feature: manager flow, employee flow, buddy flow, visibility dashboard). That yields naturally independent slices.
       - If the feature is genuinely small, set `needs_breakdown` to false, estimate the whole thing, and leave `subtasks` empty — don't force a split.
       - Each sub-task needs a concise Jira-style **title**, **points**, and a **description of the business logic** for a developer: what they must deliver and why, enough that they know what to build — but NOT implementation/library/schema detail.
       - Use `order` (1-based) and `depends_on` (list of sub-task titles that must come first) to express sequence. Most slices should be independent; keep dependencies minimal.
-      - Set `warning` when something is off: a slice still feels > 21, or the whole task is suspiciously small/large for what's described. Otherwise leave it null.
+      - Set `warning` when something is off: a slice still feels > 21 and should be split further, or the scope is unusually risky/unclear. A large total is NOT a problem worth warning about on its own — big features are big. Otherwise leave it null.
 
       ## Output format — mandatory
 
@@ -84,7 +85,6 @@ class BreakdownChatSessionsController < ApplicationController
       <breakdown>
       {
         "needs_breakdown": true,
-        "total_points": 21,
         "strategy": "One or two sentences on how you split it (e.g. by role: manager / employee / buddy).",
         "warning": null,
         "subtasks": [
@@ -99,9 +99,9 @@ class BreakdownChatSessionsController < ApplicationController
       }
       </breakdown>
 
-      - `total_points` MUST be a Fibonacci number; for a broken-down task it is the rounded-up sum mapped to the nearest Fibonacci value.
-      - Every `points` MUST be from {1,2,3,5,8,13,21}. A breakdown with any other number will be rejected by the system.
-      - For a small task: `"needs_breakdown": false`, `"subtasks": []`, and `total_points` = the whole-task estimate.
+      - For a broken-down task, OMIT `total_points` (or it will be ignored) — the system sums the slices for you, and the total may exceed 21.
+      - Every sub-task `points` MUST be from {1,2,3,5,8,13,21}. A sub-task with any other number will be rejected by the system.
+      - For a small task that doesn't need splitting: `"needs_breakdown": false`, `"subtasks": []`, and include `"total_points"` = the whole-task estimate (which MUST itself be a Fibonacci value).
       - The `<breakdown>` / `</breakdown>` markers are required — the system parses them to save a versioned result. You may put a one-line lead-in before the block (e.g. "Here's the breakdown:") but nothing else outside it.
 
       ## Revisions

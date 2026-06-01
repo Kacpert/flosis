@@ -55,9 +55,21 @@ class BreakdownParser
       }
     end.compact
 
+    needs_breakdown = to_bool(data["needs_breakdown"])
+
+    # total_points is the SUM of the sub-task points — an epic's total can and
+    # often should exceed 21. We compute it server-side so it always matches
+    # the slices on screen (the AI's own total is ignored to avoid arithmetic
+    # drift). For a small, un-split task it's the single whole-task estimate.
+    total_points = if subtasks.any?
+      subtasks.sum { |st| st["points"] || 0 }
+    else
+      coerce_int(data["total_points"])
+    end
+
     {
-      "needs_breakdown" => to_bool(data["needs_breakdown"]),
-      "total_points" => coerce_int(data["total_points"]),
+      "needs_breakdown" => needs_breakdown,
+      "total_points" => total_points,
       "strategy" => data["strategy"].to_s.strip,
       "warning" => data["warning"].to_s.strip.presence,
       "subtasks" => subtasks
@@ -65,13 +77,15 @@ class BreakdownParser
   end
 
   def valid?(b)
-    return false if b["total_points"].nil?
-    return false unless FIBONACCI.include?(b["total_points"])
     return false if b["needs_breakdown"] && b["subtasks"].empty?
 
-    b["subtasks"].all? do |st|
-      st["title"].present? &&
-        FIBONACCI.include?(st["points"])
+    if b["subtasks"].any?
+      # Only the individual slices are constrained to Fibonacci; the total is
+      # their (possibly >21) sum.
+      b["subtasks"].all? { |st| st["title"].present? && FIBONACCI.include?(st["points"]) }
+    else
+      # Un-split task: the single whole-task estimate must be a Fibonacci value.
+      FIBONACCI.include?(b["total_points"])
     end
   end
 
