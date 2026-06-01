@@ -50,6 +50,8 @@ class BreakdownParser
         "title" => st["title"].to_s.strip,
         "points" => coerce_int(st["points"]),
         "description" => st["description"].to_s.strip,
+        "acceptance_criteria" => normalize_criteria(st["acceptance_criteria"]),
+        "figma_links" => normalize_figma_links(st["figma_links"]),
         "order" => coerce_int(st["order"]),
         "depends_on" => Array(st["depends_on"]).map(&:to_s)
       }
@@ -80,9 +82,14 @@ class BreakdownParser
     return false if b["needs_breakdown"] && b["subtasks"].empty?
 
     if b["subtasks"].any?
-      # Only the individual slices are constrained to Fibonacci; the total is
-      # their (possibly >21) sum.
-      b["subtasks"].all? { |st| st["title"].present? && FIBONACCI.include?(st["points"]) }
+      # Each slice needs a title, a Fibonacci points value, and at least one
+      # acceptance criterion so it's independently implementable. The total is
+      # the slices' (possibly >21) sum.
+      b["subtasks"].all? do |st|
+        st["title"].present? &&
+          FIBONACCI.include?(st["points"]) &&
+          st["acceptance_criteria"].any?
+      end
     else
       # Un-split task: the single whole-task estimate must be a Fibonacci value.
       FIBONACCI.include?(b["total_points"])
@@ -95,6 +102,26 @@ class BreakdownParser
     Integer(value.to_s.strip)
   rescue ArgumentError, TypeError
     nil
+  end
+
+  def normalize_criteria(value)
+    Array(value).map { |c| c.to_s.strip }.reject(&:empty?)
+  end
+
+  # Accepts either an array of {label,url} objects or a bare array of URL
+  # strings. Keeps only entries with an http(s) URL.
+  def normalize_figma_links(value)
+    Array(value).filter_map do |link|
+      if link.is_a?(Hash)
+        url = link["url"].to_s.strip
+        label = link["label"].to_s.strip
+      else
+        url = link.to_s.strip
+        label = ""
+      end
+      next nil unless url.match?(%r{\Ahttps?://}i)
+      { "label" => label.presence || "Figma", "url" => url }
+    end
   end
 
   def to_bool(value)

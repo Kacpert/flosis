@@ -128,6 +128,24 @@ export default class extends Controller {
         const deps = Array.isArray(st.depends_on) && st.depends_on.length > 0
           ? `<div class="bd-subtask__deps">Depends on: ${st.depends_on.map(d => this.escape(d)).join(", ")}</div>`
           : ""
+
+        const ac = Array.isArray(st.acceptance_criteria) ? st.acceptance_criteria.filter(Boolean) : []
+        const acBlock = ac.length > 0
+          ? `<div class="bd-ac">
+              <div class="bd-ac__label">Acceptance criteria</div>
+              <ul class="bd-ac__list">${ac.map(c => `<li>${this.escape(c)}</li>`).join("")}</ul>
+            </div>`
+          : ""
+
+        const links = Array.isArray(st.figma_links) ? st.figma_links.filter(l => l && this.safeUrl(l.url)) : []
+        const figmaBlock = links.length > 0
+          ? `<div class="bd-figma">
+              ${links.map(l => `<a class="bd-figma__link" href="${l.url}" target="_blank" rel="noopener">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
+                ${this.escape(l.label || "Figma")}</a>`).join("")}
+            </div>`
+          : ""
+
         return `<div class="bd-subtask" data-open="false">
           <div class="bd-subtask__head" data-action="click->breakdown#toggleSubtask">
             <span class="bd-subtask__order">${order}</span>
@@ -137,6 +155,8 @@ export default class extends Controller {
           </div>
           <div class="bd-subtask__body" style="display:none">
             <p>${this.escape(st.description || "(no description)")}</p>
+            ${acBlock}
+            ${figmaBlock}
             ${deps}
           </div>
         </div>`
@@ -187,6 +207,13 @@ export default class extends Controller {
       lines.push("")
       lines.push(`${st.order ?? i + 1}. [${st.points}] ${st.title}`)
       if (st.description) lines.push(`   ${st.description}`)
+      if (Array.isArray(st.acceptance_criteria) && st.acceptance_criteria.length) {
+        lines.push(`   Acceptance criteria:`)
+        st.acceptance_criteria.forEach(c => lines.push(`     - ${c}`))
+      }
+      if (Array.isArray(st.figma_links) && st.figma_links.length) {
+        st.figma_links.forEach(l => lines.push(`   Figma: ${l.label ? l.label + " — " : ""}${l.url}`))
+      }
       if (Array.isArray(st.depends_on) && st.depends_on.length) lines.push(`   Depends on: ${st.depends_on.join(", ")}`)
     })
     return lines.join("\n")

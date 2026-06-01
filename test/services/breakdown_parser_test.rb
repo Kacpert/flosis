@@ -5,14 +5,23 @@ class BreakdownParserTest < ActiveSupport::TestCase
     "Here's the breakdown:\n<breakdown>\n#{json}\n</breakdown>"
   end
 
+  # A valid sub-task with all required fields; override any of them per test.
+  def subtask(overrides = {})
+    {
+      title: "Manager flow", points: 8, description: "do X",
+      acceptance_criteria: ["Manager can do the thing", "Unauthorized manager cannot"],
+      figma_links: [], order: 1, depends_on: []
+    }.merge(overrides)
+  end
+
   test "parses a valid broken-down result" do
     json = {
       needs_breakdown: true,
       strategy: "Split by role",
       warning: nil,
       subtasks: [
-        { title: "Manager flow", points: 8, description: "do X", order: 1, depends_on: [] },
-        { title: "Employee flow", points: 5, description: "do Y", order: 2, depends_on: ["Manager flow"] }
+        subtask(title: "Manager flow", points: 8, order: 1, depends_on: []),
+        subtask(title: "Employee flow", points: 5, order: 2, depends_on: ["Manager flow"])
       ]
     }.to_json
 
@@ -23,17 +32,60 @@ class BreakdownParserTest < ActiveSupport::TestCase
     assert_equal 2, result["subtasks"].length
     assert_equal "Manager flow", result["subtasks"].first["title"]
     assert_equal ["Manager flow"], result["subtasks"].last["depends_on"]
+    assert_equal 2, result["subtasks"].first["acceptance_criteria"].length
+  end
+
+  test "parses acceptance criteria and figma links per sub-task" do
+    json = {
+      needs_breakdown: true, strategy: "x",
+      subtasks: [
+        subtask(
+          title: "Manager view", points: 8,
+          acceptance_criteria: ["AC one", "AC two", "  ", "AC three"],
+          figma_links: [
+            { label: "Manager frame", url: "https://www.figma.com/design/abc/HR?node-id=1-2" },
+            "https://www.figma.com/design/abc/HR",
+            { label: "bad", url: "javascript:alert(1)" }
+          ]
+        )
+      ]
+    }.to_json
+
+    st = BreakdownParser.extract_latest(block(json))["subtasks"].first
+    assert_equal ["AC one", "AC two", "AC three"], st["acceptance_criteria"], "blank criteria dropped"
+    assert_equal 2, st["figma_links"].length, "non-http(s) link (javascript:) dropped"
+    assert_equal "Manager frame", st["figma_links"].first["label"]
+    assert_equal "Figma", st["figma_links"].last["label"], "bare URL gets default label"
+    assert st["figma_links"].none? { |l| l["url"].start_with?("javascript:") }
+  end
+
+  test "accepts a sub-task with no figma links (parent ticket has no figma)" do
+    json = {
+      needs_breakdown: true, strategy: "x",
+      subtasks: [subtask(points: 5, figma_links: [])]
+    }.to_json
+    result = BreakdownParser.extract_latest(block(json))
+    assert result.present?, "missing figma must NOT reject the breakdown"
+    assert_empty result["subtasks"].first["figma_links"]
+  end
+
+  test "rejects a broken-down sub-task with no acceptance criteria" do
+    json = {
+      needs_breakdown: true, strategy: "x",
+      subtasks: [subtask(acceptance_criteria: [])]
+    }.to_json
+    assert_nil BreakdownParser.extract_latest(block(json))
   end
 
   test "total_points is the sum of slices and may exceed 21" do
     json = {
       needs_breakdown: true, strategy: "Big epic",
       subtasks: [
-        { title: "A", points: 13, description: "x", order: 1, depends_on: [] },
-        { title: "B", points: 8, description: "y", order: 2, depends_on: [] },
-        { title: "C", points: 8, description: "z", order: 3, depends_on: [] },
-        { title: "D", points: 5, description: "w", order: 4, depends_on: [] },
-        { title: "E", points: 3, description: "v", order: 5, depends_on: [] }
+        subtask(title: "A", points: 13, order: 1),
+        subtask(title: "B", points: 8, order: 2),
+        subtask(title: "C", points: 8, order: 3),
+        subtask(title: "D", points: 5, order: 4),
+        subtask(title: "E", points: 3, order: 5)
       ]
     }.to_json
     result = BreakdownParser.extract_latest(block(json))
@@ -45,8 +97,8 @@ class BreakdownParserTest < ActiveSupport::TestCase
     json = {
       needs_breakdown: true, total_points: 999, strategy: "x",
       subtasks: [
-        { title: "A", points: 8, description: "y", order: 1, depends_on: [] },
-        { title: "B", points: 5, description: "z", order: 2, depends_on: [] }
+        subtask(title: "A", points: 8, order: 1),
+        subtask(title: "B", points: 5, order: 2)
       ]
     }.to_json
     result = BreakdownParser.extract_latest(block(json))
@@ -63,8 +115,8 @@ class BreakdownParserTest < ActiveSupport::TestCase
 
   test "rejects non-Fibonacci subtask points" do
     json = {
-      needs_breakdown: true, total_points: 8, strategy: "x",
-      subtasks: [{ title: "A", points: 4, description: "y", order: 1, depends_on: [] }]
+      needs_breakdown: true, strategy: "x",
+      subtasks: [subtask(title: "A", points: 4)]
     }.to_json
     assert_nil BreakdownParser.extract_latest(block(json))
   end
@@ -83,8 +135,8 @@ class BreakdownParserTest < ActiveSupport::TestCase
 
   test "rejects subtask without a title" do
     json = {
-      needs_breakdown: true, total_points: 8, strategy: "x",
-      subtasks: [{ title: "", points: 8, description: "y", order: 1, depends_on: [] }]
+      needs_breakdown: true, strategy: "x",
+      subtasks: [subtask(title: "", points: 8)]
     }.to_json
     assert_nil BreakdownParser.extract_latest(block(json))
   end

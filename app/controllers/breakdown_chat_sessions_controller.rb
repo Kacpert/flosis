@@ -57,7 +57,7 @@ class BreakdownChatSessionsController < ApplicationController
 
       - Read `CLAUDE.md` if it exists, list `app/`, and read the 2–5 files most relevant to this task.
       - If there are attachment screenshots, `Read` them — they carry critical scope context.
-      - **Figma links.** For every Figma URL in the description/comments, call BOTH `mcp__figma__get_figma_data` (node tree) AND `mcp__figma__download_figma_images` (then `Read` the PNGs). Visual scope (number of screens, states, components) drives the estimate.
+      - **Figma links.** For every Figma URL in the description/comments, call BOTH `mcp__figma__get_figma_data` (node tree) AND `mcp__figma__download_figma_images` (then `Read` the PNGs). Visual scope (number of screens, states, components) drives the estimate. **Note which frame/screen belongs to which flow** (e.g. which frames are the Manager view vs the Employee view) — you'll attach the relevant Figma link to the sub-task that builds those screens. A Figma URL can point at a specific frame via `?node-id=...`; preserve that node-id when a slice maps to a specific frame, otherwise use the file URL.
 
       Do all of this with your tools. Do **not** narrate it — go silent until you post the breakdown.
 
@@ -75,6 +75,8 @@ class BreakdownChatSessionsController < ApplicationController
       - Prefer splitting by **role / user flow / domain** (e.g. for an HR onboarding feature: manager flow, employee flow, buddy flow, visibility dashboard). That yields naturally independent slices.
       - If the feature is genuinely small, set `needs_breakdown` to false, estimate the whole thing, and leave `subtasks` empty — don't force a split.
       - Each sub-task needs a concise Jira-style **title**, **points**, and a **description of the business logic** for a developer: what they must deliver and why, enough that they know what to build — but NOT implementation/library/schema detail.
+      - Each sub-task MUST include **`acceptance_criteria`**: a list of 2–5 concrete, verifiable statements (a QA or developer can check each off) that define "done" for THAT slice specifically. Phrase them as testable outcomes, not implementation steps. Every broken-down sub-task needs at least one — a slice without acceptance criteria will be rejected.
+      - Each sub-task MUST include **`figma_links`**: the relevant Figma link(s) for the screens that slice builds, taken from the Figma URLs in the ticket. Attach the specific frame (preserve `?node-id=...` when you identified the exact frame for that flow); if the design covers the whole flow in one file, use the file URL. If the ticket has **no** Figma links at all, use an empty array `[]`. Do not invent URLs — only use links that appear in the ticket description/comments.
       - Use `order` (1-based) and `depends_on` (list of sub-task titles that must come first) to express sequence. Most slices should be independent; keep dependencies minimal.
       - Set `warning` when something is off: a slice still feels > 21 and should be split further, or the scope is unusually risky/unclear. A large total is NOT a problem worth warning about on its own — big features are big. Otherwise leave it null.
 
@@ -92,6 +94,14 @@ class BreakdownChatSessionsController < ApplicationController
             "title": "Manager: assign checklists when hiring an employee",
             "points": 8,
             "description": "Business logic the developer must deliver and why. No implementation detail.",
+            "acceptance_criteria": [
+              "Manager can assign an onboarding checklist to a newly hired employee from the hire flow",
+              "Assigned checklist appears on the employee's onboarding with the correct tasks",
+              "A manager without permission cannot assign checklists"
+            ],
+            "figma_links": [
+              { "label": "Manager view", "url": "https://www.figma.com/design/abc/HR?node-id=123-456" }
+            ],
             "order": 1,
             "depends_on": []
           }
