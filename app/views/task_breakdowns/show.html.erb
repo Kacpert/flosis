@@ -1,0 +1,102 @@
+<% content_for(:title, "Breakdown — #{@task.external_reference}") %>
+<% content_for(:full_width, true) %>
+
+<div data-controller="breakdown"
+     data-breakdown-versions-url-value="<%= jira_task_task_breakdowns_path(@task) %>"
+     data-breakdown-create-url-value="<%= jira_task_breakdown_chat_session_path(@task) %>"
+     data-breakdown-message-url-value="<%= message_jira_task_breakdown_chat_session_path(@task) %>"
+     data-breakdown-has-breakdown-value="<%= @has_breakdown %>"
+     data-breakdown-has-session-value="<%= ChatSession.find_active_for(@task, current_user, purpose: 'breakdown').present? %>"
+     data-breakdown-current-user-name-value="<%= current_user.name %>">
+
+  <%# Breadcrumb %>
+  <div class="flex items-center gap-2 text-sm mb-4" style="color: var(--color-on-surface-variant)">
+    <%= link_to "Jira Tasks", jira_tasks_path, class: "hover:underline", style: "color: var(--color-primary)" %>
+    <span>/</span>
+    <%= link_to @task.external_reference, jira_task_path(@task), class: "hover:underline", style: "color: var(--color-primary)" %>
+    <span>/</span>
+    <span style="color: var(--color-on-surface)">Estimate &amp; breakdown</span>
+  </div>
+
+  <div class="flex gap-6" style="min-height: calc(100vh - 11rem);">
+
+    <%# ---- Left: breakdown ------------------------------------------------ %>
+    <div class="flex-1 min-w-0">
+      <div class="m3-card-outlined" style="display: flex; flex-direction: column; height: 100%;">
+
+        <%# Header: title + version selector + regenerate %>
+        <div class="flex items-center gap-3 px-5 py-4" style="border-bottom: 1px solid var(--color-outline-variant)">
+          <div class="min-w-0">
+            <div class="text-xs font-semibold" style="color: var(--color-primary)"><%= @task.external_reference %></div>
+            <h1 class="text-lg font-bold truncate" style="color: var(--color-on-surface)">
+              <%= @task.name.sub(/\A#{Regexp.escape(@task.external_reference.to_s)}\s*/, '') %>
+            </h1>
+          </div>
+          <div class="ml-auto flex items-center gap-2">
+            <select data-breakdown-target="versionSelect"
+                    data-action="change->breakdown#selectVersion"
+                    class="text-xs rounded-md px-2 py-1.5"
+                    style="background: var(--color-surface-container); border: 1px solid var(--color-outline-variant); color: var(--color-on-surface); display: none;"></select>
+            <button type="button"
+                    data-breakdown-target="regenerateBtn"
+                    data-action="click->breakdown#regenerate"
+                    class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
+                    style="background: rgba(var(--color-primary-rgb, 76,105,54), 0.1); color: var(--color-primary); border: 1px solid rgba(var(--color-primary-rgb, 76,105,54), 0.2); display: none;">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+              Regenerate
+            </button>
+          </div>
+        </div>
+
+        <%# Breakdown body — rendered by JS %>
+        <div data-breakdown-target="panel"
+             class="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+          <%# initial state injected by the controller on connect %>
+        </div>
+      </div>
+    </div>
+
+    <%# ---- Right: chat ---------------------------------------------------- %>
+    <div class="flex-shrink-0" style="width: 40%; min-width: 340px;">
+      <div class="m3-card-outlined" style="display: flex; flex-direction: column; height: 100%; background: var(--color-surface-container-low);">
+
+        <div class="flex items-center justify-between px-4 py-3" style="border-bottom: 1px solid var(--color-outline-variant)">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full" style="background: var(--color-primary)"></span>
+            <span class="text-sm font-semibold" style="color: var(--color-on-surface)">Refine with AI</span>
+          </div>
+          <button type="button"
+                  data-action="click->breakdown#resetConversation"
+                  class="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md transition-colors"
+                  style="color: var(--color-error); background: var(--color-surface-container)">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+            Reset
+          </button>
+        </div>
+
+        <div class="px-4 py-2 text-xs" style="border-bottom: 1px solid var(--color-outline-variant); border-left: 3px solid var(--color-primary); color: var(--color-outline); background: var(--color-surface-container)">
+          Ask to split, merge, or re-estimate — each change saves a new version.
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-4 py-4 space-y-3" data-breakdown-target="chatMessages"></div>
+
+        <div class="px-4 py-3" style="border-top: 1px solid var(--color-outline-variant)">
+          <form class="flex gap-2" data-action="submit->breakdown#sendMessage">
+            <input type="text"
+                   class="flex-1 px-4 py-2.5 rounded-full text-sm outline-none"
+                   style="background: var(--color-surface-container); color: var(--color-on-surface); border: 1px solid var(--color-outline-variant)"
+                   placeholder="e.g. split sub-task 2 further…"
+                   data-breakdown-target="chatInput"
+                   data-action="keydown->breakdown#handleKeydown"
+                   autocomplete="off">
+            <button type="submit"
+                    class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors"
+                    style="background: var(--color-primary); color: var(--color-on-primary)">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" /></svg>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -6,8 +6,15 @@ class Task < ApplicationRecord
   has_many :task_drafts, dependent: :destroy
   has_many_attached :attachments
 
+  # The most recent AI-refined ticket description. Scoped to the "ai" source
+  # so the refinement modal never receives breakdown JSON.
   def latest_draft
-    task_drafts.newest_first.first
+    task_drafts.by_source(TaskDraft::REFINE_SOURCE).newest_first.first
+  end
+
+  # The most recent estimate + sub-task breakdown (JSON).
+  def latest_breakdown
+    task_drafts.by_source(TaskDraft::BREAKDOWN_SOURCE).newest_first.first
   end
 
   enum :status, { active: 0, done: 1 }

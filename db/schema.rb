@@ -10,9 +10,37 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_06_093958) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_01_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "active_storage_attachments", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.bigint "record_id", null: false
+    t.string "record_type", null: false
+    t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
+    t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
+  end
+
+  create_table "active_storage_blobs", force: :cascade do |t|
+    t.bigint "byte_size", null: false
+    t.string "checksum"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.string "filename", null: false
+    t.string "key", null: false
+    t.text "metadata"
+    t.string "service_name", null: false
+    t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
+  end
+
+  create_table "active_storage_variant_records", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.string "variation_digest", null: false
+    t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
 
   create_table "chat_messages", force: :cascade do |t|
     t.bigint "chat_session_id", null: false
@@ -20,19 +48,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_093958) do
     t.datetime "created_at", null: false
     t.string "role", null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id"
     t.index ["chat_session_id"], name: "index_chat_messages_on_chat_session_id"
+    t.index ["user_id"], name: "index_chat_messages_on_user_id"
   end
 
   create_table "chat_sessions", force: :cascade do |t|
     t.string "claude_session_id", null: false
     t.string "codebase_path", null: false
     t.datetime "created_at", null: false
+    t.string "purpose", default: "refine", null: false
     t.string "status", default: "active", null: false
     t.bigint "task_id", null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "workspace_id", null: false
-    t.index ["task_id", "user_id", "status"], name: "idx_chat_sessions_active_per_task_user", unique: true, where: "((status)::text = 'active'::text)"
+    t.index ["task_id", "purpose", "status"], name: "index_chat_sessions_on_task_purpose_status"
     t.index ["task_id"], name: "index_chat_sessions_on_task_id"
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
     t.index ["workspace_id"], name: "index_chat_sessions_on_workspace_id"
@@ -143,6 +174,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_093958) do
     t.datetime "updated_at", null: false
     t.index ["project_id", "jira_board_id"], name: "index_jira_boards_on_project_id_and_jira_board_id", unique: true
     t.index ["project_id"], name: "index_jira_boards_on_project_id"
+  end
+
+  create_table "jira_comments", force: :cascade do |t|
+    t.string "author_email"
+    t.string "author_name"
+    t.text "body"
+    t.text "body_adf"
+    t.datetime "created_at", null: false
+    t.string "jira_comment_id"
+    t.datetime "jira_created_at"
+    t.datetime "jira_updated_at"
+    t.bigint "task_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["task_id", "jira_comment_id"], name: "index_jira_comments_on_task_id_and_jira_comment_id", unique: true
+    t.index ["task_id"], name: "index_jira_comments_on_task_id"
   end
 
   create_table "jira_sprints", force: :cascade do |t|
@@ -341,6 +387,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_093958) do
     t.index ["workspace_id"], name: "index_tags_on_workspace_id"
   end
 
+  create_table "task_drafts", force: :cascade do |t|
+    t.text "content"
+    t.datetime "created_at", null: false
+    t.string "source"
+    t.bigint "task_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["task_id", "created_at"], name: "index_task_drafts_on_task_id_and_created_at"
+    t.index ["task_id"], name: "index_task_drafts_on_task_id"
+  end
+
   create_table "tasks", force: :cascade do |t|
     t.string "assignee_email"
     t.string "assignee_name"
@@ -424,7 +480,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_093958) do
     t.datetime "updated_at", null: false
   end
 
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "chat_messages", "chat_sessions"
+  add_foreign_key "chat_messages", "users"
   add_foreign_key "chat_sessions", "tasks"
   add_foreign_key "chat_sessions", "users"
   add_foreign_key "chat_sessions", "workspaces"
@@ -443,6 +502,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_093958) do
   add_foreign_key "jira_board_column_statuses", "jira_board_columns"
   add_foreign_key "jira_board_columns", "jira_boards"
   add_foreign_key "jira_boards", "projects"
+  add_foreign_key "jira_comments", "tasks"
   add_foreign_key "jira_sprints", "jira_boards"
   add_foreign_key "project_memberships", "projects"
   add_foreign_key "project_memberships", "users"
@@ -458,6 +518,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_093958) do
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "tags", "workspaces"
+  add_foreign_key "task_drafts", "tasks"
   add_foreign_key "tasks", "projects"
   add_foreign_key "time_entries", "projects"
   add_foreign_key "time_entries", "tasks"

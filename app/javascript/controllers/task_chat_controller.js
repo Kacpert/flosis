@@ -421,10 +421,16 @@ export default class extends Controller {
     h = h.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     // Italic (single * not adjacent to space)
     h = h.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, "$1<em>$2</em>")
-    // Links [text](url)
-    h = h.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    // Links [text](url) — only safe schemes (block javascript:/data:)
+    h = h.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, text, url) =>
+      this.safeUrl(url) ? `<a href="${url}" target="_blank" rel="noopener">${text}</a>` : text)
     return h
+  }
+
+  // Only allow http(s)/mailto/relative URLs in rendered links. Chat text is
+  // model output derived from untrusted Jira content, so links must not be trusted.
+  safeUrl(url) {
+    return /^(https?:|mailto:)/i.test(url) || /^[\/#]/.test(url) || !/^[a-z][a-z0-9+.-]*:/i.test(url)
   }
 
   headers() {

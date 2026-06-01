@@ -93,6 +93,13 @@ Rails.application.routes.draw do
     resource :chat_session, only: [:create, :show, :destroy] do
       post :message
     end
+
+    # Estimate & breakdown: two-panel page + its own chat + versioned results
+    get :breakdown, to: "task_breakdowns#show"
+    resources :task_breakdowns, only: [:index]
+    resource :breakdown_chat_session, only: [:create, :show, :destroy] do
+      post :message
+    end
   end
 
   get "up" => "rails/health#show", as: :rails_health_check

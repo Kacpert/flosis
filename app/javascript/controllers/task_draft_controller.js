@@ -159,7 +159,13 @@ export default class extends Controller {
     h = h.replace(/`([^`]+)`/g, "<code>$1</code>")
     h = h.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     h = h.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, "$1<em>$2</em>")
-    h = h.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    h = h.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, text, url) =>
+      this.safeUrl(url) ? `<a href="${url}" target="_blank" rel="noopener">${text}</a>` : text)
     return h
+  }
+
+  // Only allow http(s)/mailto/relative URLs in rendered links (block javascript:/data:).
+  safeUrl(url) {
+    return /^(https?:|mailto:)/i.test(url) || /^[\/#]/.test(url) || !/^[a-z][a-z0-9+.-]*:/i.test(url)
   }
 }

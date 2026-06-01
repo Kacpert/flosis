@@ -5,7 +5,7 @@ class TaskDraftsController < ApplicationController
   before_action :set_task
 
   def index
-    drafts = @task.task_drafts.newest_first.map do |d|
+    drafts = @task.task_drafts.by_source(TaskDraft::REFINE_SOURCE).newest_first.map do |d|
       {
         id: d.id,
         content: d.content,

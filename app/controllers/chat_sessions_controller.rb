@@ -1,188 +1,28 @@
 class ChatSessionsController < ApplicationController
   include WorkspaceScoped
-  include ActionController::Live  # Required for SSE streaming in message action
+  include ChatStreaming
+
+  CHAT_PURPOSE = "refine".freeze
 
   before_action :require_employee!
   before_action :set_task
 
-  def create
-    @chat_session = ChatSession.find_active_for(@task, current_user)
-
-    if @chat_session
-      render json: session_json(@chat_session)
-      return
-    end
-
-    # The initial investigation can take 1–3 minutes (Claude reads code,
-    # downloads Figma frames, etc.). A normal JSON POST will time out at
-    # the proxy. Stream as SSE just like #message.
-    response.headers["Content-Type"] = "text/event-stream"
-    response.headers["Cache-Control"] = "no-cache"
-    response.headers["X-Accel-Buffering"] = "no"
-
-    service = ClaudeCliService.new
-    prompt = build_initial_prompt
-    full_response = ""
-    new_session_id = nil
-
-    begin
-      service.send_initial_streaming(prompt: prompt) do |line|
-        if line == :keepalive
-          response.stream.write(": keepalive\n\n")
-          next
-        end
-
-        data = JSON.parse(line) rescue nil
-        next unless data
-
-        if data["type"] == "assistant"
-          text = data.dig("message", "content")&.filter_map { |c| c["text"] }&.join("")
-          if text.present?
-            full_response += text
-            response.stream.write("data: #{text.to_json}\n\n")
-          end
-        elsif data["type"] == "result"
-          full_response = data["result"] if data["result"].present?
-          new_session_id = data["session_id"]
-        elsif data["type"] == "system" && data["session_id"]
-          # Some events expose the session id before the final result; keep
-          # the latest seen value as a fallback.
-          new_session_id ||= data["session_id"]
-        end
-      end
-
-      if new_session_id.present? && full_response.present?
-        @chat_session = ChatSession.create!(
-          task: @task,
-          workspace: current_workspace,
-          user: current_user,
-          claude_session_id: new_session_id,
-          codebase_path: ClaudeCliService::DEFAULT_CODEBASE_PATH
-        )
-        @chat_session.chat_messages.create!(role: "assistant", content: full_response)
-        extract_and_save_drafts(full_response)
-        response.stream.write("data: #{ { 'done' => true, 'session_id' => @chat_session.id }.to_json }\n\n")
-      else
-        response.stream.write("data: #{ { 'error' => 'Claude did not return a session ID' }.to_json }\n\n")
-      end
-    rescue ClaudeCliService::ClaudeCliError => e
-      response.stream.write("data: #{ { 'error' => e.message }.to_json }\n\n")
-    rescue IOError, Errno::EPIPE
-      # client disconnected
-    ensure
-      response.stream.close
-    end
-  end
-
-  def show
-    @chat_session = ChatSession.find_active_for(@task, current_user)
-
-    if @chat_session
-      render json: session_json(@chat_session)
-    else
-      render json: { error: "No active chat session" }, status: :not_found
-    end
-  end
-
-  def destroy
-    # Soft-archive (status: closed) so prior conversations remain in the DB
-    # but no longer show up in chat. TaskDrafts are intentionally preserved.
-    @task.chat_sessions.active.update_all(status: "closed")
-    head :no_content
-  end
-
-  def message
-    @chat_session = ChatSession.find_active_for(@task, current_user)
-
-    unless @chat_session
-      render json: { error: "No active chat session" }, status: :not_found
-      return
-    end
-
-    user_content = params[:content].to_s.strip
-    if user_content.blank?
-      render json: { error: "Message content required" }, status: :unprocessable_entity
-      return
-    end
-
-    @chat_session.chat_messages.create!(role: "user", content: user_content, user: current_user)
-
-    response.headers["Content-Type"] = "text/event-stream"
-    response.headers["Cache-Control"] = "no-cache"
-    response.headers["X-Accel-Buffering"] = "no"
-
-    service = ClaudeCliService.new(codebase_path: @chat_session.codebase_path)
-    full_response = ""
-
-    begin
-      result = service.send_message_streaming(
-        session_id: @chat_session.claude_session_id,
-        message: user_content
-      ) do |line|
-        if line == :keepalive
-          response.stream.write(": keepalive\n\n")
-          next
-        end
-
-        data = JSON.parse(line) rescue nil
-        next unless data
-
-        if data["type"] == "assistant"
-          text = data.dig("message", "content")&.filter_map { |c| c["text"] }&.join("")
-          if text.present?
-            full_response += text
-            response.stream.write("data: #{text.to_json}\n\n")
-          end
-        elsif data["type"] == "result"
-          full_response = data["result"] if data["result"].present?
-          response.stream.write("data: #{{"done" => true}.to_json}\n\n")
-        end
-      end
-
-      if result[:session_id] != @chat_session.claude_session_id
-        @chat_session.update!(claude_session_id: result[:session_id])
-      end
-
-      persist_assistant_response(full_response)
-
-    rescue ClaudeCliService::ClaudeCliError => e
-      response.stream.write("data: #{{"error" => e.message}.to_json}\n\n")
-    rescue IOError, Errno::EPIPE
-      persist_assistant_response(full_response)
-    ensure
-      response.stream.close
-    end
-  end
-
   private
-
-  def persist_assistant_response(full_response)
-    return if full_response.blank?
-
-    @chat_session.chat_messages.create!(role: "assistant", content: full_response)
-    extract_and_save_drafts(full_response)
-  end
 
   DRAFT_REGEX = %r{<draft>\s*(.*?)\s*</draft>}m
 
-  def extract_and_save_drafts(text)
+  def extract_and_save_results(text)
     text.scan(DRAFT_REGEX).each do |(body)|
       next if body.blank?
-      @task.task_drafts.create!(content: body.strip, source: "ai")
+      @task.task_drafts.create!(content: body.strip, source: TaskDraft::REFINE_SOURCE)
     end
   rescue StandardError => e
     Rails.logger.warn("[ChatSessions] Draft extraction failed: #{e.message}")
   end
 
-  def set_task
-    @task = Task.joins(:project)
-               .where(projects: { workspace_id: current_workspace.id })
-               .find(params[:jira_task_id])
-  end
-
   def build_initial_prompt
     desc = @task.description.presence || "(no description provided)"
-    title = @task.name.sub(/\A#{Regexp.escape(@task.external_reference.to_s)}\s*/, "")
+    title = ticket_title
     ref = @task.external_reference
     attachments_section = build_attachments_section(@task)
     comments_section = build_comments_section(@task)
@@ -276,67 +116,5 @@ class ChatSessionsController < ApplicationController
 
       Do your upfront investigation silently, then post your first message: a brief 1–2 sentence summary of what you found (mentioning concrete files where useful) followed by your first clarifying question. No multi-question lists.
     PROMPT
-  end
-
-  def build_comments_section(task)
-    comments = task.jira_comments.ordered
-    return "" if comments.empty?
-
-    formatted = comments.map do |c|
-      author = c.author_name.presence || c.author_email.presence || "Unknown"
-      when_at = c.jira_created_at&.strftime("%Y-%m-%d %H:%M") || ""
-      "**#{author}** (#{when_at}):\n#{c.body.to_s.strip}"
-    end.join("\n\n---\n\n")
-
-    <<~SECTION
-
-      # Comments on this ticket
-
-      There #{comments.size == 1 ? "is 1 comment" : "are #{comments.size} comments"}. Often the most important context lives here — read them carefully before asking questions:
-
-      #{formatted}
-    SECTION
-  end
-
-  def build_attachments_section(task)
-    return "" unless task.attachments.attached?
-
-    dir = task.attachments_disk_dir
-    return "" if dir.blank?
-
-    files = task.attachments.map do |att|
-      File.join(dir, att.filename.to_s.gsub(/[^\w.\- ]/, "_").gsub(/\s+/, "_"))
-    end
-    return "" if files.empty?
-
-    listing = files.map { |p| "- #{p}" }.join("\n")
-
-    <<~SECTION
-
-      # Attachments on this ticket
-
-      The ticket has #{files.size} attached file(s). Use the `Read` tool on these paths to view them — screenshots usually carry the most context, so read them before asking questions about the UI:
-
-      #{listing}
-    SECTION
-  end
-
-  def session_json(chat_session)
-    {
-      chat_session: {
-        id: chat_session.id,
-        claude_session_id: chat_session.claude_session_id,
-        status: chat_session.status,
-        messages: chat_session.chat_messages.includes(:user).ordered.map do |msg|
-          {
-            id: msg.id,
-            role: msg.role,
-            content: msg.content,
-            created_at: msg.created_at,
-            author: msg.user&.name
-          }
-        end
-      }
-    }
   end
 end
