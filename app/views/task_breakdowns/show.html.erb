@@ -40,6 +40,7 @@
             <button type="button"
                     data-breakdown-target="regenerateBtn"
                     data-action="click->breakdown#regenerate"
+                    title="Re-estimate from scratch within this conversation — keeps the chat history and saves a new version."
                     class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
                     style="background: rgba(var(--color-primary-rgb, 76,105,54), 0.1); color: var(--color-primary); border: 1px solid rgba(var(--color-primary-rgb, 76,105,54), 0.2); display: none;">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
@@ -67,6 +68,7 @@
           </div>
           <button type="button"
                   data-action="click->breakdown#resetConversation"
+                  title="Start a brand-new conversation — clears the chat and the AI's memory, then generates a fresh breakdown. Saved versions are kept. Use Regenerate instead if you just want to re-estimate."
                   class="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md transition-colors"
                   style="color: var(--color-error); background: var(--color-surface-container)">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
