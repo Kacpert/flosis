@@ -46,8 +46,10 @@ New **Workspace Settings** page, admin/owner only.
   - `update` — strong params permit `:clients_enabled`; updates
     `current_workspace`; redirects back to `/workspace_settings` with a notice.
 - View `workspace_settings/show.html.erb`: a **Features** section with a labeled
-  toggle for "Clients" (DaisyUI/Tailwind toggle, Apple-style — no raw inline
-  styles), submitted via a standard form. Scaled for future feature flags.
+  toggle for "Clients" using the project's existing `m3-*` design system
+  (`m3-card-elevated`, `m3-checkbox`, `m3-btn m3-btn-filled` — no raw inline
+  styles; DaisyUI is not wired into the Tailwind build, so we stay within the
+  established system), submitted via a standard form. Scaled for future flags.
 
 ## Entry point
 
