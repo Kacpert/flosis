@@ -22,6 +22,7 @@ Rails.application.routes.draw do
   post :stop_impersonating, to: "workspace_members#stop_impersonating"
 
   resources :clients
+  resource :workspace_settings, only: [ :show, :update ]
   resources :feedback_meetings
   resources :projects do
     resources :tasks, only: [ :create, :destroy ], shallow: true
