@@ -172,16 +172,6 @@
               </button>
               <div class="hidden absolute bottom-full left-0 mb-2 m3-menu z-50 w-56">
                 <%= link_to "Profile", profile_path, class: "m3-menu-item" %>
-                <% unless current_user.client_role?(current_workspace) %>
-                  <hr class="m3-menu-divider">
-                  <div class="m3-menu-label">Switch Workspace</div>
-                  <% current_user.workspaces.each do |ws| %>
-                    <% unless ws == Current.workspace %>
-                      <%= button_to ws.name, switch_workspace_path(ws), method: :post, class: "m3-menu-item" %>
-                    <% end %>
-                  <% end %>
-                  <%= link_to "New Workspace", new_workspace_path, class: "m3-menu-item" %>
-                <% end %>
                 <hr class="m3-menu-divider">
                 <%= button_to "Sign Out", session_path, method: :delete, class: "m3-menu-item" %>
               </div>
