@@ -1841,6 +1841,38 @@ span.flatpickr-weekday {
   color: var(--color-on-primary-container);
 }
 
+/* Inline copy-title button that sits in the sub-task header next to the title */
+.bd-copy-btn--inline {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: none;
+  background: transparent;
+  color: var(--color-outline);
+  opacity: 0.7;
+}
+.bd-copy-btn--inline:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  opacity: 1;
+}
+.bd-copy-btn--inline.bd-copy-btn--ok {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  opacity: 1;
+}
+
+/* The description copy button keeps a text label since it stands alone */
+.bd-copy-btn__label {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.bd-copy-row .bd-copy-btn {
+  width: auto;
+  gap: 0.35rem;
+  padding: 0 0.6rem;
+}
+
 .bd-chevron { flex-shrink: 0; transition: transform 0.15s ease; color: var(--color-outline); }
 .bd-subtask[data-open="true"] .bd-chevron { transform: rotate(90deg); }
 

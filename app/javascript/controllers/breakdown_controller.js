@@ -146,10 +146,16 @@ export default class extends Controller {
             </div>`
           : ""
 
+        const copyTitleIcon = `<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25"/></svg>`
+
         return `<div class="bd-subtask" data-open="false">
           <div class="bd-subtask__head" data-action="click->breakdown#toggleSubtask">
             <span class="bd-subtask__order">${order}</span>
             <span class="bd-subtask__title">${this.escape(st.title || "Untitled")}</span>
+            <button type="button" class="bd-copy-btn bd-copy-btn--inline" aria-label="Copy title" title="Copy title"
+              data-action="click->breakdown#copyField"
+              data-field="title"
+              data-value="${this.escape(st.title || "")}">${copyTitleIcon}</button>
             <span class="bd-points">${Number.isFinite(st.points) ? st.points : "?"}</span>
             <svg class="bd-chevron h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
           </div>
@@ -159,17 +165,12 @@ export default class extends Controller {
             ${figmaBlock}
             ${deps}
             <div class="bd-copy-row">
-              <button type="button" class="bd-copy-btn" aria-label="Copy title" title="Copy title"
-                data-action="click->breakdown#copyField"
-                data-field="title"
-                data-value="${this.escape(st.title || "")}">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25"/></svg>
-              </button>
               <button type="button" class="bd-copy-btn" aria-label="Copy description" title="Copy description"
                 data-action="click->breakdown#copyField"
                 data-field="description"
                 data-value="${this.escape(st.description || "")}">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h7.5M8.25 12h7.5m-7.5 5.25h4.5M3.75 4.5h16.5a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H3.75a.75.75 0 01-.75-.75V5.25a.75.75 0 01.75-.75z"/></svg>
+                <span class="bd-copy-btn__label">Copy description</span>
               </button>
             </div>
           </div>
