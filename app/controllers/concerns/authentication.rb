@@ -48,5 +48,9 @@ module Authentication
     def terminate_session
       Current.session.destroy
       cookies.delete(:session_id)
+      # Clear any impersonation escape-hatch cookie too. Otherwise a logout while
+      # "viewing as" another user leaves the cookie set with no live session, and
+      # the layout's impersonation banner blows up on a nil current_user.
+      cookies.delete(:admin_session_id)
     end
 end

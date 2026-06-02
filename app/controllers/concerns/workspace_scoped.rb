@@ -44,9 +44,15 @@ module WorkspaceScoped
   # allowed prefix, so there is no loop.
   CLIENT_ALLOWED_PREFIXES = ["/jira_tasks", "/profile", "/session"].freeze
 
+  # The "Switch Back" escape hatch for an impersonating admin must never be
+  # trapped, otherwise an admin who is viewing-as a client gets bounced back to
+  # Jira Tasks and can never restore their own session.
+  CLIENT_ALLOWED_EXACT_PATHS = ["/stop_impersonating"].freeze
+
   def redirect_clients_to_jira
     return unless Current.workspace
     return unless current_user&.client_role?(Current.workspace)
+    return if CLIENT_ALLOWED_EXACT_PATHS.include?(request.path)
     return if CLIENT_ALLOWED_PREFIXES.any? { |p| request.path == p || request.path.start_with?("#{p}/") }
 
     redirect_to jira_tasks_path

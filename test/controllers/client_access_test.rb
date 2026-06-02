@@ -105,6 +105,38 @@ class ClientAccessTest < ActionDispatch::IntegrationTest
     assert_redirected_to jira_tasks_path
   end
 
+  # --- impersonation escape hatch --------------------------------------------
+
+  test "an admin viewing-as a client can still switch back" do
+    # Simulate: admin's own session stashed in the admin_session_id cookie while
+    # the active session belongs to the client being impersonated.
+    admin_session = users(:one).sessions.create!
+    cookie_jar = ActionDispatch::TestRequest.create.cookie_jar
+    cookie_jar.signed[:admin_session_id] = admin_session.id
+    cookies["admin_session_id"] = cookie_jar["admin_session_id"]
+
+    post stop_impersonating_path
+
+    # The client redirect must NOT trap this request at /jira_tasks; the admin is
+    # restored and sent back to the team panel.
+    assert_redirected_to workspace_members_path
+  end
+
+  test "logging out clears the impersonation cookie and does not 500" do
+    # Stale admin_session_id cookie present while logging out (the lockout case).
+    admin_session = users(:one).sessions.create!
+    cookie_jar = ActionDispatch::TestRequest.create.cookie_jar
+    cookie_jar.signed[:admin_session_id] = admin_session.id
+    cookies["admin_session_id"] = cookie_jar["admin_session_id"]
+
+    delete session_path
+
+    # After logout the login page must render (no nil current_user crash in the
+    # impersonation banner) rather than 500.
+    follow_redirect!
+    assert_response :success
+  end
+
   # --- non-client unaffected -------------------------------------------------
 
   test "owner still lands on time entries (not redirected)" do

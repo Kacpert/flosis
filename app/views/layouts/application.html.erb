@@ -25,7 +25,7 @@
   </head>
 
   <body class="min-h-screen" data-controller="keyboard-shortcuts">
-    <% if cookies.signed[:admin_session_id].present? %>
+    <% if current_user && cookies.signed[:admin_session_id].present? %>
       <div class="flex items-center justify-center gap-3 px-4 py-2" style="background: #B91C1C; color: white; font-size: 13px;">
         <span>Viewing as <strong><%= current_user.name %></strong></span>
         <%= button_to "Switch Back", stop_impersonating_path, method: :post,
