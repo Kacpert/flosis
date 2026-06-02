@@ -2,8 +2,9 @@ class JiraController < ApplicationController
   include WorkspaceScoped
 
   before_action :require_admin!, only: [:projects, :sync]
-  before_action :require_employee!, only: [:jira_tasks]
+  before_action :require_client_or_employee!, only: [:jira_tasks]
   before_action :set_project, only: [:jira_tasks, :sync]
+  rescue_from ActiveRecord::RecordNotFound, with: :jira_record_not_found
 
   def projects
     client = JiraClient.new
@@ -36,7 +37,9 @@ class JiraController < ApplicationController
   private
 
   def set_project
-    @project = current_workspace.projects.find(params[:id])
+    # Clients/employees may only reach Jira projects they're a member of; admins
+    # (the only role that reaches #sync) see all Jira projects.
+    @project = visible_jira_projects.find(params[:id])
   end
 
   def sort_tasks_for_user(tasks, user)

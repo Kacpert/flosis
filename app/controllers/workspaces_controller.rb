@@ -1,4 +1,10 @@
 class WorkspacesController < ApplicationController
+  # This controller intentionally does NOT include WorkspaceScoped (it manages
+  # workspaces, including for users who have none yet), so the client redirect
+  # there doesn't apply. A client account is single-workspace and admin-managed,
+  # so clients must not create or switch workspaces — bounce them to Jira Tasks.
+  before_action :block_clients
+
   def new
     @workspace = Workspace.new
   end
@@ -22,6 +28,14 @@ class WorkspacesController < ApplicationController
   end
 
   private
+
+  # A user is treated as a client if any of their memberships is a client role.
+  # (Client accounts have exactly one membership in practice.)
+  def block_clients
+    if current_user&.workspace_memberships&.exists?(role: :client)
+      redirect_to jira_tasks_path, alert: "Clients can't manage workspaces."
+    end
+  end
 
   def workspace_params
     params.require(:workspace).permit(:name)

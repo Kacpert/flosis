@@ -11,3 +11,11 @@ plain_project:
   workspace: one
   color: "#EF4444"
   currency: USD
+
+other_jira_project:
+  name: SecretProject
+  workspace: one
+  color: "#10B981"
+  currency: USD
+  external_type: jira
+  external_reference: SEC

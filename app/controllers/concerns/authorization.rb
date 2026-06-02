@@ -2,13 +2,26 @@ module Authorization
   extend ActiveSupport::Concern
 
   included do
-    helper_method :current_membership, :can_see_money?
+    helper_method :current_membership, :can_see_money?, :visible_jira_projects
   end
 
   private
 
   def current_membership
     @current_membership ||= current_user&.membership_for(current_workspace)
+  end
+
+  # Jira projects the current user may see. Admins/owners see every Jira project
+  # in the workspace; everyone else (employee, client) sees only the Jira
+  # projects they have a ProjectMembership for. Used to scope the Jira Tasks
+  # views and the task lookups so a client can't reach another project's tasks.
+  def visible_jira_projects
+    scope = current_workspace.projects.active.where(external_type: "jira")
+    return scope.order(:name) if current_user&.admin_or_owner?(current_workspace)
+
+    scope.joins(:project_memberships)
+         .where(project_memberships: { user_id: current_user&.id })
+         .order(:name)
   end
 
   def current_role
@@ -27,7 +40,21 @@ module Authorization
     end
   end
 
+  # Jira tasks + their AI features are open to clients as well as employees.
+  def require_client_or_employee!
+    unless current_user&.client_or_employee?(current_workspace)
+      redirect_to root_path, alert: "You don't have permission to access this page."
+    end
+  end
+
   def can_see_money?
     current_user&.can_see_money?(current_workspace)
+  end
+
+  # Used by the Jira/AI controllers: when a task/project lookup is scoped to the
+  # user's visible projects and misses (e.g. a client guessing another project's
+  # task id), send them back to the Jira board instead of a raw 404.
+  def jira_record_not_found
+    redirect_to jira_tasks_path, alert: "You don't have access to that."
   end
 end

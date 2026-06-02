@@ -9,3 +9,8 @@ two:
   name: Other User
   email_address: two@example.com
   password_digest: <%= password_digest %>
+
+client_user:
+  name: Client Person
+  email_address: client-fixture@example.com
+  password_digest: <%= password_digest %>

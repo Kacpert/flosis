@@ -11,7 +11,7 @@ class BreakdownChatSessionsController < ApplicationController
 
   CHAT_PURPOSE = "breakdown".freeze
 
-  before_action :require_employee!
+  before_action :require_client_or_employee!
   before_action :set_task
 
   private

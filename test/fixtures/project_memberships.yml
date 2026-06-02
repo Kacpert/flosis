@@ -12,3 +12,10 @@ one_internal:
   project: plain_project
   user: one
   hourly_rate_cents: 12000
+
+# Client is a member of jira_project only (NOT other_jira_project), so scoping
+# tests can assert they can't reach SecretProject's tasks.
+client_elvium:
+  project: jira_project
+  user: client_user
+  hourly_rate_cents: 0

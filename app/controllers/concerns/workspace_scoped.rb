@@ -3,6 +3,7 @@ module WorkspaceScoped
 
   included do
     before_action :set_current_workspace
+    before_action :redirect_clients_to_jira
     before_action :set_running_timer
     helper_method :current_workspace
     helper_method :available_projects
@@ -36,6 +37,20 @@ module WorkspaceScoped
     end
   end
 
+
+  # Clients may only use the Jira Tasks area (plus profile / session). Any other
+  # page is redirected to Jira Tasks. Runs after the workspace is set and before
+  # the per-controller role guards; never redirects a request already under an
+  # allowed prefix, so there is no loop.
+  CLIENT_ALLOWED_PREFIXES = ["/jira_tasks", "/profile", "/session"].freeze
+
+  def redirect_clients_to_jira
+    return unless Current.workspace
+    return unless current_user&.client_role?(Current.workspace)
+    return if CLIENT_ALLOWED_PREFIXES.any? { |p| request.path == p || request.path.start_with?("#{p}/") }
+
+    redirect_to jira_tasks_path
+  end
 
   def set_running_timer
     return unless Current.workspace

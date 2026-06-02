@@ -1,8 +1,9 @@
 class TaskDraftsController < ApplicationController
   include WorkspaceScoped
 
-  before_action :require_employee!
+  before_action :require_client_or_employee!
   before_action :set_task
+  rescue_from ActiveRecord::RecordNotFound, with: :jira_record_not_found
 
   def index
     drafts = @task.task_drafts.by_source(TaskDraft::REFINE_SOURCE).newest_first.map do |d|
@@ -19,8 +20,6 @@ class TaskDraftsController < ApplicationController
   private
 
   def set_task
-    @task = Task.joins(:project)
-               .where(projects: { workspace_id: current_workspace.id })
-               .find(params[:jira_task_id])
+    @task = Task.where(project_id: visible_jira_projects.select(:id)).find(params[:jira_task_id])
   end
 end

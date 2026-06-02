@@ -20,6 +20,7 @@ module ChatStreaming
 
   included do
     include ActionController::Live # SSE
+    rescue_from ActiveRecord::RecordNotFound, with: :jira_record_not_found
   end
 
   def chat_purpose
@@ -257,8 +258,6 @@ module ChatStreaming
   end
 
   def set_task
-    @task = Task.joins(:project)
-               .where(projects: { workspace_id: current_workspace.id })
-               .find(params[:jira_task_id])
+    @task = Task.where(project_id: visible_jira_projects.select(:id)).find(params[:jira_task_id])
   end
 end

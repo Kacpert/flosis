@@ -7,3 +7,8 @@ two_employee:
   user: two
   workspace: one
   role: 0
+
+client_membership:
+  user: client_user
+  workspace: one
+  role: 3

@@ -18,3 +18,15 @@ jira_task:
 local_task:
   name: Daily standup
   project: jira_project
+
+# Lives in a Jira project the client is NOT a member of — used to assert
+# client task-scoping (they must not reach this one).
+secret_task:
+  name: "SEC-1 Secret task"
+  project: other_jira_project
+  external_type: jira
+  external_reference: SEC-1
+  external_url: https://elvium.atlassian.net/browse/SEC-1
+  jira_status_name: To Do
+  description: "Hidden from clients"
+  issue_type: Task

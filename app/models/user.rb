@@ -49,6 +49,11 @@ class User < ApplicationRecord
     role_in(workspace) == "client"
   end
 
+  # Clients get Jira-tasks-only access alongside employees/admins/owners.
+  def client_or_employee?(workspace)
+    client_role?(workspace) || at_least_employee?(workspace)
+  end
+
   def can_see_money?(workspace)
     admin_or_owner?(workspace)
   end

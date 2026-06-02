@@ -1,10 +1,12 @@
 class JiraTasksController < ApplicationController
   include WorkspaceScoped
 
-  before_action :require_employee!
+  before_action :require_client_or_employee!
+  before_action :require_admin!, only: [:refresh]
+  rescue_from ActiveRecord::RecordNotFound, with: :jira_record_not_found
 
   def index
-    @jira_projects = current_workspace.projects.active.where(external_type: "jira").order(:name)
+    @jira_projects = visible_jira_projects
 
     if params[:project_id].present?
       @selected_project = @jira_projects.find_by(id: params[:project_id])
@@ -28,7 +30,7 @@ class JiraTasksController < ApplicationController
   end
 
   def board_data
-    @selected_project = current_workspace.projects.find(params[:project_id])
+    @selected_project = visible_jira_projects.find(params[:project_id])
     @selected_board = @selected_project.jira_boards.find(params[:board_id])
     @view_mode = params[:view].presence || "kanban"
 
@@ -50,7 +52,7 @@ class JiraTasksController < ApplicationController
   end
 
   def show
-    @task = Task.joins(:project).where(projects: { workspace_id: current_workspace.id }).find(params[:id])
+    @task = Task.where(project_id: visible_jira_projects.select(:id)).find(params[:id])
 
     if turbo_frame_request?
       render partial: "task_detail"
