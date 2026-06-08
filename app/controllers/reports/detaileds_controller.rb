@@ -13,6 +13,10 @@ module Reports
 
       @total_seconds = scope.sum(:duration_seconds)
 
+      # Per-entry cost uses each entry's snapshotted rate (set at stop time);
+      # summed in Ruby over the already-loaded entries. Shown only to admins.
+      @total_cents = @entries.sum(&:billable_amount_cents)
+
       # Group entries by user
       @entries_by_user = {}
       @entries.each do |entry|
