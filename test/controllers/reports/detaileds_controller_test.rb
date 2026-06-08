@@ -25,6 +25,24 @@ class Reports::DetailedsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "report uses the current member rate, not the entry's snapshot" do
+    # Entry logged while the member had a 0 rate (snapshot frozen at 0)...
+    membership = project_memberships(:one_elvium)
+    membership.update!(hourly_rate_cents: 0)
+    stale = create_entry(users(:one), start: @day.to_time + 13.hours, hours: 4)
+    assert_equal 0, stale.hourly_rate_cents, "precondition: entry snapshot is 0"
+
+    # ...then the rate is set afterwards. The report must reflect the NEW rate
+    # for ALL of this user's entries, ignoring per-entry snapshots entirely.
+    membership.update!(hourly_rate_cents: 5_000) # $50/hr
+
+    # users(:one) has 2h (from setup, snapshot $150) + 4h (this test, snapshot $0).
+    # At the current $50 rate that is 6h * $50 = $300, proving snapshots are ignored.
+    get reports_detailed_path(from: "2026-05-01", to: "2026-05-31", project_id: @project.id, user_id: users(:one).id)
+    assert_response :success
+    assert_match "300.00 USD", response.body
+  end
+
   test "admin sees a total cost card with the project currency" do
     get reports_detailed_path(from: "2026-05-01", to: "2026-05-31", project_id: @project.id)
     assert_response :success

@@ -13,9 +13,15 @@ module Reports
 
       @total_seconds = scope.sum(:duration_seconds)
 
-      # Per-entry cost uses each entry's snapshotted rate (set at stop time);
-      # summed in Ruby over the already-loaded entries. Shown only to admins.
-      @total_cents = @entries.sum(&:billable_amount_cents)
+      # Cost uses each member's CURRENT project rate (not the entry's frozen
+      # snapshot), so setting/updating a rate is reflected for past entries too.
+      # `@cost_for` is a callable the view also uses for per-user sums.
+      @rate_lookup = current_rate_lookup(@entries)
+      @cost_for = ->(entry) {
+        rate = @rate_lookup[[entry.project_id, entry.user_id]] || 0
+        (entry.duration_seconds / 3600.0 * rate).round
+      }
+      @total_cents = @entries.sum { |e| @cost_for.call(e) }
 
       # Group entries by user
       @entries_by_user = {}
@@ -90,6 +96,21 @@ module Reports
     end
 
     private
+
+    # Map of [project_id, user_id] => current hourly_rate_cents, loaded in one
+    # query for just the (project, user) pairs present in the entries.
+    def current_rate_lookup(entries)
+      pairs = entries.map { |e| [ e.project_id, e.user_id ] }.uniq
+      return {} if pairs.empty?
+
+      project_ids = pairs.map(&:first).uniq
+      user_ids = pairs.map(&:last).uniq
+
+      ProjectMembership
+        .where(project_id: project_ids, user_id: user_ids)
+        .pluck(:project_id, :user_id, :hourly_rate_cents)
+        .each_with_object({}) { |(pid, uid, cents), h| h[[pid, uid]] = cents }
+    end
 
     def build_scope
       scope = current_workspace.time_entries.completed

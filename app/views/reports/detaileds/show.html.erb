@@ -62,7 +62,7 @@
     <% @entries_by_user.each do |user, entries| %>
       <% user_total = entries.sum(&:duration_seconds) %>
       <% user_pct = @total_seconds > 0 ? (user_total.to_f / @total_seconds * 100).round(1) : 0 %>
-      <% user_cost_cents = entries.sum(&:billable_amount_cents) %>
+      <% user_cost_cents = entries.sum { |e| @cost_for.call(e) } %>
 
       <div class="m3-card-outlined overflow-hidden">
         <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color: var(--color-outline-variant)">
