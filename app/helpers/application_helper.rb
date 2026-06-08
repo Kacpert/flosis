@@ -24,9 +24,17 @@ module ApplicationHelper
     end
   end
 
-  def format_money(cents)
-    return "$0.00" if cents.nil?
-    "$#{'%.2f' % (cents / 100.0)}"
+  # Without a currency: dollar-prefixed (legacy callers). With a currency code:
+  # a delimited amount followed by the code, e.g. "1,234.50 USD". Used by the
+  # Detailed report, where amounts are summed per project currency (or shown
+  # without a symbol when projects/currencies are mixed).
+  def format_money(cents, currency = nil)
+    amount = cents.to_i / 100.0
+    if currency.present?
+      "#{ActiveSupport::NumberHelper.number_to_delimited(format('%.2f', amount))} #{currency}"
+    else
+      "$#{'%.2f' % amount}"
+    end
   end
 
   def nav_link(text, path, icon: nil)
