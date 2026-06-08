@@ -25,6 +25,26 @@ class Reports::DetailedsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "admin sees a total cost card with the project currency" do
+    get reports_detailed_path(from: "2026-05-01", to: "2026-05-31", project_id: @project.id)
+    assert_response :success
+    assert_select ".stat-label", text: "Total Cost"
+    assert_match "400.00 USD", response.body # 30_000 + 10_000 cents
+  end
+
+  test "admin sees per-user cost in the section header" do
+    get reports_detailed_path(from: "2026-05-01", to: "2026-05-31", project_id: @project.id)
+    assert_response :success
+    assert_match "300.00 USD", response.body # user one: 2h @ $150
+    assert_match "100.00 USD", response.body # user two: 1h @ $100
+  end
+
+  test "employee cannot see the detailed report at all" do
+    sign_in_as(users(:two)) # employee
+    get reports_detailed_path(from: "2026-05-01", to: "2026-05-31", project_id: @project.id)
+    assert_redirected_to root_path
+  end
+
   private
 
   def create_entry(user, start:, hours:)
