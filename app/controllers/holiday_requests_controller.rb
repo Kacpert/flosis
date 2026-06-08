@@ -15,7 +15,7 @@ class HolidayRequestsController < ApplicationController
         .order(start_date: :asc)
       @all_requests = current_workspace.holiday_requests
         .includes(:user, :reviewed_by)
-        .order(created_at: :desc)
+        .order(start_date: :desc)
     end
 
     @my_requests = current_user.holiday_requests

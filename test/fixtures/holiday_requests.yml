@@ -25,3 +25,12 @@ other_user_pending:
   business_days: 5
   note: "Summer break"
   status: 0
+
+other_user_cancelled:
+  user: two
+  workspace: one
+  start_date: "2026-08-10"
+  end_date: "2026-08-14"
+  business_days: 5
+  note: "Cancelled plan"
+  status: 2

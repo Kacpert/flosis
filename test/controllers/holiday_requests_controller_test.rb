@@ -90,4 +90,21 @@ class HolidayRequestsControllerTest < ActionDispatch::IntegrationTest
     patch cancel_holiday_request_path(request)
     assert_redirected_to root_path
   end
+
+  test "admin team holidays are ordered by start date descending" do
+    sign_in_as(users(:one)) # owner
+    get holiday_requests_path
+    assert_response :success
+
+    # Fixtures span 2026-05 (kacper_pending) .. 2026-08 (other_user_cancelled).
+    # Newest start_date must appear before older ones in the rendered page.
+    aug = response.body.index("Aug 10")
+    jul = response.body.index("Jul 1")
+    jun = response.body.index("Jun 15")
+    may = response.body.index("May 4")
+    assert aug && jul && jun && may, "expected all four holiday date ranges to render"
+    assert aug < jul, "Aug request should render before Jul"
+    assert jul < jun, "Jul request should render before Jun"
+    assert jun < may, "Jun request should render before May"
+  end
 end
