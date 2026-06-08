@@ -45,6 +45,15 @@ class Reports::DetailedsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
   end
 
+  test "pdf export returns a pdf and does not embed the cost figures" do
+    get export_pdf_reports_detailed_path(from: "2026-05-01", to: "2026-05-31", project_id: @project.id)
+    assert_response :success
+    assert_equal "application/pdf", response.media_type
+    # The HTML shows "400.00 USD" etc.; the PDF must not contain those strings.
+    assert_no_match "400.00 USD", response.body
+    assert_no_match "300.00 USD", response.body
+  end
+
   private
 
   def create_entry(user, start:, hours:)
