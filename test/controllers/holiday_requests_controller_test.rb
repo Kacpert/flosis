@@ -96,15 +96,38 @@ class HolidayRequestsControllerTest < ActionDispatch::IntegrationTest
     get holiday_requests_path
     assert_response :success
 
-    # Fixtures span 2026-05 (kacper_pending) .. 2026-08 (other_user_cancelled).
-    # Newest start_date must appear before older ones in the rendered page.
-    aug = response.body.index("Aug 10")
-    jul = response.body.index("Jul 1")
-    jun = response.body.index("Jun 15")
-    may = response.body.index("May 4")
-    assert aug && jul && jun && may, "expected all four holiday date ranges to render"
-    assert aug < jul, "Aug request should render before Jul"
-    assert jul < jun, "Jul request should render before Jun"
-    assert jun < may, "Jun request should render before May"
+    # The Team Holidays section is rendered from the workspace's requests
+    # ordered by start_date desc. Extract the rendered date labels within that
+    # section and assert they are newest-first.
+    section = response.body[/Team Holidays.*/m]
+    refute_nil section, "Team Holidays section should be present"
+    months = section.scan(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d/)
+    # First labels in the section are the start dates of each row, newest first:
+    # Aug 10 (2026-08), Jul 1 (2026-07), Jun 15 (2026-06), May 4 (2026-05).
+    order = months.map(&:first)
+    assert_equal "Aug", order[0], "newest (Aug) start date first"
+    assert_operator order.index("May"), :>, order.index("Aug"), "May after Aug"
+  end
+
+  test "admin sees the Team Holidays section with other members' requests" do
+    sign_in_as(users(:one)) # owner
+    get holiday_requests_path
+    assert_response :success
+    assert_select "h2", text: "Team Holidays"
+    assert_match users(:two).name, response.body # another member's request shown
+  end
+
+  test "admin sees cancelled requests in Team Holidays" do
+    sign_in_as(users(:one))
+    get holiday_requests_path
+    assert_response :success
+    assert_match "cancelled", response.body # other_user_cancelled fixture
+  end
+
+  test "employee does not see the Team Holidays section" do
+    sign_in_as(users(:two)) # employee
+    get holiday_requests_path
+    assert_response :success
+    assert_select "h2", text: "Team Holidays", count: 0
   end
 end

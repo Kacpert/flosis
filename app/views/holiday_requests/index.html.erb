@@ -92,6 +92,31 @@
     </div>
   <% end %>
 
+  <%# Admin: full team holiday history (all statuses) %>
+  <% if current_user.admin_or_owner?(current_workspace) && @all_requests&.any? %>
+    <div class="space-y-2">
+      <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Team Holidays</h2>
+      <div class="m3-card-outlined overflow-hidden">
+        <% @all_requests.each do |request| %>
+          <div class="flex items-center gap-3 p-4 border-b" style="border-color: var(--color-outline-variant)">
+            <div class="m3-avatar m3-avatar-sm"><%= request.user.name.first(2).upcase %></div>
+            <div class="flex-1">
+              <div class="text-sm font-medium" style="color: var(--color-on-surface)"><%= request.user.name %></div>
+              <div class="text-xs" style="color: var(--color-outline)">
+                <%= request.start_date.strftime("%b %-d") %> &ndash; <%= request.end_date.strftime("%b %-d, %Y") %>
+                &middot; <%= request.business_days %> days
+              </div>
+            </div>
+            <span class="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full"
+                  style="<%= holiday_status_style(request.status) %>">
+              <%= request.status %>
+            </span>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
   <%# Balance History Link %>
   <div class="text-center">
     <%= link_to "View balance history", holiday_balance_entries_path, class: "text-sm font-medium", style: "color: var(--color-primary)" %>
