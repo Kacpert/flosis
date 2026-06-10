@@ -23,6 +23,7 @@ Rails.application.routes.draw do
 
   resources :clients
   resource :workspace_settings, only: [ :show, :update ]
+  resources :discord_reminder_recipients, only: [ :create, :update, :destroy ]
   resources :feedback_meetings
   resources :projects do
     resources :tasks, only: [ :create, :destroy ], shallow: true
