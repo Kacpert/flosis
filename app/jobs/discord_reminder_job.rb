@@ -2,9 +2,14 @@ class DiscordReminderJob < ApplicationJob
   queue_as :default
 
   WORKING_DAYS_WINDOW = 3
-  STAGGER = 2.minutes
+  # Each flagged person's message is sent at a random offset within this window
+  # after the job runs, so the account behaves like a human rather than a bot
+  # firing a burst at a fixed time.
+  SPREAD = 120 # minutes
 
-  def perform
+  # variant: "morning" (gentle wording) or "afternoon" (more urgent). Both spread
+  # randomly over SPREAD minutes.
+  def perform(variant = "morning")
     window = last_working_days(WORKING_DAYS_WINDOW)
     return if window.empty?
 
@@ -12,18 +17,22 @@ class DiscordReminderJob < ApplicationJob
     Workspace.where.not(discord_user_token: nil).where.not(discord_channel_id: nil).find_each do |workspace|
       next unless DiscordGroupClient.for(workspace).configured?
 
-      index = 0
       workspace.discord_reminder_recipients.active.includes(:user).find_each do |recipient|
         next unless under_threshold?(recipient, window)
-        DiscordReminderMessageJob.set(wait: index * STAGGER).perform_later(recipient.id)
-        index += 1
+        DiscordReminderMessageJob.set(wait: random_delay).perform_later(recipient.id, variant)
       end
     end
   end
 
   private
 
-  # The last N working days (Mon–Fri) ending yesterday (today is still in progress).
+  # A random delay in [0, SPREAD] minutes so messages are spread out, not bursty.
+  def random_delay
+    rand(0..(SPREAD * 60)).seconds
+  end
+
+  # The last N working days (Mon–Fri) ending yesterday. The current day is never
+  # included (it is still in progress).
   def last_working_days(count)
     days = []
     day = Date.yesterday

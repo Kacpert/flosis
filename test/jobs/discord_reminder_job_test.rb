@@ -49,8 +49,21 @@ class DiscordReminderJobTest < ActiveJob::TestCase
       add_entry(users(:two), monday, 1) # only 1h Monday -> under 4h
 
       with_client(configured: true) do
-        assert_enqueued_with(job: DiscordReminderMessageJob, args: [ r.id ]) do
-          DiscordReminderJob.perform_now
+        assert_enqueued_with(job: DiscordReminderMessageJob, args: [ r.id, "morning" ]) do
+          DiscordReminderJob.perform_now("morning")
+        end
+      end
+    end
+  end
+
+  test "passes the afternoon variant through to the message job" do
+    travel_to monday + 1.day do
+      r = recipient_for(users(:two), threshold: 4.0)
+      add_entry(users(:two), monday, 1)
+
+      with_client(configured: true) do
+        assert_enqueued_with(job: DiscordReminderMessageJob, args: [ r.id, "afternoon" ]) do
+          DiscordReminderJob.perform_now("afternoon")
         end
       end
     end

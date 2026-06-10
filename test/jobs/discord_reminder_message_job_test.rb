@@ -20,7 +20,7 @@ class DiscordReminderMessageJobTest < ActiveJob::TestCase
     fake
   end
 
-  test "posts a mention message for the recipient" do
+  test "posts a mention message without disclosing the hours" do
     recipient = DiscordReminderRecipient.create!(
       workspace: workspaces(:one), user: users(:two),
       discord_user_id: "555", min_daily_hours: 4.0
@@ -28,12 +28,27 @@ class DiscordReminderMessageJobTest < ActiveJob::TestCase
 
     fake = fake_client
     with_stubbed_client(fake) do
-      DiscordReminderMessageJob.perform_now(recipient.id)
+      DiscordReminderMessageJob.perform_now(recipient.id, "morning")
     end
 
     assert_equal 1, fake.captured.size
     assert_includes fake.captured.first, "<@555>"
-    assert_includes fake.captured.first, "4h"
+    assert_includes fake.captured.first, "missing hours"
+    assert_not_includes fake.captured.first, "4h", "must not disclose the threshold/hours"
+  end
+
+  test "afternoon variant uses the more urgent wording" do
+    recipient = DiscordReminderRecipient.create!(
+      workspace: workspaces(:one), user: users(:two),
+      discord_user_id: "555", min_daily_hours: 4.0
+    )
+
+    fake = fake_client
+    with_stubbed_client(fake) do
+      DiscordReminderMessageJob.perform_now(recipient.id, "afternoon")
+    end
+
+    assert_includes fake.captured.first.downcase, "still missing hours"
   end
 
   test "no-ops when the recipient is missing" do
