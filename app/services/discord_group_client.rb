@@ -2,16 +2,21 @@ require "net/http"
 require "json"
 
 # Posts messages to a Discord group DM using a user-account token (group DMs
-# cannot use webhooks or bot tokens). Token + channel id come from Rails
-# encrypted credentials (discord.user_token / discord.group_channel_id).
+# cannot use webhooks or bot tokens). Token + channel id are stored per-workspace
+# (workspaces.discord_user_token / discord_channel_id) and entered in Workspace
+# Settings.
 class DiscordGroupClient
   API_BASE = "https://discord.com/api/v10".freeze
   TIMEOUT  = 10
 
+  # Build a client from a workspace's stored Discord settings.
+  def self.for(workspace)
+    new(token: workspace&.discord_user_token, channel_id: workspace&.discord_channel_id)
+  end
+
   def initialize(token: nil, channel_id: nil)
-    creds = Rails.application.credentials.discord || {}
-    @token = token || creds[:user_token]
-    @channel_id = channel_id || creds[:group_channel_id]
+    @token = token
+    @channel_id = channel_id
   end
 
   def configured?

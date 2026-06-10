@@ -12,6 +12,15 @@ class DiscordGroupClientTest < ActiveSupport::TestCase
     assert client.configured?
   end
 
+  test ".for builds from a workspace's stored settings" do
+    workspace = workspaces(:one)
+    workspace.update!(discord_user_token: "wtok", discord_channel_id: "555")
+    assert DiscordGroupClient.for(workspace).configured?
+
+    workspace.update!(discord_user_token: nil)
+    assert_not DiscordGroupClient.for(workspace).configured?
+  end
+
   test "post sends the message and returns true on 200" do
     stub = stub_request(:post, "https://discord.com/api/v10/channels/999/messages")
       .with(

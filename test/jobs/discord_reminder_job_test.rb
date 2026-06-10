@@ -3,17 +3,19 @@ require "test_helper"
 class DiscordReminderJobTest < ActiveJob::TestCase
   setup do
     @workspace = workspaces(:one)
+    # The job only acts on workspaces that have Discord configured.
+    @workspace.update!(discord_user_token: "tok", discord_channel_id: "555")
   end
 
-  # Swap DiscordGroupClient.new for a fake with the given configured? value.
+  # Swap DiscordGroupClient.for for a fake reporting the given configured? value.
   def with_client(configured:)
     fake = Object.new
     fake.define_singleton_method(:configured?) { configured }
-    original = DiscordGroupClient.method(:new)
-    DiscordGroupClient.define_singleton_method(:new) { |*_a, **_k| fake }
+    original = DiscordGroupClient.method(:for)
+    DiscordGroupClient.define_singleton_method(:for) { |*_a, **_k| fake }
     yield
   ensure
-    DiscordGroupClient.define_singleton_method(:new, original)
+    DiscordGroupClient.define_singleton_method(:for, original)
   end
 
   # 2026-06-08 is a Monday. With "today" = Tue 2026-06-09, the last 3 working

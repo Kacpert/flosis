@@ -9,6 +9,6 @@ class DiscordReminderMessageJob < ApplicationJob
     content = "<@#{recipient.discord_user_id}> you logged under #{hours}h on one " \
               "or more of the last 3 working days — please log your time 🙏"
 
-    DiscordGroupClient.new.post(content)
+    DiscordGroupClient.for(recipient.workspace).post(content)
   end
 end

@@ -19,3 +19,6 @@ production:
   holiday_yearly_grant:
     class: HolidayYearlyGrantJob
     schedule: "0 0 1 1 *"
+  discord_time_logging_reminders:
+    class: DiscordReminderJob
+    schedule: "0 9 * * 1-5"

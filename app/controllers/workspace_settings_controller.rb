@@ -21,6 +21,10 @@ class WorkspaceSettingsController < ApplicationController
   private
 
   def workspace_settings_params
-    params.require(:workspace).permit(:clients_enabled)
+    permitted = params.require(:workspace).permit(:clients_enabled, :discord_channel_id, :discord_user_token)
+    # Blank token field means "leave unchanged" (the field is never pre-filled),
+    # so don't wipe a stored token when the admin saves other settings.
+    permitted.delete(:discord_user_token) if permitted[:discord_user_token].blank?
+    permitted
   end
 end

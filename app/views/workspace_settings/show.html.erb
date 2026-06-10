@@ -16,6 +16,28 @@
       </label>
     </div>
 
+    <div class="m3-card-elevated p-6 space-y-4">
+      <div>
+        <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Discord connection</h2>
+        <p class="text-sm" style="color: var(--color-on-surface-variant)">
+          User-account token and group-DM channel ID used to send reminders. Leave
+          the token blank to keep the current one.
+        </p>
+      </div>
+      <div class="space-y-1">
+        <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Channel ID</label>
+        <%= f.text_field :discord_channel_id, class: "m3-text-field w-full" %>
+      </div>
+      <div class="space-y-1">
+        <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">
+          User token <%= current_workspace.discord_user_token.present? ? "(set — leave blank to keep)" : "(not set)" %>
+        </label>
+        <%= f.password_field :discord_user_token, value: "", autocomplete: "off",
+              placeholder: current_workspace.discord_user_token.present? ? "••••••••" : "",
+              class: "m3-text-field w-full" %>
+      </div>
+    </div>
+
     <div class="flex justify-end">
       <%= f.submit "Save Changes", class: "m3-btn m3-btn-filled" %>
     </div>

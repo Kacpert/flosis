@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_10_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_10_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -490,6 +490,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_10_000001) do
   create_table "workspaces", force: :cascade do |t|
     t.boolean "clients_enabled", default: false, null: false
     t.datetime "created_at", null: false
+    t.string "discord_channel_id"
+    t.string "discord_user_token"
     t.string "name", null: false
     t.datetime "updated_at", null: false
   end

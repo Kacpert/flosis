@@ -5,16 +5,19 @@ class DiscordReminderJob < ApplicationJob
   STAGGER = 2.minutes
 
   def perform
-    return unless DiscordGroupClient.new.configured?
-
     window = last_working_days(WORKING_DAYS_WINDOW)
     return if window.empty?
 
-    index = 0
-    DiscordReminderRecipient.active.includes(:user, :workspace).find_each do |recipient|
-      next unless under_threshold?(recipient, window)
-      DiscordReminderMessageJob.set(wait: index * STAGGER).perform_later(recipient.id)
-      index += 1
+    # Each workspace stores its own Discord token/channel; only act on configured ones.
+    Workspace.where.not(discord_user_token: nil).where.not(discord_channel_id: nil).find_each do |workspace|
+      next unless DiscordGroupClient.for(workspace).configured?
+
+      index = 0
+      workspace.discord_reminder_recipients.active.includes(:user).find_each do |recipient|
+        next unless under_threshold?(recipient, window)
+        DiscordReminderMessageJob.set(wait: index * STAGGER).perform_later(recipient.id)
+        index += 1
+      end
     end
   end
 

@@ -5,11 +5,11 @@ class DiscordReminderMessageJobTest < ActiveJob::TestCase
   # factory returning `fake`, restoring the original afterwards. The repo's
   # minitest build has no Object#stub, so we swap the singleton method by hand.
   def with_stubbed_client(fake)
-    original = DiscordGroupClient.method(:new)
-    DiscordGroupClient.define_singleton_method(:new) { |*_args, **_kw| fake }
+    original = DiscordGroupClient.method(:for)
+    DiscordGroupClient.define_singleton_method(:for) { |*_args, **_kw| fake }
     yield
   ensure
-    DiscordGroupClient.define_singleton_method(:new, original)
+    DiscordGroupClient.define_singleton_method(:for, original)
   end
 
   def fake_client
