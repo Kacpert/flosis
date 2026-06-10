@@ -30,6 +30,15 @@ class DiscordReminderRecipientsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to workspace_settings_path
   end
 
+  test "workspace settings page renders the Discord reminders section" do
+    sign_in_as(users(:one))
+    DiscordReminderRecipient.create!(workspace: workspaces(:one), user: users(:two), discord_user_id: "1", min_daily_hours: 4)
+    get workspace_settings_path
+    assert_response :success
+    assert_select "h2", text: "Discord reminders"
+    assert_match users(:two).name, response.body
+  end
+
   test "employee is blocked" do
     sign_in_as(users(:two))
     assert_no_difference "DiscordReminderRecipient.count" do

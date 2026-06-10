@@ -5,6 +5,8 @@ class WorkspaceSettingsController < ApplicationController
 
   def show
     @workspace = current_workspace
+    @discord_recipients = current_workspace.discord_reminder_recipients.includes(:user).order("users.name")
+    @workspace_users = current_workspace.users.order(:name)
   end
 
   def update
