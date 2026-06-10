@@ -22,6 +22,6 @@ production:
   discord_time_logging_reminders_morning:
     class: DiscordReminderJob
     schedule: "0 9 * * 1-5"
-  discord_time_logging_reminders_evening:
+  discord_time_logging_reminders_afternoon:
     class: DiscordReminderJob
-    schedule: "0 17 * * 1-5"
+    schedule: "0 15 * * 1-5"
