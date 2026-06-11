@@ -18,8 +18,13 @@ class DiscordReminderJob < ApplicationJob
       next unless DiscordGroupClient.for(workspace).configured?
 
       workspace.discord_reminder_recipients.active.includes(:user).find_each do |recipient|
-        next unless under_threshold?(recipient, window)
-        DiscordReminderMessageJob.set(wait: random_delay).perform_later(recipient.id, variant)
+        if under_threshold?(recipient, window)
+          DiscordReminderMessageJob.set(wait: random_delay).perform_later(recipient.id, variant)
+        elsif variant == "morning" && praise?
+          # A doing-well user occasionally (~25%) gets a motivating shout-out,
+          # only in the morning run, rolled independently per user.
+          DiscordReminderMessageJob.set(wait: random_delay).perform_later(recipient.id, "praise")
+        end
       end
     end
   end
@@ -29,6 +34,11 @@ class DiscordReminderJob < ApplicationJob
   # A random delay in [0, SPREAD] minutes so messages are spread out, not bursty.
   def random_delay
     rand(0..(SPREAD * 60)).seconds
+  end
+
+  # ~25% chance, rolled independently per good user.
+  def praise?
+    [ true, false, false, false ].sample
   end
 
   # The last N working days (Mon–Fri) ending yesterday. The current day is never

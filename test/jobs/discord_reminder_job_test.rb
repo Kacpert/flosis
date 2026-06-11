@@ -18,6 +18,16 @@ class DiscordReminderJobTest < ActiveJob::TestCase
     DiscordGroupClient.define_singleton_method(:for, original)
   end
 
+  # Force the per-user praise roll to a fixed value for deterministic tests,
+  # restoring the original method afterwards.
+  def with_praise(value)
+    original = DiscordReminderJob.instance_method(:praise?)
+    DiscordReminderJob.define_method(:praise?) { value }
+    yield
+  ensure
+    DiscordReminderJob.define_method(:praise?, original)
+  end
+
   # 2026-06-08 is a Monday. With "today" = Tue 2026-06-09, the last 3 working
   # days ending yesterday are: Mon Jun 8, Fri Jun 5, Thu Jun 4.
   def monday
@@ -75,8 +85,55 @@ class DiscordReminderJobTest < ActiveJob::TestCase
       window_days.each { |d| add_entry(users(:two), d, 8) }
 
       with_client(configured: true) do
-        assert_no_enqueued_jobs(only: DiscordReminderMessageJob) do
-          DiscordReminderJob.perform_now
+        with_praise(false) do
+          assert_no_enqueued_jobs(only: DiscordReminderMessageJob) do
+            DiscordReminderJob.perform_now
+          end
+        end
+      end
+    end
+  end
+
+  test "praises a doing-well user in the morning when the roll hits" do
+    travel_to monday + 1.day do
+      r = recipient_for(users(:two), threshold: 4.0)
+      window_days.each { |d| add_entry(users(:two), d, 8) } # all good
+
+      with_client(configured: true) do
+        with_praise(true) do
+          assert_enqueued_with(job: DiscordReminderMessageJob, args: [ r.id, "praise" ]) do
+            DiscordReminderJob.perform_now("morning")
+          end
+        end
+      end
+    end
+  end
+
+  test "never praises in the afternoon run" do
+    travel_to monday + 1.day do
+      recipient_for(users(:two), threshold: 4.0)
+      window_days.each { |d| add_entry(users(:two), d, 8) } # all good
+
+      with_client(configured: true) do
+        with_praise(true) do # even if the roll would hit
+          assert_no_enqueued_jobs(only: DiscordReminderMessageJob) do
+            DiscordReminderJob.perform_now("afternoon")
+          end
+        end
+      end
+    end
+  end
+
+  test "does not praise a good user when the roll misses" do
+    travel_to monday + 1.day do
+      recipient_for(users(:two), threshold: 4.0)
+      window_days.each { |d| add_entry(users(:two), d, 8) }
+
+      with_client(configured: true) do
+        with_praise(false) do
+          assert_no_enqueued_jobs(only: DiscordReminderMessageJob) do
+            DiscordReminderJob.perform_now("morning")
+          end
         end
       end
     end
