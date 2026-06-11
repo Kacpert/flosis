@@ -19,15 +19,14 @@ production:
   holiday_yearly_grant:
     class: HolidayYearlyGrantJob
     schedule: "0 0 1 1 *"
-  # Solid Queue evaluates these in the app time zone, which is UTC. CEST is
-  # UTC+2, so 07:00/13:00 UTC = 09:00/15:00 Polish summer time. (Under winter
-  # time CET/UTC+1 these become 08:00/14:00 local until adjusted.) Each flagged
-  # person's message is then sent at a random offset within 2 hours of the run.
+  # Evaluated in the app time zone (Warsaw), so these are local hours: 09:00 and
+  # 15:00 Polish time, weekdays. Each flagged person's message is then sent at a
+  # random offset within 2 hours of the run.
   discord_time_logging_reminders_morning:
     class: DiscordReminderJob
     args: [ "morning" ]
-    schedule: "0 7 * * 1-5"
+    schedule: "0 9 * * 1-5"
   discord_time_logging_reminders_afternoon:
     class: DiscordReminderJob
     args: [ "afternoon" ]
-    schedule: "0 13 * * 1-5"
+    schedule: "0 15 * * 1-5"

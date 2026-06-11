@@ -30,7 +30,11 @@ module Gold
     # These settings can be overridden in specific environments using the files
     # in config/environments, which are processed later.
     #
-    # config.time_zone = "Central Time (US & Canada)"
+    # The team is in Poland; display and interpret all times in Warsaw time.
+    # ActiveRecord still stores timestamps in UTC; this affects display, parsing,
+    # Time.current, and recurring-job schedule evaluation (so cron entries below
+    # use local Warsaw hours).
+    config.time_zone = "Warsaw"
     # config.eager_load_paths << Rails.root.join("extras")
   end
 end
