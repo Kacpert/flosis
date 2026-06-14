@@ -12,6 +12,7 @@ class Workspace < ApplicationRecord
   has_many :holiday_requests, dependent: :destroy
   has_many :holiday_balance_entries, dependent: :destroy
   has_many :discord_reminder_recipients, dependent: :destroy
+  has_many :pr_reviews, dependent: :delete_all
 
   validates :name, presence: true
 end

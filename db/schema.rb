@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_14_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_14_000003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -224,6 +224,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_14_000002) do
     t.datetime "updated_at", null: false
     t.index ["jira_board_id", "jira_sprint_id"], name: "index_jira_sprints_on_jira_board_id_and_jira_sprint_id", unique: true
     t.index ["jira_board_id"], name: "index_jira_sprints_on_jira_board_id"
+  end
+
+  create_table "pr_reviews", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.boolean "initial_done", default: false, null: false
+    t.string "last_reviewed_sha"
+    t.integer "pr_number", null: false
+    t.datetime "reviewed_at"
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["workspace_id", "pr_number"], name: "index_pr_reviews_on_workspace_id_and_pr_number", unique: true
+    t.index ["workspace_id"], name: "index_pr_reviews_on_workspace_id"
   end
 
   create_table "project_memberships", force: :cascade do |t|
@@ -538,6 +550,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_14_000002) do
   add_foreign_key "jira_boards", "projects"
   add_foreign_key "jira_comments", "tasks"
   add_foreign_key "jira_sprints", "jira_boards"
+  add_foreign_key "pr_reviews", "workspaces"
   add_foreign_key "project_memberships", "projects"
   add_foreign_key "project_memberships", "users"
   add_foreign_key "projects", "clients"
