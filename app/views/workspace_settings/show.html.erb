@@ -38,8 +38,45 @@
       </div>
     </div>
 
+    <div class="m3-card-elevated p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">GitHub PR reviewer</h2>
+        <% if current_workspace.github_status_ok.nil? %>
+          <span class="text-xs" style="color: var(--color-outline)">● not checked yet</span>
+        <% elsif current_workspace.github_status_ok %>
+          <span class="text-xs" style="color: #16A34A">● Connected<%= " (checked #{time_ago_in_words(current_workspace.github_status_checked_at)} ago)" if current_workspace.github_status_checked_at %></span>
+        <% else %>
+          <span class="text-xs" style="color: #DC2626">● <%= current_workspace.github_status_error.presence || "Connection failed" %></span>
+        <% end %>
+      </div>
+
+      <label class="flex items-center justify-between gap-4 cursor-pointer">
+        <span class="text-sm font-medium" style="color: var(--color-on-surface)">Enable PR reviewer</span>
+        <%= f.check_box :pr_review_enabled, class: "m3-checkbox" %>
+      </label>
+      <div class="space-y-1">
+        <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Repository (owner/repo)</label>
+        <%= f.text_field :github_repo, class: "m3-text-field w-full", placeholder: "RubyOnSaas-wiki/clar" %>
+      </div>
+      <div class="space-y-1">
+        <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">
+          GitHub token <%= current_workspace.github_token.present? ? "(set — leave blank to keep)" : "(not set)" %>
+        </label>
+        <%= f.password_field :github_token, value: "", autocomplete: "off",
+              placeholder: current_workspace.github_token.present? ? "••••••••" : "",
+              class: "m3-text-field w-full" %>
+      </div>
+    </div>
+
     <div class="flex justify-end">
       <%= f.submit "Save Changes", class: "m3-btn m3-btn-filled" %>
+    </div>
+  <% end %>
+
+  <% if current_workspace.github_token.present? %>
+    <div class="flex justify-end">
+      <%= button_to "Test GitHub connection", test_github_workspace_settings_path,
+            method: :post, class: "m3-btn m3-btn-text m3-btn-sm" %>
     </div>
   <% end %>
 

@@ -33,6 +33,11 @@
             style: "background: white; color: #B91C1C; border: none; cursor: pointer;" %>
       </div>
     <% end %>
+    <% if current_user && Current.workspace && current_user.admin_or_owner?(Current.workspace) && github_connection_problem? %>
+      <div class="flex items-center justify-center gap-2 px-4 py-2" style="background: #DC2626; color: white; font-size: 13px;">
+        <span>⚠️ PR reviewer can't reach GitHub: <%= Current.workspace.github_status_error.presence || "connection failed" %>. Check the token in <%= link_to "Workspace Settings", workspace_settings_path, style: "color: white; text-decoration: underline;" %>.</span>
+      </div>
+    <% end %>
     <% if current_user && Current.workspace %>
       <%# Top App Bar — full width %>
       <header class="sticky top-0 z-50 m3-top-bar <%= @running_timer ? 'navbar-timer-running' : '' %>">

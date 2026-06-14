@@ -93,4 +93,27 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
     post test_github_workspace_settings_path
     assert_redirected_to root_path
   end
+
+  test "settings page shows a red GitHub status when last check failed" do
+    @workspace.update!(github_token: "t", github_repo: "acme/widgets", github_status_ok: false, github_status_error: "401 Unauthorized")
+    sign_in_as(users(:one))
+    get workspace_settings_path
+    assert_response :success
+    assert_match "GitHub", response.body
+    assert_match "401 Unauthorized", response.body
+  end
+
+  test "admin sees the GitHub error banner app-wide when connection is broken" do
+    @workspace.update!(github_token: "t", github_repo: "acme/widgets", github_status_ok: false, github_status_error: "401 Unauthorized")
+    sign_in_as(users(:one))
+    get time_entries_path
+    assert_match "can't reach GitHub", response.body
+  end
+
+  test "employee does not see the GitHub error banner" do
+    @workspace.update!(github_token: "t", github_repo: "acme/widgets", github_status_ok: false, github_status_error: "401")
+    sign_in_as(users(:two))
+    get time_entries_path
+    assert_no_match "can't reach GitHub", response.body
+  end
 end
