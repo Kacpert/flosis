@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_14_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_14_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -501,7 +501,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_14_000001) do
     t.datetime "created_at", null: false
     t.string "discord_channel_id"
     t.string "discord_user_token"
+    t.string "github_repo"
+    t.datetime "github_status_checked_at"
+    t.string "github_status_error"
+    t.boolean "github_status_ok"
+    t.string "github_token"
     t.string "name", null: false
+    t.boolean "pr_review_enabled", default: false, null: false
     t.datetime "updated_at", null: false
   end
 
