@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_10_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_14_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -78,6 +78,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_10_000002) do
     t.bigint "workspace_id", null: false
     t.index ["workspace_id", "name"], name: "index_clients_on_workspace_id_and_name", unique: true
     t.index ["workspace_id"], name: "index_clients_on_workspace_id"
+  end
+
+  create_table "discord_reminder_pings", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "discord_reminder_recipient_id", null: false
+    t.datetime "sent_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["discord_reminder_recipient_id"], name: "index_discord_reminder_pings_on_recipient"
+    t.index ["sent_at"], name: "index_discord_reminder_pings_on_sent_at"
   end
 
   create_table "discord_reminder_recipients", force: :cascade do |t|
@@ -504,6 +513,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_10_000002) do
   add_foreign_key "chat_sessions", "users"
   add_foreign_key "chat_sessions", "workspaces"
   add_foreign_key "clients", "workspaces"
+  add_foreign_key "discord_reminder_pings", "discord_reminder_recipients"
   add_foreign_key "discord_reminder_recipients", "users"
   add_foreign_key "discord_reminder_recipients", "workspaces"
   add_foreign_key "feedback_meetings", "users", column: "creator_id"

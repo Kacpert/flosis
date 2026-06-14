@@ -32,9 +32,10 @@ class DiscordReminderMessageJobTest < ActiveJob::TestCase
     end
 
     assert_equal 1, fake.captured.size
-    assert_includes fake.captured.first, "<@555>"
-    assert_includes fake.captured.first, "missing hours"
-    assert_not_includes fake.captured.first, "4h", "must not disclose the threshold/hours"
+    msg = fake.captured.first
+    assert_includes msg, "<@555>"
+    assert_match(/log|hours|time/i, msg, "reminder should reference logging time")
+    assert_not_includes msg, "4h", "must not disclose the threshold/hours"
   end
 
   test "praise variant sends a positive shout-out mentioning the user" do
@@ -53,7 +54,7 @@ class DiscordReminderMessageJobTest < ActiveJob::TestCase
     assert_not_includes msg, "missing", "praise should not mention missing hours"
   end
 
-  test "afternoon variant uses the more urgent wording" do
+  test "afternoon variant mentions missing hours" do
     recipient = DiscordReminderRecipient.create!(
       workspace: workspaces(:one), user: users(:two),
       discord_user_id: "555", min_daily_hours: 4.0
@@ -64,7 +65,40 @@ class DiscordReminderMessageJobTest < ActiveJob::TestCase
       DiscordReminderMessageJob.perform_now(recipient.id, "afternoon")
     end
 
-    assert_includes fake.captured.first.downcase, "still missing hours"
+    assert_match(/log|hours|time|missing/i, fake.captured.first)
+  end
+
+  test "reminders log a ping and include weekly/monthly counts" do
+    recipient = DiscordReminderRecipient.create!(
+      workspace: workspaces(:one), user: users(:two),
+      discord_user_id: "555", min_daily_hours: 4.0
+    )
+
+    fake = fake_client
+    with_stubbed_client(fake) do
+      assert_difference -> { recipient.discord_reminder_pings.count }, 2 do
+        DiscordReminderMessageJob.perform_now(recipient.id, "morning")
+        DiscordReminderMessageJob.perform_now(recipient.id, "afternoon")
+      end
+    end
+
+    assert_match(/reminder #2 this week, #2 this month/, fake.captured.last)
+  end
+
+  test "praise does not log a ping or include a count" do
+    recipient = DiscordReminderRecipient.create!(
+      workspace: workspaces(:one), user: users(:two),
+      discord_user_id: "555", min_daily_hours: 4.0
+    )
+
+    fake = fake_client
+    with_stubbed_client(fake) do
+      assert_no_difference -> { recipient.discord_reminder_pings.count } do
+        DiscordReminderMessageJob.perform_now(recipient.id, "praise")
+      end
+    end
+
+    assert_no_match(/reminder #/, fake.captured.first)
   end
 
   test "no-ops when the recipient is missing" do

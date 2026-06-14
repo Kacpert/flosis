@@ -153,8 +153,10 @@ class DiscordReminderJobTest < ActiveJob::TestCase
       [ Date.new(2026, 6, 5), Date.new(2026, 6, 4) ].each { |d| add_entry(users(:two), d, 8) }
 
       with_client(configured: true) do
-        assert_no_enqueued_jobs(only: DiscordReminderMessageJob) do
-          DiscordReminderJob.perform_now
+        with_praise(false) do
+          assert_no_enqueued_jobs(only: DiscordReminderMessageJob) do
+            DiscordReminderJob.perform_now
+          end
         end
       end
     end
