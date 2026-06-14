@@ -2,10 +2,16 @@ module Authorization
   extend ActiveSupport::Concern
 
   included do
-    helper_method :current_membership, :can_see_money?, :visible_jira_projects
+    helper_method :current_membership, :can_see_money?, :visible_jira_projects, :github_connection_problem?
   end
 
   private
+
+  # True when a GitHub token is configured but the last health check failed —
+  # drives the admin-only error banner.
+  def github_connection_problem?
+    current_workspace&.github_token.present? && current_workspace.github_status_ok == false
+  end
 
   def current_membership
     @current_membership ||= current_user&.membership_for(current_workspace)

@@ -22,7 +22,9 @@ Rails.application.routes.draw do
   post :stop_impersonating, to: "workspace_members#stop_impersonating"
 
   resources :clients
-  resource :workspace_settings, only: [ :show, :update ]
+  resource :workspace_settings, only: [ :show, :update ] do
+    post :test_github, on: :collection
+  end
   resources :discord_reminder_recipients, only: [ :create, :update, :destroy ]
   resources :feedback_meetings
   resources :projects do
