@@ -25,8 +25,20 @@ class PrReviewCheckJob < ApplicationJob
         record = PrReview.find_by(workspace_id: workspace.id, pr_number: number)
 
         if record.nil?
+          # Atomically CLAIM the PR by inserting its row first. The unique
+          # [workspace_id, pr_number] index means a concurrent check (or a manual
+          # run) loses the race and is skipped, so we never post two initial
+          # reviews for the same PR. enqueued_sha records what we're reviewing.
+          begin
+            PrReview.create!(workspace_id: workspace.id, pr_number: number, enqueued_sha: head_sha)
+          rescue ActiveRecord::RecordNotUnique
+            next
+          end
           PrReviewJob.perform_later(workspace.id, number, "initial")
-        elsif record.last_reviewed_sha != head_sha
+        elsif record.reviewed_at.present? && record.last_reviewed_sha != head_sha && record.enqueued_sha != head_sha
+          # New commits since the last completed review, and not already claimed
+          # for this SHA → claim this SHA and enqueue a followup.
+          record.update!(enqueued_sha: head_sha)
           PrReviewJob.perform_later(workspace.id, number, "followup")
         end
       end

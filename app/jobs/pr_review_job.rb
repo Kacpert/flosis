@@ -12,15 +12,18 @@ class PrReviewJob < ApplicationJob
     return unless github.configured?
 
     pr = github.pull_request(pr_number)
-    return unless pr
-    return if pr["draft"]
-    return if pr["state"].present? && pr["state"] != "open"
+    return release_claim(workspace, pr_number, mode) unless pr
+    if pr["draft"] || (pr["state"].present? && pr["state"] != "open")
+      return release_claim(workspace, pr_number, mode)
+    end
 
     head_sha = pr.dig("head", "sha")
     files = github.pull_request_files(pr_number)
 
     issues = ai_issues(pr, files, mode)
-    return if issues.nil? # parse failure → do not advance SHA, retry next cycle
+    # parse failure → release the claim so the next cycle retries (don't post,
+    # don't mark reviewed).
+    return release_claim(workspace, pr_number, mode) if issues.nil?
 
     issues = issues.first(CAPS.fetch(mode, 4))
     post_review(github, pr_number, issues)
@@ -30,6 +33,21 @@ class PrReviewJob < ApplicationJob
   end
 
   private
+
+  # Undo the claim made by PrReviewCheckJob when a review can't complete, so the
+  # PR is retried next cycle. An initial claim (no prior review) is deleted
+  # entirely; a followup claim keeps the existing review but clears the
+  # in-flight SHA so the new commits are re-detected.
+  def release_claim(workspace, pr_number, mode)
+    record = PrReview.find_by(workspace_id: workspace.id, pr_number: pr_number)
+    return unless record
+    if record.reviewed_at.nil?
+      record.destroy
+    else
+      record.update!(enqueued_sha: nil)
+    end
+    nil
+  end
 
   # Returns an array of {path,line,comment} hashes, or nil if the AI output
   # couldn't be parsed (so the caller can avoid marking the PR reviewed).

@@ -27,7 +27,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
     { "number" => number, "draft" => draft, "head" => { "sha" => sha } }
   end
 
-  test "enqueues initial review for an unseen PR" do
+  test "enqueues initial review for an unseen PR and claims it" do
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
       fake = fake_github(prs: [ pr(7, "abc") ])
       with_github(fake) do
@@ -36,10 +36,24 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
         end
       end
     end
+    claim = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    assert_equal "abc", claim.enqueued_sha
+    assert_nil claim.reviewed_at, "claim is not yet reviewed"
+  end
+
+  test "a second check does not double-enqueue an already-claimed PR" do
+    travel_to Time.zone.local(2026, 6, 15, 10, 0) do
+      fake = fake_github(prs: [ pr(7, "abc") ])
+      with_github(fake) { PrReviewCheckJob.perform_now } # claims it
+      with_github(fake) do
+        assert_no_enqueued_jobs(only: PrReviewJob) { PrReviewCheckJob.perform_now }
+      end
+    end
+    assert_equal 1, PrReview.where(workspace: @workspace, pr_number: 7).count
   end
 
   test "enqueues followup when head SHA changed" do
-    PrReview.create!(workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true)
+    PrReview.create!(workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true, reviewed_at: Time.current)
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
       fake = fake_github(prs: [ pr(7, "new") ])
       with_github(fake) do
