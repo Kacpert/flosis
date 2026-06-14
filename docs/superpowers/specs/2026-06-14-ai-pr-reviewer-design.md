@@ -51,9 +51,33 @@ Add columns to `workspaces` (reusing the Discord-settings UI pattern):
 - `github_token` (string) — personal access token; masked field, blank = keep.
 - `github_repo` (string) — `owner/repo`.
 - `pr_review_enabled` (boolean, default false) — opt-in toggle.
+- `github_status_ok` (boolean, nullable) — last health-check result.
+- `github_status_checked_at` (datetime, nullable) — when it was last checked.
+- `github_status_error` (string, nullable) — short failure reason for display.
 
 Stored plaintext in the DB (same accepted caveat as the Discord token). Token
 needs `repo` scope (read PRs/contents + post reviews).
+
+## Connection health & status indicator
+
+So the user can tell at a glance whether the reviewer actually works:
+
+- **Health check:** `GithubClient#health_check` does a cheap authenticated call
+  (`GET /repos/{repo}`) and returns `{ ok:, error: }`. It runs (a) at the start
+  of every `PrReviewCheckJob` run and (b) on demand via a **"Test connection"**
+  button in settings. Each run writes `github_status_ok`,
+  `github_status_checked_at`, and `github_status_error` on the workspace.
+- **Indicator (Workspace Settings):** a green dot + "Connected (checked Xm ago)"
+  when `github_status_ok`; a red dot + the error reason when not; grey/"not
+  checked yet" when null.
+- **Persistent error banner (admin-only, app-wide):** when a `github_token` is
+  present AND `github_status_ok == false`, show a red banner on every page for
+  admins/owners (rendered in the layout, like the impersonation banner),
+  e.g. *"⚠️ GitHub PR reviewer can't reach GitHub: \<error\>. Check the token in
+  Workspace Settings."* Employees/clients never see it. No token set → no
+  banner (feature simply not in use). Healthy → no banner.
+- A helper `github_connection_problem?` (workspace) = token present &&
+  `github_status_ok == false`; exposed as a `helper_method` for the layout.
 
 ## Components
 
@@ -73,6 +97,9 @@ needs `repo` scope (read PRs/contents + post reviews).
   `POST …/pulls/{n}/reviews` with `event: "COMMENT"` and `comments: [{path,
   line, side:"RIGHT", body}]`. Returns true on 2xx; logs + returns false on
   error; never raises.
+- `health_check` → `GET /repos/{repo}`; returns `{ ok: true }` on 2xx, else
+  `{ ok: false, error: "<status/message>" }` (e.g. "401 Unauthorized",
+  "404 repo not found", "connection refused"). Never raises.
 
 All requests time out and rescue `Net::OpenTimeout, Net::ReadTimeout,
 SocketError, Errno::ECONNREFUSED` (JiraClient pattern).
@@ -89,6 +116,9 @@ timestamps. Unique index `[workspace_id, pr_number]`.
 ### 3. `PrReviewCheckJob` — `app/jobs/pr_review_check_job.rb` (recurring)
 - No-op unless within 09:00–20:00 Warsaw (defensive; the cron also bounds it).
 - For each workspace with `pr_review_enabled` and a configured `GithubClient`:
+  - **Health check first:** run `health_check`, persist `github_status_ok`,
+    `github_status_checked_at`, `github_status_error`. If not ok, skip this
+    workspace's PR scan this cycle (the banner will surface the problem).
   - List open PRs, drop drafts.
   - For each PR, read head SHA (`pull_request` payload `head.sha`).
   - Look up `PrReview` for (workspace, pr_number):
@@ -118,6 +148,13 @@ timestamps. Unique index `[workspace_id, pr_number]`.
 - Upsert `PrReview`: set `last_reviewed_sha = head_sha`, `initial_done = true`,
   `reviewed_at = Time.current`.
 
+### 5. Settings "Test connection"
+A `WorkspaceSettingsController#test_github` action (admin-only, `POST
+/workspace_settings/test_github`): runs `GithubClient.for(current_workspace)
+.health_check`, persists the three status fields, redirects back to settings
+with a flash showing the result. Lets the admin verify a freshly-saved token
+without waiting for the next 7-min cycle.
+
 ### Scheduling — `config/recurring.yml`
 ```yaml
   pr_review_check:
@@ -142,7 +179,8 @@ app's Warsaw zone.)
 
 - `GithubClient`: builds correct requests (auth/accept headers, endpoints);
   parses PR list; `create_review` posts the right JSON; `configured?`;
-  network failure returns false without raising.
+  network failure returns false without raising; `health_check` returns
+  `{ok:true}` on 200 and `{ok:false, error:…}` on 401/404/network error.
 - Jira-key detection: extracts `DEV-836` from branch, title, body; nil when
   absent; case-insensitive.
 - `PrReviewCheckJob`: enqueues initial for an unseen PR; followup when head SHA
@@ -154,6 +192,11 @@ app's Warsaw zone.)
   parse failure.
 - Settings controller: admin can save `github_token`/`github_repo`/toggle;
   blank token keeps existing; employee blocked.
+- Health/status: `PrReviewCheckJob` persists status fields and skips the scan
+  when unhealthy; `test_github` action updates status and is admin-only.
+- Banner: `github_connection_problem?` true only when token present + last check
+  failed; layout shows the red banner for admins in that case and hides it when
+  healthy, when no token, or for non-admins.
 
 ## Out of scope
 
