@@ -65,19 +65,45 @@ class PrReviewJob < ApplicationJob
     cap = CAPS.fetch(mode, 4)
     diff = files.map { |f| "FILE: #{f['filename']}\n#{f['patch']}" }.join("\n\n")
     <<~PROMPT
-      You are reviewing a GitHub pull request. Use the repository in the current
-      working directory (you may read files and run `git log`/`git blame`).
+      You are a senior engineer reviewing a GitHub pull request. The repository is
+      checked out in your current working directory. Be rigorous and skeptical,
+      but VALUE THE READER'S TIME: it is far better to post one excellent comment,
+      or none at all, than several shallow ones.
 
       #{ticket}
 
       Changed files and diffs:
       #{diff}
 
-      Return ONLY a JSON array of at most #{cap} items, each the MOST important
-      issue: {"path": "<file>", "line": <line number in the new file>,
-      "comment": "<concise, actionable review comment>"}. Prioritise correctness,
-      security, data integrity, and missed acceptance criteria. Skip style nits.
-      If nothing important, return [].
+      Before writing anything, INVESTIGATE — do not review from the diff alone:
+      1. Open the changed files in the checkout and read the surrounding code to
+         understand the actual logic, not just the changed lines.
+      2. Run `git log -p` / `git blame` on the changed regions to learn WHY the
+         code is the way it is and what recent changes touched it. Look for cases
+         where this PR reverts a past fix, re-introduces a bug, or breaks an
+         invariant established earlier.
+      3. Trace how the changed code is USED elsewhere (grep for callers, related
+         services/models) to catch broken contracts, missed call sites, or
+         duplicated logic that already exists.
+
+      Only after that, decide what (if anything) is worth raising. Post a comment
+      ONLY when ALL of these hold:
+      - It is a REAL, concrete problem: a bug, broken logic, a security or data-
+        integrity issue, a contradiction with project history/invariants, or a
+        clear miss against the Jira acceptance criteria.
+      - You are highly confident it is correct (you verified it against the actual
+        code/history, not a guess). If unsure, stay silent.
+      - It genuinely helps the developer — explain the WHY, reference the relevant
+        logic, prior commit, or call site, and say what the impact is.
+
+      Do NOT comment on style, naming, formatting, personal preference, or things
+      a linter/CI would catch. Skip "consider"/"might want to" nits entirely.
+
+      Return ONLY a JSON array of AT MOST #{cap} items (fewer is better; an empty
+      array is a perfectly good result when the PR is sound):
+      {"path": "<file>", "line": <line number in the new file>,
+       "comment": "<a clear explanation of the problem, why it matters, and the
+       supporting evidence from the code/history>"}.
     PROMPT
   end
 
