@@ -31,12 +31,23 @@ class DiscordReminderMessageJob < ApplicationJob
     recipient = DiscordReminderRecipient.find_by(id: recipient_id, active: true)
     return unless recipient
 
+    is_reminder = REMINDER_VARIANTS.include?(variant)
+
+    # Re-check at SEND time: messages are delayed up to 2h after the scheduler
+    # decided, so the person may have logged their hours in the meantime. Don't
+    # nag someone who is now fine. (Praise is also only sent if still earned.)
+    if is_reminder
+      return unless recipient.under_threshold_now?
+    elsif recipient.under_threshold_now?
+      return # was going to praise, but they've since fallen behind — stay quiet
+    end
+
     templates = MESSAGES[variant] || MESSAGES["morning"]
     content = format(templates.sample, id: recipient.discord_user_id)
 
     # Reminders (not praise) are logged and carry a "you've been pinged N times"
     # tally so people can see how often they're being reminded.
-    if REMINDER_VARIANTS.include?(variant)
+    if is_reminder
       recipient.discord_reminder_pings.create!(sent_at: Time.current)
       content += " #{reminder_count_suffix(recipient)}"
     end

@@ -20,85 +20,111 @@ class DiscordReminderMessageJobTest < ActiveJob::TestCase
     fake
   end
 
-  test "posts a mention message without disclosing the hours" do
-    recipient = DiscordReminderRecipient.create!(
+  # "today" = Tue 2026-06-09, so the window is Mon 8, Fri 5, Thu 4.
+  TODAY = Time.zone.local(2026, 6, 9, 10, 0)
+  WINDOW = [ Date.new(2026, 6, 8), Date.new(2026, 6, 5), Date.new(2026, 6, 4) ].freeze
+
+  def recipient(threshold: 4.0)
+    DiscordReminderRecipient.create!(
       workspace: workspaces(:one), user: users(:two),
-      discord_user_id: "555", min_daily_hours: 4.0
+      discord_user_id: "555", min_daily_hours: threshold
     )
-
-    fake = fake_client
-    with_stubbed_client(fake) do
-      DiscordReminderMessageJob.perform_now(recipient.id, "morning")
-    end
-
-    assert_equal 1, fake.captured.size
-    msg = fake.captured.first
-    assert_includes msg, "<@555>"
-    assert_match(/log|hours|time/i, msg, "reminder should reference logging time")
-    assert_not_includes msg, "4h", "must not disclose the threshold/hours"
   end
 
-  test "praise variant sends a positive shout-out mentioning the user" do
-    recipient = DiscordReminderRecipient.create!(
-      workspace: workspaces(:one), user: users(:two),
-      discord_user_id: "555", min_daily_hours: 4.0
-    )
-
-    fake = fake_client
-    with_stubbed_client(fake) do
-      DiscordReminderMessageJob.perform_now(recipient.id, "praise")
+  def log_full_window(user)
+    WINDOW.each do |d|
+      workspaces(:one).time_entries.create!(
+        user: user, project: projects(:jira_project),
+        started_at: d.to_time + 9.hours, stopped_at: d.to_time + 17.hours # 8h
+      )
     end
-
-    msg = fake.captured.first
-    assert_includes msg, "<@555>"
-    assert_not_includes msg, "missing", "praise should not mention missing hours"
   end
 
-  test "afternoon variant mentions missing hours" do
-    recipient = DiscordReminderRecipient.create!(
-      workspace: workspaces(:one), user: users(:two),
-      discord_user_id: "555", min_daily_hours: 4.0
-    )
+  test "posts a mention message without disclosing the hours (still behind)" do
+    travel_to TODAY do
+      r = recipient # no entries → under threshold now
+      fake = fake_client
+      with_stubbed_client(fake) { DiscordReminderMessageJob.perform_now(r.id, "morning") }
 
-    fake = fake_client
-    with_stubbed_client(fake) do
-      DiscordReminderMessageJob.perform_now(recipient.id, "afternoon")
+      assert_equal 1, fake.captured.size
+      msg = fake.captured.first
+      assert_includes msg, "<@555>"
+      assert_match(/log|hours|time/i, msg)
+      assert_not_includes msg, "4h", "must not disclose the threshold/hours"
     end
+  end
 
-    assert_match(/log|hours|time|missing/i, fake.captured.first)
+  test "does NOT send a reminder if the user logged their hours during the delay" do
+    travel_to TODAY do
+      r = recipient
+      log_full_window(users(:two)) # caught up by send time
+      fake = fake_client
+      with_stubbed_client(fake) do
+        assert_no_difference -> { r.discord_reminder_pings.count } do
+          DiscordReminderMessageJob.perform_now(r.id, "morning")
+        end
+      end
+      assert_empty fake.captured, "should stay silent when no longer behind"
+    end
+  end
+
+  test "praise variant sends a positive shout-out when the user is caught up" do
+    travel_to TODAY do
+      r = recipient
+      log_full_window(users(:two)) # doing well → praise is earned
+      fake = fake_client
+      with_stubbed_client(fake) { DiscordReminderMessageJob.perform_now(r.id, "praise") }
+
+      msg = fake.captured.first
+      assert_includes msg, "<@555>"
+      assert_not_includes msg, "missing", "praise should not mention missing hours"
+    end
+  end
+
+  test "praise is withheld if the user has since fallen behind" do
+    travel_to TODAY do
+      r = recipient # no entries → behind → praise withheld
+      fake = fake_client
+      with_stubbed_client(fake) { DiscordReminderMessageJob.perform_now(r.id, "praise") }
+      assert_empty fake.captured
+    end
+  end
+
+  test "afternoon variant mentions missing hours (still behind)" do
+    travel_to TODAY do
+      r = recipient
+      fake = fake_client
+      with_stubbed_client(fake) { DiscordReminderMessageJob.perform_now(r.id, "afternoon") }
+      assert_match(/log|hours|time|missing/i, fake.captured.first)
+    end
   end
 
   test "reminders log a ping and include weekly/monthly counts" do
-    recipient = DiscordReminderRecipient.create!(
-      workspace: workspaces(:one), user: users(:two),
-      discord_user_id: "555", min_daily_hours: 4.0
-    )
-
-    fake = fake_client
-    with_stubbed_client(fake) do
-      assert_difference -> { recipient.discord_reminder_pings.count }, 2 do
-        DiscordReminderMessageJob.perform_now(recipient.id, "morning")
-        DiscordReminderMessageJob.perform_now(recipient.id, "afternoon")
+    travel_to TODAY do
+      r = recipient
+      fake = fake_client
+      with_stubbed_client(fake) do
+        assert_difference -> { r.discord_reminder_pings.count }, 2 do
+          DiscordReminderMessageJob.perform_now(r.id, "morning")
+          DiscordReminderMessageJob.perform_now(r.id, "afternoon")
+        end
       end
+      assert_match(/reminder #2 this week, #2 this month/, fake.captured.last)
     end
-
-    assert_match(/reminder #2 this week, #2 this month/, fake.captured.last)
   end
 
   test "praise does not log a ping or include a count" do
-    recipient = DiscordReminderRecipient.create!(
-      workspace: workspaces(:one), user: users(:two),
-      discord_user_id: "555", min_daily_hours: 4.0
-    )
-
-    fake = fake_client
-    with_stubbed_client(fake) do
-      assert_no_difference -> { recipient.discord_reminder_pings.count } do
-        DiscordReminderMessageJob.perform_now(recipient.id, "praise")
+    travel_to TODAY do
+      r = recipient
+      log_full_window(users(:two))
+      fake = fake_client
+      with_stubbed_client(fake) do
+        assert_no_difference -> { r.discord_reminder_pings.count } do
+          DiscordReminderMessageJob.perform_now(r.id, "praise")
+        end
       end
+      assert_no_match(/reminder #/, fake.captured.first)
     end
-
-    assert_no_match(/reminder #/, fake.captured.first)
   end
 
   test "no-ops when the recipient is missing" do
