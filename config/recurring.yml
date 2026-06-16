@@ -19,17 +19,12 @@ production:
   holiday_yearly_grant:
     class: HolidayYearlyGrantJob
     schedule: "0 0 1 1 *"
-  # Evaluated in the app time zone (Warsaw), so these are local hours: 09:00 and
-  # 15:00 Polish time, weekdays. Each flagged person's message is then sent at a
-  # random offset within 2 hours of the run.
-  discord_time_logging_reminders_morning:
+  # Evaluated in the app time zone (Warsaw): fires once at 11:00 Polish time on
+  # weekdays. The job then sends ONE combined digest (reminders + praise) at a
+  # random offset within 2 hours, so the single message lands sometime 11:00–13:00.
+  discord_time_logging_reminders:
     class: DiscordReminderJob
-    args: [ "morning" ]
-    schedule: "0 9 * * 1-5"
-  discord_time_logging_reminders_afternoon:
-    class: DiscordReminderJob
-    args: [ "afternoon" ]
-    schedule: "0 15 * * 1-5"
+    schedule: "0 11 * * 1-5"
   # Every 7 minutes between 09:00 and 19:59 Warsaw; the job itself bounds the
   # window to 09:00–20:00 and only triggers AI when a PR is new/changed.
   pr_review_check:
