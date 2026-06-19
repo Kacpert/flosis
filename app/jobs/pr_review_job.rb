@@ -122,17 +122,26 @@ class PrReviewJob < ApplicationJob
         clear miss against the Jira acceptance criteria.
       - You are highly confident it is correct (you verified it against the actual
         code/history, not a guess). If unsure, stay silent.
-      - It genuinely helps the developer — explain the WHY, reference the relevant
-        logic, prior commit, or call site, and say what the impact is.
+      - It genuinely helps the developer.
 
       Do NOT comment on style, naming, formatting, personal preference, or things
       a linter/CI would catch. Skip "consider"/"might want to" nits entirely.
 
+      COMMENT STYLE — your readers are experienced developers; do NOT explain how
+      the code works or re-narrate the diff. Be terse and direct:
+      - State the problem and the fix in 1–2 short sentences (aim under ~40 words).
+      - Reference symbols/methods by name; assume the reader can read the code.
+      - No restating control flow, no "this happens because X then Y then Z", no
+        padding. Think a senior dev's quick PR note, not an essay.
+      - Example of the right length: "`@role_profile.save` returns false on
+        validation errors but the surrounding `transaction` only rolls back on a
+        raised exception, so the `find_or_create_by!` competency rows persist as
+        orphans. Use `save!` (and rescue) or `raise ActiveRecord::Rollback`."
+
       Return ONLY a JSON array of AT MOST #{cap} items (fewer is better; an empty
       array is a perfectly good result when the PR is sound):
       {"path": "<file>", "line": <line number in the new file>,
-       "comment": "<a clear explanation of the problem, why it matters, and the
-       supporting evidence from the code/history>"}.
+       "comment": "<the problem + fix, terse, 1–2 sentences>"}.
     PROMPT
   end
 
