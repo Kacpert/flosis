@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_14_000004) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_19_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -443,6 +443,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_14_000004) do
     t.string "external_url"
     t.string "issue_type"
     t.string "jira_status_name"
+    t.datetime "jira_updated_at"
     t.text "labels"
     t.string "name", null: false
     t.string "priority"
@@ -455,6 +456,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_14_000004) do
     t.integer "time_estimate_seconds"
     t.datetime "updated_at", null: false
     t.index ["project_id", "external_type", "external_reference"], name: "index_tasks_on_project_external_ref", unique: true, where: "(external_type IS NOT NULL)"
+    t.index ["project_id", "jira_updated_at"], name: "index_tasks_on_project_id_and_jira_updated_at"
     t.index ["project_id", "name"], name: "index_tasks_on_project_id_and_name", unique: true
     t.index ["project_id"], name: "index_tasks_on_project_id"
   end

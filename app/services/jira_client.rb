@@ -39,7 +39,7 @@ class JiraClient
     loop do
       body = {
         jql: "project = #{project_key} AND statusCategory != Done ORDER BY status ASC, updated DESC",
-        fields: ["summary", "status", "assignee", "description", "priority", "issuetype", "labels", "reporter", "sprint", "timeoriginalestimate", "attachment"],
+        fields: ["summary", "status", "assignee", "description", "priority", "issuetype", "labels", "reporter", "sprint", "timeoriginalestimate", "attachment", "updated"],
         maxResults: 100
       }
       body[:nextPageToken] = next_page_token if next_page_token
@@ -230,6 +230,7 @@ class JiraClient
       sprint_id: fields.dig("sprint", "id"),
       sprint_name: fields.dig("sprint", "name"),
       time_estimate_seconds: fields["timeoriginalestimate"],
+      updated: fields["updated"],
       attachments: parse_attachments(fields["attachment"])
     }
   end

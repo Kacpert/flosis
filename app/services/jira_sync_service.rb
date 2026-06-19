@@ -129,6 +129,7 @@ class JiraSyncService
       description_adf: issue[:description_adf],
       priority: issue[:priority],
       issue_type: issue[:issue_type],
+      jira_updated_at: issue[:updated],
       labels: issue[:labels]&.to_json,
       reporter_email: issue[:reporter_email],
       reporter_name: issue[:reporter_name],
