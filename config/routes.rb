@@ -80,6 +80,7 @@ Rails.application.routes.draw do
       get :export_csv
       get :export_pdf
     end
+    resource :project_report, only: [ :show ]
   end
 
   # API endpoints for dynamic UI
