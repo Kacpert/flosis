@@ -49,13 +49,22 @@ class PrReviewJob < ApplicationJob
     nil
   end
 
-  # Returns an array of {path,line,comment} hashes, or nil if the AI output
-  # couldn't be parsed (so the caller can avoid marking the PR reviewed).
+  # Returns an array of {path,line,comment} hashes (possibly empty = "no issues,
+  # post the no-issues review"), or nil ONLY when the AI step truly failed to run
+  # (CLI error), so the caller retries next cycle instead of marking it reviewed.
+  #
+  # A successful run that finds nothing — whether it returns "[]" or just prose
+  # saying the PR looks fine with no JSON array — is treated as zero issues, NOT
+  # a failure. (Conflating the two caused clean PRs to be retried forever and
+  # never get the "No issues found" review.)
   def ai_issues(pr, files, mode)
     prompt = build_prompt(pr, files, mode)
     response = ClaudeCliService.new(codebase_path: CODEBASE_PATH).start_session(prompt: prompt)[:response]
-    parsed = JSON.parse(extract_json(response))
-    return nil unless parsed.is_a?(Array)
+    json = extract_json(response)
+    return [] if json.nil? # CLI ran, no JSON array → no issues to post
+
+    parsed = JSON.parse(json)
+    return [] unless parsed.is_a?(Array)
     parsed.filter_map do |h|
       next unless h.is_a?(Hash) && h["path"].present? && h["line"] && h["comment"].present?
       { path: h["path"], line: h["line"].to_i, comment: h["comment"].to_s }
@@ -64,12 +73,14 @@ class PrReviewJob < ApplicationJob
     Rails.logger.error("[PrReviewJob] claude error: #{e.message}")
     nil
   rescue JSON::ParserError
-    nil
+    # The CLI produced output but no valid JSON array — treat as "no issues"
+    # rather than a hard failure, so the PR is marked reviewed and not retried.
+    []
   end
 
-  # Pull the first JSON array out of the response (the CLI may wrap prose around it).
+  # Return the first JSON array in the response, or nil if there is none.
   def extract_json(text)
-    text.to_s[/\[.*\]/m] || text.to_s
+    text.to_s[/\[.*\]/m]
   end
 
   def build_prompt(pr, files, mode)

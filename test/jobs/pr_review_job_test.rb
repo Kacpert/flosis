@@ -34,6 +34,15 @@ class PrReviewJobTest < ActiveJob::TestCase
     ClaudeCliService.define_method(:start_session, orig)
   end
 
+  # Simulate the claude CLI failing to run (vs. running and returning prose).
+  def with_ai_error
+    orig = ClaudeCliService.instance_method(:start_session)
+    ClaudeCliService.define_method(:start_session) { |**_kw| raise ClaudeCliService::ClaudeCliError, "boom" }
+    yield
+  ensure
+    ClaudeCliService.define_method(:start_session, orig)
+  end
+
   def pr_payload(number: 7, sha: "abc", draft: false)
     { "number" => number, "draft" => draft, "state" => "open", "title" => "DEV-836 thing", "body" => "",
       "head" => { "sha" => sha, "ref" => "dev-836-thing" } }
@@ -82,14 +91,29 @@ class PrReviewJobTest < ActiveJob::TestCase
     assert_empty fake.captured[:comments]
   end
 
-  test "unparseable AI output does not advance the SHA" do
+  test "prose verdict with no JSON array posts the no-issues review and marks reviewed" do
+    # The AI ran fine and judged the PR sound, but emitted only prose (no array).
+    # This must be treated as zero issues, NOT a failure to retry.
     fake = fake_github(pr: pr_payload(sha: "abc"))
     with_github(fake) do
-      with_ai("not json at all") do
+      with_ai("The fix looks correct and minimal. I traced the callers and found no issues.") do
         PrReviewJob.perform_now(@workspace.id, 7, "initial")
       end
     end
-    assert_nil PrReview.find_by(workspace: @workspace, pr_number: 7)
+    assert_equal "🤖 No issues found 👍", fake.captured[:body]
+    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    assert_not_nil review, "a sound PR must be marked reviewed, not retried forever"
+    assert_equal "abc", review.last_reviewed_sha
+  end
+
+  test "a genuine CLI error does NOT mark reviewed (retries next cycle)" do
+    fake = fake_github(pr: pr_payload(sha: "abc"))
+    with_github(fake) do
+      with_ai_error do
+        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+      end
+    end
+    assert_nil PrReview.find_by(workspace: @workspace, pr_number: 7), "CLI failure should not post or advance"
     assert_empty fake.captured
   end
 end
