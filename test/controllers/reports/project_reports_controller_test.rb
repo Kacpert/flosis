@@ -43,4 +43,16 @@ class Reports::ProjectReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_not_includes response.body, "Foreign"
   end
+
+  test "sidebar shows the Project Report link for an admin" do
+    sign_in_as(users(:one))
+    get reports_summary_path
+    assert_select "a[href=?]", reports_project_report_path
+  end
+
+  test "sidebar hides the Project Report link for an employee" do
+    sign_in_as(users(:two))
+    get root_path
+    assert_select "a[href=?]", reports_project_report_path, count: 0
+  end
 end
