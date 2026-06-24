@@ -57,11 +57,24 @@ class PrReviewJob < ApplicationJob
   # saying the PR looks fine with no JSON array — is treated as zero issues, NOT
   # a failure. (Conflating the two caused clean PRs to be retried forever and
   # never get the "No issues found" review.)
+  # Markers that mean the CLI did not actually review (auth/quota/transport
+  # failures it prints as plain text instead of raising). These must NOT be
+  # mistaken for "no issues" — otherwise an unauthenticated CLI silently posts
+  # bogus "No issues found" reviews on unreviewed PRs.
+  CLI_FAILURE_MARKERS = /\b(401|403|429|invalid authentication|failed to authenticate|api error|credit balance|rate limit|usage limit|overloaded|unauthorized)\b/i
+
   def ai_issues(pr, files, mode)
     prompt = build_prompt(pr, files, mode)
-    response = ClaudeCliService.new(codebase_path: CODEBASE_PATH).start_session(prompt: prompt)[:response]
+    response = ClaudeCliService.new(codebase_path: CODEBASE_PATH).start_session(prompt: prompt)[:response].to_s
     json = extract_json(response)
-    return [] if json.nil? # CLI ran, no JSON array → no issues to post
+
+    if json.nil?
+      # No JSON array. Distinguish a genuine "looks fine" verdict from a CLI
+      # failure: a real review is substantive prose; an auth/quota error is a
+      # short error string. Treat failures as nil (retry, do not post/mark).
+      return nil if cli_failed?(response)
+      return [] # CLI ran and found nothing worth flagging
+    end
 
     parsed = JSON.parse(json)
     return [] unless parsed.is_a?(Array)
@@ -73,9 +86,13 @@ class PrReviewJob < ApplicationJob
     Rails.logger.error("[PrReviewJob] claude error: #{e.message}")
     nil
   rescue JSON::ParserError
-    # The CLI produced output but no valid JSON array — treat as "no issues"
-    # rather than a hard failure, so the PR is marked reviewed and not retried.
     []
+  end
+
+  # True when the response indicates the CLI failed to run a real review rather
+  # than legitimately finding nothing.
+  def cli_failed?(response)
+    response.match?(CLI_FAILURE_MARKERS) || response.strip.length < 40
   end
 
   # Return the first JSON array in the response, or nil if there is none.

@@ -116,4 +116,17 @@ class PrReviewJobTest < ActiveJob::TestCase
     assert_nil PrReview.find_by(workspace: @workspace, pr_number: 7), "CLI failure should not post or advance"
     assert_empty fake.captured
   end
+
+  test "an auth-error response is NOT treated as no-issues (retries, posts nothing)" do
+    # The CLI prints a 401 as plain text rather than raising; this must not be
+    # mistaken for a clean review.
+    fake = fake_github(pr: pr_payload(sha: "abc"))
+    with_github(fake) do
+      with_ai("Failed to authenticate. API Error: 401 Invalid authentication credentials") do
+        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+      end
+    end
+    assert_nil PrReview.find_by(workspace: @workspace, pr_number: 7), "auth failure must not mark reviewed"
+    assert_empty fake.captured, "auth failure must not post a review"
+  end
 end
