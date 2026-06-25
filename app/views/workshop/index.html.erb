@@ -7,31 +7,68 @@
   </div>
 
   <% if @project %>
-    <div class="m3-card-elevated p-6 space-y-4">
-      <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Idea → Brief</h2>
-      <p class="text-sm" style="color: var(--color-on-surface-variant)">
-        Pick an existing design-sprint task or start a new idea, then brief it with the AI Product Owner.
-      </p>
-      <div class="space-y-2">
-        <%= link_to new_idea_workshop_path(project_id: @project.id, mode: "new"),
-              class: "block w-full text-center px-4 py-2.5 rounded-[var(--radius-lg)] text-sm font-medium transition-colors",
-              style: "color: var(--color-primary); border: 1px solid var(--color-primary)" do %>
-          New idea
+    <div class="space-y-3">
+      <h2 class="text-base font-semibold" style="color: var(--color-on-surface)">Idea → Brief</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <%= link_to new_idea_workshop_path(project_id: @project.id, mode: "new"), class: "ws-choice group" do %>
+          <span class="ws-choice-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </span>
+          <span class="ws-choice-body">
+            <span class="ws-choice-title">New idea</span>
+            <span class="ws-choice-sub">Start from scratch and brief it with the AI Product Owner</span>
+          </span>
+          <svg class="ws-choice-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
         <% end %>
-        <%= link_to new_idea_workshop_path(project_id: @project.id, mode: "existing"),
-              class: "block w-full text-center px-4 py-2.5 rounded-[var(--radius-lg)] text-sm font-medium transition-colors",
-              style: "color: var(--color-primary); border: 1px solid var(--color-primary)" do %>
-          Existing Jira task
+
+        <%= link_to new_idea_workshop_path(project_id: @project.id, mode: "existing"), class: "ws-choice group" do %>
+          <span class="ws-choice-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" /></svg>
+          </span>
+          <span class="ws-choice-body">
+            <span class="ws-choice-title">Existing Jira task</span>
+            <span class="ws-choice-sub">Pick a design-sprint task and brief it</span>
+          </span>
+          <svg class="ws-choice-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
         <% end %>
       </div>
     </div>
 
-    <div class="m3-card-elevated p-6 space-y-2">
-      <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Brief → Task</h2>
-      <p class="text-sm" style="color: var(--color-on-surface-variant)">
-        Estimate and break a briefed task into vertical slices, then push the spec to Jira from the task's breakdown page.
-      </p>
-      <%= link_to "Open Jira Tasks", jira_tasks_path(project_id: @project.id), class: "m3-btn m3-btn-text" %>
+    <%# Resume in-progress ideas/conversations so they aren't lost on leaving. %>
+    <% if @in_progress.present? %>
+      <div class="space-y-3">
+        <h2 class="text-base font-semibold" style="color: var(--color-on-surface)">In progress</h2>
+        <div class="m3-card-elevated divide-y" style="--tw-divide-opacity: 1; border-color: var(--color-outline-variant)">
+          <% @in_progress.each do |t| %>
+            <%= link_to workshop_brief_path(t), class: "ws-resume" do %>
+              <span class="ws-resume-body">
+                <span class="ws-resume-title"><%= t.external_reference.present? ? "#{t.external_reference} " : "" %><%= t.name %></span>
+                <span class="ws-resume-sub">
+                  <% if (n = t.briefs.count) > 0 %><%= pluralize(n, "brief version") %> · <% end %>
+                  <%= t.external_reference.present? ? "Jira task" : "New idea" %>
+                </span>
+              </span>
+              <span class="ws-resume-cta">Resume
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+              </span>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <div class="space-y-3">
+      <h2 class="text-base font-semibold" style="color: var(--color-on-surface)">Brief → Task</h2>
+      <%= link_to jira_tasks_path(project_id: @project.id), class: "ws-choice" do %>
+        <span class="ws-choice-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6z" /></svg>
+        </span>
+        <span class="ws-choice-body">
+          <span class="ws-choice-title">Open Jira Tasks</span>
+          <span class="ws-choice-sub">Estimate, break into slices, and push the spec to Jira</span>
+        </span>
+        <svg class="ws-choice-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+      <% end %>
     </div>
   <% else %>
     <div class="m3-card-elevated p-6">

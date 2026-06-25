@@ -38,6 +38,40 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-idea-picker-target=item]", { count: 1 } # the one design task
   end
 
+  test "landing lists an in-progress idea so you can resume it" do
+    @workspace.update!(workshop_enabled: true)
+    sign_in_as(users(:one))
+    post switch_workshop_project_path, params: { project_id: @project.id }
+    idea = @project.tasks.create!(name: "Half-finished idea")
+    Brief.create!(task: idea, workspace: @workspace, version: 1, content: "draft concept")
+
+    get workshop_path
+    assert_response :success
+    assert_match "In progress", response.body
+    assert_match "Half-finished idea", response.body
+    assert_select "a[href=?]", workshop_brief_path(idea)
+  end
+
+  test "a briefed idea is NOT listed as in-progress" do
+    @workspace.update!(workshop_enabled: true)
+    sign_in_as(users(:one))
+    post switch_workshop_project_path, params: { project_id: @project.id }
+    idea = @project.tasks.create!(name: "Done idea")
+    Brief.create!(task: idea, workspace: @workspace, version: 1, content: "c", status: "briefed", briefed_at: Time.current)
+
+    get workshop_path
+    assert_select "a[href=?]", workshop_brief_path(idea), count: 0
+  end
+
+  test "landing choice cards link into the two modes" do
+    @workspace.update!(workshop_enabled: true)
+    sign_in_as(users(:one))
+    post switch_workshop_project_path, params: { project_id: @project.id }
+    get workshop_path
+    assert_select "a.ws-choice[href=?]", new_idea_workshop_path(project_id: @project.id, mode: "new")
+    assert_select "a.ws-choice[href=?]", new_idea_workshop_path(project_id: @project.id, mode: "existing")
+  end
+
   test "new_idea honors the mode param so the chosen panel opens" do
     @workspace.update!(workshop_enabled: true)
     sign_in_as(users(:one))

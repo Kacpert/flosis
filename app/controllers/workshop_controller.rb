@@ -8,6 +8,7 @@ class WorkshopController < ApplicationController
   def index
     # The active project comes from the top-bar Workshop project switcher.
     @project = current_workshop_project
+    @in_progress = in_progress_ideas(@project) if @project
   end
 
   def new_idea
@@ -37,6 +38,22 @@ class WorkshopController < ApplicationController
   end
 
   private
+
+  # Tasks in this project that have a brief in progress (a brief chat session or a
+  # saved brief) but aren't briefed yet — so a user can return to an idea/
+  # conversation they started and left. Newest activity first.
+  def in_progress_ideas(project)
+    task_ids = project.tasks
+      .where(id: Brief.where(status: "draft").select(:task_id))
+      .or(project.tasks.where(id: ChatSession.where(purpose: "brief", status: "active").select(:task_id)))
+      .pluck(:id).uniq
+
+    project.tasks
+      .where(id: task_ids)
+      .where.not(id: Brief.where(status: "briefed").select(:task_id))
+      .includes(:briefs)
+      .sort_by { |t| -(t.briefs.map(&:updated_at).max || t.updated_at).to_i }
+  end
 
   def require_workshop!
     redirect_to root_path unless current_workspace&.workshop_enabled?
