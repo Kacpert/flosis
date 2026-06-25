@@ -8,7 +8,7 @@ class ChatSession < ApplicationRecord
   # A chat session has a purpose: "refine" (improve the ticket description) or
   # "breakdown" (estimate complexity + split into sub-tasks). They are separate
   # conversations so they don't pollute each other's context.
-  PURPOSES = %w[refine breakdown].freeze
+  PURPOSES = %w[refine breakdown brief].freeze
 
   validates :claude_session_id, presence: true
   validates :codebase_path, presence: true

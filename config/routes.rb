@@ -105,6 +105,14 @@ Rails.application.routes.draw do
     resource :breakdown_chat_session, only: [:create, :show, :destroy] do
       post :message
     end
+
+    # Workshop: brief conversation + versioned briefs + commit-to-Jira
+    resource :brief_chat_session, only: [:create, :show, :destroy] do
+      post :message
+    end
+    resources :briefs, only: [:index] do
+      member { post :commit }
+    end
   end
 
   get "up" => "rails/health#show", as: :rails_health_check
