@@ -14,6 +14,7 @@ Rails.application.routes.draw do
   root "home#index"
 
   post "product/switch", to: "products#switch", as: :switch_product
+  post "workshop/switch_project", to: "products#switch_project", as: :switch_workshop_project
 
   resource :profile, only: [ :show, :update ]
   resources :workspace_members, only: [ :index, :new, :create, :edit, :update, :destroy ] do

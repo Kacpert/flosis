@@ -31,6 +31,33 @@ class TwoProductUxSmokeTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", projects_path, count: 0
   end
 
+  test "workshop top bar has the project switcher, NOT the timer/Start" do
+    sign_in_as(users(:one))
+    post switch_product_path, params: { product: "workshop" }
+    get workshop_path
+    assert_response :success
+    # project switcher present (posts to the workshop project switch route)
+    assert_select "form[action=?]", switch_workshop_project_path
+    assert_match "Working in", response.body
+    # the time-tracking timer must NOT appear in Workshop
+    assert_select "form[action=?]", update_running_timer_path, count: 0
+    assert_select "[data-controller~=timer]", count: 0
+    # the redundant landing Project picker + per-card Start is gone
+    assert_select "form[action=?]", start_workshop_path, count: 0
+  end
+
+  test "switching the workshop project sets the context" do
+    sign_in_as(users(:one))
+    post switch_product_path, params: { product: "workshop" }
+    p = projects(:jira_project)
+    post switch_workshop_project_path, params: { project_id: p.id }
+    assert_response :redirect
+    follow_redirect! rescue nil
+    # the new context is reflected on the landing
+    get workshop_path
+    assert_match p.name, response.body
+  end
+
   test "employee (time_hr only): no switcher dropdown, no workshop access" do
     sign_in_as(users(:two))
     get time_entries_path

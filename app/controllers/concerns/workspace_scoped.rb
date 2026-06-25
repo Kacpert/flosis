@@ -8,6 +8,8 @@ module WorkspaceScoped
     helper_method :current_workspace
     helper_method :available_projects
     helper_method :current_product
+    helper_method :current_workshop_project
+    helper_method :workshop_projects
   end
 
   PRODUCTS = %w[time_hr workshop].freeze
@@ -43,6 +45,28 @@ module WorkspaceScoped
     return jira_tasks_path if current_user&.client_role?(current_workspace)
 
     workshop_path
+  end
+
+  # The Jira-connected projects that form the Workshop "work context" — the same
+  # set the Jira board / Workshop pipeline operate on, scoped to what the user
+  # can see (admins: all; others: their project memberships).
+  def workshop_projects
+    return @workshop_projects if defined?(@workshop_projects)
+    scope = current_workspace.projects.active.where(external_type: "jira")
+    scope = scope.joins(:project_memberships)
+                 .where(project_memberships: { user_id: current_user.id }) unless current_user.admin_or_owner?(current_workspace)
+    @workshop_projects = scope.order(:name)
+  end
+
+  # The active Workshop project context (a project switcher, like the workspace
+  # switcher). Honors the session choice when still visible; else the first
+  # visible Jira project. Persists the resolved id.
+  def current_workshop_project
+    return @current_workshop_project if defined?(@current_workshop_project)
+    projects = workshop_projects
+    chosen = projects.find_by(id: session[:workshop_project_id]) || projects.first
+    session[:workshop_project_id] = chosen&.id
+    @current_workshop_project = chosen
   end
 
   def available_projects

@@ -6,12 +6,13 @@ class WorkshopController < ApplicationController
   before_action :require_workshop!
 
   def index
-    @projects = current_workspace.projects.where(archived: false).order(:name)
-    @project = @projects.find_by(id: params[:project_id]) || @projects.first
+    # The active project comes from the top-bar Workshop project switcher.
+    @project = current_workshop_project
   end
 
   def new_idea
-    @project = current_workspace.projects.find(params[:project_id])
+    @project = workshop_projects.find_by(id: params[:project_id]) || current_workshop_project
+    redirect_to(workshop_path, alert: "No Jira project selected.") and return unless @project
     @design_tasks = @project.design_sprint_tasks.reject { |t| t.briefs.briefed.exists? }
   end
 

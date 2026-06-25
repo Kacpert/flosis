@@ -1,24 +1,19 @@
 <div class="max-w-3xl mx-auto space-y-6">
   <div>
     <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Workshop</h1>
-    <p class="text-sm" style="color: var(--color-on-surface-variant)">Turn ideas into briefs, and briefs into tasks.</p>
+    <p class="text-sm" style="color: var(--color-on-surface-variant)">
+      Turn ideas into briefs, and briefs into tasks
+      <% if @project %>— working in <strong style="color: var(--color-on-surface)"><%= @project.name %></strong><% end %>.
+    </p>
   </div>
 
-  <% if @projects.any? %>
+  <% if @project %>
     <div class="m3-card-elevated p-6 space-y-4">
       <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Idea → Brief</h2>
       <p class="text-sm" style="color: var(--color-on-surface-variant)">
         Pick an existing design-sprint task or start a new idea, then brief it with the AI Product Owner.
       </p>
-      <%= form_with url: new_idea_workshop_path, method: :get, class: "flex items-end gap-3" do %>
-        <div class="space-y-1 flex-1">
-          <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Project</label>
-          <%= select_tag :project_id,
-                options_from_collection_for_select(@projects, :id, :name, @project&.id),
-                class: "m3-text-field w-full" %>
-        </div>
-        <%= submit_tag "Start", class: "m3-btn m3-btn-filled" %>
-      <% end %>
+      <%= link_to "Start briefing", new_idea_workshop_path(project_id: @project.id), class: "m3-btn m3-btn-filled" %>
     </div>
 
     <div class="m3-card-elevated p-6 space-y-2">
@@ -26,10 +21,13 @@
       <p class="text-sm" style="color: var(--color-on-surface-variant)">
         Estimate and break a briefed task into vertical slices, then push the spec to Jira from the task's breakdown page.
       </p>
+      <%= link_to "Open Jira Tasks", jira_tasks_path(project_id: @project.id), class: "m3-btn m3-btn-text" %>
     </div>
   <% else %>
     <div class="m3-card-elevated p-6">
-      <p class="text-sm" style="color: var(--color-on-surface-variant)">No active projects yet.</p>
+      <p class="text-sm" style="color: var(--color-on-surface-variant)">
+        No Jira-connected project is available. Connect a project to Jira to use the Workshop.
+      </p>
     </div>
   <% end %>
 </div>

@@ -1,0 +1,18 @@
+<%# Workshop top bar — a PROJECT switcher (the work context), in place of the
+    time-tracking timer. No timer / Start here. %>
+<% projects = workshop_projects %>
+<div class="flex items-center gap-3 w-full">
+  <span class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Working in</span>
+
+  <% if projects.any? %>
+    <%= form_with url: switch_workshop_project_path, method: :post, class: "min-w-0",
+          data: { controller: "auto-save" } do %>
+      <%= select_tag :project_id,
+            options_from_collection_for_select(projects, :id, :name, current_workshop_project&.id),
+            class: "m3-timer-pill-select",
+            data: { action: "change->auto-save#save" } %>
+    <% end %>
+  <% else %>
+    <span class="text-sm font-medium" style="color: var(--color-on-surface)">No Jira projects yet</span>
+  <% end %>
+</div>
