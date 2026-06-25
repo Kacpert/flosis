@@ -60,4 +60,21 @@ class JiraWriterTest < ActiveSupport::TestCase
     JiraWriter.new(workspace: @workspace, client: fake_client).commit_brief(brief)
     assert_equal "customfield_10050", @workspace.reload.jira_ai_actions_field_id
   end
+
+  test "commit_breakdown updates description and sets the spec AI action" do
+    task = @project.tasks.create!(name: "JW-9 Existing", external_type: "jira", external_reference: "JW-9")
+    task.task_drafts.create!(source: TaskDraft::BREAKDOWN_SOURCE,
+      content: { needs_breakdown: false, total_points: 3, strategy: "small", subtasks: [] }.to_json)
+    c = fake_client
+    res = JiraWriter.new(workspace: @workspace, client: c).commit_breakdown(task)
+    assert res[:ok], res.inspect
+    assert_equal 1, c.calls[:update]
+    assert_equal "Added specification and branch", c.calls[:action][:value]
+  end
+
+  test "commit_breakdown fails when there is no breakdown" do
+    task = @project.tasks.create!(name: "JW-9 Existing", external_type: "jira", external_reference: "JW-9")
+    res = JiraWriter.new(workspace: @workspace, client: fake_client).commit_breakdown(task)
+    assert_not res[:ok]
+  end
 end

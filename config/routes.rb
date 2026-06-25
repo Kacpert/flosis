@@ -107,6 +107,7 @@ Rails.application.routes.draw do
 
     # Estimate & breakdown: two-panel page + its own chat + versioned results
     get :breakdown, to: "task_breakdowns#show"
+    post :breakdown_update_jira, to: "task_breakdowns#update_jira"
     resources :task_breakdowns, only: [:index]
     resource :breakdown_chat_session, only: [:create, :show, :destroy] do
       post :message

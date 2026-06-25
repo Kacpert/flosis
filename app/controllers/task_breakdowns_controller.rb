@@ -6,6 +6,8 @@ class TaskBreakdownsController < ApplicationController
   include WorkspaceScoped
 
   before_action :require_client_or_employee!
+  before_action :require_admin!, only: :update_jira
+  before_action :require_workshop!, only: :update_jira
   before_action :set_task
   rescue_from ActiveRecord::RecordNotFound, with: :jira_record_not_found
 
@@ -29,7 +31,23 @@ class TaskBreakdownsController < ApplicationController
     render json: { versions: versions }
   end
 
+  # POST /jira_tasks/:jira_task_id/breakdown_update_jira
+  # Pushes the latest breakdown spec to the linked Jira issue. Admin + Workshop
+  # only. No silent success — a failed write surfaces an alert.
+  def update_jira
+    result = JiraWriter.new(workspace: current_workspace).commit_breakdown(@task)
+    if result[:ok]
+      redirect_to jira_task_breakdown_path(@task), notice: "Spec pushed to Jira: #{result[:key]}."
+    else
+      redirect_to jira_task_breakdown_path(@task), alert: "Couldn't write to Jira: #{result[:error]}"
+    end
+  end
+
   private
+
+  def require_workshop!
+    redirect_to root_path unless current_workspace&.workshop_enabled?
+  end
 
   def parse_content(content)
     JSON.parse(content)
