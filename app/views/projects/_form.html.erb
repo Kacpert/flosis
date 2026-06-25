@@ -67,6 +67,21 @@
     <%= f.hidden_field :external_reference, data: { jira_ref_field: true } %>
   </div>
 
+  <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Project context (for AI briefing)</label>
+    <%= f.text_area :context_info, rows: 6, class: "m3-text-field w-full",
+          placeholder: "Who the users are, the main architecture, and the goal — e.g. 'ATS + HR app; goal: …'" %>
+    <span class="text-xs" style="color: var(--color-on-surface-variant)">Always editable. The AI reads this before briefing.</span>
+  </div>
+
+  <% if project.persisted? && project.features_summary.present? %>
+    <div class="space-y-1">
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Auto-generated features summary</label>
+      <pre class="m3-text-field w-full whitespace-pre-wrap" style="color: var(--color-on-surface)"><%= project.features_summary %></pre>
+      <span class="text-xs" style="color: var(--color-on-surface-variant)">Updated <%= project.features_summary_updated_at&.strftime("%Y-%m-%d %H:%M") %> by the daily scan.</span>
+    </div>
+  <% end %>
+
   <div class="flex gap-2">
     <%= f.submit class: "m3-btn m3-btn-filled" %>
     <%= link_to "Cancel", projects_path, class: "m3-btn m3-btn-text" %>

@@ -39,6 +39,14 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_not @workspace.reload.clients_enabled?
   end
 
+  test "admin can enable workshop" do
+    @workspace.update!(workshop_enabled: false)
+    sign_in_as(users(:one))
+    patch workspace_settings_path, params: { workspace: { workshop_enabled: "1" } }
+    assert_redirected_to workspace_settings_path
+    assert @workspace.reload.workshop_enabled?
+  end
+
   test "admin can save Discord token and channel" do
     sign_in_as(users(:one))
     patch workspace_settings_path, params: { workspace: { discord_user_token: "tok-abc", discord_channel_id: "555" } }

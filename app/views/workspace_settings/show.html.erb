@@ -14,6 +14,16 @@
         </span>
         <%= f.check_box :clients_enabled, class: "m3-checkbox" %>
       </label>
+
+      <label class="flex items-center justify-between gap-4 cursor-pointer mt-4">
+        <span class="space-y-1">
+          <span class="block text-sm font-medium" style="color: var(--color-on-surface)">Workshop</span>
+          <span class="block text-sm" style="color: var(--color-on-surface-variant)">
+            Idea → Brief pipeline and Brief → Task, with Jira write-back. Admin-only.
+          </span>
+        </span>
+        <%= f.check_box :workshop_enabled, class: "m3-checkbox" %>
+      </label>
     </div>
 
     <div class="m3-card-elevated p-6 space-y-4">

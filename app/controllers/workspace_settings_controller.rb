@@ -34,7 +34,7 @@ class WorkspaceSettingsController < ApplicationController
   def workspace_settings_params
     permitted = params.require(:workspace).permit(
       :clients_enabled, :discord_channel_id, :discord_user_token,
-      :github_repo, :github_token, :pr_review_enabled
+      :github_repo, :github_token, :pr_review_enabled, :workshop_enabled
     )
     # Blank token fields mean "leave unchanged" (never pre-filled), so don't wipe
     # a stored token when the admin saves other settings.
