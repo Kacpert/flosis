@@ -192,7 +192,94 @@ class JiraClient
     nil
   end
 
+  # ---- writes (use the same global creds) ------------------------------
+
+  def create_issue(project_key:, summary:, description_text:, issue_type: "Task")
+    body = {
+      fields: {
+        project: { key: project_key },
+        summary: summary.to_s,
+        issuetype: { name: issue_type },
+        description: description_doc(description_text)
+      }
+    }
+    data = post_raw("/rest/api/3/issue", body)
+    return { ok: false, error: data[:error] } unless data[:ok]
+    key = data[:json]["key"]
+    { ok: true, key: key, url: "https://#{@domain}/browse/#{key}" }
+  end
+
+  def update_issue_description(issue_key:, description_text:)
+    body = { fields: { description: description_doc(description_text) } }
+    res = put("/rest/api/3/issue/#{issue_key}", body)
+    res[:ok] ? { ok: true } : { ok: false, error: res[:error] }
+  end
+
+  def add_ai_action(issue_key:, field_id:, value:)
+    body = { fields: { field_id => [{ "value" => value }] } }
+    res = put("/rest/api/3/issue/#{issue_key}", body)
+    res[:ok] ? { ok: true } : { ok: false, error: res[:error] }
+  end
+
+  def fetch_field_id(name)
+    data = get("/rest/api/3/field")
+    return nil unless data.is_a?(Array)
+    field = data.find { |f| f["name"].to_s.casecmp?(name.to_s) }
+    field && field["id"]
+  end
+
   private
+
+  # Minimal ADF document wrapping plain text in a single paragraph.
+  def description_doc(text)
+    {
+      type: "doc",
+      version: 1,
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: text.to_s }] }
+      ]
+    }
+  end
+
+  # POST that distinguishes success from failure (unlike #post, which returns
+  # nil on error). Used by writes that need the error surfaced.
+  def post_raw(path, body)
+    response = http_request(Net::HTTP::Post, path, body)
+    if response.is_a?(Net::HTTPSuccess)
+      { ok: true, json: (JSON.parse(response.body) rescue {}) }
+    else
+      { ok: false, error: "#{response.code} #{response.message}" }
+    end
+  rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED => e
+    { ok: false, error: e.message }
+  end
+
+  def put(path, body)
+    response = http_request(Net::HTTP::Put, path, body)
+    if response.is_a?(Net::HTTPSuccess)
+      { ok: true }
+    else
+      { ok: false, error: "#{response.code} #{response.message}" }
+    end
+  rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED => e
+    { ok: false, error: e.message }
+  end
+
+  # Shared request builder for write verbs.
+  def http_request(verb_class, path, body)
+    uri = URI("https://#{@domain}#{path}")
+    request = verb_class.new(uri)
+    request["Authorization"] = "Basic #{Base64.strict_encode64("#{@email}:#{@api_token}")}"
+    request["Accept"] = "application/json"
+    request["Content-Type"] = "application/json"
+    request.body = body.to_json
+
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = true
+    http.open_timeout = TIMEOUT
+    http.read_timeout = TIMEOUT
+    http.request(request)
+  end
 
   def download_redirect(url)
     uri = URI(url)
