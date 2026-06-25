@@ -19,6 +19,14 @@ class Project < ApplicationRecord
     external_type == "jira"
   end
 
+  # Tasks in a "design" sprint (sprint name contains "design") — the candidates
+  # for the Idea → Brief pipeline.
+  def design_sprint_tasks
+    tasks.jira_synced
+         .where("LOWER(sprint_name) LIKE ?", "%design%")
+         .order(:name)
+  end
+
   CURRENCIES = %w[USD EUR GBP CAD AUD JPY CHF PLN].freeze
 
   PROJECT_COLORS = %w[

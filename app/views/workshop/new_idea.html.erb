@@ -1,0 +1,40 @@
+<div class="max-w-3xl mx-auto space-y-6">
+  <div>
+    <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Idea → Brief — <%= @project.name %></h1>
+    <%= link_to "← Back to Workshop", workshop_path, class: "text-sm", style: "color: var(--color-primary)" %>
+  </div>
+
+  <div class="m3-card-elevated p-6 space-y-4">
+    <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Existing design-sprint task</h2>
+    <% if @design_tasks.any? %>
+      <ul class="space-y-2">
+        <% @design_tasks.each do |t| %>
+          <li>
+            <%= button_to t.name, start_workshop_path,
+                  params: { project_id: @project.id, mode: "existing", task_id: t.id },
+                  class: "m3-btn m3-btn-text w-full text-left" %>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="text-sm" style="color: var(--color-on-surface-variant)">No un-briefed tasks in a design sprint.</p>
+    <% end %>
+  </div>
+
+  <div class="m3-card-elevated p-6 space-y-4">
+    <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">New idea</h2>
+    <%= form_with url: start_workshop_path, method: :post, class: "space-y-4" do %>
+      <%= hidden_field_tag :project_id, @project.id %>
+      <%= hidden_field_tag :mode, "new" %>
+      <div class="space-y-1">
+        <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Title</label>
+        <%= text_field_tag :title, nil, class: "m3-text-field w-full", required: true %>
+      </div>
+      <div class="space-y-1">
+        <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Describe the idea</label>
+        <%= text_area_tag :body, nil, rows: 6, class: "m3-text-field w-full" %>
+      </div>
+      <%= submit_tag "Start briefing", class: "m3-btn m3-btn-filled" %>
+    <% end %>
+  </div>
+</div>

@@ -86,6 +86,12 @@ Rails.application.routes.draw do
   # API endpoints for dynamic UI
   get "projects/:project_id/tasks_list", to: "tasks#list", as: :project_tasks_list
 
+  # Workshop: Idea → Brief pipeline (and Brief → Task relocation)
+  get  "workshop",                 to: "workshop#index",    as: :workshop
+  get  "workshop/new_idea",        to: "workshop#new_idea", as: :new_idea_workshop
+  post "workshop/start",           to: "workshop#start",    as: :start_workshop
+  get  "workshop/tasks/:id/brief", to: "workshop#brief",    as: :workshop_brief
+
   # Jira integration
   get "jira/projects", to: "jira#projects", as: :jira_projects
 
@@ -110,8 +116,8 @@ Rails.application.routes.draw do
     resource :brief_chat_session, only: [:create, :show, :destroy] do
       post :message
     end
-    resources :briefs, only: [:index] do
-      member { post :commit }
+    resources :briefs, only: [] do
+      member { post :commit, to: "brief_commits#commit" }
     end
   end
 
