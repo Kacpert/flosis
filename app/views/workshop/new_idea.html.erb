@@ -1,27 +1,51 @@
-<div class="max-w-3xl mx-auto space-y-6">
+<div class="max-w-3xl mx-auto space-y-6" data-controller="idea-picker">
   <div>
     <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Idea → Brief — <%= @project.name %></h1>
     <%= link_to "← Back to Workshop", workshop_path, class: "text-sm", style: "color: var(--color-primary)" %>
   </div>
 
-  <div class="m3-card-elevated p-6 space-y-4">
+  <%# Mode toggle — choose one; only that panel shows. %>
+  <div class="flex gap-2 p-1 rounded-[var(--radius-lg)]" style="background: var(--color-surface-container)">
+    <button type="button" class="idea-tab flex-1 px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors"
+            data-idea-picker-target="existingTab" data-action="click->idea-picker#showExisting">
+      Existing task
+    </button>
+    <button type="button" class="idea-tab flex-1 px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors"
+            data-idea-picker-target="newTab" data-action="click->idea-picker#showNew">
+      New idea
+    </button>
+  </div>
+
+  <%# --- Existing design-sprint task (searchable) --- %>
+  <div class="m3-card-elevated p-6 space-y-4" data-idea-picker-target="existingPanel" hidden>
     <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Existing design-sprint task</h2>
+
     <% if @design_tasks.any? %>
-      <ul class="space-y-2">
+      <div class="relative">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color: var(--color-on-surface-variant)"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+        <input type="text" placeholder="Search tasks…" autocomplete="off"
+               class="m3-text-field w-full" style="padding-left: 2.25rem"
+               data-idea-picker-target="search" data-action="input->idea-picker#filter">
+      </div>
+
+      <ul class="space-y-1">
         <% @design_tasks.each do |t| %>
-          <li>
+          <li data-idea-picker-target="item" data-label="<%= t.name %>">
             <%= button_to t.name, start_workshop_path,
                   params: { project_id: @project.id, mode: "existing", task_id: t.id },
-                  class: "m3-btn m3-btn-text w-full text-left" %>
+                  class: "w-full text-left px-3 py-2 rounded-[var(--radius-md)] text-sm transition-colors hover:bg-[var(--color-surface-container)]",
+                  style: "color: var(--color-primary)" %>
           </li>
         <% end %>
       </ul>
+      <p class="text-sm" style="color: var(--color-on-surface-variant)" data-idea-picker-target="empty" hidden>No tasks match your search.</p>
     <% else %>
       <p class="text-sm" style="color: var(--color-on-surface-variant)">No un-briefed tasks in a design sprint.</p>
     <% end %>
   </div>
 
-  <div class="m3-card-elevated p-6 space-y-4">
+  <%# --- New idea --- %>
+  <div class="m3-card-elevated p-6 space-y-4" data-idea-picker-target="newPanel" hidden>
     <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">New idea</h2>
     <%= form_with url: start_workshop_path, method: :post, class: "space-y-4" do %>
       <%= hidden_field_tag :project_id, @project.id %>

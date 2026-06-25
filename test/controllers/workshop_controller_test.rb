@@ -26,6 +26,18 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
     assert_match "WS-1 Design task", response.body
   end
 
+  test "new_idea has a mode toggle and a task search" do
+    @workspace.update!(workshop_enabled: true)
+    sign_in_as(users(:one))
+    get new_idea_workshop_path(project_id: @project.id)
+    assert_response :success
+    assert_select "[data-controller=?]", "idea-picker"
+    assert_select "[data-idea-picker-target=existingTab]"
+    assert_select "[data-idea-picker-target=newTab]"
+    assert_select "input[data-idea-picker-target=search]"
+    assert_select "[data-idea-picker-target=item]", { count: 1 } # the one design task
+  end
+
   test "employee is blocked even when enabled" do
     @workspace.update!(workshop_enabled: true)
     sign_in_as(users(:two)) # non-admin, no workshop access
