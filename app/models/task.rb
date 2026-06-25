@@ -4,6 +4,7 @@ class Task < ApplicationRecord
   has_many :chat_sessions, dependent: :destroy
   has_many :jira_comments, dependent: :destroy
   has_many :task_drafts, dependent: :destroy
+  has_many :briefs, dependent: :destroy
   has_many_attached :attachments
 
   # The most recent AI-refined ticket description. Scoped to the "ai" source
@@ -15,6 +16,11 @@ class Task < ApplicationRecord
   # The most recent estimate + sub-task breakdown (JSON).
   def latest_breakdown
     task_drafts.by_source(TaskDraft::BREAKDOWN_SOURCE).newest_first.first
+  end
+
+  # The most recent brief (any status) for this task.
+  def latest_brief
+    briefs.newest_first.first
   end
 
   enum :status, { active: 0, done: 1 }
