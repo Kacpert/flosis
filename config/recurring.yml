@@ -30,3 +30,10 @@ production:
   pr_review_check:
     class: PrReviewCheckJob
     schedule: "*/7 9-19 * * *"
+  # Evaluated in the app time zone (Warsaw): once at 05:00 daily. Pulls the latest
+  # master of the elvium checkout, then refreshes each Jira project's features
+  # summary (Workshop-enabled workspaces only). Preserves the prior summary on any
+  # failure — never blanks it.
+  project_features_scan:
+    class: ProjectFeaturesScanJob
+    schedule: "0 5 * * *"
