@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_19_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_25_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_19_000001) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "briefs", force: :cascade do |t|
+    t.datetime "briefed_at"
+    t.bigint "chat_session_id"
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.string "status", default: "draft", null: false
+    t.bigint "task_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "version", default: 1, null: false
+    t.bigint "workspace_id", null: false
+    t.index ["chat_session_id"], name: "index_briefs_on_chat_session_id"
+    t.index ["task_id", "version"], name: "index_briefs_on_task_id_and_version", unique: true
+    t.index ["task_id"], name: "index_briefs_on_task_id"
+    t.index ["workspace_id"], name: "index_briefs_on_workspace_id"
   end
 
   create_table "chat_messages", force: :cascade do |t|
@@ -257,10 +273,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_19_000001) do
     t.integer "budget_type", default: 0, null: false
     t.bigint "client_id"
     t.string "color", limit: 7, default: "#3B82F6", null: false
+    t.text "context_info"
     t.datetime "created_at", null: false
     t.string "currency", limit: 3, default: "USD", null: false
     t.string "external_reference"
     t.string "external_type"
+    t.text "features_summary"
+    t.datetime "features_summary_updated_at"
     t.string "name", null: false
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
@@ -521,13 +540,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_19_000001) do
     t.string "github_status_error"
     t.boolean "github_status_ok"
     t.string "github_token"
+    t.string "jira_ai_actions_field_id"
     t.string "name", null: false
     t.boolean "pr_review_enabled", default: false, null: false
     t.datetime "updated_at", null: false
+    t.boolean "workshop_enabled", default: false, null: false
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "briefs", "chat_sessions"
+  add_foreign_key "briefs", "tasks"
+  add_foreign_key "briefs", "workspaces"
   add_foreign_key "chat_messages", "chat_sessions"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "chat_sessions", "tasks"
