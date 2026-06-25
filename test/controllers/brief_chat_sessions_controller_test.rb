@@ -39,9 +39,10 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "non-admin is blocked" do
-    sign_in_as(users(:two)) # employee
+    sign_in_as(users(:two)) # employee without Workshop access
     get jira_task_brief_chat_session_path(@task), as: :json
-    assert_redirected_to root_path
+    # require_product!(:workshop) bounces them to their Time & HR landing.
+    assert_redirected_to time_entries_path
   end
 
   test "blocked when workshop disabled" do

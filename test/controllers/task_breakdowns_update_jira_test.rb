@@ -38,10 +38,11 @@ class TaskBreakdownsUpdateJiraTest < ActionDispatch::IntegrationTest
   end
 
   test "employee is blocked" do
-    sign_in_as(users(:two))
+    sign_in_as(users(:two)) # employee without Workshop access
     stub_writer({ ok: true, key: "UJ-1" }) do
       post jira_task_breakdown_update_jira_path(@task)
     end
-    assert_redirected_to root_path
+    # require_product!(:workshop) bounces them to their Time & HR landing.
+    assert_redirected_to time_entries_path
   end
 end

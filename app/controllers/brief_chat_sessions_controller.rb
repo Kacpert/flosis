@@ -11,6 +11,7 @@ class BriefChatSessionsController < ApplicationController
   CHAT_PURPOSE = "brief".freeze
   BRIEF_BLOCK = /<brief>(.*?)<\/brief>/m
 
+  before_action { require_product!(:workshop) }
   before_action :require_admin!
   before_action :require_workshop!
   before_action :set_task

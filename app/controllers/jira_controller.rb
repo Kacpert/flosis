@@ -1,6 +1,8 @@
 class JiraController < ApplicationController
   include WorkspaceScoped
 
+  before_action { require_product!(:workshop) }
+
   before_action :require_admin!, only: [:projects, :sync]
   before_action :require_client_or_employee!, only: [:jira_tasks]
   before_action :set_project, only: [:jira_tasks, :sync]

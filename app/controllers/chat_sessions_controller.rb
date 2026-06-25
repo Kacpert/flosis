@@ -1,5 +1,7 @@
 class ChatSessionsController < ApplicationController
   include WorkspaceScoped
+
+  before_action { require_product!(:workshop) }
   include ChatStreaming
 
   CHAT_PURPOSE = "refine".freeze

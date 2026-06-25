@@ -64,6 +64,7 @@ class JiraControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "sync requires admin" do
+    users(:two).membership_for(workspaces(:one)).update!(workshop_access: true)
     sign_in_as(users(:two))
 
     post jira_sync_project_path(@project)
@@ -72,6 +73,7 @@ class JiraControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "projects requires admin" do
+    users(:two).membership_for(workspaces(:one)).update!(workshop_access: true)
     sign_in_as(users(:two))
 
     get jira_projects_path, as: :json

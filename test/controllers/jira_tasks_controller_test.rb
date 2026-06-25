@@ -23,10 +23,17 @@ class JiraTasksControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "index requires employee access" do
+  test "index is shown to an employee granted Workshop access" do
+    users(:two).membership_for(workspaces(:one)).update!(workshop_access: true)
     sign_in_as(users(:two))
     get jira_tasks_path
     assert_response :success
+  end
+
+  test "index is blocked for an employee without Workshop access" do
+    sign_in_as(users(:two))
+    get jira_tasks_path
+    assert_redirected_to time_entries_path
   end
 
   test "board_data returns kanban view" do

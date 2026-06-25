@@ -37,11 +37,12 @@ class BriefCommitsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "non-admin is blocked" do
-    sign_in_as(users(:two))
+    sign_in_as(users(:two)) # employee without Workshop access
     stub_writer({ ok: true, key: "BCM-1" }) do
       post commit_jira_task_brief_path(@task, @brief)
     end
-    assert_redirected_to root_path
+    # require_product!(:workshop) bounces them to their Time & HR landing.
+    assert_redirected_to time_entries_path
     assert_equal "draft", @brief.reload.status
   end
 end

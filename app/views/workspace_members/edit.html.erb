@@ -25,10 +25,25 @@
           <p><strong>Client</strong> &mdash; Reports only</p>
         </div>
       </div>
+
+      <div class="space-y-2 pt-4" style="border-top: 1px solid var(--color-outline-variant)">
+        <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Product access</label>
+        <p class="text-xs" style="color: var(--color-outline)">Which products this member can open. Clients are always Jira-Tasks-only (Workshop).</p>
+        <input type="hidden" name="time_hr_access" value="0">
+        <label class="flex items-center justify-between gap-4 cursor-pointer">
+          <span class="text-sm" style="color: var(--color-on-surface)">Time &amp; HR</span>
+          <input type="checkbox" name="time_hr_access" value="1" class="m3-checkbox" <%= "checked" if @membership.time_hr_access %>>
+        </label>
+        <input type="hidden" name="workshop_access" value="0">
+        <label class="flex items-center justify-between gap-4 cursor-pointer">
+          <span class="text-sm" style="color: var(--color-on-surface)">Workshop</span>
+          <input type="checkbox" name="workshop_access" value="1" class="m3-checkbox" <%= "checked" if @membership.workshop_access %>>
+        </label>
+      </div>
     </div>
 
     <div class="flex gap-2">
-      <%= f.submit "Update Role", class: "m3-btn m3-btn-filled" %>
+      <%= f.submit "Update Member", class: "m3-btn m3-btn-filled" %>
     </div>
   <% end %>
 </div>

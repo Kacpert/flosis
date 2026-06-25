@@ -1,6 +1,8 @@
 class ProjectMembershipsController < ApplicationController
   include WorkspaceScoped
 
+  before_action { require_product!(:time_hr) }
+
   before_action :require_admin!
   before_action :set_project
 

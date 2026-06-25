@@ -1,6 +1,7 @@
 class WorkshopController < ApplicationController
   include WorkspaceScoped
 
+  before_action { require_product!(:workshop) }
   before_action :require_admin!
   before_action :require_workshop!
 

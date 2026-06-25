@@ -7,12 +7,42 @@ module WorkspaceScoped
     before_action :set_running_timer
     helper_method :current_workspace
     helper_method :available_projects
+    helper_method :current_product
   end
+
+  PRODUCTS = %w[time_hr workshop].freeze
 
   private
 
   def current_workspace
     Current.workspace
+  end
+
+  # The product the user is currently viewing (:time_hr or :workshop). Honors
+  # the session choice when the user still has access; otherwise falls back to
+  # their default accessible product. Persists the resolved value.
+  def current_product
+    return @current_product if defined?(@current_product)
+    return @current_product = nil unless current_workspace && current_user
+
+    chosen = session[:product]&.to_sym
+    resolved = if chosen && current_user.can_access_product?(current_workspace, chosen)
+      chosen
+    else
+      current_user.default_product(current_workspace)
+    end
+
+    session[:product] = resolved&.to_s
+    @current_product = resolved
+  end
+
+  # Landing path for a product (or the current one when nil given). Clients are
+  # Jira-Tasks-only, so the Workshop landing for them is the Jira board.
+  def product_landing_path(product = current_product)
+    return time_entries_path unless product&.to_sym == :workshop
+    return jira_tasks_path if current_user&.client_role?(current_workspace)
+
+    workshop_path
   end
 
   def available_projects

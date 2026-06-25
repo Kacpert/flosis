@@ -28,8 +28,18 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
 
   test "employee is blocked even when enabled" do
     @workspace.update!(workshop_enabled: true)
-    sign_in_as(users(:two)) # non-admin
+    sign_in_as(users(:two)) # non-admin, no workshop access
     get workshop_path
+    # require_product!(:workshop) fires first → bounced to their Time & HR landing.
+    assert_redirected_to time_entries_path
+  end
+
+  test "employee with workshop access but not admin is blocked from the tab" do
+    @workspace.update!(workshop_enabled: true)
+    users(:two).membership_for(@workspace).update!(workshop_access: true)
+    sign_in_as(users(:two))
+    get workshop_path
+    # passes the product gate, but the Workshop tab is admin-only.
     assert_redirected_to root_path
   end
 
@@ -61,17 +71,26 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
     assert_match "the concept", response.body
   end
 
-  test "sidebar shows Workshop for admin when enabled" do
+  test "sidebar shows Workshop for admin when enabled and in the Workshop product" do
     @workspace.update!(workshop_enabled: true)
     sign_in_as(users(:one))
-    get root_path
+    post switch_product_path, params: { product: "workshop" }
+    get workshop_path
     assert_select "a[href=?]", workshop_path
   end
 
   test "sidebar hides Workshop when disabled" do
     @workspace.update!(workshop_enabled: false)
     sign_in_as(users(:one))
-    get root_path
+    post switch_product_path, params: { product: "workshop" }
+    get jira_tasks_path
+    assert_select "a[href=?]", workshop_path, count: 0
+  end
+
+  test "Workshop nav is absent in the Time & HR product" do
+    @workspace.update!(workshop_enabled: true)
+    sign_in_as(users(:one))
+    get time_entries_path
     assert_select "a[href=?]", workshop_path, count: 0
   end
 end

@@ -57,4 +57,40 @@ class User < ApplicationRecord
   def can_see_money?(workspace)
     admin_or_owner?(workspace)
   end
+
+  # ---- Product access (Time & HR / Workshop) ---------------------------
+  # The app is split into two products that share one DB. Access is per-user
+  # per-workspace, stored on the membership. Clients are a special case: they
+  # are Jira-Tasks-only, which lives in the Workshop product.
+
+  def can_access_time_hr?(workspace)
+    return false if client_role?(workspace)
+    membership_for(workspace)&.time_hr_access || false
+  end
+
+  # Access to the Workshop PRODUCT (Jira Tasks + conceptual tooling). This is the
+  # per-user product gate and is independent of the workspace `workshop_enabled`
+  # feature flag — that flag only gates the Workshop briefing tab within the
+  # product. Clients are Jira-Tasks-only, which lives in this product.
+  def can_access_workshop?(workspace)
+    return false unless workspace
+    return true if client_role?(workspace)
+    membership_for(workspace)&.workshop_access || false
+  end
+
+  # Ordered list of products the user can access in this workspace.
+  def accessible_products(workspace)
+    products = []
+    products << :time_hr if can_access_time_hr?(workspace)
+    products << :workshop if can_access_workshop?(workspace)
+    products
+  end
+
+  def default_product(workspace)
+    accessible_products(workspace).first
+  end
+
+  def can_access_product?(workspace, product)
+    accessible_products(workspace).include?(product.to_sym)
+  end
 end

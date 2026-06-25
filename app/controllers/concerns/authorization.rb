@@ -57,6 +57,15 @@ module Authorization
     current_user&.can_see_money?(current_workspace)
   end
 
+  # Gate a controller to a product (:time_hr / :workshop). When the user lacks
+  # access, redirect to a product they CAN reach (never a loop, since the target
+  # is their default accessible product).
+  def require_product!(product)
+    return if current_user&.can_access_product?(current_workspace, product)
+
+    redirect_to product_landing_path, alert: "You don't have access to that part of the app."
+  end
+
   # Used by the Jira/AI controllers: when a task/project lookup is scoped to the
   # user's visible projects and misses (e.g. a client guessing another project's
   # task id), send them back to the Jira board instead of a raw 404.

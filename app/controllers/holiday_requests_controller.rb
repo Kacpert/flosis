@@ -1,6 +1,8 @@
 class HolidayRequestsController < ApplicationController
   include WorkspaceScoped
 
+  before_action { require_product!(:time_hr) }
+
   before_action :require_employee!
   before_action :require_admin!, only: [:approve, :cancel]
   before_action :set_holiday_request, only: [:approve, :cancel]

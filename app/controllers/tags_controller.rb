@@ -1,6 +1,8 @@
 class TagsController < ApplicationController
   include WorkspaceScoped
 
+  before_action { require_product!(:time_hr) }
+
   before_action :require_employee!
   before_action :set_tag, only: %i[edit update destroy]
 

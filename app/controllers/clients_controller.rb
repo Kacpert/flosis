@@ -1,6 +1,8 @@
 class ClientsController < ApplicationController
   include WorkspaceScoped
 
+  before_action { require_product!(:time_hr) }
+
   before_action :require_admin!
   before_action :require_clients_feature!
   before_action :set_client, only: %i[show edit update destroy]

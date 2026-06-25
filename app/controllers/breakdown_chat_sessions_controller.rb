@@ -7,6 +7,8 @@
 # BreakdownParser and persisted as a versioned TaskDraft (source "breakdown").
 class BreakdownChatSessionsController < ApplicationController
   include WorkspaceScoped
+
+  before_action { require_product!(:workshop) }
   include ChatStreaming
 
   CHAT_PURPOSE = "breakdown".freeze

@@ -1,6 +1,11 @@
 class WorkspaceMembersController < ApplicationController
   include WorkspaceScoped
 
+  # stop_impersonating must never be product-gated: while impersonating a client
+  # the session user is the client (Workshop-only), and gating would bounce the
+  # "switch back" escape hatch to Jira Tasks before the admin is restored.
+  before_action -> { require_product!(:time_hr) }, except: [ :stop_impersonating ]
+
   before_action :require_admin!, except: [ :stop_impersonating ]
   before_action :set_membership, only: %i[edit update destroy become]
 
@@ -63,8 +68,13 @@ class WorkspaceMembersController < ApplicationController
       return
     end
 
-    if @membership.update(role: params[:role])
-      redirect_to workspace_members_path, notice: "Role updated."
+    attrs = {
+      role: params[:role],
+      time_hr_access: params[:time_hr_access] == "1",
+      workshop_access: params[:workshop_access] == "1"
+    }
+    if @membership.update(attrs)
+      redirect_to workspace_members_path, notice: "Member updated."
     else
       render :edit, status: :unprocessable_entity
     end

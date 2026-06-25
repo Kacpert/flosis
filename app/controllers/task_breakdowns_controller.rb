@@ -5,6 +5,8 @@
 class TaskBreakdownsController < ApplicationController
   include WorkspaceScoped
 
+  before_action { require_product!(:workshop) }
+
   before_action :require_client_or_employee!
   before_action :require_admin!, only: :update_jira
   before_action :require_workshop!, only: :update_jira

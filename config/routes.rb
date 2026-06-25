@@ -10,8 +10,10 @@ Rails.application.routes.draw do
     end
   end
 
-  # Workspace-scoped routes
-  root "time_entries#index"
+  # Workspace-scoped routes. Root redirects to the current product's landing.
+  root "home#index"
+
+  post "product/switch", to: "products#switch", as: :switch_product
 
   resource :profile, only: [ :show, :update ]
   resources :workspace_members, only: [ :index, :new, :create, :edit, :update, :destroy ] do

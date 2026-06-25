@@ -1,6 +1,8 @@
 class JiraTasksController < ApplicationController
   include WorkspaceScoped
 
+  before_action { require_product!(:workshop) }
+
   before_action :require_client_or_employee!
   before_action :require_admin!, only: [:refresh]
   rescue_from ActiveRecord::RecordNotFound, with: :jira_record_not_found

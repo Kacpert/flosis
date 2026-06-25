@@ -1,6 +1,8 @@
 class FeedbackMeetingsController < ApplicationController
   include WorkspaceScoped
 
+  before_action { require_product!(:time_hr) }
+
   before_action :require_admin!, only: %i[new create edit update destroy]
   before_action :set_feedback_meeting, only: %i[show edit update destroy]
   before_action :set_employees, only: %i[new create edit update]

@@ -2,13 +2,19 @@ one_owner:
   user: one
   workspace: one
   role: 2
+  time_hr_access: true
+  workshop_access: true
 
 two_employee:
   user: two
   workspace: one
   role: 0
+  time_hr_access: true
+  workshop_access: false
 
 client_membership:
   user: client_user
   workspace: one
   role: 3
+  time_hr_access: false
+  workshop_access: false
