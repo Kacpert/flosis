@@ -58,14 +58,17 @@ class TwoProductUxSmokeTest < ActionDispatch::IntegrationTest
     assert_match p.name, response.body
   end
 
-  test "workshop landing has an inline project switcher" do
+  test "workshop landing offers New idea / Existing Jira task links" do
     sign_in_as(users(:one))
     post switch_product_path, params: { product: "workshop" }
+    p = projects(:jira_project)
+    post switch_workshop_project_path, params: { project_id: p.id }
     get workshop_path
     assert_response :success
-    # at least one switch_workshop_project form (top bar + inline landing card)
+    assert_select "a[href=?]", new_idea_workshop_path(project_id: p.id, mode: "new")
+    assert_select "a[href=?]", new_idea_workshop_path(project_id: p.id, mode: "existing")
+    # the project context still lives in the top-bar switcher
     assert_select "form[action=?]", switch_workshop_project_path, minimum: 1
-    assert_match "Working in", response.body
   end
 
   test "employee (time_hr only): no switcher dropdown, no workshop access" do

@@ -6,27 +6,24 @@
     </p>
   </div>
 
-  <%# Project context — choose which project you're working in. %>
-  <% if workshop_projects.any? %>
-    <div class="m3-card-elevated p-4 flex items-center gap-3">
-      <span class="text-sm font-medium whitespace-nowrap" style="color: var(--color-on-surface-variant)">Working in</span>
-      <%= form_with url: switch_workshop_project_path, method: :post, class: "flex-1 min-w-0",
-            data: { controller: "auto-save" } do %>
-        <%= select_tag :project_id,
-              options_from_collection_for_select(workshop_projects, :id, :name, @project&.id),
-              class: "m3-text-field w-full",
-              data: { action: "change->auto-save#save" } %>
-      <% end %>
-    </div>
-  <% end %>
-
   <% if @project %>
     <div class="m3-card-elevated p-6 space-y-4">
       <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Idea → Brief</h2>
       <p class="text-sm" style="color: var(--color-on-surface-variant)">
         Pick an existing design-sprint task or start a new idea, then brief it with the AI Product Owner.
       </p>
-      <%= link_to "Start briefing", new_idea_workshop_path(project_id: @project.id), class: "m3-btn m3-btn-filled" %>
+      <div class="space-y-2">
+        <%= link_to new_idea_workshop_path(project_id: @project.id, mode: "new"),
+              class: "block w-full text-center px-4 py-2.5 rounded-[var(--radius-lg)] text-sm font-medium transition-colors",
+              style: "color: var(--color-primary); border: 1px solid var(--color-primary)" do %>
+          New idea
+        <% end %>
+        <%= link_to new_idea_workshop_path(project_id: @project.id, mode: "existing"),
+              class: "block w-full text-center px-4 py-2.5 rounded-[var(--radius-lg)] text-sm font-medium transition-colors",
+              style: "color: var(--color-primary); border: 1px solid var(--color-primary)" do %>
+          Existing Jira task
+        <% end %>
+      </div>
     </div>
 
     <div class="m3-card-elevated p-6 space-y-2">

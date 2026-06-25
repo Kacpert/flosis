@@ -13,6 +13,7 @@ class WorkshopController < ApplicationController
   def new_idea
     @project = workshop_projects.find_by(id: params[:project_id]) || current_workshop_project
     redirect_to(workshop_path, alert: "No Jira project selected.") and return unless @project
+    @mode = params[:mode] == "new" ? "new" : "existing"
     @design_tasks = @project.design_sprint_tasks.reject { |t| t.briefs.briefed.exists? }
   end
 

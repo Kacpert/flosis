@@ -38,6 +38,15 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-idea-picker-target=item]", { count: 1 } # the one design task
   end
 
+  test "new_idea honors the mode param so the chosen panel opens" do
+    @workspace.update!(workshop_enabled: true)
+    sign_in_as(users(:one))
+    get new_idea_workshop_path(project_id: @project.id, mode: "new")
+    assert_select "[data-idea-picker-mode-value=new]"
+    get new_idea_workshop_path(project_id: @project.id, mode: "existing")
+    assert_select "[data-idea-picker-mode-value=existing]"
+  end
+
   test "employee is blocked even when enabled" do
     @workspace.update!(workshop_enabled: true)
     sign_in_as(users(:two)) # non-admin, no workshop access

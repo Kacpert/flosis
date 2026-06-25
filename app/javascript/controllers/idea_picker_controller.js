@@ -5,10 +5,13 @@ import { Controller } from "@hotwired/stimulus"
 // client-side as you type.
 export default class extends Controller {
   static targets = ["existingPanel", "newPanel", "existingTab", "newTab", "search", "item", "empty"]
+  static values = { mode: String }
 
   connect() {
-    // Default to the existing-task mode when there are tasks, else new idea.
-    this.show(this.hasItemTarget ? "existing" : "new")
+    // Honor the mode chosen on the landing; fall back to existing when there are
+    // tasks, else new idea.
+    const initial = this.modeValue || (this.hasItemTarget ? "existing" : "new")
+    this.show(initial)
   }
 
   showExisting() { this.show("existing") }

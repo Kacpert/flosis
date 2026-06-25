@@ -1,4 +1,5 @@
-<div class="max-w-3xl mx-auto space-y-6" data-controller="idea-picker">
+<div class="max-w-3xl mx-auto space-y-6" data-controller="idea-picker"
+     data-idea-picker-mode-value="<%= @mode %>">
   <div>
     <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Idea → Brief — <%= @project.name %></h1>
     <%= link_to "← Back to Workshop", workshop_path, class: "text-sm", style: "color: var(--color-primary)" %>
