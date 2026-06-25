@@ -58,6 +58,16 @@ class TwoProductUxSmokeTest < ActionDispatch::IntegrationTest
     assert_match p.name, response.body
   end
 
+  test "workshop landing has an inline project switcher" do
+    sign_in_as(users(:one))
+    post switch_product_path, params: { product: "workshop" }
+    get workshop_path
+    assert_response :success
+    # at least one switch_workshop_project form (top bar + inline landing card)
+    assert_select "form[action=?]", switch_workshop_project_path, minimum: 1
+    assert_match "Working in", response.body
+  end
+
   test "employee (time_hr only): no switcher dropdown, no workshop access" do
     sign_in_as(users(:two))
     get time_entries_path
