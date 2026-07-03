@@ -1,0 +1,45 @@
+<% content_for :title, "Reporting · Clar" %>
+
+<div class="flex items-start justify-between gap-5 mb-6 flex-wrap">
+  <div>
+    <h1 class="clar-h1">Reporting</h1>
+    <p class="clar-sub mb-0">Throughput, quality and cost for the selected period.</p>
+  </div>
+
+  <div class="flex items-center gap-2.5 flex-wrap">
+    <%= form_with url: workshop_reporting_path, method: :get, data: { controller: "clar-pipeline-filter" }, class: "flex items-center gap-2.5 flex-wrap" do |f| %>
+      <% %i[period gran range].each do |kept| %>
+        <%= hidden_field_tag kept, params[kept], id: nil if params[kept].present? %>
+      <% end %>
+      <div class="flex items-center gap-2 clar-card px-3 py-1.5">
+        <% if @developer %>
+          <span class="clar-avatar w-5 h-5 text-[9px] <%= clar_avatar_bg_class(@developer.name) %>"><%= clar_initials(@developer.name) %></span>
+        <% else %>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="clar-text-faint"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>
+        <% end %>
+        <%= f.select :developer,
+              [ [ "All team", "all" ] ] + @all_developers.map { |u| [ u.name, u.id ] },
+              { selected: @developer&.id || "all" },
+              class: "bg-transparent border-0 font-semibold text-[13px] clar-text-text cursor-pointer outline-none",
+              data: { action: "change->clar-pipeline-filter#submit" } %>
+      </div>
+    <% end %>
+
+    <div class="clar-tabs">
+      <%= link_to period_label_for(:month),
+            request.query_parameters.merge(period: "month"),
+            class: "clar-tab #{'clar-tab-active' if @period == :month}" %>
+      <%= link_to period_label_for(:sprint, active_sprint: @report.current_active_sprint),
+            request.query_parameters.merge(period: "sprint"),
+            class: "clar-tab #{'clar-tab-active' if @period == :sprint}" %>
+    </div>
+  </div>
+</div>
+
+<%= render "metrics", metrics: @metrics, developer: @developer, developers_count: @developers.size %>
+
+<%= render "trend_card", trend: @trend, gran: @gran, range: @range, developer: @developer %>
+
+<%= render "dev_table", developers: @developers, developer: @developer %>
+
+<%= render "delivered_table", delivered: @delivered, developer: @developer %>

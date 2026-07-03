@@ -49,4 +49,30 @@ class BreakdownChatSessionsControllerTest < ActionDispatch::IntegrationTest
     get jira_task_breakdown_chat_session_path(@task), as: :json
     assert_response :redirect
   end
+
+  # Task 9.2: the Figma instruction paragraph is gated by the Configuration ->
+  # Integrations "Figma" toggle (workspace.figma_read_enabled). Enabled
+  # preserves today's behavior; disabled must not instruct the AI to read Figma.
+  test "build_initial_prompt includes the Figma instructions when figma_read_enabled is true" do
+    @task.project.workspace.update!(figma_read_enabled: true)
+    controller = BreakdownChatSessionsController.new
+    controller.instance_variable_set(:@task, @task)
+    def controller.params; {}; end
+
+    prompt = controller.send(:build_initial_prompt)
+
+    assert_includes prompt, "Figma links."
+  end
+
+  test "build_initial_prompt omits the Figma instructions when figma_read_enabled is false" do
+    @task.project.workspace.update!(figma_read_enabled: false)
+    controller = BreakdownChatSessionsController.new
+    controller.instance_variable_set(:@task, @task)
+    def controller.params; {}; end
+
+    prompt = controller.send(:build_initial_prompt)
+
+    refute_includes prompt, "Figma links."
+    refute_includes prompt, "mcp__figma__get_figma_data"
+  end
 end

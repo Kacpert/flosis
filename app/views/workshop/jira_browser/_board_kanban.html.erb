@@ -1,0 +1,37 @@
+<div class="grid grid-cols-4 gap-3 min-w-[920px]" data-clar-board-filter-target="board">
+  <% columns.each do |column| %>
+    <% column_tasks = tasks_by_column.fetch(column.id, Task.none) %>
+    <div class="flex flex-col gap-2.5">
+      <div class="sticky top-0 bg-[color:var(--bg)] py-2 flex items-center gap-1.5 z-[1]">
+        <span class="text-[11px] font-bold tracking-[.4px] uppercase clar-text-faint"><%= column.name %></span>
+        <span class="text-[11px] font-bold clar-text-muted bg-[color:var(--surface-2)] border clar-divider rounded-full px-1.5"><%= column_tasks.size %></span>
+      </div>
+
+      <% if column_tasks.any? %>
+        <% column_tasks.each do |task| %>
+          <%= button_to workshop_ideas_path, params: { task_id: task.id }, method: :post,
+                class: "clar-card clar-card-hover text-left cursor-pointer flex flex-col gap-2.5 p-3 w-full [font-family:inherit]",
+                form: { data: { turbo_frame: "_top", clar_board_filter_target: "card", clar_board_filter_text: "#{task.external_reference} #{task.name} #{task.assignee_name} #{task.reporter_name}".downcase } } do %>
+            <span class="font-semibold text-[13px] leading-snug clar-text-text line-clamp-2"><%= task.name %></span>
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="inline-flex items-center gap-1.5 text-[10px] font-bold <%= issue_type_color_class(task.issue_type) %>">
+                <span class="bg-current w-1.5 h-1.5 rounded-[2px] inline-block"></span><%= task.issue_type %>
+              </span>
+              <span class="clar-key-faint"><%= task.external_reference %></span>
+              <div class="flex-1"></div>
+              <% if task.story_points.present? %>
+                <span class="text-[10px] font-bold clar-text-muted bg-[color:var(--surface-2)] rounded-full px-1.5"><%= number_with_precision(task.story_points, strip_insignificant_zeros: true) %></span>
+              <% end %>
+              <span title="<%= task.assignee_name.presence || 'Unassigned' %>"
+                    class="clar-avatar w-5 h-5 text-[9px] <%= task.assignee_name.present? ? clar_avatar_bg_class(task.assignee_name) : 'bg-[color:var(--faint)]' %>">
+                <%= task.assignee_name.present? ? clar_initials(task.assignee_name) : "·" %>
+              </span>
+            </div>
+          <% end %>
+        <% end %>
+      <% else %>
+        <div class="text-[11.5px] clar-text-faint text-center p-3.5 clar-dashed rounded-[10px]">&mdash;</div>
+      <% end %>
+    </div>
+  <% end %>
+</div>

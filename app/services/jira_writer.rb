@@ -7,6 +7,7 @@ class JiraWriter
   AI_ACTION_FIELD_NAME = "AI actions".freeze
   BRIEFED_VALUE = "Briefed".freeze
   SPEC_VALUE = "Added specification and branch".freeze
+  DETAILED_VALUE = "Detailed".freeze
 
   def initialize(workspace:, client: JiraClient.new)
     @workspace = workspace
@@ -17,7 +18,8 @@ class JiraWriter
     task = brief.task
 
     if task.external_reference.present?
-      res = @client.update_issue_description(issue_key: task.external_reference, description_text: brief.content)
+      res = @client.update_issue_description(issue_key: task.external_reference,
+                                             description_text: plain_text(brief.content))
       return res unless res[:ok]
       key = task.external_reference
       url = task.external_url
@@ -25,22 +27,37 @@ class JiraWriter
       project_key = task.project.external_reference
       return { ok: false, error: "Project is not linked to Jira" } if project_key.blank?
 
-      res = @client.create_issue(project_key: project_key, summary: task.name, description_text: brief.content)
+      res = @client.create_issue(project_key: project_key, summary: task.name,
+                                 description_text: plain_text(brief.content))
       return res unless res[:ok]
       key = res[:key]
       url = res[:url]
       task.update!(external_reference: key, external_url: url, external_type: "jira")
     end
 
-    field_id = ai_actions_field_id
-    if field_id.present?
-      action = @client.add_ai_action(issue_key: key, field_id: field_id, value: BRIEFED_VALUE)
-      return { ok: false, error: "Issue saved but couldn't set 'AI actions': #{action[:error]}" } unless action[:ok]
-    else
-      return { ok: false, error: "Couldn't find the '#{AI_ACTION_FIELD_NAME}' field in Jira" }
-    end
+    action = set_ai_action(key, BRIEFED_VALUE)
+    return action unless action[:ok]
 
     { ok: true, key: key, url: url }
+  end
+
+  # Pushes a details-stage AI draft's content to the linked Jira issue's
+  # description and sets the "AI actions" field to "Detailed". Local ideas
+  # (no Jira key yet) cannot receive a details push — the issue is only ever
+  # created via commit_brief.
+  def commit_detail(draft)
+    task = draft.task
+    return { ok: false, error: "Task is not linked to Jira" } if task.external_reference.blank?
+
+    res = @client.update_issue_description(issue_key: task.external_reference,
+                                           description_text: plain_text(draft.content))
+    return res unless res[:ok]
+
+    action = set_ai_action(task.external_reference, DETAILED_VALUE)
+    return action unless action[:ok]
+
+    draft.update!(pushed_at: Time.current)
+    { ok: true }
   end
 
   # Pushes the latest breakdown (spec) to the linked Jira issue's description and
@@ -61,6 +78,38 @@ class JiraWriter
     action[:ok] ? { ok: true, key: task.external_reference } : { ok: false, error: action[:error] }
   end
 
+  # Rewrites the delimited "--- Designs ---" block in the task's description
+  # IDEMPOTENTLY: a single header line followed by one "{name}: {url}" line
+  # per link, always at the very end of the description. Called on delivery,
+  # on per-link removal, and on request-changes, so the IN DESCRIPTION badge
+  # is always truthful. Removing the last link removes the whole block.
+  #
+  # The block lives in `task.description` (the local mirror) first — this is
+  # the single source of truth the regex rewrites — then the FULL updated
+  # description is pushed to Jira via update_issue_description when the task
+  # is linked (external_reference present). A local-only task just updates
+  # the mirror; never raises either way (matches the rest of JiraWriter).
+  DESIGNS_BLOCK_HEADER = "--- Designs ---".freeze
+  DESIGNS_BLOCK_PATTERN = /\n*#{Regexp.escape(DESIGNS_BLOCK_HEADER)}\n(?:.*\n?)*\z/
+
+  def sync_design_links(task, links)
+    base = task.description.to_s.sub(DESIGNS_BLOCK_PATTERN, "").rstrip
+    new_description =
+      if links.blank?
+        base
+      else
+        lines = links.map { |l| "#{l["name"] || l[:name]}: #{l["url"] || l[:url]}" }
+        [base, "", DESIGNS_BLOCK_HEADER, *lines].join("\n")
+      end
+
+    task.update!(description: new_description)
+
+    return { ok: true } if task.external_reference.blank?
+
+    res = @client.update_issue_description(issue_key: task.external_reference, description_text: new_description)
+    res[:ok] ? { ok: true } : { ok: false, error: res[:error] }
+  end
+
   def ai_actions_field_id
     return @workspace.jira_ai_actions_field_id if @workspace.jira_ai_actions_field_id.present?
 
@@ -69,7 +118,34 @@ class JiraWriter
     id
   end
 
+  # Rich-text editing (Task 5.2) lets a brief/draft's `content` be stored as
+  # sanitized HTML instead of plain text/markdown. Jira must never receive raw
+  # tags, so every push point flattens content through this helper first.
+  # Rails::Html::FullSanitizer strips tags entirely (not just an allowlist) —
+  # safe to run unconditionally since it's a no-op on tag-free text (plain
+  # text or markdown like "## Foo" survives untouched).
+  def self.plain_text(content)
+    text = Rails::Html::FullSanitizer.new.sanitize(content.to_s)
+    text.gsub(/\n{3,}/, "\n\n").strip
+  end
+
   private
+
+  def plain_text(content)
+    self.class.plain_text(content)
+  end
+
+  # Sets the "AI actions" field on the given issue to `value`. Shared by
+  # commit_brief (BRIEFED_VALUE) and commit_detail (DETAILED_VALUE).
+  def set_ai_action(issue_key, value)
+    field_id = ai_actions_field_id
+    return { ok: false, error: "Couldn't find the '#{AI_ACTION_FIELD_NAME}' field in Jira" } if field_id.blank?
+
+    action = @client.add_ai_action(issue_key: issue_key, field_id: field_id, value: value)
+    return { ok: false, error: "Issue saved but couldn't set 'AI actions': #{action[:error]}" } unless action[:ok]
+
+    { ok: true }
+  end
 
   # Flatten a breakdown JSON document into a plain-text description for Jira.
   def format_breakdown(json)

@@ -95,6 +95,34 @@ Rails.application.routes.draw do
   post "workshop/start",           to: "workshop#start",    as: :start_workshop
   get  "workshop/tasks/:id/brief", to: "workshop#brief",    as: :workshop_brief
 
+  # Workshop redesign (Clar): Create Tasks pipeline + idea intake. Additive —
+  # more routes (advance/save_locally/push_jira, versions, design_request,
+  # process/reporting/bugs/configuration) land in later phases (design_request
+  # landed in Task 5.3).
+  namespace :workshop do
+    get "pipeline", to: "pipeline#index", as: :pipeline
+    get "jira_browser", to: "jira_browser#show", as: :jira_browser
+    resources :ideas, only: [ :create, :show, :update ] do
+      member { post :advance; post :save_locally; post :push_jira; post :estimate }
+      resources :versions, only: [ :create, :update ] do
+        member { post :make_current }
+      end
+      resource :design_request, only: [ :create, :update, :destroy ]
+    end
+    get "process", to: "process#show", as: :process
+    get "reporting", to: "reports#show", as: :reporting
+    get "bugs", to: "bugs#show", as: :bugs
+    post "bugs/:jira_key/analyze", to: "bugs#analyze", as: :analyze_bug, constraints: { jira_key: /[^\/]+/ }
+    resources :alert_rules, only: [ :create, :destroy ] do
+      member { get :history }
+    end
+    get "configuration", to: "configuration#show", as: :configuration
+    patch "configuration", to: "configuration#update"
+    post "configuration/test_github", to: "configuration#test_github", as: :test_github_configuration
+    post "configuration/verify_jira_fields", to: "configuration#verify_jira_fields", as: :verify_jira_fields_configuration
+    resources :discord_webhooks, only: [ :create, :destroy ]
+  end
+
   # Jira integration
   get "jira/projects", to: "jira#projects", as: :jira_projects
 

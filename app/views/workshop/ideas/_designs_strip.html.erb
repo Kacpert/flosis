@@ -1,0 +1,78 @@
+<%# Designs strip (Task 5.3) — visible at details + ready stages only (see
+    show.html.erb / _workspace_header.html.erb). States: none (no
+    design_request yet) / requested / delivered. Copy is verbatim from the
+    mockup (redesign.html ~line 789-813). Shares the page's clar-modal scope
+    for the "Request from designer" / "Request changes" modal. %>
+<%
+  dr = idea.design_request
+%>
+<div class="mt-3.5 flex flex-col gap-2.5 px-[13px] py-[11px] bg-[var(--bg)] border clar-divider rounded-[11px]" data-controller="clar-modal">
+  <div class="flex items-center gap-2.5 flex-wrap">
+    <span class="inline-flex items-center gap-1.5 text-[12.5px] font-bold clar-text-text">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      Designs
+    </span>
+
+    <% if dr.nil? %>
+      <span class="text-[12px] clar-text-muted">Optional &middot; the designer prepares these &mdash; request them before or after details, whenever this task needs them.</span>
+    <% elsif dr.requested? %>
+      <span class="inline-flex items-center gap-1.5 text-[12px] font-semibold clar-text-warn">
+        <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
+        Requested from <%= dr.designer.name %> &middot; pending
+      </span>
+    <% elsif dr.delivered? %>
+      <span class="inline-flex items-center gap-1.5 text-[12px] font-semibold clar-text-success">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+        <%= pluralize(dr.links.size, "link") %> in Jira description &middot; by <%= dr.designer.name %>
+      </span>
+    <% end %>
+
+    <div class="flex-1"></div>
+
+    <% if dr.nil? %>
+      <button type="button" class="clar-btn clar-btn-primary !text-[12.5px] !py-[7px] !px-[13px]" data-action="click->clar-modal#open" data-clar-modal-id-param="request-designs">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
+        Request from designer
+      </button>
+    <% elsif dr.requested? %>
+      <button type="button" class="clar-btn !text-[12.5px] !py-[7px] !px-3 !text-[var(--success)] !bg-[var(--success-soft)]" data-action="click->clar-modal#open" data-clar-modal-id-param="deliver-designs">
+        Mark delivered
+      </button>
+      <%= button_to workshop_idea_design_request_path(idea), method: :delete, class: "clar-btn !text-[12.5px] !py-[7px] !px-3" do %>
+        Cancel
+      <% end %>
+    <% elsif dr.delivered? %>
+      <button type="button" class="clar-btn !text-[12.5px] !py-[7px] !px-3" data-action="click->clar-modal#open" data-clar-modal-id-param="request-designs">
+        Request changes
+      </button>
+    <% end %>
+  </div>
+
+  <% if dr&.delivered? && dr.links.present? %>
+    <div class="flex flex-col gap-[7px]">
+      <% dr.links.each_with_index do |link, i| %>
+        <div class="flex items-center gap-2.5 bg-[var(--surface)] border clar-divider rounded-[9px] px-[11px] py-2">
+          <span class="clar-text-ai flex flex-none w-4">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-[12.5px] clar-text-text"><%= link["name"] %></div>
+            <div class="clar-mono text-[11px] clar-text-faint overflow-hidden text-ellipsis whitespace-nowrap"><%= link["url"] %></div>
+          </div>
+          <span class="text-[10px] font-bold clar-text-primary bg-[var(--primary-soft)] px-[7px] py-0.5 rounded">IN DESCRIPTION</span>
+          <%= button_to workshop_idea_design_request_path(idea), method: :patch, params: {
+                kind: "deliver",
+                design_request: { links: dr.links.each_with_index.reject { |_, j| j == i }.map { |l, _| { name: l["name"], url: l["url"] } } }
+              }, class: "bg-transparent border-0 cursor-pointer clar-text-faint flex p-0.5", title: "Remove" do %>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>
+
+<%= render "workshop/ideas/request_designs_modal", idea: idea, design_request: dr %>
+<% if dr&.requested? %>
+  <%= render "workshop/ideas/deliver_designs_modal", idea: idea, design_request: dr %>
+<% end %>

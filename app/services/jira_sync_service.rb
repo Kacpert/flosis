@@ -10,9 +10,119 @@ class JiraSyncService
     sync_boards
     sync_issues
     sync_sprint_assignments
+    sync_delivered_issues
+  end
+
+  # Populates the `delivered_issues` reporting mirror from a lightweight
+  # ~400-day "done issues" pass. HR-BOUNDARY: these rows are NEVER written to
+  # `tasks` — see DeliveredIssue for why (HR's Projects index renders
+  # project.tasks.size, which must stay unaffected by historical done work).
+  def sync_delivered_issues
+    done_issues = @client.fetch_recent_done_issues(@project.external_reference, since: "-400d", story_points_field_id: story_points_field_id)
+    return if done_issues.nil?
+
+    done_issues.each do |issue|
+      delivered = @project.delivered_issues.find_or_initialize_by(jira_key: issue[:key])
+      delivered.update!(
+        title: issue[:title],
+        issue_type: issue[:issue_type],
+        assignee_email: issue[:assignee_email],
+        assignee_name: issue[:assignee_name],
+        reporter_email: issue[:reporter_email],
+        reporter_name: issue[:reporter_name],
+        story_points: issue[:story_points],
+        jira_created_at: issue[:jira_created_at],
+        resolved_at: issue[:resolved_at]
+      )
+    end
+  end
+
+  # Clears all sprint assignments, then reassigns from active/future sprints.
+  # AUTO-ESTIMATE (sprint trigger): when workspace.estimation_trigger ==
+  # "sprint", enqueues AutoEstimateJob for any task that NEWLY gains a
+  # sprint_id (was nil, now set) on a sprint that is not a "design" sprint —
+  # design-sprint tasks (Project#design_sprint_tasks: name contains "design")
+  # are still being shaped in the Idea pipeline and aren't ready to estimate.
+  # Idempotent: a task that already had this sprint_id (unchanged) is not
+  # re-enqueued.
+  def sync_sprint_assignments
+    trigger_on_sprint = @project.workspace.estimation_trigger == "sprint"
+    previous_sprint_ids = trigger_on_sprint ? @project.tasks.jira_synced.pluck(:external_reference, :sprint_id).to_h : {}
+
+    @project.tasks.jira_synced.where.not(sprint_id: nil).update_all(sprint_id: nil, sprint_name: nil)
+
+    @project.jira_boards.each do |board|
+      board.jira_sprints.where(state: %w[active future]).find_each do |sprint|
+        issue_keys = @client.fetch_sprint_issue_keys(sprint.jira_sprint_id)
+        next if issue_keys.empty?
+
+        @project.tasks.jira_synced
+          .where(external_reference: issue_keys)
+          .update_all(sprint_id: sprint.jira_sprint_id, sprint_name: sprint.name)
+
+        next unless trigger_on_sprint
+        next if design_sprint_name?(sprint.name)
+
+        newly_assigned_keys = issue_keys.select { |key| previous_sprint_ids[key].nil? }
+        next if newly_assigned_keys.empty?
+
+        @project.tasks.jira_synced.where(external_reference: newly_assigned_keys).find_each do |task|
+          AutoEstimateJob.perform_later(task.id)
+        end
+      end
+    end
+  end
+
+  def design_sprint_name?(name)
+    name.to_s.match?(/design/i)
+  end
+
+  # Cap on BugAttributionJob enqueues per sync run — bounds CLI cost when a
+  # large batch of Bugs syncs at once (e.g. first sync of a new project).
+  BUG_ATTRIBUTION_CAP = 3
+
+  def sync_issues
+    trigger_on_status = @project.workspace.estimation_trigger == "status"
+    status_trigger = @project.workspace.estimation_status_trigger
+
+    issues = @client.fetch_issues(@project.external_reference, story_points_field_id: story_points_field_id)
+    return if issues.nil?
+
+    bug_attributions_enqueued = 0
+
+    issues.each do |issue|
+      previous_status = trigger_on_status ? @project.tasks.jira_synced.find_by(external_reference: issue[:key])&.jira_status_name : nil
+
+      sync_issue(issue)
+
+      if trigger_on_status
+        if previous_status != status_trigger && issue[:status_name] == status_trigger
+          task = @project.tasks.jira_synced.find_by(external_reference: issue[:key])
+          AutoEstimateJob.perform_later(task.id) if task
+        end
+      end
+
+      next unless issue[:issue_type] == "Bug"
+      next if bug_attributions_enqueued >= BUG_ATTRIBUTION_CAP
+      next if BugAttribution.exists?(project_id: @project.id, jira_key: issue[:key])
+
+      BugAttributionJob.perform_later(@project.id, issue[:key])
+      bug_attributions_enqueued += 1
+    end
   end
 
   private
+
+  # Resolves + caches the Jira custom field id used for story points on the
+  # project's workspace (mirrors JiraWriter#ai_actions_field_id's caching).
+  def story_points_field_id
+    workspace = @project.workspace
+    return workspace.jira_story_points_field_id if workspace.jira_story_points_field_id.present?
+
+    id = @client.resolve_story_points_field
+    workspace.update_column(:jira_story_points_field_id, id) if id.present?
+    id
+  end
 
   def sync_boards
     boards_data = @client.fetch_boards(@project.external_reference)
@@ -85,31 +195,6 @@ class JiraSyncService
     board.jira_sprints.where.not(id: synced_sprint_ids).destroy_all
   end
 
-  def sync_sprint_assignments
-    # Clear all sprint assignments first, then reassign from active/future sprints
-    @project.tasks.jira_synced.where.not(sprint_id: nil).update_all(sprint_id: nil, sprint_name: nil)
-
-    @project.jira_boards.each do |board|
-      board.jira_sprints.where(state: %w[active future]).find_each do |sprint|
-        issue_keys = @client.fetch_sprint_issue_keys(sprint.jira_sprint_id)
-        next if issue_keys.empty?
-
-        @project.tasks.jira_synced
-          .where(external_reference: issue_keys)
-          .update_all(sprint_id: sprint.jira_sprint_id, sprint_name: sprint.name)
-      end
-    end
-  end
-
-  def sync_issues
-    issues = @client.fetch_issues(@project.external_reference)
-    return if issues.nil?
-
-    issues.each do |issue|
-      sync_issue(issue)
-    end
-  end
-
   def sync_issue(issue)
     task = @project.tasks.find_or_initialize_by(
       external_reference: issue[:key],
@@ -135,7 +220,9 @@ class JiraSyncService
       reporter_name: issue[:reporter_name],
       sprint_id: issue[:sprint_id],
       sprint_name: issue[:sprint_name],
-      time_estimate_seconds: issue[:time_estimate_seconds]
+      time_estimate_seconds: issue[:time_estimate_seconds],
+      story_points: issue[:story_points],
+      jira_created_at: issue[:jira_created_at]
     )
 
     ActiveRecord::Base.transaction(requires_new: true) do

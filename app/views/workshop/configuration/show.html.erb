@@ -1,0 +1,22 @@
+<% content_for :title, "Configuration · Clar" %>
+
+<div class="clar-badge clar-badge-warn mb-2.5">ADMINISTRATOR ONLY</div>
+<h1 class="clar-h1">Configuration</h1>
+<p class="clar-sub">Per-project credentials, AI behaviour and access. Hidden from Product Owners.</p>
+
+<div class="clar-tabs mb-6">
+  <%= link_to "Integrations", workshop_configuration_path(tab: "integrations"),
+        class: "clar-tab #{'clar-tab-active' if @tab == 'integrations'}" %>
+  <%= link_to "AI", workshop_configuration_path(tab: "ai"),
+        class: "clar-tab #{'clar-tab-active' if @tab == 'ai'}" %>
+  <%= link_to "Users", workshop_configuration_path(tab: "users"),
+        class: "clar-tab #{'clar-tab-active' if @tab == 'users'}" %>
+</div>
+
+<% if @tab == "integrations" %>
+  <%= render "integrations_tab" %>
+<% elsif @tab == "ai" %>
+  <%= render "ai_tab" %>
+<% else %>
+  <%= render "users_tab" %>
+<% end %>

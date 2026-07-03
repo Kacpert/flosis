@@ -1,0 +1,44 @@
+<%
+  steps = [["briefing", "Briefing"], ["details", "Details"], ["ready", "Ready"]]
+  current_idx = steps.index { |key, _| key == stage } || 0
+%>
+<div class="flex items-center gap-1">
+  <% steps.each_with_index do |(key, label), i| %>
+    <%
+      done = i < current_idx
+      current = i == current_idx
+      clickable = done || current
+      circle_classes = if done
+                         "bg-[var(--success)] text-white border-transparent"
+                       elsif current
+                         "bg-[var(--primary)] text-white border-transparent"
+                       else
+                         "bg-[var(--surface-2)] clar-text-faint border clar-divider"
+                       end
+      label_color = if current
+                      "clar-text-primary"
+                    elsif done
+                      "clar-text-success"
+                    else
+                      "clar-text-faint"
+                    end
+    %>
+    <div class="flex items-center gap-1.5 text-[12px] font-semibold <%= label_color %>"
+         data-stepper-stage="<%= key %>" data-stepper-current="<%= current %>" data-stepper-done="<%= done %>">
+      <% if clickable %>
+        <%= link_to workshop_idea_path(idea, stage: key), class: "flex items-center gap-1.5 no-underline #{label_color}", title: "Go to #{label}" do %>
+          <span class="w-[21px] h-[21px] rounded-full flex items-center justify-center text-[11px] font-bold <%= circle_classes %>">
+            <%= done ? "&check;".html_safe : (i + 1) %>
+          </span>
+          <span><%= label %></span>
+        <% end %>
+      <% else %>
+        <span class="w-[21px] h-[21px] rounded-full flex items-center justify-center text-[11px] font-bold <%= circle_classes %>"><%= i + 1 %></span>
+        <span><%= label %></span>
+      <% end %>
+    </div>
+    <% if i < steps.length - 1 %>
+      <span class="w-[18px] h-[1.5px] clar-divider"></span>
+    <% end %>
+  <% end %>
+</div>

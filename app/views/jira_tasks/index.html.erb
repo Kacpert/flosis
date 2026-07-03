@@ -4,10 +4,10 @@
 <div class="space-y-5" data-controller="jira-tasks jira-task-modal" data-jira-tasks-current-view-value="<%= @view_mode %>">
   <%# Header %>
   <div class="flex justify-between items-center">
-    <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">Jira Tasks</h1>
+    <h1 class="clar-h1">Jira Tasks</h1>
     <% if @selected_project && current_user.admin_or_owner?(current_workspace) %>
       <button type="button"
-              class="m3-btn m3-btn-outlined m3-btn-sm flex items-center gap-1.5"
+              class="clar-btn flex items-center gap-1.5"
               data-jira-tasks-target="refreshButton"
               data-action="click->jira-tasks#refresh">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -19,9 +19,9 @@
   </div>
 
   <%# Filter bar %>
-  <div class="flex flex-wrap items-center gap-3 p-3 rounded-xl" style="background: var(--color-surface-container)">
+  <div class="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-[color:var(--surface-2)]">
     <div class="flex-shrink-0">
-      <select class="m3-text-field text-sm min-w-[180px]"
+      <select class="clar-select text-sm min-w-[180px]"
               data-jira-tasks-target="projectSelect"
               data-action="change->jira-tasks#projectChanged">
         <% @jira_projects.each do |project| %>
@@ -34,7 +34,7 @@
 
     <% if @boards&.any? %>
       <div class="flex-shrink-0">
-        <select class="m3-text-field text-sm min-w-[150px]"
+        <select class="clar-select text-sm min-w-[150px]"
                 data-jira-tasks-target="boardSelect"
                 data-action="change->jira-tasks#boardChanged">
           <% @boards.each do |board| %>
@@ -47,7 +47,7 @@
 
       <% if @sprints&.any? %>
         <div class="flex-shrink-0">
-          <select class="m3-text-field text-sm min-w-[150px]"
+          <select class="clar-select text-sm min-w-[150px]"
                   data-jira-tasks-target="sprintSelect"
                   data-action="change->jira-tasks#sprintChanged">
             <option value="">All sprints</option>
@@ -61,10 +61,9 @@
       <% end %>
     <% end %>
 
-    <div class="ml-auto flex rounded-lg overflow-hidden border" style="border-color: var(--color-outline-variant)">
+    <div class="ml-auto flex rounded-lg overflow-hidden border clar-divider">
       <button type="button"
-              class="px-3 py-1.5 text-sm font-medium transition-colors"
-              style="<%= @view_mode == 'kanban' ? 'background: var(--color-primary); color: var(--color-on-primary)' : 'background: var(--color-surface); color: var(--color-on-surface-variant)' %>"
+              class="px-3 py-1.5 text-sm font-medium transition-colors <%= @view_mode == 'kanban' ? 'bg-[color:var(--primary)] text-white' : 'bg-[color:var(--surface)] clar-text-muted' %>"
               data-action="click->jira-tasks#toggleView"
               data-jira-tasks-target="viewToggle"
               data-view="kanban">
@@ -74,8 +73,7 @@
         Board
       </button>
       <button type="button"
-              class="px-3 py-1.5 text-sm font-medium transition-colors"
-              style="<%= @view_mode == 'list' ? 'background: var(--color-primary); color: var(--color-on-primary)' : 'background: var(--color-surface); color: var(--color-on-surface-variant)' %>"
+              class="px-3 py-1.5 text-sm font-medium transition-colors <%= @view_mode == 'list' ? 'bg-[color:var(--primary)] text-white' : 'bg-[color:var(--surface)] clar-text-muted' %>"
               data-action="click->jira-tasks#toggleView"
               data-jira-tasks-target="viewToggle"
               data-view="list">
@@ -100,15 +98,15 @@
       <%= render "empty_state", message: "No boards found for #{@selected_project.name}. Try refreshing." %>
     <% else %>
       <div class="flex items-center justify-center py-12">
-        <div class="animate-spin h-6 w-6 border-2 rounded-full" style="border-color: var(--color-outline-variant); border-top-color: var(--color-primary)"></div>
+        <div class="animate-spin h-6 w-6 border-2 rounded-full clar-divider border-t-[color:var(--primary)]"></div>
       </div>
     <% end %>
   </turbo-frame>
 
   <%# Task detail modal %>
   <div data-jira-task-modal-target="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
-    <div class="absolute inset-0" style="background: rgba(0,0,0,0.5)" data-action="click->jira-task-modal#close"></div>
-    <div class="relative m3-card-elevated max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" style="z-index: 1">
+    <div class="absolute inset-0 bg-black/50" data-action="click->jira-task-modal#close"></div>
+    <div class="relative clar-card max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto z-[1]">
       <turbo-frame id="jira-task-detail" data-jira-task-modal-target="content">
       </turbo-frame>
     </div>

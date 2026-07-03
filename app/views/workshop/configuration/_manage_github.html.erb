@@ -1,0 +1,66 @@
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="manage-github"
+     data-action="click->clar-modal#close">
+  <div class="clar-modal max-w-[520px] max-h-[88vh] overflow-y-auto" data-action="click->clar-modal#stopPropagation">
+    <div class="p-5 border-b border-[color:var(--border)] flex items-center gap-3.5">
+      <span class="w-10 h-10 rounded-[10px] bg-[var(--surface-2)] flex items-center justify-center clar-text-text flex-none">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-1-2.6c3-.3 6.2-1.5 6.2-7A5.4 5.4 0 0 0 20 4.8 5 5 0 0 0 19.9 1S18.7.6 16 2.5a13.4 13.4 0 0 0-7 0C6.3.6 5.1 1 5.1 1A5 5 0 0 0 5 4.8 5.4 5.4 0 0 0 3.6 8.5c0 5.5 3.2 6.7 6.2 7a3.4 3.4 0 0 0-1 2.6V22"/></svg>
+      </span>
+      <div class="flex-1">
+        <div class="font-bold text-[16px] clar-text-text">GitHub</div>
+        <div class="inline-flex items-center gap-1.5 text-[11px] font-bold <%= workspace.github_status_ok ? 'text-[color:var(--success)]' : 'clar-text-faint' %> mt-0.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-current"></span><%= workspace.github_status_ok ? "Connected" : "Not connected" %>
+        </div>
+      </div>
+      <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <%= form_with model: workspace, url: workshop_configuration_path(tab: "integrations"), method: :patch,
+          data: { controller: "clar-toggle" } do |f| %>
+      <div class="p-5">
+        <label class="clar-field-label">REPOSITORY</label>
+        <%= f.text_field :github_repo, value: workspace.github_repo, class: "clar-input clar-mono mb-1.5" %>
+        <div class="text-[11px] clar-text-faint mb-4">The repo is checked out server-side; master is refreshed daily.</div>
+
+        <label class="clar-field-label">ACCESS TOKEN</label>
+        <div class="flex gap-1.5 mb-1.5" data-controller="clar-token-field">
+          <%= f.password_field :github_token, value: nil,
+                placeholder: workspace.github_token.present? ? "ghp_&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;#{workspace.github_token.last(4)}".html_safe : "Not set",
+                autocomplete: "new-password", class: "clar-input clar-mono flex-1", data: { clar_token_field_target: "input" } %>
+          <button type="button" class="clar-btn" data-action="click->clar-token-field#rotate">Rotate</button>
+        </div>
+        <div class="text-[11px] clar-text-faint mb-4">Write-only &mdash; leave blank to keep the current token.</div>
+
+        <label class="clar-field-label">DEFAULT BRANCH</label>
+        <div class="clar-input clar-mono mb-4 flex items-center bg-[var(--surface-2)]">master</div>
+
+        <div class="flex items-center justify-between gap-3 py-2.5">
+          <div>
+            <div class="font-semibold text-[13px] clar-text-text">Auto-refresh master daily</div>
+            <div class="text-[11.5px] clar-text-faint mt-0.5">Last refreshed <%= clar_time_ago(current_workshop_project&.features_summary_updated_at) || "not yet" %></div>
+          </div>
+          <span class="clar-badge clar-badge-muted">05:00 daily</span>
+        </div>
+
+        <div class="flex items-center justify-between gap-3 py-2.5">
+          <div class="font-semibold text-[13px] clar-text-text">AI PR reviews on this repo</div>
+          <%= f.check_box :pr_review_enabled, class: "sr-only", data: { clar_toggle_target: "input", action: "change->clar-toggle#render" } %>
+          <button type="button" class="clar-toggle" data-clar-toggle-target="button"
+                  aria-checked="<%= workspace.pr_review_enabled? ? 'true' : 'false' %>"
+                  data-action="clar-toggle#toggle">
+            <span class="knob"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="p-3.5 border-t border-[color:var(--border)] flex items-center justify-between gap-2.5">
+        <%= button_to "Test connection", workshop_test_github_configuration_path, method: :post, class: "clar-btn", form: { data: { turbo: false } } %>
+        <div class="flex gap-2.5">
+          <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+          <%= f.submit "Save changes", class: "clar-btn clar-btn-primary" %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>

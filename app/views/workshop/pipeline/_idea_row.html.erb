@@ -1,0 +1,41 @@
+<%
+  stage_badge = {
+    "new"      => ["clar-badge-muted",   "New idea"],
+    "briefing" => ["clar-badge-primary", "Briefing"],
+    "details"  => ["clar-badge-ai",      "Details Gathering"],
+    "ready"    => ["clar-badge-success", idea.external_type.present? ? "Ready · in Jira" : "Ready · local"],
+  }.fetch(idea.workshop_stage, ["clar-badge-muted", idea.workshop_stage.to_s.humanize])
+%>
+<%= link_to workshop_idea_path(idea), class: "clar-row clar-row-hover flex items-center gap-4 p-4 no-underline" do %>
+  <div class="flex-1 min-w-0">
+    <div class="flex items-center gap-2.5">
+      <% if idea.external_type.present? %>
+        <span class="clar-key"><%= idea.external_reference %></span>
+      <% else %>
+        <span class="clar-badge clar-badge-muted">LOCAL</span>
+      <% end %>
+      <span class="font-semibold text-[14px] clar-text-text"><%= idea.name %></span>
+    </div>
+    <div class="text-[12px] clar-text-faint mt-1">
+      <%= idea.pipeline_author&.name || "Unknown" %> · Created <%= clar_time_ago(idea.pipeline_entered_at) %>
+    </div>
+  </div>
+
+  <% if idea.design_request&.requested? %>
+    <span class="clar-badge clar-badge-warn whitespace-nowrap">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      Designs requested
+    </span>
+  <% elsif idea.design_request&.delivered? %>
+    <span class="clar-badge clar-badge-success whitespace-nowrap">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+      Designs ready
+    </span>
+  <% end %>
+
+  <span class="clar-badge <%= stage_badge[0] %> whitespace-nowrap"><%= stage_badge[1] %></span>
+
+  <span class="clar-text-faint flex">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+  </span>
+<% end %>

@@ -1,0 +1,90 @@
+<%= form_with url: workshop_configuration_path, method: :patch, class: "flex flex-col gap-4.5",
+      data: { controller: "auto-save" } do %>
+  <%= hidden_field_tag :tab, "ai" %>
+
+  <div class="clar-card p-4.5">
+    <div class="font-bold text-[14px] clar-text-text mb-1">AI provider</div>
+    <div class="text-[12.5px] clar-text-muted mb-3.5">Configurable dependency. Only Claude Opus is in scope today.</div>
+    <div class="flex items-center gap-2.5 bg-[var(--ai-soft)] border border-[color:var(--border)] rounded-[10px] px-3.5 py-3">
+      <span class="clar-dot bg-[var(--ai)]"></span>
+      <span class="font-semibold text-[13.5px] clar-text-text">Claude Opus</span>
+      <span class="text-[11.5px] clar-text-faint">active</span>
+    </div>
+  </div>
+
+  <div class="clar-card p-4.5">
+    <div class="font-bold text-[14px] clar-text-text mb-1">PR review prompt</div>
+    <div class="text-[12.5px] clar-text-muted mb-3">Instructions the AI follows when reviewing pull requests.</div>
+    <textarea name="workspace[pr_review_prompt]" rows="6" class="clar-textarea clar-mono !text-[12.5px] !leading-[1.6] resize-y"
+              data-action="change->auto-save#save"><%= @pr_review_prompt %></textarea>
+  </div>
+
+  <div class="grid gap-3.5 grid-cols-1 md:grid-cols-2 items-start">
+    <div class="clar-card p-4.5">
+      <div class="font-bold text-[14px] clar-text-text mb-1">PR polling interval</div>
+      <div class="text-[12.5px] clar-text-muted mb-3.5">How often new/updated PRs are checked.</div>
+      <div class="flex items-baseline gap-1.5">
+        <span class="text-[30px] font-bold clar-text-text" data-clar-poll-minutes-value><%= @poll_minutes %></span>
+        <span class="text-[13px] clar-text-faint">minutes</span>
+      </div>
+      <input type="range" min="1" max="30" step="1" name="workspace[pr_poll_minutes]" value="<%= @poll_minutes %>"
+             class="w-full mt-3 accent-[var(--primary)]"
+             oninput="this.closest('.clar-card').querySelector('[data-clar-poll-minutes-value]').textContent = this.value"
+             data-action="change->auto-save#save">
+      <div class="text-[11px] clar-text-faint mt-3">effective minimum 7 — the checker ticks every 7 minutes</div>
+    </div>
+
+    <div class="clar-card p-4.5">
+      <div class="font-bold text-[14px] clar-text-text mb-1">Estimation target</div>
+      <div class="text-[12.5px] clar-text-muted mb-3.5">Where and when the AI writes story points. Manual fields are never touched.</div>
+
+      <div class="text-[12px] clar-text-faint mb-1">Board</div>
+      <div class="font-semibold text-[13.5px] clar-text-text mb-3.5"><%= @estimation_board_name || "—" %></div>
+
+      <div class="text-[12px] clar-text-faint mb-1.5">Jira field(s) to write</div>
+      <div data-controller="clar-field-chip">
+        <div class="flex flex-wrap gap-1.5 mb-1.5" data-clar-field-chip-target="list">
+          <% Workspace::ESTIMATION_FIELD_OPTIONS.each do |field_name| %>
+            <% checked = @estimation_field_names.include?(field_name) %>
+            <label class="clar-chip cursor-pointer <%= 'clar-chip-active' if checked %>">
+              <input type="checkbox" name="workspace[estimation_field_names][]" value="<%= field_name %>"
+                     class="sr-only" <%= "checked" if checked %>
+                     data-action="change->auto-save#save">
+              <%= field_name %>
+            </label>
+          <% end %>
+          <% (@estimation_field_names - Workspace::ESTIMATION_FIELD_OPTIONS).each do |field_name| %>
+            <label class="clar-chip clar-chip-active cursor-pointer">
+              <input type="checkbox" name="workspace[estimation_field_names][]" value="<%= field_name %>"
+                     class="sr-only" checked
+                     data-action="change->auto-save#save">
+              <%= field_name %>
+            </label>
+          <% end %>
+        </div>
+        <div class="flex gap-1.5 mb-1.5">
+          <input type="text" placeholder="Add a custom field name&hellip;" class="clar-input !text-[12.5px] !py-1.5"
+                 data-clar-field-chip-target="input"
+                 data-action="keydown.enter->clar-field-chip#add">
+          <button type="button" class="clar-btn !text-[12px] !py-1.5 !px-3" data-action="click->clar-field-chip#add">Add</button>
+        </div>
+      </div>
+      <div class="text-[11px] clar-text-faint mb-3.5">Use more than one field when a team keeps separate scales (e.g. points + confidence). At least one field is required.</div>
+
+      <div class="text-[12px] clar-text-faint mb-1.5">Estimate a story when&hellip;</div>
+      <div class="flex flex-col gap-1.5">
+        <% Workspace::ESTIMATION_TRIGGERS.each do |value, label| %>
+          <label class="flex items-center gap-2.5 text-[13px] font-medium text-left px-2.5 py-2 rounded-[9px] border cursor-pointer <%= @estimation_trigger == value ? 'border-[color:var(--primary)] bg-[var(--primary-soft)]' : 'border-[color:var(--border)]' %> clar-text-text">
+            <input type="radio" name="workspace[estimation_trigger]" value="<%= value %>" <%= "checked" if @estimation_trigger == value %>
+                   class="accent-[var(--primary)]" data-action="change->auto-save#save">
+            <%= label %>
+          </label>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <noscript>
+    <button type="submit" class="clar-btn clar-btn-primary">Save AI settings</button>
+  </noscript>
+<% end %>

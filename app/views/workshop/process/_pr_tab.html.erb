@@ -1,0 +1,69 @@
+<% if current_workspace.pr_review_enabled? %>
+  <div class="flex items-center justify-between mb-4">
+    <div class="flex gap-5">
+      <div>
+        <div class="text-[24px] font-bold clar-text-text"><%= @reviewed_today_count %></div>
+        <div class="text-[11.5px] clar-text-faint">reviewed today</div>
+      </div>
+      <div>
+        <div class="text-[24px] font-bold clar-text-warn"><%= @comments_count %></div>
+        <div class="text-[11.5px] clar-text-faint">with comments</div>
+      </div>
+      <div>
+        <div class="text-[24px] font-bold clar-text-success"><%= @looks_good_count %></div>
+        <div class="text-[11.5px] clar-text-faint">looks good</div>
+      </div>
+    </div>
+    <div class="clar-chip">
+      <span class="clar-dot bg-[var(--success)]"></span>
+      Polling every <%= @poll_minutes %> min &middot; last <%= clar_time_ago(current_workspace.pr_polled_at) || "never" %>
+    </div>
+  </div>
+
+  <div class="clar-card overflow-hidden">
+    <% if @pr_reviews.empty? %>
+      <div class="p-8 text-center clar-text-muted text-[13.5px]" data-empty>No PRs reviewed yet.</div>
+    <% else %>
+      <% @pr_reviews.each do |review| %>
+        <div class="flex items-center gap-3.5 px-4.5 py-3.5 border-b border-[color:var(--border)] last:border-b-0">
+          <span class="clar-mono text-[12px] clar-text-faint w-[46px] flex-none">#<%= review.pr_number %></span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-[13.5px] clar-text-text truncate"><%= review.pr_title %></div>
+            <div class="text-[11.5px] clar-text-faint mt-0.5">
+              <%= review.pr_author %> &middot; <span class="clar-mono"><%= review.pr_branch %></span> &middot; <%= clar_time_ago(review.reviewed_at) %>
+            </div>
+          </div>
+          <% if review.outcome == "looks_good" %>
+            <span class="clar-badge clar-badge-success">Looks good!</span>
+          <% elsif review.outcome == "comments" %>
+            <span class="clar-badge clar-badge-warn"><%= review.comment_count %> comments</span>
+          <% else %>
+            <span class="clar-badge clar-badge-muted">Pending</span>
+          <% end %>
+          <% if review.pr_url.present? %>
+            <%= link_to review.pr_url, target: "_blank", rel: "noopener",
+                  class: "inline-flex items-center gap-1 text-[12px] font-semibold clar-text-muted no-underline" do %>
+              GitHub
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M7 7h10v10"/></svg>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+
+  <div class="flex items-center gap-1.5 text-[11.5px] clar-text-faint mt-3">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    The AI never approves or merges — a human still issues the GitHub approval.
+  </div>
+<% else %>
+  <div class="clar-card p-8 text-center max-w-md mx-auto">
+    <p class="clar-text-muted text-[14px] leading-relaxed">AI PR reviews are turned off for this workspace.</p>
+    <% if respond_to?(:workshop_configuration_path) %>
+      <%= link_to "Go to Configuration", workshop_configuration_path, class: "clar-btn clar-btn-primary clar-btn-block mt-4 no-underline" %>
+    <% else %>
+      <%# workshop_configuration_path doesn't exist yet (lands in Task 9.1) — no link target to offer. %>
+      <p class="text-[12px] clar-text-faint mt-3">Configuration page is coming in a later step.</p>
+    <% end %>
+  </div>
+<% end %>

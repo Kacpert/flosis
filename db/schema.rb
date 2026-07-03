@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_03_173559) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -42,20 +42,71 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
   end
 
+  create_table "alert_rules", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.bigint "discord_webhook_id", null: false
+    t.string "frequency", default: "daily", null: false
+    t.datetime "last_run_at"
+    t.string "name", null: false
+    t.bigint "project_id", null: false
+    t.text "prompt", null: false
+    t.string "run_at_time"
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["discord_webhook_id"], name: "index_alert_rules_on_discord_webhook_id"
+    t.index ["project_id"], name: "index_alert_rules_on_project_id"
+    t.index ["workspace_id"], name: "index_alert_rules_on_workspace_id"
+  end
+
+  create_table "alert_runs", force: :cascade do |t|
+    t.bigint "alert_rule_id", null: false
+    t.datetime "created_at", null: false
+    t.text "detail"
+    t.boolean "fired", default: false, null: false
+    t.datetime "ran_at", null: false
+    t.string "status", default: "ok", null: false
+    t.string "summary"
+    t.datetime "updated_at", null: false
+    t.index ["alert_rule_id"], name: "index_alert_runs_on_alert_rule_id"
+  end
+
   create_table "briefs", force: :cascade do |t|
     t.datetime "briefed_at"
     t.bigint "chat_session_id"
     t.text "content", null: false
     t.datetime "created_at", null: false
+    t.boolean "current", default: false, null: false
+    t.datetime "edited_at"
+    t.string "origin", default: "ai", null: false
     t.string "status", default: "draft", null: false
     t.bigint "task_id", null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 1, null: false
     t.bigint "workspace_id", null: false
     t.index ["chat_session_id"], name: "index_briefs_on_chat_session_id"
+    t.index ["task_id", "current"], name: "index_briefs_on_task_id_and_current"
     t.index ["task_id", "version"], name: "index_briefs_on_task_id_and_version", unique: true
     t.index ["task_id"], name: "index_briefs_on_task_id"
     t.index ["workspace_id"], name: "index_briefs_on_workspace_id"
+  end
+
+  create_table "bug_attributions", force: :cascade do |t|
+    t.datetime "analyzed_at"
+    t.string "author_email"
+    t.string "author_name"
+    t.string "confidence"
+    t.datetime "created_at", null: false
+    t.string "jira_key", null: false
+    t.string "origin_kind"
+    t.bigint "project_id", null: false
+    t.text "reasoning"
+    t.string "status", default: "pending", null: false
+    t.bigint "task_id"
+    t.datetime "updated_at", null: false
+    t.index ["project_id", "jira_key"], name: "index_bug_attributions_on_project_id_and_jira_key", unique: true
+    t.index ["project_id"], name: "index_bug_attributions_on_project_id"
+    t.index ["task_id"], name: "index_bug_attributions_on_task_id"
   end
 
   create_table "chat_messages", force: :cascade do |t|
@@ -96,6 +147,40 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
     t.index ["workspace_id"], name: "index_clients_on_workspace_id"
   end
 
+  create_table "delivered_issues", force: :cascade do |t|
+    t.string "assignee_email"
+    t.string "assignee_name"
+    t.datetime "created_at", null: false
+    t.string "issue_type"
+    t.datetime "jira_created_at"
+    t.string "jira_key", null: false
+    t.bigint "project_id", null: false
+    t.string "reporter_email"
+    t.string "reporter_name"
+    t.datetime "resolved_at"
+    t.decimal "story_points", precision: 5, scale: 1
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.index ["project_id", "jira_key"], name: "index_delivered_issues_on_project_id_and_jira_key", unique: true
+    t.index ["project_id", "resolved_at"], name: "index_delivered_issues_on_project_id_and_resolved_at"
+    t.index ["project_id"], name: "index_delivered_issues_on_project_id"
+  end
+
+  create_table "design_requests", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "delivered_at"
+    t.bigint "designer_id", null: false
+    t.json "links"
+    t.text "note"
+    t.bigint "requester_id", null: false
+    t.string "status", default: "requested", null: false
+    t.bigint "task_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["designer_id"], name: "index_design_requests_on_designer_id"
+    t.index ["requester_id"], name: "index_design_requests_on_requester_id"
+    t.index ["task_id"], name: "index_design_requests_on_task_id", unique: true
+  end
+
   create_table "discord_reminder_pings", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "discord_reminder_recipient_id", null: false
@@ -116,6 +201,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
     t.index ["user_id"], name: "index_discord_reminder_recipients_on_user_id"
     t.index ["workspace_id", "user_id"], name: "index_discord_reminder_recipients_on_workspace_id_and_user_id", unique: true
     t.index ["workspace_id"], name: "index_discord_reminder_recipients_on_workspace_id"
+  end
+
+  create_table "discord_webhooks", force: :cascade do |t|
+    t.string "channel_name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "url", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["workspace_id"], name: "index_discord_webhooks_on_workspace_id"
   end
 
   create_table "feedback_meetings", force: :cascade do |t|
@@ -243,11 +337,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
   end
 
   create_table "pr_reviews", force: :cascade do |t|
+    t.integer "comment_count"
     t.datetime "created_at", null: false
     t.string "enqueued_sha"
     t.boolean "initial_done", default: false, null: false
     t.string "last_reviewed_sha"
+    t.string "outcome", default: "pending", null: false
+    t.string "pr_author"
+    t.string "pr_branch"
     t.integer "pr_number", null: false
+    t.string "pr_title"
+    t.string "pr_url"
     t.datetime "reviewed_at"
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
@@ -444,27 +544,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
   create_table "task_drafts", force: :cascade do |t|
     t.text "content"
     t.datetime "created_at", null: false
+    t.boolean "current", default: false, null: false
+    t.datetime "edited_at"
+    t.string "origin", default: "ai", null: false
+    t.datetime "pushed_at"
     t.string "source"
     t.bigint "task_id", null: false
     t.datetime "updated_at", null: false
+    t.integer "version"
     t.index ["task_id", "created_at"], name: "index_task_drafts_on_task_id_and_created_at"
+    t.index ["task_id", "source", "current"], name: "index_task_drafts_on_task_id_and_source_and_current"
     t.index ["task_id"], name: "index_task_drafts_on_task_id"
   end
 
   create_table "tasks", force: :cascade do |t|
+    t.decimal "ai_estimate_points", precision: 5, scale: 1
+    t.datetime "ai_estimated_at"
     t.string "assignee_email"
     t.string "assignee_name"
+    t.datetime "brief_saved_locally_at"
     t.datetime "created_at", null: false
     t.text "description"
     t.text "description_adf"
+    t.datetime "detail_saved_locally_at"
     t.string "external_reference"
     t.string "external_type"
     t.string "external_url"
+    t.boolean "in_pipeline", default: false, null: false
     t.string "issue_type"
+    t.datetime "jira_created_at"
     t.string "jira_status_name"
     t.datetime "jira_updated_at"
     t.text "labels"
     t.string "name", null: false
+    t.bigint "pipeline_author_id"
+    t.datetime "pipeline_entered_at"
     t.string "priority"
     t.bigint "project_id", null: false
     t.string "reporter_email"
@@ -472,9 +586,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
     t.integer "sprint_id"
     t.string "sprint_name"
     t.integer "status", default: 0, null: false
+    t.decimal "story_points", precision: 5, scale: 1
     t.integer "time_estimate_seconds"
     t.datetime "updated_at", null: false
+    t.string "workshop_stage", default: "new", null: false
+    t.index ["pipeline_author_id"], name: "index_tasks_on_pipeline_author_id"
     t.index ["project_id", "external_type", "external_reference"], name: "index_tasks_on_project_external_ref", unique: true, where: "(external_type IS NOT NULL)"
+    t.index ["project_id", "in_pipeline", "workshop_stage"], name: "index_tasks_on_project_id_and_in_pipeline_and_workshop_stage"
     t.index ["project_id", "jira_updated_at"], name: "index_tasks_on_project_id_and_jira_updated_at"
     t.index ["project_id", "name"], name: "index_tasks_on_project_id_and_name", unique: true
     t.index ["project_id"], name: "index_tasks_on_project_id"
@@ -537,32 +655,52 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
     t.datetime "created_at", null: false
     t.string "discord_channel_id"
     t.string "discord_user_token"
+    t.json "estimation_field_names"
+    t.string "estimation_status_trigger", default: "Ready for dev"
+    t.string "estimation_trigger", default: "manual", null: false
+    t.boolean "figma_read_enabled", default: false, null: false
     t.string "github_repo"
     t.datetime "github_status_checked_at"
     t.string "github_status_error"
     t.boolean "github_status_ok"
     t.string "github_token"
     t.string "jira_ai_actions_field_id"
+    t.string "jira_ai_estimation_field_id"
+    t.string "jira_story_points_field_id"
     t.string "name", null: false
+    t.integer "pr_poll_minutes", default: 7, null: false
+    t.datetime "pr_polled_at"
     t.boolean "pr_review_enabled", default: false, null: false
+    t.text "pr_review_prompt"
     t.datetime "updated_at", null: false
     t.boolean "workshop_enabled", default: false, null: false
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "alert_rules", "discord_webhooks"
+  add_foreign_key "alert_rules", "projects"
+  add_foreign_key "alert_rules", "workspaces"
+  add_foreign_key "alert_runs", "alert_rules"
   add_foreign_key "briefs", "chat_sessions"
   add_foreign_key "briefs", "tasks"
   add_foreign_key "briefs", "workspaces"
+  add_foreign_key "bug_attributions", "projects"
+  add_foreign_key "bug_attributions", "tasks"
   add_foreign_key "chat_messages", "chat_sessions"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "chat_sessions", "tasks"
   add_foreign_key "chat_sessions", "users"
   add_foreign_key "chat_sessions", "workspaces"
   add_foreign_key "clients", "workspaces"
+  add_foreign_key "delivered_issues", "projects"
+  add_foreign_key "design_requests", "tasks"
+  add_foreign_key "design_requests", "users", column: "designer_id"
+  add_foreign_key "design_requests", "users", column: "requester_id"
   add_foreign_key "discord_reminder_pings", "discord_reminder_recipients"
   add_foreign_key "discord_reminder_recipients", "users"
   add_foreign_key "discord_reminder_recipients", "workspaces"
+  add_foreign_key "discord_webhooks", "workspaces"
   add_foreign_key "feedback_meetings", "users", column: "creator_id"
   add_foreign_key "feedback_meetings", "users", column: "employee_id"
   add_foreign_key "feedback_meetings", "workspaces"
@@ -596,6 +734,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
   add_foreign_key "tags", "workspaces"
   add_foreign_key "task_drafts", "tasks"
   add_foreign_key "tasks", "projects"
+  add_foreign_key "tasks", "users", column: "pipeline_author_id"
   add_foreign_key "time_entries", "projects"
   add_foreign_key "time_entries", "tasks"
   add_foreign_key "time_entries", "users"

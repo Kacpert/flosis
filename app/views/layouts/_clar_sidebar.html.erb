@@ -1,0 +1,94 @@
+<%# Clar workshop sidebar: collapsible nav. SVG icons ported from redesign.html's
+    NAV/CONFIG_ICON consts. Client gating: clients only ever see Jira Tasks. %>
+<% is_client = current_user.client_role?(Current.workspace) %>
+<nav class="clar-sidebar" data-controller="clar-sidebar" data-collapsed="false">
+  <div class="flex items-center justify-between px-2.5 pb-2">
+    <span class="clar-nav-label" data-clar-sidebar-hide-label>WORKSPACE</span>
+    <button type="button" data-action="click->clar-sidebar#toggle" title="Collapse menu"
+            class="border-0 bg-transparent cursor-pointer p-1 rounded-md clar-text-faint">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+  </div>
+
+  <%# Jira Tasks — visible to everyone, including clients. Open Decision D2. %>
+  <%= link_to jira_tasks_path,
+        class: "clar-nav-item #{'clar-nav-item-active' if request.path.start_with?('/jira_tasks')}" do %>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+    <span class="flex-1 text-left" data-clar-sidebar-hide-label>Jira Tasks</span>
+  <% end %>
+
+  <%
+    # Whether the Workshop tab itself is reachable at all — mirrors
+    # Workshop::BaseController's gates (require_product!(:workshop) +
+    # require_workshop!; D1 relaxed this to any workshop_access member, not
+    # admin-only — see Task 2.3). Built items (like Create Tasks) are real
+    # routes now, but they'd still just bounce the user via require_workshop!
+    # if the workspace hasn't enabled Workshop, so the whole nav group (built
+    # and not-yet-built alike) stays gated on this.
+    workshop_reachable = current_user.can_access_workshop?(Current.workspace) && Current.workspace.workshop_enabled?
+  %>
+  <% if !is_client && workshop_reachable %>
+    <%
+      # Interim fallback: point not-yet-built Phase 2/6/7/8/9 items at workshop_path
+      # (guarded by respond_to?) so Phase 3+ only needs to add their real routes.
+      fallback_path = workshop_path
+      nav_items = [
+        { key: "process", label: "Process Optimization", real: respond_to?(:workshop_process_path),
+          path: respond_to?(:workshop_process_path) ? workshop_process_path : fallback_path,
+          icon: '<path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="M21 4v5h-5"/>' },
+        { key: "tasks", label: "Create Tasks", real: respond_to?(:workshop_pipeline_path),
+          path: respond_to?(:workshop_pipeline_path) ? workshop_pipeline_path : fallback_path,
+          icon: '<path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>', badge: @pipeline_badge_count },
+        { key: "reporting", label: "Reporting", real: respond_to?(:workshop_reporting_path),
+          path: respond_to?(:workshop_reporting_path) ? workshop_reporting_path : fallback_path,
+          icon: '<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="13" y="7" width="3" height="10"/>' },
+        { key: "bugs", label: "Bug Reporting", real: respond_to?(:workshop_bugs_path),
+          path: respond_to?(:workshop_bugs_path) ? workshop_bugs_path : fallback_path,
+          icon: '<rect x="8" y="6" width="8" height="14" rx="4"/><path d="M19 7l-3 2M5 7l3 2M19 13h2M3 13h2M19 19l-3-2M5 19l3-2M12 2v4"/>' },
+      ]
+    %>
+    <% nav_items.each do |item| %>
+      <%# Active state only applies to items with a real, built route — the shared
+          workshop_path placeholder fallback must never light up all four at once. %>
+      <%= link_to item[:path],
+            class: "clar-nav-item #{'clar-nav-item-active' if item[:real] && request.path.start_with?(item[:path])}" do %>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><%= item[:icon].html_safe %></svg>
+        <span class="flex-1 text-left" data-clar-sidebar-hide-label><%= item[:label] %></span>
+        <% if item[:badge].to_i > 0 %>
+          <span class="clar-nav-badge" data-clar-sidebar-hide-label><%= item[:badge] %></span>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <div class="flex-1"></div>
+
+    <% if current_user.admin_or_owner?(Current.workspace) %>
+      <span class="clar-nav-label" data-clar-sidebar-hide-label>ADMIN</span>
+      <%
+        configuration_real = respond_to?(:workshop_configuration_path)
+        configuration_path = configuration_real ? workshop_configuration_path : fallback_path
+      %>
+      <%= link_to configuration_path,
+            class: "clar-nav-item #{'clar-nav-item-active' if configuration_real && request.path.start_with?(configuration_path)}" do %>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 14.6H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 8L4.5 8a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 10 4.6V4a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+        <span class="flex-1 text-left" data-clar-sidebar-hide-label>Configuration</span>
+      <% end %>
+    <% end %>
+
+    <%
+      refreshed = clar_time_ago(current_workshop_project&.features_summary_updated_at) || "not yet scanned"
+    %>
+    <div class="clar-status-card" data-clar-sidebar-collapsed-only-hide title="Claude Opus &middot; master refreshed <%= refreshed %>">
+      <div class="flex items-center gap-1.5 text-[11.5px] font-bold clar-text-ai">
+        <span class="clar-dot" style="background: var(--ai);"></span>Claude Opus
+      </div>
+      <div class="text-[11px] mt-1 leading-snug clar-text-muted">
+        Repo checked out &middot; <b class="clar-text-text">master</b> refreshed <%= refreshed %>
+      </div>
+    </div>
+    <div class="hidden justify-center py-2.5 mt-2" data-clar-sidebar-collapsed-only-show
+         title="Claude Opus &middot; master refreshed <%= refreshed %>">
+      <span class="clar-dot" style="width: 9px; height: 9px; background: var(--ai); box-shadow: 0 0 0 3px var(--ai-soft); animation: clar-blink 1.6s infinite;"></span>
+    </div>
+  <% end %>
+</nav>

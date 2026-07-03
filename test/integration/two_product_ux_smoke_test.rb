@@ -22,11 +22,11 @@ class TwoProductUxSmokeTest < ActionDispatch::IntegrationTest
   test "owner: workshop product shows jira + workshop, no time nav" do
     sign_in_as(users(:one))
     post switch_product_path, params: { product: "workshop" }
-    assert_redirected_to workshop_path
-    get workshop_path
+    assert_redirected_to workshop_pipeline_path
+    get workshop_pipeline_path
     assert_response :success
     assert_select "a[href=?]", jira_tasks_path
-    assert_select "a[href=?]", workshop_path
+    assert_select "a[href=?]", workshop_pipeline_path
     assert_select "a[href=?]", time_entries_path, count: 0
     assert_select "a[href=?]", projects_path, count: 0
   end
@@ -34,11 +34,12 @@ class TwoProductUxSmokeTest < ActionDispatch::IntegrationTest
   test "workshop top bar has the project switcher, NOT the timer/Start" do
     sign_in_as(users(:one))
     post switch_product_path, params: { product: "workshop" }
-    get workshop_path
+    get workshop_pipeline_path
     assert_response :success
-    # project switcher present (posts to the workshop project switch route)
+    # project switcher present (posts to the workshop project switch route) —
+    # now the Clar top-bar dropdown (Task 1.2), not the old M3 "Working in" select.
     assert_select "form[action=?]", switch_workshop_project_path
-    assert_match "Working in", response.body
+    assert_match "SWITCH PROJECT", response.body
     # the time-tracking timer must NOT appear in Workshop
     assert_select "form[action=?]", update_running_timer_path, count: 0
     assert_select "[data-controller~=timer]", count: 0
@@ -53,20 +54,24 @@ class TwoProductUxSmokeTest < ActionDispatch::IntegrationTest
     post switch_workshop_project_path, params: { project_id: p.id }
     assert_response :redirect
     follow_redirect! rescue nil
-    # the new context is reflected on the landing
-    get workshop_path
+    # the new context is reflected on the landing (now the Create Tasks pipeline)
+    get workshop_pipeline_path
     assert_match p.name, response.body
   end
 
-  test "workshop landing offers New idea / Existing Jira task links" do
+  test "workshop landing offers New idea / Existing Jira task entry points" do
     sign_in_as(users(:one))
     post switch_product_path, params: { product: "workshop" }
     p = projects(:jira_project)
     post switch_workshop_project_path, params: { project_id: p.id }
-    get workshop_path
+    get workshop_pipeline_path
     assert_response :success
-    assert_select "a[href=?]", new_idea_workshop_path(project_id: p.id, mode: "new")
-    assert_select "a[href=?]", new_idea_workshop_path(project_id: p.id, mode: "existing")
+    # Task 2.3 redesign: the two entry points are now clar-modal-opening cards
+    # on the Create Tasks pipeline landing (modals themselves land in Phase 3).
+    assert_select "h1", "Create Tasks"
+    assert_select "button[data-action=?]", "clar-modal#open", count: 2
+    assert_match "New idea", response.body
+    assert_match "Existing Jira task", response.body
     # the project context still lives in the top-bar switcher
     assert_select "form[action=?]", switch_workshop_project_path, minimum: 1
   end

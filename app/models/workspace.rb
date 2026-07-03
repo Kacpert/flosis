@@ -13,6 +13,38 @@ class Workspace < ApplicationRecord
   has_many :holiday_balance_entries, dependent: :destroy
   has_many :discord_reminder_recipients, dependent: :destroy
   has_many :pr_reviews, dependent: :delete_all
+  has_many :discord_webhooks, dependent: :destroy
+  has_many :alert_rules, dependent: :destroy
 
   validates :name, presence: true
+
+  DEFAULT_ESTIMATION_FIELD_NAME = "AI estimation".freeze
+
+  # Configuration -> AI tab (Task 9.1): the built-in Jira field-name choices
+  # offered as chips. A workspace may also have a custom (free-added) field
+  # name stored in estimation_field_names that isn't in this list — the view
+  # renders those as extra pre-checked chips alongside these options.
+  ESTIMATION_FIELD_OPTIONS = [
+    "AI estimation",
+    "Story point estimate",
+    "T-shirt size",
+    "Confidence (1–5)"
+  ].freeze
+
+  ESTIMATION_TRIGGERS = {
+    "sprint" => "Added to a Development sprint",
+    "status" => "Status changes to “Ready for dev”",
+    "briefed" => "AI actions = Briefed",
+    "manual" => "Manually, on request"
+  }.freeze
+
+  # MySQL (prod) doesn't support JSON column defaults, so the default lives
+  # here instead of in the migration (dev/test = PostgreSQL, prod = MySQL).
+  def estimation_field_names
+    super.presence || [DEFAULT_ESTIMATION_FIELD_NAME]
+  end
+
+  def estimation_trigger_label
+    ESTIMATION_TRIGGERS[estimation_trigger] || estimation_trigger
+  end
 end

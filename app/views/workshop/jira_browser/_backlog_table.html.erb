@@ -1,0 +1,67 @@
+<div class="flex items-center gap-1.5 mb-3 flex-wrap px-1">
+  <span class="text-[11px] font-bold clar-text-faint mr-0.5">TYPE</span>
+  <% [["all", "All"], ["Story", "Story"], ["Task", "Task"], ["Bug", "Bug"]].each do |value, label| %>
+    <% active = params[:type].presence == value || (value == "all" && params[:type].blank?) %>
+    <%= link_to label, workshop_jira_browser_path(request.query_parameters.merge(board: "backlog", type: value)),
+          class: "clar-chip #{'clar-chip-active' if active}", data: { turbo_frame: "clar-jira-browser" } %>
+  <% end %>
+  <div class="flex-1"></div>
+  <span class="text-[11px] font-bold clar-text-faint">SORT</span>
+  <%= form_with url: workshop_jira_browser_path, method: :get,
+        data: { turbo_frame: "clar-jira-browser", controller: "clar-pipeline-filter" } do |f| %>
+    <%= hidden_field_tag :board, "backlog", id: nil %>
+    <%= hidden_field_tag :type, params[:type], id: nil if params[:type].present? %>
+    <%= f.select :sort, [
+          ["Priority", "priority"],
+          ["Story points", "points"],
+          ["Newest", "newest"],
+          ["Oldest", "oldest"],
+          ["Title A–Z", "title"],
+        ], { selected: params[:sort].presence || "priority" }, class: "clar-select text-[12.5px] py-1.5 w-auto",
+        data: { action: "change->clar-pipeline-filter#submit" } %>
+  <% end %>
+</div>
+
+<div class="clar-card overflow-hidden">
+  <div class="clar-table-head">
+    <span class="w-[74px] flex-none">KEY</span>
+    <span class="flex-1">SUMMARY</span>
+    <span class="w-20">TYPE</span>
+    <span class="w-[90px]">PRIORITY</span>
+    <span class="w-16 text-right">PTS</span>
+    <span class="w-[120px]">REPORTER</span>
+  </div>
+
+  <table class="w-full border-collapse">
+    <tbody>
+      <% if tasks.any? %>
+        <% tasks.each do |task| %>
+          <tr data-clar-board-filter-target="row">
+            <td class="p-0">
+              <%= button_to workshop_ideas_path, params: { task_id: task.id }, method: :post,
+                    class: "w-full text-left cursor-pointer bg-[color:var(--surface)] border-0 border-b clar-divider py-3 px-4 flex items-center [font-family:inherit]",
+                    form: { class: "block", data: { turbo_frame: "_top" } } do %>
+                <span class="clar-key w-[74px] flex-none"><%= task.external_reference %></span>
+                <span class="flex-1 text-[13.5px] font-semibold clar-text-text min-w-0 truncate"><%= task.name %></span>
+                <span class="w-20 inline-flex items-center gap-1.5 text-[11.5px] font-semibold <%= issue_type_color_class(task.issue_type) %>">
+                  <span class="w-1.5 h-1.5 rounded-[2px] bg-current inline-block"></span><%= task.issue_type %>
+                </span>
+                <span class="w-[90px] inline-flex items-center gap-1.5 text-[12px] font-semibold <%= priority_color_class(task.priority) %>">
+                  <span class="w-1.5 h-1.5 rounded-full bg-current inline-block"></span><%= task.priority %>
+                </span>
+                <span class="w-16 text-right text-[13px] font-semibold clar-text-muted">
+                  <%= task.story_points.present? ? number_with_precision(task.story_points, strip_insignificant_zeros: true) : "—" %>
+                </span>
+                <span class="w-[120px] text-[12.5px] clar-text-muted truncate"><%= task.reporter_name %></span>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      <% else %>
+        <tr>
+          <td class="text-center clar-text-faint text-[13px] p-6.5">No tickets match.</td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

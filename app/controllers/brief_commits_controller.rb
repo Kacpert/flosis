@@ -17,6 +17,7 @@ class BriefCommitsController < ApplicationController
 
     if result[:ok]
       brief.mark_briefed!
+      AutoEstimateJob.perform_later(task.id) if current_workspace.estimation_trigger == "briefed"
       redirect_to workshop_brief_path(task), notice: "Briefed in Jira: #{result[:key]}."
     else
       redirect_to workshop_brief_path(task), alert: "Couldn't write to Jira: #{result[:error]}"

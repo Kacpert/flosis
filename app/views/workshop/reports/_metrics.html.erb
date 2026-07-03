@@ -1,0 +1,38 @@
+<%
+  first_name = developer&.name&.split(" ")&.first
+  sp_sub = first_name || "across #{developers_count} #{'developer'.pluralize(developers_count)}"
+  bugs_sub = developer ? "created by #{first_name}" : "raised this period"
+%>
+<div class="grid grid-cols-2 md:grid-cols-3 <%= can_see_money? ? 'lg:grid-cols-5' : 'lg:grid-cols-4' %> gap-3.5 mb-6">
+  <div class="clar-card clar-metric">
+    <div class="label">Features delivered</div>
+    <div class="value clar-text-success"><%= metrics[:features_delivered_count] %></div>
+    <div class="sub"><%= number_with_precision(metrics[:features_delivered_points], precision: 0) %> pts merged</div>
+  </div>
+
+  <div class="clar-card clar-metric">
+    <div class="label">Completed (story points)</div>
+    <div class="value clar-text-text"><%= number_with_precision(metrics[:completed_story_points], precision: 0) %></div>
+    <div class="sub"><%= sp_sub %></div>
+  </div>
+
+  <div class="clar-card clar-metric">
+    <div class="label">New bugs</div>
+    <div class="value clar-text-warn"><%= metrics[:new_bugs] %></div>
+    <div class="sub"><%= bugs_sub %></div>
+  </div>
+
+  <div class="clar-card clar-metric">
+    <div class="label">Hours worked</div>
+    <div class="value clar-text-text"><%= number_with_precision(metrics[:hours], precision: 1) %></div>
+    <div class="sub">from time-tracking</div>
+  </div>
+
+  <% if can_see_money? %>
+    <div class="clar-card clar-metric">
+      <div class="label">Project cost</div>
+      <div class="value clar-text-primary"><%= format_money(metrics[:cost_cents], current_workshop_project&.currency) %></div>
+      <div class="sub">month to date</div>
+    </div>
+  <% end %>
+</div>

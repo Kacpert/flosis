@@ -65,6 +65,54 @@ class PrReviewJobTest < ActiveJob::TestCase
     assert review.initial_done
   end
 
+  test "persists PR metadata after fetch" do
+    pr = pr_payload(sha: "abc").merge(
+      "title" => "DEV-836 thing",
+      "html_url" => "https://github.com/acme/widgets/pull/7",
+      "user" => { "login" => "octocat" }
+    )
+    fake = fake_github(pr: pr)
+    with_github(fake) do
+      with_ai("[]") do
+        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+      end
+    end
+
+    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    assert_equal "DEV-836 thing", review.pr_title
+    assert_equal "octocat", review.pr_author
+    assert_equal "dev-836-thing", review.pr_branch
+    assert_equal "https://github.com/acme/widgets/pull/7", review.pr_url
+  end
+
+  test "sets outcome looks_good and comment_count 0 when no comments" do
+    fake = fake_github(pr: pr_payload(sha: "abc"))
+    with_github(fake) do
+      with_ai("[]") do
+        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+      end
+    end
+
+    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    assert_equal "looks_good", review.outcome
+    assert_equal 0, review.comment_count
+  end
+
+  test "sets outcome comments and comment_count N when comments posted" do
+    fake = fake_github(pr: pr_payload(sha: "abc"))
+    ai = [ 1, 2, 3 ].map { |i| { "path" => "a.rb", "line" => i, "comment" => "c#{i}" } }.to_json
+
+    with_github(fake) do
+      with_ai(ai) do
+        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+      end
+    end
+
+    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    assert_equal "comments", review.outcome
+    assert_equal 3, review.comment_count
+  end
+
   test "followup caps at 2 comments" do
     PrReview.create!(workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true)
     fake = fake_github(pr: pr_payload(sha: "new"), commits: [ { "sha" => "new" } ])
@@ -128,5 +176,42 @@ class PrReviewJobTest < ActiveJob::TestCase
     end
     assert_nil PrReview.find_by(workspace: @workspace, pr_number: 7), "auth failure must not mark reviewed"
     assert_empty fake.captured, "auth failure must not post a review"
+  end
+
+  test "build_prompt with blank pr_review_prompt preserves the original ticket/diff/instructions ORDER" do
+    @workspace.update!(pr_review_prompt: nil)
+    job = PrReviewJob.new
+    prompt = job.send(:build_prompt, @workspace, pr_payload, [ { "filename" => "a.rb", "patch" => "@@ -1 +1 @@\n+code" } ], "initial")
+
+    assert_includes prompt, "senior engineer reviewing a GitHub pull request"
+    # The pre-9.1 monolithic prompt interleaved the ticket + diff BETWEEN the
+    # persona and the INVESTIGATE steps. The token-based template must keep that
+    # exact order (regression guard for the DEFAULT_PROMPT extraction).
+    ticket_idx = prompt.index("No linked Jira ticket.")
+    diff_idx = prompt.index("Changed files and diffs:")
+    investigate_idx = prompt.index("Before writing anything, INVESTIGATE")
+    json_idx = prompt.index(%q({"path":))
+    assert ticket_idx < diff_idx, "ticket must come before the diff"
+    assert diff_idx < investigate_idx, "diff must come before the INVESTIGATE instructions"
+    assert investigate_idx < json_idx, "JSON tail must come last"
+    # No leftover template tokens, and no doubled-blank-line seam.
+    refute_includes prompt, "{{", "all substitution tokens must be replaced"
+    refute_includes prompt, "\n\n\n", "must not introduce a doubled blank line"
+    assert_includes prompt, "AT MOST 4 items"
+  end
+
+  test "build_prompt uses workspace.pr_review_prompt (with tokens) when present, still interpolating context" do
+    @workspace.update!(pr_review_prompt: "Custom persona: be extremely terse.\n\n{{TICKET}}\n\n{{DIFF}}\n\nAT MOST {{CAP}} items.")
+    job = PrReviewJob.new
+    files = [ { "filename" => "a.rb", "patch" => "@@ -1 +1 @@\n+code" } ]
+    prompt = job.send(:build_prompt, @workspace, pr_payload, files, "initial")
+
+    assert_includes prompt, "Custom persona: be extremely terse."
+    refute_includes prompt, "senior engineer reviewing a GitHub pull request"
+    # Dynamic token substitution (ticket context + diff + cap) still works for a custom prompt.
+    assert_includes prompt, "No linked Jira ticket."
+    assert_includes prompt, "FILE: a.rb"
+    assert_includes prompt, "AT MOST 4 items"
+    refute_includes prompt, "{{"
   end
 end

@@ -12,7 +12,7 @@ class BriefChatSessionsController < ApplicationController
   BRIEF_BLOCK = /<brief>(.*?)<\/brief>/m
 
   before_action { require_product!(:workshop) }
-  before_action :require_admin!
+  before_action :require_workshop_member!
   before_action :require_workshop!
   before_action :set_task
 
@@ -32,7 +32,7 @@ class BriefChatSessionsController < ApplicationController
         version: Brief.next_version_for(@task),
         content: content,
         status: "draft"
-      )
+      ).make_current!
     end
   rescue StandardError => e
     Rails.logger.warn("[BriefChat] Brief extraction failed: #{e.message}")
@@ -49,6 +49,7 @@ class BriefChatSessionsController < ApplicationController
     end
     comments_section = build_comments_section(@task)
     attachments_section = build_attachments_section(@task)
+    refine_current_section = build_refine_current_section
 
     <<~PROMPT
       # Role
@@ -69,7 +70,7 @@ class BriefChatSessionsController < ApplicationController
       # The idea to brief
 
       #{ticket_section}
-      #{comments_section}#{attachments_section}
+      #{comments_section}#{attachments_section}#{refine_current_section}
 
       # How you must operate
 
@@ -105,5 +106,26 @@ class BriefChatSessionsController < ApplicationController
       Investigate quietly, then open the conversation with your first PO questions
       (or, if the idea is already clear, a short take plus a first `<brief>` draft).
     PROMPT
+  end
+
+  # "Reset chat" (document-panel footer, no confirmation modal) restarts the
+  # session but should nudge the AI to revise the current brief rather than
+  # start from zero. The chat's create request passes mode=refine_current
+  # (see clar_chat_controller.js#resetConversation); only append this section
+  # when that mode is requested AND a current brief actually exists.
+  def build_refine_current_section
+    return "" unless params[:mode] == "refine_current"
+
+    current_brief = @task.current_brief
+    return "" if current_brief.blank?
+
+    <<~SECTION
+
+      # Current version of the brief
+
+      The team already has a current version of the brief (included below). Ask what should change instead of starting from zero.
+
+      #{current_brief.content}
+    SECTION
   end
 end

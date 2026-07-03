@@ -1,0 +1,56 @@
+<div data-controller="clar-modal">
+  <div class="flex items-center justify-between mb-3.5">
+    <span class="text-[13px] clar-text-muted"><%= pluralize(@alert_rules.size, "rule") %> &middot; scheduled prompts that notify a channel when conditions are met</span>
+    <button type="button" class="clar-btn clar-btn-primary" data-action="clar-modal#open" data-clar-modal-id-param="new-alert-rule">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      New rule
+    </button>
+  </div>
+
+  <% if @alert_rules.empty? %>
+    <div class="clar-card p-8 text-center clar-text-muted text-[13.5px]" data-empty>No alert rules yet.</div>
+  <% else %>
+    <div class="flex flex-col gap-3">
+      <% @alert_rules.each do |rule| %>
+        <div class="clar-card clar-card-hover p-4 cursor-pointer" data-action="clar-modal#open" data-clar-modal-id-param="alert-history-<%= rule.id %>">
+          <div class="flex items-center justify-between gap-3.5 mb-2">
+            <span class="font-bold text-[14px] clar-text-text"><%= rule.name %></span>
+            <span class="inline-flex items-center gap-1.5 text-[11.5px] font-semibold <%= alert_last_run_color_class(rule.last_run_status) %>">
+              <span class="w-1.5 h-1.5 rounded-full bg-current"></span><%= rule.last_run_chip_label %>
+            </span>
+          </div>
+          <div class="text-[13px] clar-text-muted leading-relaxed mb-3 italic">&ldquo;<%= rule.prompt %>&rdquo;</div>
+          <div class="flex gap-4.5 text-[12px] clar-text-faint flex-wrap items-center">
+            <span class="inline-flex items-center gap-1.5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              <%= rule.schedule_label %>
+            </span>
+            <span class="inline-flex items-center gap-1.5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <%= rule.discord_webhook.channel_name %> &middot; Discord
+            </span>
+            <span>Last run <%= clar_time_ago(rule.last_run_at) || "&mdash;".html_safe %></span>
+            <span class="flex-1"></span>
+            <span class="inline-flex items-center gap-1 font-semibold clar-text-primary">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 2M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/></svg>
+              View history
+            </span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%= render "new_rule_modal" %>
+
+  <% @alert_rules.each do |rule| %>
+    <div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="alert-history-<%= rule.id %>"
+         data-action="click->clar-modal#close">
+      <div class="clar-modal max-w-[560px] max-h-[86vh] overflow-hidden flex flex-col" data-action="click->clar-modal#stopPropagation">
+        <turbo-frame id="clar-alert-history-<%= rule.id %>" src="<%= history_workshop_alert_rule_path(rule) %>" loading="lazy" class="overflow-auto flex-1 flex flex-col">
+          <div class="p-8.5 text-center clar-text-faint text-[13px]">Loading history&hellip;</div>
+        </turbo-frame>
+      </div>
+    </div>
+  <% end %>
+</div>

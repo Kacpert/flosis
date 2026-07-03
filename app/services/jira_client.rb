@@ -30,16 +30,18 @@ class JiraClient
     results
   end
 
-  def fetch_issues(project_key)
+  def fetch_issues(project_key, story_points_field_id: nil)
     return [] unless project_key.match?(PROJECT_KEY_FORMAT)
 
     results = []
     next_page_token = nil
+    fields = ["summary", "status", "assignee", "description", "priority", "issuetype", "labels", "reporter", "sprint", "timeoriginalestimate", "attachment", "updated", "created"]
+    fields << story_points_field_id if story_points_field_id.present?
 
     loop do
       body = {
         jql: "project = #{project_key} AND statusCategory != Done ORDER BY status ASC, updated DESC",
-        fields: ["summary", "status", "assignee", "description", "priority", "issuetype", "labels", "reporter", "sprint", "timeoriginalestimate", "attachment", "updated"],
+        fields: fields,
         maxResults: 100
       }
       body[:nextPageToken] = next_page_token if next_page_token
@@ -48,13 +50,55 @@ class JiraClient
       return [] unless data
 
       issues = data["issues"] || []
-      results.concat(issues.map { |i| parse_issue(i) })
+      results.concat(issues.map { |i| parse_issue(i, story_points_field_id: story_points_field_id) })
 
       break if data["nextPageToken"].nil?
       next_page_token = data["nextPageToken"]
     end
 
     results
+  end
+
+  # A second, lightweight pass for recently-DONE issues, used to populate the
+  # `delivered_issues` reporting mirror (never `tasks` — see DeliveredIssue).
+  # Deliberately excludes comments/attachments fields to keep the payload small
+  # across a ~400-day window.
+  def fetch_recent_done_issues(project_key, since: "-400d", story_points_field_id: nil)
+    return [] unless project_key.match?(PROJECT_KEY_FORMAT)
+
+    results = []
+    next_page_token = nil
+    fields = ["summary", "issuetype", "assignee", "reporter", "created", "resolutiondate"]
+    fields << story_points_field_id if story_points_field_id.present?
+
+    loop do
+      body = {
+        jql: "project = #{project_key} AND statusCategory = Done AND updated >= #{since} ORDER BY updated DESC",
+        fields: fields,
+        maxResults: 100
+      }
+      body[:nextPageToken] = next_page_token if next_page_token
+
+      data = post("/rest/api/3/search/jql", body)
+      return [] unless data
+
+      issues = data["issues"] || []
+      results.concat(issues.map { |i| parse_done_issue(i, story_points_field_id: story_points_field_id) })
+
+      break if data["nextPageToken"].nil?
+      next_page_token = data["nextPageToken"]
+    end
+
+    results
+  end
+
+  # Finds the custom field id for Jira's story-points field ("Story point
+  # estimate" on team-managed/next-gen projects, "Story Points" on
+  # company-managed/classic projects) via the existing #fetch_field_id lookup.
+  # Caching (on workspace.jira_story_points_field_id) is the caller's
+  # responsibility — mirrors how JiraWriter caches jira_ai_actions_field_id.
+  def resolve_story_points_field
+    fetch_field_id("Story point estimate") || fetch_field_id("Story Points")
   end
 
   def fetch_boards(project_key)
@@ -228,6 +272,14 @@ class JiraClient
     field && field["id"]
   end
 
+  # Sets a numeric custom field (e.g. story points) on an issue. Same
+  # never-raises {ok:, error:} contract as update_issue_description.
+  def set_number_field(issue_key:, field_id:, value:)
+    body = { fields: { field_id => value } }
+    res = put("/rest/api/3/issue/#{issue_key}", body)
+    res[:ok] ? { ok: true } : { ok: false, error: res[:error] }
+  end
+
   private
 
   # Minimal ADF document wrapping plain text in a single paragraph.
@@ -295,7 +347,7 @@ class JiraClient
     response.is_a?(Net::HTTPSuccess) ? response.body : nil
   end
 
-  def parse_issue(issue)
+  def parse_issue(issue, story_points_field_id: nil)
     fields = issue["fields"] || {}
     status = fields.dig("status", "statusCategory") || {}
 
@@ -318,7 +370,27 @@ class JiraClient
       sprint_name: fields.dig("sprint", "name"),
       time_estimate_seconds: fields["timeoriginalestimate"],
       updated: fields["updated"],
+      story_points: story_points_field_id.present? ? fields[story_points_field_id] : nil,
+      jira_created_at: fields["created"],
       attachments: parse_attachments(fields["attachment"])
+    }
+  end
+
+  # Lightweight parse for the done-issues pass — no attachments/description.
+  def parse_done_issue(issue, story_points_field_id: nil)
+    fields = issue["fields"] || {}
+
+    {
+      key: issue["key"],
+      title: fields["summary"],
+      issue_type: fields.dig("issuetype", "name"),
+      assignee_email: fields.dig("assignee", "emailAddress"),
+      assignee_name: fields.dig("assignee", "displayName"),
+      reporter_email: fields.dig("reporter", "emailAddress"),
+      reporter_name: fields.dig("reporter", "displayName"),
+      story_points: story_points_field_id.present? ? fields[story_points_field_id] : nil,
+      jira_created_at: fields["created"],
+      resolved_at: fields["resolutiondate"]
     }
   end
 

@@ -1,0 +1,140 @@
+require "test_helper"
+
+class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
+  setup do
+    @workspace = workspaces(:one)
+    @workspace.update!(workshop_enabled: true, pr_review_enabled: true, pr_poll_minutes: 5, pr_polled_at: 1.minute.ago)
+    sign_in_as(users(:one)) # admin/owner
+    post switch_product_path, params: { product: "workshop" }
+  end
+
+  test "renders the PR tab with stats trio, feed rows, and polling chip" do
+    PrReview.create!(
+      workspace: @workspace, pr_number: 7, pr_title: "DEV-836 thing", pr_author: "octocat",
+      pr_branch: "dev-836-thing", pr_url: "https://github.com/acme/widgets/pull/7",
+      outcome: "comments", comment_count: 3, reviewed_at: 1.hour.ago, last_reviewed_sha: "abc", initial_done: true
+    )
+    PrReview.create!(
+      workspace: @workspace, pr_number: 8, pr_title: "DEV-900 other thing", pr_author: "hubot",
+      pr_branch: "dev-900-other", pr_url: "https://github.com/acme/widgets/pull/8",
+      outcome: "looks_good", comment_count: 0, reviewed_at: 30.minutes.ago, last_reviewed_sha: "def", initial_done: true
+    )
+
+    get workshop_process_path
+
+    assert_response :success
+    assert_select ".clar-tab", /AI PR Reviews/
+    assert_select ".clar-tab", /AI Estimate/
+    assert_select ".clar-tab", /AI Alerts/
+
+    # stats trio
+    assert_select "body", /reviewed today/
+    assert_select "body", /with comments/
+    assert_select "body", /looks good/
+
+    # feed rows
+    assert_select "body", /#7/
+    assert_select "body", /DEV-836 thing/
+    assert_select "body", /octocat/
+    assert_select ".clar-mono", /dev-836-thing/
+    assert_select "body", /3 comments/
+    assert_select "body", /Looks good!/
+    assert_select "a[href=?]", "https://github.com/acme/widgets/pull/7", text: /GitHub/
+
+    # polling chip
+    assert_select "body", /Polling every 7 min/
+    assert_select "body", /last .*ago/
+
+    # disclaimer
+    assert_select "body", /The AI never approves or merges/
+  end
+
+  test "empty state when pr_review_enabled is off" do
+    @workspace.update!(pr_review_enabled: false)
+
+    get workshop_process_path
+
+    assert_response :success
+    assert_select "body", /Configuration/
+  end
+
+  test "renders the AI Estimate tab with summary card and recently-estimated tasks" do
+    project = tasks(:jira_task).project
+    @workspace.update!(estimation_trigger: "status", estimation_field_names: ["AI estimation", "Story point estimate"])
+
+    task = tasks(:jira_task)
+    task.update!(ai_estimate_points: 8, ai_estimated_at: 1.hour.ago, story_points: 5)
+
+    get workshop_process_path(tab: "estimate")
+
+    assert_response :success
+    assert_select ".clar-tab.clar-tab-active", /AI Estimate/
+
+    # summary card
+    assert_select "body", Regexp.new(Regexp.escape(project.name))
+    assert_select "body", /Status changes to/
+    assert_select "body", /AI estimation/
+    assert_select "body", /Story point estimate/
+    assert_select "body", /Manual estimate fields are never touched/
+    assert_select "body", /Configuration/
+
+    # table
+    assert_select "body", /TASK/
+    assert_select "body", /TITLE/
+    assert_select "body", /AI EST\./
+    assert_select "body", /MANUAL/
+    assert_select "body", Regexp.new(Regexp.escape(task.external_reference))
+    assert_select "body", /8/
+    assert_select "body", /5/
+  end
+
+  test "AI Estimate tab MANUAL column shows an em-dash when there is no story_points" do
+    @workspace.update!(estimation_trigger: "manual")
+    task = tasks(:jira_task)
+    task.update!(ai_estimate_points: 3, ai_estimated_at: 1.hour.ago, story_points: nil)
+
+    get workshop_process_path(tab: "estimate")
+
+    assert_response :success
+    assert_select "body", /—/
+  end
+
+  test "renders the AI Alerts tab with rules list, new-rule modal, and history modal frame" do
+    project = tasks(:jira_task).project
+    post switch_workshop_project_path, params: { project_id: project.id }
+    webhook = DiscordWebhook.create!(workspace: @workspace, channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/abc")
+    rule = AlertRule.create!(
+      workspace: @workspace, project: project, discord_webhook: webhook,
+      name: "QA backlog watch", prompt: "If more than 4 tasks have been in QA for longer than 3 days, send a notification.",
+      frequency: "daily", run_at_time: "13:00"
+    )
+    rule.alert_runs.create!(fired: true, summary: "2 tasks flagged", detail: "SP-1, SP-2", status: "ok", ran_at: 1.hour.ago)
+
+    get workshop_process_path(tab: "alerts")
+
+    assert_response :success
+    assert_select ".clar-tab.clar-tab-active", /AI Alerts/
+    assert_select "body", /QA backlog watch/
+    assert_select "body", /Sent · 2 tasks flagged/
+    assert_select "body", /Daily · 13:00/
+    assert_select "body", /#dev-alerts · Discord/
+    assert_select "body", /View history/
+    assert_select "body", /New rule/
+    assert_select "body", /A scheduled prompt\. On its schedule the AI inspects the live Jira board state/
+    assert_select "body", /WHAT TO WATCH FOR/
+    assert_select "turbo-frame##{dom_id_for_history(rule)}"
+  end
+
+  test "AI Alerts empty state renders without error" do
+    get workshop_process_path(tab: "alerts")
+
+    assert_response :success
+    assert_select "body", /No alert rules yet/
+  end
+
+  private
+
+  def dom_id_for_history(rule)
+    "clar-alert-history-#{rule.id}"
+  end
+end

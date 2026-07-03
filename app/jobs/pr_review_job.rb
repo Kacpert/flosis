@@ -4,6 +4,66 @@ class PrReviewJob < ApplicationJob
   CAPS = { "initial" => 4, "followup" => 2 }.freeze
   CODEBASE_PATH = ENV.fetch("PR_REVIEW_CODEBASE_PATH", File.expand_path("~/work/elvium"))
 
+  # The full PR-review prompt template used when a workspace hasn't customized
+  # its own (Workspace#pr_review_prompt blank). Configurable from Configuration
+  # -> AI (Task 9.1); this constant is also the textarea's seed value there.
+  # The dynamic context is substituted via the {{TICKET}}/{{DIFF}}/{{CAP}}
+  # tokens in build_prompt (double-brace tokens, chosen so they don't collide
+  # with the single-brace JSON example at the tail). Keeping the tokens IN the
+  # template — rather than appending context after the instructions — preserves
+  # the exact ordering (ticket + diff between the persona and the INVESTIGATE
+  # steps) of the pre-9.1 monolithic prompt.
+  DEFAULT_PROMPT = <<~PROMPT.freeze
+    You are a senior engineer reviewing a GitHub pull request. The repository is
+    checked out in your current working directory. Be rigorous and skeptical,
+    but VALUE THE READER'S TIME: it is far better to post one excellent comment,
+    or none at all, than several shallow ones.
+
+    {{TICKET}}
+
+    Changed files and diffs:
+    {{DIFF}}
+
+    Before writing anything, INVESTIGATE — do not review from the diff alone:
+    1. Open the changed files in the checkout and read the surrounding code to
+       understand the actual logic, not just the changed lines.
+    2. Run `git log -p` / `git blame` on the changed regions to learn WHY the
+       code is the way it is and what recent changes touched it. Look for cases
+       where this PR reverts a past fix, re-introduces a bug, or breaks an
+       invariant established earlier.
+    3. Trace how the changed code is USED elsewhere (grep for callers, related
+       services/models) to catch broken contracts, missed call sites, or
+       duplicated logic that already exists.
+
+    Only after that, decide what (if anything) is worth raising. Post a comment
+    ONLY when ALL of these hold:
+    - It is a REAL, concrete problem: a bug, broken logic, a security or data-
+      integrity issue, a contradiction with project history/invariants, or a
+      clear miss against the Jira acceptance criteria.
+    - You are highly confident it is correct (you verified it against the actual
+      code/history, not a guess). If unsure, stay silent.
+    - It genuinely helps the developer.
+
+    Do NOT comment on style, naming, formatting, personal preference, or things
+    a linter/CI would catch. Skip "consider"/"might want to" nits entirely.
+
+    COMMENT STYLE — your readers are experienced developers; do NOT explain how
+    the code works or re-narrate the diff. Be terse and direct:
+    - State the problem and the fix in 1–2 short sentences (aim under ~40 words).
+    - Reference symbols/methods by name; assume the reader can read the code.
+    - No restating control flow, no "this happens because X then Y then Z", no
+      padding. Think a senior dev's quick PR note, not an essay.
+    - Example of the right length: "`@role_profile.save` returns false on
+      validation errors but the surrounding `transaction` only rolls back on a
+      raised exception, so the `find_or_create_by!` competency rows persist as
+      orphans. Use `save!` (and rescue) or `raise ActiveRecord::Rollback`."
+
+    Return ONLY a JSON array of AT MOST {{CAP}} items (fewer is better; an empty
+    array is a perfectly good result when the PR is sound):
+    {"path": "<file>", "line": <line number in the new file>,
+     "comment": "<the problem + fix, terse, 1–2 sentences>"}.
+  PROMPT
+
   def perform(workspace_id, pr_number, mode)
     workspace = Workspace.find_by(id: workspace_id)
     return unless workspace
@@ -20,7 +80,15 @@ class PrReviewJob < ApplicationJob
     head_sha = pr.dig("head", "sha")
     files = github.pull_request_files(pr_number)
 
-    issues = ai_issues(pr, files, mode)
+    record = PrReview.find_or_initialize_by(workspace_id: workspace.id, pr_number: pr_number)
+    record.update!(
+      pr_title: pr["title"],
+      pr_author: pr.dig("user", "login"),
+      pr_branch: pr.dig("head", "ref"),
+      pr_url: pr["html_url"]
+    )
+
+    issues = ai_issues(workspace, pr, files, mode)
     # parse failure → release the claim so the next cycle retries (don't post,
     # don't mark reviewed).
     return release_claim(workspace, pr_number, mode) if issues.nil?
@@ -28,8 +96,13 @@ class PrReviewJob < ApplicationJob
     issues = issues.first(CAPS.fetch(mode, 4))
     post_review(github, pr_number, issues)
 
-    record = PrReview.find_or_initialize_by(workspace_id: workspace.id, pr_number: pr_number)
-    record.update!(last_reviewed_sha: head_sha, initial_done: true, reviewed_at: Time.current)
+    record.update!(
+      last_reviewed_sha: head_sha,
+      initial_done: true,
+      reviewed_at: Time.current,
+      outcome: issues.any? ? "comments" : "looks_good",
+      comment_count: issues.size
+    )
   end
 
   private
@@ -63,8 +136,8 @@ class PrReviewJob < ApplicationJob
   # bogus "No issues found" reviews on unreviewed PRs.
   CLI_FAILURE_MARKERS = /\b(401|403|429|invalid authentication|failed to authenticate|api error|credit balance|rate limit|usage limit|overloaded|unauthorized)\b/i
 
-  def ai_issues(pr, files, mode)
-    prompt = build_prompt(pr, files, mode)
+  def ai_issues(workspace, pr, files, mode)
+    prompt = build_prompt(workspace, pr, files, mode)
     response = ClaudeCliService.new(codebase_path: CODEBASE_PATH).start_session(prompt: prompt)[:response].to_s
     json = extract_json(response)
 
@@ -100,7 +173,7 @@ class PrReviewJob < ApplicationJob
     text.to_s[/\[.*\]/m]
   end
 
-  def build_prompt(pr, files, mode)
+  def build_prompt(workspace, pr, files, mode)
     key = PrJiraKey.extract(branch: pr.dig("head", "ref"), title: pr["title"], body: pr["body"])
     task = key ? Task.find_by(external_reference: key) : nil
     ticket = if task
@@ -110,56 +183,15 @@ class PrReviewJob < ApplicationJob
     end
     cap = CAPS.fetch(mode, 4)
     diff = files.map { |f| "FILE: #{f['filename']}\n#{f['patch']}" }.join("\n\n")
-    <<~PROMPT
-      You are a senior engineer reviewing a GitHub pull request. The repository is
-      checked out in your current working directory. Be rigorous and skeptical,
-      but VALUE THE READER'S TIME: it is far better to post one excellent comment,
-      or none at all, than several shallow ones.
+    template = workspace.pr_review_prompt.presence || DEFAULT_PROMPT
 
-      #{ticket}
-
-      Changed files and diffs:
-      #{diff}
-
-      Before writing anything, INVESTIGATE — do not review from the diff alone:
-      1. Open the changed files in the checkout and read the surrounding code to
-         understand the actual logic, not just the changed lines.
-      2. Run `git log -p` / `git blame` on the changed regions to learn WHY the
-         code is the way it is and what recent changes touched it. Look for cases
-         where this PR reverts a past fix, re-introduces a bug, or breaks an
-         invariant established earlier.
-      3. Trace how the changed code is USED elsewhere (grep for callers, related
-         services/models) to catch broken contracts, missed call sites, or
-         duplicated logic that already exists.
-
-      Only after that, decide what (if anything) is worth raising. Post a comment
-      ONLY when ALL of these hold:
-      - It is a REAL, concrete problem: a bug, broken logic, a security or data-
-        integrity issue, a contradiction with project history/invariants, or a
-        clear miss against the Jira acceptance criteria.
-      - You are highly confident it is correct (you verified it against the actual
-        code/history, not a guess). If unsure, stay silent.
-      - It genuinely helps the developer.
-
-      Do NOT comment on style, naming, formatting, personal preference, or things
-      a linter/CI would catch. Skip "consider"/"might want to" nits entirely.
-
-      COMMENT STYLE — your readers are experienced developers; do NOT explain how
-      the code works or re-narrate the diff. Be terse and direct:
-      - State the problem and the fix in 1–2 short sentences (aim under ~40 words).
-      - Reference symbols/methods by name; assume the reader can read the code.
-      - No restating control flow, no "this happens because X then Y then Z", no
-        padding. Think a senior dev's quick PR note, not an essay.
-      - Example of the right length: "`@role_profile.save` returns false on
-        validation errors but the surrounding `transaction` only rolls back on a
-        raised exception, so the `find_or_create_by!` competency rows persist as
-        orphans. Use `save!` (and rescue) or `raise ActiveRecord::Rollback`."
-
-      Return ONLY a JSON array of AT MOST #{cap} items (fewer is better; an empty
-      array is a perfectly good result when the PR is sound):
-      {"path": "<file>", "line": <line number in the new file>,
-       "comment": "<the problem + fix, terse, 1–2 sentences>"}.
-    PROMPT
+    # Substitute the dynamic context into the (default or custom) template.
+    # A custom prompt without the tokens simply won't have them replaced —
+    # acceptable, since an admin editing the seeded default keeps the tokens.
+    template
+      .gsub("{{TICKET}}", ticket)
+      .gsub("{{DIFF}}", diff)
+      .gsub("{{CAP}}", cap.to_s)
   end
 
   def post_review(github, pr_number, issues)

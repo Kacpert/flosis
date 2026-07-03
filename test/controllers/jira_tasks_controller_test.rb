@@ -63,6 +63,8 @@ class JiraTasksControllerTest < ActionDispatch::IntegrationTest
       .to_return(status: 200, body: { values: [], isLast: true }.to_json, headers: { "Content-Type" => "application/json" })
     stub_request(:get, "https://test.atlassian.net/rest/api/3/status")
       .to_return(status: 200, body: [].to_json, headers: { "Content-Type" => "application/json" })
+    stub_request(:get, "https://test.atlassian.net/rest/api/3/field")
+      .to_return(status: 200, body: [].to_json, headers: { "Content-Type" => "application/json" })
     stub_request(:post, /rest\/api\/3\/search\/jql/)
       .to_return(status: 200, body: { issues: [] }.to_json, headers: { "Content-Type" => "application/json" })
 

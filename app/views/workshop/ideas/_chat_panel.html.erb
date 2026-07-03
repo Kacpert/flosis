@@ -1,0 +1,50 @@
+<%# Chat panel (left panel of the workspace grid). Ports task_chat_controller.js's
+    SSE core, re-skinned as clar-chat. Shared by both stages that have a chat:
+    briefing (persona "briefing", acts like a Product Owner, brief_chat_session
+    routes) and details (persona "details", senior partner, refine chat_session
+    routes, Task 5.1) — pass `persona` to pick the routes/copy. The
+    persona-banner "Reset session" button opens the confirmation modal
+    (Task 4.4, _reset_modal.html.erb, shared clar-modal scope from
+    show.html.erb); confirming there calls clar-chat#resetSession. %>
+<%
+  is_briefing = persona == "briefing"
+  create_url = is_briefing ? jira_task_brief_chat_session_path(idea) : jira_task_chat_session_path(idea)
+  message_url = is_briefing ? message_jira_task_brief_chat_session_path(idea) : message_jira_task_chat_session_path(idea)
+  persona_label = is_briefing ? "Briefing &middot; acts like a Product Owner".html_safe : "Details Gathering &middot; senior partner".html_safe
+  placeholder = is_briefing ? "Describe the idea, or reply&hellip;".html_safe : "Answer the question&hellip;".html_safe
+%>
+<div class="flex flex-col min-h-0 h-full" data-controller="clar-chat"
+     data-clar-chat-create-url-value="<%= create_url %>"
+     data-clar-chat-show-url-value="<%= create_url %>"
+     data-clar-chat-message-url-value="<%= message_url %>"
+     data-clar-chat-reset-url-value="<%= create_url %>"
+     data-clar-chat-persona-value="<%= persona %>"
+     data-clar-chat-current-user-name-value="<%= current_user.name %>">
+  <div class="px-7 py-3 flex items-center gap-2.5 border-b clar-divider">
+    <span class="clar-badge clar-badge-ai">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
+      <%= persona_label %>
+    </span>
+    <span class="text-[12px] clar-text-faint">Reads project &amp; task description first</span>
+    <span class="flex-1"></span>
+    <button type="button" title="Reset this AI session" class="clar-btn" data-action="click->clar-modal#open" data-clar-modal-id-param="reset-session">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
+      Reset session
+    </button>
+  </div>
+
+  <div class="flex-1 overflow-y-auto px-7 py-5 flex flex-col gap-4" data-clar-chat-target="messages"></div>
+
+  <div class="px-7 py-4 border-t clar-divider bg-[var(--surface)]">
+    <div class="flex gap-2.5 items-end">
+      <textarea rows="1" placeholder="<%= placeholder %>"
+                class="clar-textarea flex-1 resize-none max-h-[120px]"
+                data-clar-chat-target="input"
+                data-action="keydown->clar-chat#handleKeydown"></textarea>
+      <button type="button" class="clar-btn clar-btn-primary flex-none h-[42px] w-[42px] !p-0"
+              data-action="click->clar-chat#sendMessage" aria-label="Send">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
+      </button>
+    </div>
+  </div>
+</div>

@@ -7,6 +7,8 @@ class PrReviewCheckJob < ApplicationJob
     return unless WINDOW.cover?(Time.current.hour)
 
     Workspace.where(pr_review_enabled: true).find_each do |workspace|
+      next unless due?(workspace)
+
       github = GithubClient.for(workspace)
       next unless github.configured?
 
@@ -14,7 +16,8 @@ class PrReviewCheckJob < ApplicationJob
       workspace.update_columns(
         github_status_ok: health[:ok],
         github_status_error: health[:error],
-        github_status_checked_at: Time.current
+        github_status_checked_at: Time.current,
+        pr_polled_at: Time.current
       )
       next unless health[:ok]
 
@@ -43,5 +46,17 @@ class PrReviewCheckJob < ApplicationJob
         end
       end
     end
+  end
+
+  private
+
+  # Effective poll interval is max(7, workspace.pr_poll_minutes) — 7 minutes is
+  # the cron floor (this job itself only runs every ~7 min), so a smaller
+  # setting can't make us poll more often than the cron actually fires.
+  def due?(workspace)
+    return true if workspace.pr_polled_at.nil?
+
+    interval = [ 7, workspace.pr_poll_minutes ].max.minutes
+    workspace.pr_polled_at <= Time.current - interval
   end
 end

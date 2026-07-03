@@ -1,59 +1,44 @@
 class WorkshopController < ApplicationController
   include WorkspaceScoped
 
+  layout "workshop"
+
   before_action { require_product!(:workshop) }
   before_action :require_admin!
   before_action :require_workshop!
 
   def index
-    # The active project comes from the top-bar Workshop project switcher.
-    @project = current_workshop_project
-    @in_progress = in_progress_ideas(@project) if @project
+    redirect_to workshop_pipeline_path
   end
 
+  # Legacy screen retired (Task 10.1) — the new-idea MODAL on the pipeline
+  # replaces it.
   def new_idea
-    @project = workshop_projects.find_by(id: params[:project_id]) || current_workshop_project
-    redirect_to(workshop_path, alert: "No Jira project selected.") and return unless @project
-    @mode = params[:mode] == "new" ? "new" : "existing"
-    @design_tasks = @project.design_sprint_tasks.reject { |t| t.briefs.briefed.exists? }
+    redirect_to workshop_pipeline_path
   end
 
+  # Legacy screen retired (Task 10.1) — the pipeline's modals replace the old
+  # create-task flow.
   def start
-    project = current_workspace.projects.find(params[:project_id])
-
-    task =
-      if params[:mode] == "existing"
-        project.tasks.find(params[:task_id])
-      else
-        name = params[:title].presence || "Untitled idea"
-        project.tasks.create!(name: name, description: params[:body])
-      end
-
-    redirect_to workshop_brief_path(task)
+    redirect_to workshop_pipeline_path
   end
 
+  # Legacy screen retired (Task 10.1). Old bookmarked/linked brief URLs land on
+  # the new workspace at the briefing stage. A task that never entered the
+  # pipeline (e.g. a plain Jira task that was briefed pre-redesign but never
+  # opened in Clar) has no workshop/ideas#show to land on — fall back to the
+  # pipeline rather than 404.
   def brief
     @task = Task.where(project: current_workspace.projects).find(params[:id])
-    @briefs = @task.briefs.newest_first
+
+    if @task.in_pipeline?
+      redirect_to workshop_idea_path(@task, stage: "briefing")
+    else
+      redirect_to workshop_pipeline_path
+    end
   end
 
   private
-
-  # Tasks in this project that have a brief in progress (a brief chat session or a
-  # saved brief) but aren't briefed yet — so a user can return to an idea/
-  # conversation they started and left. Newest activity first.
-  def in_progress_ideas(project)
-    task_ids = project.tasks
-      .where(id: Brief.where(status: "draft").select(:task_id))
-      .or(project.tasks.where(id: ChatSession.where(purpose: "brief", status: "active").select(:task_id)))
-      .pluck(:id).uniq
-
-    project.tasks
-      .where(id: task_ids)
-      .where.not(id: Brief.where(status: "briefed").select(:task_id))
-      .includes(:briefs)
-      .sort_by { |t| -(t.briefs.map(&:updated_at).max || t.updated_at).to_i }
-  end
 
   def require_workshop!
     redirect_to root_path unless current_workspace&.workshop_enabled?

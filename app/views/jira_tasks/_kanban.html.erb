@@ -2,57 +2,55 @@
   <% if @columns.empty? %>
     <%= render "empty_state", message: "No columns configured for this board." %>
   <% else %>
-    <div class="flex gap-3 overflow-x-auto pb-4" style="min-height: 400px">
+    <div class="flex gap-3 overflow-x-auto pb-4 min-h-[400px]">
       <% @columns.each do |column| %>
         <% tasks = @tasks_by_column[column.id] || [] %>
         <div class="flex-1 min-w-[180px] flex flex-col">
-          <div class="flex items-center justify-between px-3 py-2 rounded-t-lg" style="background: var(--color-surface-container-high)">
-            <span class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-on-surface-variant)">
+          <div class="flex items-center justify-between px-3 py-2 rounded-t-lg bg-[color:var(--surface-2)]">
+            <span class="text-xs font-semibold uppercase tracking-wider clar-text-muted">
               <%= column.name %>
             </span>
-            <span class="text-xs font-medium px-1.5 py-0.5 rounded-full" style="background: var(--color-surface-container-highest); color: var(--color-on-surface-variant)">
+            <span class="text-xs font-medium px-1.5 py-0.5 rounded-full bg-[color:var(--border)] clar-text-muted">
               <%= tasks.size %>
             </span>
           </div>
 
-          <div class="flex-1 space-y-2 p-2 rounded-b-lg" style="background: var(--color-surface-container-low)">
+          <div class="flex-1 space-y-2 p-2 rounded-b-lg bg-[color:var(--surface-2)]">
             <% if tasks.empty? %>
-              <div class="py-6 text-center text-xs" style="color: var(--color-outline)">No tasks</div>
+              <div class="py-6 text-center text-xs clar-text-faint">No tasks</div>
             <% end %>
             <% tasks.each do |task| %>
-              <div class="p-3 rounded-lg cursor-pointer transition-shadow hover:shadow-md"
-                   style="background: var(--color-surface); border: 1px solid var(--color-outline-variant)"
+              <div class="clar-card clar-card-hover p-3 cursor-pointer transition-shadow"
                    data-action="click->jira-task-modal#open"
                    data-task-id="<%= task.id %>"
                    data-task-url="<%= jira_task_path(task, project_id: @selected_project&.id, board_id: @selected_board&.id, sprint_id: @selected_sprint&.id) %>">
                 <div class="flex items-center justify-between mb-1.5">
                   <a href="<%= jira_task_path(task, project_id: @selected_project&.id, board_id: @selected_board&.id, sprint_id: @selected_sprint&.id) %>"
-                     class="text-xs font-semibold hover:underline"
-                     style="color: var(--color-primary)"
+                     class="text-xs font-semibold hover:underline clar-text-primary"
                      onclick="event.stopPropagation()">
                     <%= task.external_reference %>
                   </a>
                   <% if task.issue_type.present? %>
-                    <span class="text-[0.6rem] px-1.5 py-0.5 rounded" style="background: var(--color-tertiary-container); color: var(--color-on-tertiary-container)">
+                    <span class="text-[0.6rem] px-1.5 py-0.5 rounded clar-badge-ai">
                       <%= task.issue_type %>
                     </span>
                   <% end %>
                 </div>
 
-                <p class="text-sm leading-snug mb-2 line-clamp-2" style="color: var(--color-on-surface)">
+                <p class="text-sm leading-snug mb-2 line-clamp-2 clar-text-text">
                   <%= task.name.sub(/\A#{Regexp.escape(task.external_reference.to_s)}\s*/, '') %>
                 </p>
 
                 <div class="flex items-center justify-between">
                   <% if task.priority.present? %>
-                    <span class="text-xs flex items-center gap-1" style="color: var(--color-on-surface-variant)">
+                    <span class="text-xs flex items-center gap-1 clar-text-muted">
                       <% case task.priority.downcase %>
                       <% when "highest", "high" %>
-                        <svg class="h-3.5 w-3.5" style="color: var(--color-error)" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd" /></svg>
+                        <svg class="h-3.5 w-3.5 clar-text-danger" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd" /></svg>
                       <% when "medium" %>
-                        <svg class="h-3.5 w-3.5" style="color: var(--color-tertiary)" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 10a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H3.75A.75.75 0 013 10z" clip-rule="evenodd" /></svg>
+                        <svg class="h-3.5 w-3.5 clar-text-warn" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 10a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H3.75A.75.75 0 013 10z" clip-rule="evenodd" /></svg>
                       <% when "low", "lowest" %>
-                        <svg class="h-3.5 w-3.5" style="color: var(--color-primary)" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
+                        <svg class="h-3.5 w-3.5 clar-text-primary" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
                       <% end %>
                       <%= task.priority %>
                     </span>
@@ -62,7 +60,7 @@
 
                   <% assignee = task.assignee_name || task.assignee_email %>
                   <% if assignee.present? %>
-                    <div class="m3-avatar" style="width: 24px; height: 24px; font-size: 0.6rem" title="<%= assignee %>">
+                    <div class="clar-avatar w-6 h-6 text-[0.6rem] <%= clar_avatar_bg_class(assignee) %>" title="<%= assignee %>">
                       <%= assignee.split.map(&:first).join.first(2).upcase %>
                     </div>
                   <% end %>

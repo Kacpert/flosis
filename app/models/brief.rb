@@ -1,4 +1,6 @@
 class Brief < ApplicationRecord
+  include VersionableDocument
+
   belongs_to :task
   belongs_to :workspace
   belongs_to :chat_session, optional: true
@@ -19,5 +21,13 @@ class Brief < ApplicationRecord
 
   def mark_briefed!
     update!(status: "briefed", briefed_at: Time.current)
+  end
+
+  def briefed?
+    status == "briefed"
+  end
+
+  def siblings_scope
+    task.briefs
   end
 end

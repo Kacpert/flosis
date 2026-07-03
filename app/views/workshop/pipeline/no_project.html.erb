@@ -1,0 +1,12 @@
+<% content_for :title, "Create Tasks · Clar" %>
+
+<div class="flex items-center justify-center min-h-[60vh]">
+  <div class="clar-card text-center p-8 max-w-md">
+    <p class="clar-text-muted text-[14px] leading-relaxed">
+      No Jira project connected. Connect a project in Projects (Time &amp; HR) to use the Workshop.
+    </p>
+    <% if current_user&.admin_or_owner?(current_workspace) %>
+      <%= link_to "Go to Projects", projects_path, class: "clar-btn clar-btn-primary clar-btn-block mt-4 no-underline" %>
+    <% end %>
+  </div>
+</div>

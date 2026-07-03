@@ -1,0 +1,46 @@
+<%# "Reset AI session" confirmation modal (Task 4.4; parameterized by stage in
+    Task 5.1) — opened by the persona banner's "Reset session" button
+    (clar-modal#open). Confirming triggers the chat controller's
+    resetSession() (DELETE, then a plain create with no mode param — the
+    opener re-seeds itself), which keeps all saved versions and the
+    description untouched. Contrast: the document-footer "Reset chat" button
+    skips this modal entirely and calls resetConversation() with
+    mode=refine_current instead. %>
+<%
+  stage ||= "briefing"
+  is_details = stage == "details"
+  kept_label = idea.external_reference.present? ? "JIRA DESCRIPTION" : "LOCAL DESCRIPTION"
+  kept_content = is_details ? idea.current_detail_draft&.content.presence : idea.current_brief&.content.presence
+  kept_content ||= idea.description
+%>
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="reset-session" data-action="click->clar-modal#close">
+  <div class="clar-modal p-5.5 max-w-[480px]" data-action="click->clar-modal#stopPropagation">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="text-lg font-bold clar-text-text m-0">Reset AI session</h2>
+      <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <p class="text-[13px] leading-normal clar-text-muted mb-4">
+      Restarts this <%= is_details ? "details" : "briefing" %> conversation from scratch &mdash; the AI re-reads the code.
+      <b class="clar-text-text">All saved versions and the description are kept</b>.
+    </p>
+    <div class="bg-[var(--surface-2)] border clar-divider rounded-[10px] px-[13px] py-3 mb-5">
+      <div class="text-[10.5px] font-bold tracking-[.4px] clar-text-faint mb-[5px]">KEPT &middot; <%= kept_label %></div>
+      <div class="text-[12.5px] clar-text-text leading-normal">
+        <% if kept_content.present? %>
+          <%= truncate(kept_content, length: 400) %>
+        <% else %>
+          <span class="clar-text-faint italic">No description yet</span>
+        <% end %>
+      </div>
+    </div>
+    <div class="flex gap-2.5 justify-end">
+      <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+      <button type="button" class="clar-btn clar-btn-ai" data-action="click->clar-chat#resetSession clar-modal#close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
+        Restart session
+      </button>
+    </div>
+  </div>
+</div>
