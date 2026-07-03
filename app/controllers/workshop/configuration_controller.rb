@@ -13,6 +13,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
     @tab = TABS.include?(params[:tab]) ? params[:tab] : "ai"
     load_ai_tab if @tab == "ai"
     load_integrations_tab if @tab == "integrations"
+    load_users_tab if @tab == "users"
   end
 
   def update
@@ -90,6 +91,10 @@ class Workshop::ConfigurationController < Workshop::BaseController
   def load_integrations_tab
     @discord_webhooks = current_workspace.discord_webhooks.order(:channel_name)
     @jira_configured = ENV["JIRA_DOMAIN"].present?
+  end
+
+  def load_users_tab
+    @members = current_workspace.workspace_memberships.includes(:user).joins(:user).order("users.name")
   end
 
   def update_ai_settings

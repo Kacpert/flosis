@@ -42,12 +42,61 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /Figma/
   end
 
-  test "admin GET show with tab=users renders the users placeholder" do
+  test "admin GET show with tab=users renders the member list with role badges (Task 9.3)" do
     get workshop_configuration_path(tab: "users")
 
     assert_response :success
     assert_select ".clar-tab-active", /Users/
-    assert_select "body", /later step/
+
+    # Owner (workspace_memberships(:one_owner), users(:one)) -> Administrator
+    assert_select "body", /Kacper/
+    assert_select "body", /one@example\.com/
+
+    # Employee with workshop_access -> Product Owner (Task 9.3 setup below toggles this on)
+    assert_select "body", /Other User/
+    assert_select "body", /two@example\.com/
+
+    # Client -> Client
+    assert_select "body", /Client Person/
+    assert_select "body", /client-fixture@example\.com/
+
+    assert_select ".clar-badge-warn", /Administrator/
+    assert_select ".clar-badge-muted", /Client/
+  end
+
+  test "users tab shows Product Owner badge for employee with workshop_access" do
+    workspace_memberships(:two_employee).update!(workshop_access: true)
+
+    get workshop_configuration_path(tab: "users")
+
+    assert_response :success
+    assert_select ".clar-badge-primary", /Product Owner/
+  end
+
+  test "users tab shows a muted Member badge for employee without workshop_access" do
+    workspace_memberships(:two_employee).update!(workshop_access: false)
+
+    get workshop_configuration_path(tab: "users")
+
+    assert_response :success
+    assert_select ".clar-badge-muted", /Member/
+  end
+
+  test "users tab Invite button links to the HR invite screen in a new tab" do
+    get workshop_configuration_path(tab: "users")
+
+    assert_response :success
+    assert_select "a[href=?][target=?]", new_workspace_member_path, "_blank", /Invite/
+  end
+
+  test "employee is blocked from the users tab too" do
+    workspace_memberships(:two_employee).update!(workshop_access: true)
+    sign_out
+    sign_in_as(users(:two))
+    post switch_product_path, params: { product: "workshop" }
+
+    get workshop_configuration_path(tab: "users")
+    assert_redirected_to root_path
   end
 
   test "employee (non-admin) is blocked from Configuration show AND update" do

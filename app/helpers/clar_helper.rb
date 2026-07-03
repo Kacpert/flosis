@@ -88,4 +88,20 @@ module ClarHelper
     when :sprint then active_sprint&.name || "Sprint"
     end
   end
+
+  # Configuration > Users tab (Task 9.3) role badge: [badge_class, label] for
+  # a WorkspaceMembership. admin/owner outrank workshop_access; employees are
+  # split on workshop_access (Product Owner vs plain Member); client is its
+  # own muted badge.
+  def workshop_role_badge(membership)
+    if membership.admin? || membership.owner?
+      [ "clar-badge-warn", "Administrator" ]
+    elsif membership.client?
+      [ "clar-badge-muted", "Client" ]
+    elsif membership.workshop_access?
+      [ "clar-badge-primary", "Product Owner" ]
+    else
+      [ "clar-badge-muted", "Member" ]
+    end
+  end
 end
