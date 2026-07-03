@@ -2129,6 +2129,9 @@ span.flatpickr-weekday {
 .clar-editor { outline:none; min-height:240px; padding:12px 14px; background:var(--bg);
   border:1px solid var(--border); border-radius:10px; }
 .clar-editor:focus { border-color:var(--primary); }
+.clar-editor-tool-btn { width:30px; height:30px; padding:0 9px; border-radius:7px; border:none;
+  background:transparent; cursor:pointer; color:var(--text); display:flex; align-items:center; justify-content:center; }
+.clar-editor-tool-btn:hover { background:var(--surface); }
 .clar-app ::-webkit-scrollbar { width:10px; height:10px; }
 .clar-app ::-webkit-scrollbar-thumb { background:var(--border); border-radius:8px;
   border:2px solid transparent; background-clip:padding-box; }

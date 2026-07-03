@@ -29,15 +29,60 @@ class Workshop::VersionsController < Workshop::BaseController
     end
   end
 
+  # Save-as-new (Task 5.2): the rich-text editor's "Save as new version"
+  # button. Always creates a fresh `origin: "manual"` row at the next version
+  # number and makes it current immediately — mirrors how an AI-drafted
+  # version becomes current on generation. Content is stored as HTML as-is
+  # (see VersionableDocument-consuming models + _document_panel's render-side
+  # HTML detection); no markdown conversion happens here.
+  def create
+    @idea = current_workshop_project.tasks.pipeline.find(params[:idea_id])
+
+    if params[:kind] == "detail"
+      new_draft = @idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "manual",
+                                            content: params[:content_html])
+      new_draft.make_current!
+      flash[:clar_toast] = "Saved as new version · now current"
+      redirect_to workshop_idea_path(@idea, stage: "details", v: new_draft.version)
+    else
+      new_brief = @idea.briefs.create!(workspace: current_workspace, origin: "manual", status: "draft",
+                                       version: Brief.next_version_for(@idea), content: params[:content_html])
+      new_brief.make_current!
+      flash[:clar_toast] = "Saved as new version · now current"
+      redirect_to workshop_idea_path(@idea, stage: "briefing", v: new_brief.version)
+    end
+  end
+
+  # Save-in-place (Task 5.2): the rich-text editor's "Save v{n} in place"
+  # button. Updates the SAME row's content and stamps `edited_at` — origin,
+  # version, and current-ness are all left untouched (a user-authored row
+  # edited this way becomes "User description (edited)" via
+  # VersionableDocument#label; other origins keep their existing label).
+  def update
+    @idea = current_workshop_project.tasks.pipeline.find(params[:idea_id])
+
+    if params[:kind] == "detail"
+      draft = @idea.task_drafts.by_source(TaskDraft::REFINE_SOURCE).find(params[:id])
+      draft.update!(content: params[:content_html], edited_at: Time.current)
+      redirect_to workshop_idea_path(@idea, stage: "details", v: draft.version)
+      flash[:clar_toast] = "Saved v#{draft.version}"
+    else
+      brief = @idea.briefs.find(params[:id])
+      brief.update!(content: params[:content_html], edited_at: Time.current)
+      redirect_to workshop_idea_path(@idea, stage: "briefing", v: brief.version)
+      flash[:clar_toast] = "Saved v#{brief.version}"
+    end
+  end
+
   private
 
   def make_current_brief(brief)
     brief.make_current!
-    @idea.update!(description: brief.content)
+    @idea.update!(description: JiraWriter.plain_text(brief.content))
 
     if @idea.external_reference.present?
       result = JiraClient.new.update_issue_description(
-        issue_key: @idea.external_reference, description_text: brief.content
+        issue_key: @idea.external_reference, description_text: JiraWriter.plain_text(brief.content)
       )
       unless result[:ok]
         flash[:clar_toast] = "v#{brief.version} set as current locally · Jira update failed: #{result[:error]}"
@@ -56,7 +101,7 @@ class Workshop::VersionsController < Workshop::BaseController
 
     if @idea.external_reference.present?
       result = JiraClient.new.update_issue_description(
-        issue_key: @idea.external_reference, description_text: draft.content
+        issue_key: @idea.external_reference, description_text: JiraWriter.plain_text(draft.content)
       )
       unless result[:ok]
         flash[:clar_toast] = "v#{draft.version} set as current locally · Jira update failed: #{result[:error]}"

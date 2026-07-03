@@ -112,4 +112,71 @@ class JiraWriterTest < ActiveSupport::TestCase
     assert_nil draft.reload.pushed_at
     assert_nil c.calls[:action], "AI action must not be set when the description update failed"
   end
+
+  # --- Task 5.2: HTML-edited briefs/drafts must reach Jira as plain text ---
+
+  # Captures the description_text a JiraClient double receives, so tests can
+  # assert on exactly what was pushed (not just that the call happened).
+  def capturing_client(create: { ok: true, key: "JW-1", url: "u" }, update: { ok: true }, action: { ok: true })
+    c = Object.new
+    captured = { create: nil, update: nil, action: nil }
+    c.define_singleton_method(:create_issue) { |**k| captured[:create] = k; create }
+    c.define_singleton_method(:update_issue_description) { |**k| captured[:update] = k; update }
+    c.define_singleton_method(:add_ai_action) { |**k| captured[:action] = k; action }
+    c.define_singleton_method(:fetch_field_id) { |_n| "customfield_10050" }
+    c.define_singleton_method(:captured) { captured }
+    c
+  end
+
+  test "commit_brief strips HTML tags before pushing an existing task's description to Jira" do
+    task = @project.tasks.create!(name: "JW-20 Existing", external_type: "jira", external_reference: "JW-20")
+    html = '<h4>Summary</h4><p>Hello <b>world</b></p><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>'
+    brief = Brief.create!(task: task, workspace: @workspace, version: 1, content: html)
+    c = capturing_client
+    res = JiraWriter.new(workspace: @workspace, client: c).commit_brief(brief)
+
+    assert res[:ok], res.inspect
+    text = c.captured[:update][:description_text]
+    assert_no_match(/<[^>]+>/, text, "description_text must have no HTML tags: #{text.inspect}")
+    assert_no_match(/alert\(1\)/, text, "script contents must not leak into the plain text")
+    assert_match(/Summary/, text)
+    assert_match(/Hello world/, text)
+  end
+
+  test "commit_brief strips HTML tags before creating a new issue's description in Jira" do
+    task = @project.tasks.create!(name: "New idea")
+    html = "<p>Some <i>rich</i> concept</p>"
+    brief = Brief.create!(task: task, workspace: @workspace, version: 1, content: html)
+    c = capturing_client
+    res = JiraWriter.new(workspace: @workspace, client: c).commit_brief(brief)
+
+    assert res[:ok], res.inspect
+    text = c.captured[:create][:description_text]
+    assert_no_match(/<[^>]+>/, text)
+    assert_match(/Some rich concept/, text)
+  end
+
+  test "commit_detail strips HTML tags before pushing the draft's description to Jira" do
+    task = @project.tasks.create!(name: "JW-21 Existing", external_type: "jira", external_reference: "JW-21")
+    html = "<p>Detailed <strong>plan</strong></p>"
+    draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: html)
+    c = capturing_client
+    res = JiraWriter.new(workspace: @workspace, client: c).commit_detail(draft)
+
+    assert res[:ok], res.inspect
+    text = c.captured[:update][:description_text]
+    assert_no_match(/<[^>]+>/, text)
+    assert_match(/Detailed plan/, text)
+  end
+
+  test "plain-text/markdown content passes through the strip helper unchanged (aside from blank-line squeeze)" do
+    task = @project.tasks.create!(name: "JW-22 Existing", external_type: "jira", external_reference: "JW-22")
+    markdown = "## Foo\n\nSome plain text with *emphasis* and no tags."
+    draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: markdown)
+    c = capturing_client
+    res = JiraWriter.new(workspace: @workspace, client: c).commit_detail(draft)
+
+    assert res[:ok], res.inspect
+    assert_equal markdown, c.captured[:update][:description_text]
+  end
 end

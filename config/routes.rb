@@ -103,7 +103,7 @@ Rails.application.routes.draw do
     get "jira_browser", to: "jira_browser#show", as: :jira_browser
     resources :ideas, only: [ :create, :show, :update ] do
       member { post :advance; post :save_locally; post :push_jira }
-      resources :versions, only: [] do
+      resources :versions, only: [ :create, :update ] do
         member { post :make_current }
       end
     end

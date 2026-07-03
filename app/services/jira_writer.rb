@@ -18,7 +18,8 @@ class JiraWriter
     task = brief.task
 
     if task.external_reference.present?
-      res = @client.update_issue_description(issue_key: task.external_reference, description_text: brief.content)
+      res = @client.update_issue_description(issue_key: task.external_reference,
+                                             description_text: plain_text(brief.content))
       return res unless res[:ok]
       key = task.external_reference
       url = task.external_url
@@ -26,7 +27,8 @@ class JiraWriter
       project_key = task.project.external_reference
       return { ok: false, error: "Project is not linked to Jira" } if project_key.blank?
 
-      res = @client.create_issue(project_key: project_key, summary: task.name, description_text: brief.content)
+      res = @client.create_issue(project_key: project_key, summary: task.name,
+                                 description_text: plain_text(brief.content))
       return res unless res[:ok]
       key = res[:key]
       url = res[:url]
@@ -48,7 +50,7 @@ class JiraWriter
     return { ok: false, error: "Task is not linked to Jira" } if task.external_reference.blank?
 
     res = @client.update_issue_description(issue_key: task.external_reference,
-                                           description_text: draft.content)
+                                           description_text: plain_text(draft.content))
     return res unless res[:ok]
 
     action = set_ai_action(task.external_reference, DETAILED_VALUE)
@@ -84,7 +86,22 @@ class JiraWriter
     id
   end
 
+  # Rich-text editing (Task 5.2) lets a brief/draft's `content` be stored as
+  # sanitized HTML instead of plain text/markdown. Jira must never receive raw
+  # tags, so every push point flattens content through this helper first.
+  # Rails::Html::FullSanitizer strips tags entirely (not just an allowlist) —
+  # safe to run unconditionally since it's a no-op on tag-free text (plain
+  # text or markdown like "## Foo" survives untouched).
+  def self.plain_text(content)
+    text = Rails::Html::FullSanitizer.new.sanitize(content.to_s)
+    text.gsub(/\n{3,}/, "\n\n").strip
+  end
+
   private
+
+  def plain_text(content)
+    self.class.plain_text(content)
+  end
 
   # Sets the "AI actions" field on the given issue to `value`. Shared by
   # commit_brief (BRIEFED_VALUE) and commit_detail (DETAILED_VALUE).
