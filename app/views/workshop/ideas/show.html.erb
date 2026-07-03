@@ -12,6 +12,12 @@
         <%= render "workshop/ideas/chat_panel", idea: @idea %>
       <% end %>
     </div>
-    <div></div>
+    <div class="min-h-0">
+      <%= turbo_frame_tag "clar-document" do %>
+        <% if @stage == "briefing" %>
+          <%= render "workshop/ideas/document_panel", idea: @idea %>
+        <% end %>
+      <% end %>
+    </div>
   </div>
 </div>

@@ -23,6 +23,10 @@ class Brief < ApplicationRecord
     update!(status: "briefed", briefed_at: Time.current)
   end
 
+  def briefed?
+    status == "briefed"
+  end
+
   def siblings_scope
     task.briefs
   end

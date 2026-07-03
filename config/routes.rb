@@ -102,7 +102,10 @@ Rails.application.routes.draw do
     get "pipeline", to: "pipeline#index", as: :pipeline
     get "jira_browser", to: "jira_browser#show", as: :jira_browser
     resources :ideas, only: [ :create, :show, :update ] do
-      member { post :advance }
+      member { post :advance; post :save_locally; post :push_jira }
+      resources :versions, only: [] do
+        member { post :make_current }
+      end
     end
   end
 

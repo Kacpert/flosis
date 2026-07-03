@@ -143,4 +143,57 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
     assert_equal "new", idea.reload.workshop_stage
   end
+
+  test "POST save_locally stamps brief_saved_locally_at, sets a toast, and keeps the briefing stage" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+
+    post save_locally_workshop_idea_path(idea)
+
+    assert_response :redirect
+    assert_not_nil idea.reload.brief_saved_locally_at
+    assert_equal "briefing", idea.workshop_stage
+    assert_equal "Brief saved to the task locally · not pushed", flash[:clar_toast]
+  end
+
+  def stub_commit_brief(result)
+    orig = JiraWriter.instance_method(:commit_brief)
+    JiraWriter.define_method(:commit_brief) { |_b| result }
+    yield
+  ensure
+    JiraWriter.define_method(:commit_brief, orig)
+  end
+
+  test "POST push_jira on success clears brief_saved_locally_at, advances to details, and sets a toast" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago,
+                 brief_saved_locally_at: 1.minute.ago)
+    idea.briefs.create!(workspace: idea.project.workspace, version: 0, origin: "user", status: "draft",
+                        content: "the brief").make_current!
+
+    stub_commit_brief({ ok: true, key: "ELV-9", url: "https://example.com/ELV-9" }) do
+      post push_jira_workshop_idea_path(idea)
+    end
+
+    assert_response :redirect
+    idea.reload
+    assert_nil idea.brief_saved_locally_at
+    assert_equal "details", idea.workshop_stage
+    assert_equal "Pushed to Jira · AI actions = Briefed", flash[:clar_toast]
+  end
+
+  test "POST push_jira on failure does not advance the stage and surfaces the error" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+    idea.briefs.create!(workspace: idea.project.workspace, version: 0, origin: "user", status: "draft",
+                        content: "the brief").make_current!
+
+    stub_commit_brief({ ok: false, error: "403 Forbidden" }) do
+      post push_jira_workshop_idea_path(idea)
+    end
+
+    assert_equal "briefing", idea.reload.workshop_stage
+    follow_redirect!
+    assert_match "403", response.body
+  end
 end

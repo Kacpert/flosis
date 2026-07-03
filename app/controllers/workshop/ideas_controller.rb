@@ -54,6 +54,36 @@ class Workshop::IdeasController < Workshop::BaseController
     end
   end
 
+  # Stamps the brief as saved-locally without pushing to Jira. Stage stays
+  # at briefing either way — this is a "keep it here for now" action.
+  def save_locally
+    @idea = current_workshop_project.tasks.pipeline.find(params[:id])
+    @idea.update!(brief_saved_locally_at: Time.current)
+
+    flash[:clar_toast] = "Brief saved to the task locally · not pushed"
+    redirect_to workshop_idea_path(@idea, stage: "briefing")
+  end
+
+  # Commits the current brief to Jira (creating the issue for a local idea,
+  # or updating the description for a Jira-linked one) and sets AI actions =
+  # Briefed — see JiraWriter#commit_brief. Only advances the idea to the
+  # "details" stage when the Jira write actually succeeds; a failure leaves
+  # the idea in briefing and surfaces the error instead of silently
+  # "succeeding".
+  def push_jira
+    @idea = current_workshop_project.tasks.pipeline.find(params[:id])
+    result = JiraWriter.new(workspace: current_workspace).commit_brief(@idea.current_brief)
+
+    if result[:ok]
+      @idea.current_brief.mark_briefed!
+      @idea.update!(brief_saved_locally_at: nil, workshop_stage: "details")
+      flash[:clar_toast] = "Pushed to Jira · AI actions = Briefed"
+      redirect_to workshop_idea_path(@idea, stage: "details")
+    else
+      redirect_to workshop_idea_path(@idea, stage: "briefing"), alert: "Couldn't write to Jira: #{result[:error]}"
+    end
+  end
+
   private
 
   def create_new_idea
