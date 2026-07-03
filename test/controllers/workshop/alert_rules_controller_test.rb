@@ -38,6 +38,25 @@ class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
     assert_not_nil flash[:alert]
   end
 
+  test "create rejects a discord_webhook from another workspace (cross-tenant guard)" do
+    # A webhook that belongs to a DIFFERENT workspace must not be attachable —
+    # otherwise a rule could post alerts into another workspace's Discord channel.
+    foreign_webhook = DiscordWebhook.create!(workspace: workspaces(:two), channel_name: "#other",
+                                             url: "https://discord.com/api/webhooks/2/def")
+
+    assert_no_difference -> { AlertRule.count } do
+      post workshop_alert_rules_path, params: {
+        alert_rule: {
+          name: "Sneaky rule", prompt: "watch something",
+          frequency: "daily", run_at_time: "13:00", discord_webhook_id: foreign_webhook.id
+        }
+      }
+    end
+
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_not_nil flash[:alert]
+  end
+
   test "destroy removes the rule" do
     rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
       name: "Stale PR reminder", prompt: "If a PR has no activity for 2 days, remind.",

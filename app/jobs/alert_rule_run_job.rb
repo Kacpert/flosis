@@ -32,7 +32,6 @@ class AlertRuleRunJob < ApplicationJob
     parsed = AlertParser.extract(response)
     if parsed.nil?
       record_error_run(rule, summary: "Run failed")
-      rule.update!(last_run_at: Time.current)
       return
     end
 

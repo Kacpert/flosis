@@ -6,8 +6,13 @@ class Workshop::AlertRulesController < Workshop::BaseController
   before_action :set_alert_rule, only: [ :destroy, :history ]
 
   def create
-    rule = current_workshop_project.alert_rules.new(create_params)
+    rule = current_workshop_project.alert_rules.new(create_params.except(:discord_webhook_id))
     rule.workspace = current_workspace
+    # Scope the webhook to THIS workspace — a crafted discord_webhook_id from
+    # another workspace must not attach (it would post alerts into that
+    # workspace's Discord channel). A miss leaves discord_webhook nil, which the
+    # belongs_to presence validation rejects as an invalid rule.
+    rule.discord_webhook = current_workspace.discord_webhooks.find_by(id: create_params[:discord_webhook_id])
 
     if rule.save
       flash[:clar_toast] = %(Alert rule created · "#{rule.name}")
