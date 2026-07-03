@@ -6,7 +6,9 @@
 class Workshop::DesignRequestsController < Workshop::BaseController
   def create
     @idea = current_workshop_project.tasks.pipeline.find(params[:idea_id])
-    designer = User.find(create_params[:designer_id])
+    # Scope the designer to workspace members — the picker only offers them, and
+    # this 404s a crafted cross-workspace designer_id instead of assigning it.
+    designer = current_workspace.users.find(create_params[:designer_id])
 
     @idea.create_design_request!(requester: current_user, designer: designer, note: create_params[:note])
 
