@@ -37,6 +37,67 @@ class JiraSyncService
     end
   end
 
+  # Clears all sprint assignments, then reassigns from active/future sprints.
+  # AUTO-ESTIMATE (sprint trigger): when workspace.estimation_trigger ==
+  # "sprint", enqueues AutoEstimateJob for any task that NEWLY gains a
+  # sprint_id (was nil, now set) on a sprint that is not a "design" sprint —
+  # design-sprint tasks (Project#design_sprint_tasks: name contains "design")
+  # are still being shaped in the Idea pipeline and aren't ready to estimate.
+  # Idempotent: a task that already had this sprint_id (unchanged) is not
+  # re-enqueued.
+  def sync_sprint_assignments
+    trigger_on_sprint = @project.workspace.estimation_trigger == "sprint"
+    previous_sprint_ids = trigger_on_sprint ? @project.tasks.jira_synced.pluck(:external_reference, :sprint_id).to_h : {}
+
+    @project.tasks.jira_synced.where.not(sprint_id: nil).update_all(sprint_id: nil, sprint_name: nil)
+
+    @project.jira_boards.each do |board|
+      board.jira_sprints.where(state: %w[active future]).find_each do |sprint|
+        issue_keys = @client.fetch_sprint_issue_keys(sprint.jira_sprint_id)
+        next if issue_keys.empty?
+
+        @project.tasks.jira_synced
+          .where(external_reference: issue_keys)
+          .update_all(sprint_id: sprint.jira_sprint_id, sprint_name: sprint.name)
+
+        next unless trigger_on_sprint
+        next if design_sprint_name?(sprint.name)
+
+        newly_assigned_keys = issue_keys.select { |key| previous_sprint_ids[key].nil? }
+        next if newly_assigned_keys.empty?
+
+        @project.tasks.jira_synced.where(external_reference: newly_assigned_keys).find_each do |task|
+          AutoEstimateJob.perform_later(task.id)
+        end
+      end
+    end
+  end
+
+  def design_sprint_name?(name)
+    name.to_s.match?(/design/i)
+  end
+
+  def sync_issues
+    trigger_on_status = @project.workspace.estimation_trigger == "status"
+    status_trigger = @project.workspace.estimation_status_trigger
+
+    issues = @client.fetch_issues(@project.external_reference, story_points_field_id: story_points_field_id)
+    return if issues.nil?
+
+    issues.each do |issue|
+      previous_status = trigger_on_status ? @project.tasks.jira_synced.find_by(external_reference: issue[:key])&.jira_status_name : nil
+
+      sync_issue(issue)
+
+      next unless trigger_on_status
+      next if previous_status == status_trigger # already there — not a transition
+      next unless issue[:status_name] == status_trigger
+
+      task = @project.tasks.jira_synced.find_by(external_reference: issue[:key])
+      AutoEstimateJob.perform_later(task.id) if task
+    end
+  end
+
   private
 
   # Resolves + caches the Jira custom field id used for story points on the
@@ -119,31 +180,6 @@ class JiraSyncService
     end
 
     board.jira_sprints.where.not(id: synced_sprint_ids).destroy_all
-  end
-
-  def sync_sprint_assignments
-    # Clear all sprint assignments first, then reassign from active/future sprints
-    @project.tasks.jira_synced.where.not(sprint_id: nil).update_all(sprint_id: nil, sprint_name: nil)
-
-    @project.jira_boards.each do |board|
-      board.jira_sprints.where(state: %w[active future]).find_each do |sprint|
-        issue_keys = @client.fetch_sprint_issue_keys(sprint.jira_sprint_id)
-        next if issue_keys.empty?
-
-        @project.tasks.jira_synced
-          .where(external_reference: issue_keys)
-          .update_all(sprint_id: sprint.jira_sprint_id, sprint_name: sprint.name)
-      end
-    end
-  end
-
-  def sync_issues
-    issues = @client.fetch_issues(@project.external_reference, story_points_field_id: story_points_field_id)
-    return if issues.nil?
-
-    issues.each do |issue|
-      sync_issue(issue)
-    end
   end
 
   def sync_issue(issue)

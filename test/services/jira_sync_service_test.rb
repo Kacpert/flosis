@@ -1,6 +1,8 @@
 require "test_helper"
 
 class JiraSyncServiceTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @project = projects(:jira_project)
     @jira_issues = [
@@ -193,5 +195,126 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
 
     assert_equal 1, @project.delivered_issues.where(jira_key: "ELV-500").count
     assert_nil @project.tasks.find_by(external_reference: "ELV-500")
+  end
+
+  # --- sprint trigger ---
+
+  def stub_client_with_sprint_issue_keys(keys_by_sprint_id)
+    Class.new do
+      define_method(:fetch_boards) { |_key| [] }
+      define_method(:fetch_statuses) { {} }
+      define_method(:fetch_all_comments) { |_issue_key| [] }
+      define_method(:fetch_sprint_issue_keys) { |sprint_id| keys_by_sprint_id[sprint_id] || [] }
+    end.new
+  end
+
+  test "sprint trigger enqueues AutoEstimateJob for a task newly gaining a sprint_id on a non-design sprint" do
+    @project.workspace.update!(estimation_trigger: "sprint")
+    dev_board = jira_boards(:dev_board)
+    dev_board.jira_sprints.create!(jira_sprint_id: 900, name: "Sprint 24", state: "active",
+                                    start_date: 1.day.ago, end_date: 1.week.from_now)
+    task = tasks(:jira_task)
+    task.update!(sprint_id: nil, sprint_name: nil)
+
+    mock_client = stub_client_with_sprint_issue_keys(900 => [ task.external_reference ])
+
+    assert_enqueued_with(job: AutoEstimateJob, args: [ task.id ]) do
+      JiraSyncService.new(@project, client: mock_client).sync_sprint_assignments
+    end
+  end
+
+  test "sprint trigger does NOT enqueue for a task landing in a design sprint" do
+    @project.workspace.update!(estimation_trigger: "sprint")
+    task = tasks(:jira_task)
+    task.update!(sprint_id: nil, sprint_name: nil)
+
+    mock_client = stub_client_with_sprint_issue_keys(569 => [ task.external_reference ]) # design_sprint fixture
+
+    assert_no_enqueued_jobs(only: AutoEstimateJob) do
+      JiraSyncService.new(@project, client: mock_client).sync_sprint_assignments
+    end
+  end
+
+  test "sprint trigger does NOT enqueue when estimation_trigger is not sprint" do
+    @project.workspace.update!(estimation_trigger: "manual")
+    dev_board = jira_boards(:dev_board)
+    dev_board.jira_sprints.create!(jira_sprint_id: 901, name: "Sprint 25", state: "active",
+                                    start_date: 1.day.ago, end_date: 1.week.from_now)
+    task = tasks(:jira_task)
+    task.update!(sprint_id: nil, sprint_name: nil)
+
+    mock_client = stub_client_with_sprint_issue_keys(901 => [ task.external_reference ])
+
+    assert_no_enqueued_jobs(only: AutoEstimateJob) do
+      JiraSyncService.new(@project, client: mock_client).sync_sprint_assignments
+    end
+  end
+
+  test "sprint trigger does NOT re-enqueue for a task that already had this sprint_id" do
+    @project.workspace.update!(estimation_trigger: "sprint")
+    dev_board = jira_boards(:dev_board)
+    dev_board.jira_sprints.create!(jira_sprint_id: 902, name: "Sprint 26", state: "active",
+                                    start_date: 1.day.ago, end_date: 1.week.from_now)
+    task = tasks(:jira_task)
+    task.update!(sprint_id: 902, sprint_name: "Sprint 26")
+
+    mock_client = stub_client_with_sprint_issue_keys(902 => [ task.external_reference ])
+
+    assert_no_enqueued_jobs(only: AutoEstimateJob) do
+      JiraSyncService.new(@project, client: mock_client).sync_sprint_assignments
+    end
+  end
+
+  # --- status trigger ---
+
+  test "status trigger enqueues AutoEstimateJob when jira_status_name transitions into the configured trigger" do
+    @project.workspace.update!(estimation_trigger: "status", estimation_status_trigger: "Ready for dev")
+    task = tasks(:jira_task)
+    task.update!(jira_status_name: "In Progress")
+
+    issues = [ {
+      key: task.external_reference, summary: "Existing task updated", status_category: "indeterminate",
+      status_name: "Ready for dev", assignee_email: "one@example.com",
+      url: "https://elvium.atlassian.net/browse/#{task.external_reference}"
+    } ]
+    mock_client = stub_client(issues)
+
+    assert_enqueued_with(job: AutoEstimateJob, args: [ task.id ]) do
+      JiraSyncService.new(@project, client: mock_client).sync_issues
+    end
+  end
+
+  test "status trigger does NOT enqueue when already in the trigger status (no transition)" do
+    @project.workspace.update!(estimation_trigger: "status", estimation_status_trigger: "Ready for dev")
+    task = tasks(:jira_task)
+    task.update!(jira_status_name: "Ready for dev")
+
+    issues = [ {
+      key: task.external_reference, summary: "Existing task updated", status_category: "indeterminate",
+      status_name: "Ready for dev", assignee_email: "one@example.com",
+      url: "https://elvium.atlassian.net/browse/#{task.external_reference}"
+    } ]
+    mock_client = stub_client(issues)
+
+    assert_no_enqueued_jobs(only: AutoEstimateJob) do
+      JiraSyncService.new(@project, client: mock_client).sync_issues
+    end
+  end
+
+  test "status trigger does NOT enqueue when estimation_trigger is not status" do
+    @project.workspace.update!(estimation_trigger: "manual", estimation_status_trigger: "Ready for dev")
+    task = tasks(:jira_task)
+    task.update!(jira_status_name: "In Progress")
+
+    issues = [ {
+      key: task.external_reference, summary: "Existing task updated", status_category: "indeterminate",
+      status_name: "Ready for dev", assignee_email: "one@example.com",
+      url: "https://elvium.atlassian.net/browse/#{task.external_reference}"
+    } ]
+    mock_client = stub_client(issues)
+
+    assert_no_enqueued_jobs(only: AutoEstimateJob) do
+      JiraSyncService.new(@project, client: mock_client).sync_issues
+    end
   end
 end

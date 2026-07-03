@@ -129,6 +129,16 @@ class Workshop::IdeasController < Workshop::BaseController
     end
   end
 
+  # Manual trigger for the AI auto-estimation engine (workspace.estimation_trigger
+  # == "manual" is the button-only path, but this endpoint itself works
+  # regardless of the configured trigger — a human explicitly asked for it).
+  def estimate
+    @idea = current_workshop_project.tasks.find(params[:id])
+    AutoEstimateJob.perform_later(@idea.id)
+    flash[:clar_toast] = "Estimating…"
+    redirect_to workshop_idea_path(@idea)
+  end
+
   private
 
   def create_new_idea

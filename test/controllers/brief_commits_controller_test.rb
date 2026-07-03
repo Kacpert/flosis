@@ -45,4 +45,31 @@ class BriefCommitsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to time_entries_path
     assert_equal "draft", @brief.reload.status
   end
+
+  test "successful commit enqueues AutoEstimateJob when estimation_trigger is briefed" do
+    @workspace.update!(estimation_trigger: "briefed")
+    stub_writer({ ok: true, key: "BCM-1", url: "u" }) do
+      assert_enqueued_with(job: AutoEstimateJob, args: [ @task.id ]) do
+        post commit_jira_task_brief_path(@task, @brief)
+      end
+    end
+  end
+
+  test "successful commit does NOT enqueue AutoEstimateJob when estimation_trigger is not briefed" do
+    @workspace.update!(estimation_trigger: "manual")
+    stub_writer({ ok: true, key: "BCM-1", url: "u" }) do
+      assert_no_enqueued_jobs(only: AutoEstimateJob) do
+        post commit_jira_task_brief_path(@task, @brief)
+      end
+    end
+  end
+
+  test "failed commit does NOT enqueue AutoEstimateJob even when trigger is briefed" do
+    @workspace.update!(estimation_trigger: "briefed")
+    stub_writer({ ok: false, error: "403 Forbidden" }) do
+      assert_no_enqueued_jobs(only: AutoEstimateJob) do
+        post commit_jira_task_brief_path(@task, @brief)
+      end
+    end
+  end
 end

@@ -57,4 +57,45 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "body", /Configuration/
   end
+
+  test "renders the AI Estimate tab with summary card and recently-estimated tasks" do
+    project = tasks(:jira_task).project
+    @workspace.update!(estimation_trigger: "status", estimation_field_names: ["AI estimation", "Story point estimate"])
+
+    task = tasks(:jira_task)
+    task.update!(ai_estimate_points: 8, ai_estimated_at: 1.hour.ago, story_points: 5)
+
+    get workshop_process_path(tab: "estimate")
+
+    assert_response :success
+    assert_select ".clar-tab.clar-tab-active", /AI Estimate/
+
+    # summary card
+    assert_select "body", Regexp.new(Regexp.escape(project.name))
+    assert_select "body", /Status changes to/
+    assert_select "body", /AI estimation/
+    assert_select "body", /Story point estimate/
+    assert_select "body", /Manual estimate fields are never touched/
+    assert_select "body", /Configuration/
+
+    # table
+    assert_select "body", /TASK/
+    assert_select "body", /TITLE/
+    assert_select "body", /AI EST\./
+    assert_select "body", /MANUAL/
+    assert_select "body", Regexp.new(Regexp.escape(task.external_reference))
+    assert_select "body", /8/
+    assert_select "body", /5/
+  end
+
+  test "AI Estimate tab MANUAL column shows an em-dash when there is no story_points" do
+    @workspace.update!(estimation_trigger: "manual")
+    task = tasks(:jira_task)
+    task.update!(ai_estimate_points: 3, ai_estimated_at: 1.hour.ago, story_points: nil)
+
+    get workshop_process_path(tab: "estimate")
+
+    assert_response :success
+    assert_select "body", /—/
+  end
 end

@@ -1,0 +1,53 @@
+<div class="grid gap-4.5 items-start" style="grid-template-columns: 300px 1fr">
+  <div class="clar-card p-4.5">
+    <div class="text-[11px] font-bold tracking-[.4px] clar-text-faint mb-3.5">ESTIMATION TARGET</div>
+
+    <div class="mb-3.5">
+      <div class="text-[11.5px] clar-text-faint mb-1">Board</div>
+      <div class="font-semibold text-[13.5px] clar-text-text"><%= @estimation_board_name || "—" %></div>
+    </div>
+
+    <div class="mb-3.5">
+      <div class="text-[11.5px] clar-text-faint mb-1">Estimate when</div>
+      <div class="font-semibold text-[13.5px] clar-text-text"><%= @estimation_trigger_label %></div>
+    </div>
+
+    <div class="mb-4">
+      <div class="text-[11.5px] clar-text-faint mb-1.5">Writes to field(s)</div>
+      <div class="flex flex-wrap gap-1.5">
+        <% @estimation_field_names.each do |field_name| %>
+          <span class="clar-badge clar-badge-primary"><%= field_name %></span>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="text-[11.5px] clar-text-muted leading-relaxed pt-3.5 border-t border-[color:var(--border)]">
+      Manual estimate fields are never touched. Configure in <b class="clar-text-text">Configuration → AI</b>.
+      <% if respond_to?(:workshop_configuration_path) %>
+        <%= link_to "Go to Configuration", workshop_configuration_path, class: "block mt-2 font-semibold clar-text-primary no-underline" %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="clar-card overflow-hidden">
+    <div class="flex px-4.5 py-2.5 text-[11px] font-bold tracking-[.3px] clar-text-faint border-b border-[color:var(--border)]">
+      <span class="w-[74px] flex-none">TASK</span>
+      <span class="flex-1">TITLE</span>
+      <span class="w-[90px] text-right">AI EST.</span>
+      <span class="w-[90px] text-right">MANUAL</span>
+    </div>
+
+    <% if @estimated_tasks.empty? %>
+      <div class="p-8 text-center clar-text-muted text-[13.5px]" data-empty>No tasks estimated yet.</div>
+    <% else %>
+      <% @estimated_tasks.each do |task| %>
+        <div class="flex items-center px-4.5 py-3.5 border-b border-[color:var(--border)] last:border-b-0">
+          <span class="w-[74px] flex-none clar-mono text-[12px] clar-text-primary"><%= task.external_reference %></span>
+          <span class="flex-1 text-[13.5px] clar-text-text truncate"><%= task.name.sub(/\A#{Regexp.escape(task.external_reference.to_s)}\s*/, "") %></span>
+          <span class="w-[90px] text-right font-bold text-[14px] clar-text-ai"><%= number_with_precision(task.ai_estimate_points, strip_insignificant_zeros: true) %></span>
+          <span class="w-[90px] text-right text-[13.5px] clar-text-muted"><%= task.story_points.present? ? number_with_precision(task.story_points, strip_insignificant_zeros: true) : "—" %></span>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</div>

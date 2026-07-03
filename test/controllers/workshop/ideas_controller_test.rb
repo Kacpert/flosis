@@ -60,6 +60,27 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "POST estimate enqueues AutoEstimateJob for the task and redirects with a toast" do
+    task = tasks(:jira_task)
+
+    assert_enqueued_with(job: AutoEstimateJob, args: [ task.id ]) do
+      post estimate_workshop_idea_path(task)
+    end
+
+    assert_redirected_to workshop_idea_path(task)
+    assert_equal "Estimating…", flash[:clar_toast]
+  end
+
+  test "POST estimate is scoped to the current workshop project (cross-project 404s)" do
+    other = tasks(:secret_task)
+
+    assert_no_enqueued_jobs(only: AutoEstimateJob) do
+      post estimate_workshop_idea_path(other)
+    end
+
+    assert_response :not_found
+  end
+
   test "importing a task from another project is rejected (not scoped to the workshop project)" do
     # secret_task lives in other_jira_project, outside current_workshop_project's
     # scope, so import must not reach it — the lookup 404s rather than leaking it
