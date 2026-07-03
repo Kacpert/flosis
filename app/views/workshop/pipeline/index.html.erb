@@ -18,7 +18,7 @@
       <span class="text-[12.5px] leading-snug clar-text-muted">Name it first so it&rsquo;s saved &mdash; then talk it through anytime. Stays local until you push it to Jira.</span>
     </button>
 
-    <%= render "new_idea_modal" %>
+    <%= render "workshop/pipeline/new_idea_modal" %>
   </div>
 
   <%# Opens the Jira board browser modal (Phase 3). Same stub approach. %>
@@ -84,6 +84,6 @@
       No tickets match your search or filter.
     </div>
   <% else %>
-    <%= render partial: "idea_row", collection: @ideas, as: :idea %>
+    <%= render partial: "workshop/pipeline/idea_row", collection: @ideas, as: :idea %>
   <% end %>
 </div>

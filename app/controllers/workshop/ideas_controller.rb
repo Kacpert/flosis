@@ -1,6 +1,4 @@
 class Workshop::IdeasController < Workshop::BaseController
-  include ClarHelper # for clar_toast
-
   # show/update land in Phase 4. head :not_implemented guards against a stray
   # request raising MissingTemplate before those actions are filled in.
 
@@ -19,11 +17,12 @@ class Workshop::IdeasController < Workshop::BaseController
                             origin: "user", status: "draft", content: idea_params[:description]).make_current!
       end
 
-      clar_toast(%(Idea saved · "#{idea_params[:title]}"))
+      flash[:clar_toast] = %(Idea saved · "#{idea_params[:title]}")
       redirect_to workshop_idea_path(task)
     else
-      clar_toast(task.errors.full_messages.to_sentence)
-      redirect_to workshop_pipeline_path, status: :unprocessable_entity
+      flash.now[:alert] = task.errors.full_messages.to_sentence
+      load_pipeline
+      render "workshop/pipeline/index", status: :unprocessable_entity
     end
   end
 
