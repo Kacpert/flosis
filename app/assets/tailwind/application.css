@@ -2147,3 +2147,7 @@ span.flatpickr-weekday {
    This rule keeps the same specificity but is the LAST word for the
    hidden+clar-toast combination, so hidden actually hides it. */
 .clar-toast.hidden { display:none; }
+/* .hidden must beat the base display:flex of overlays/toasts (same specificity, later
+   in source order). Without this, a "hidden" modal overlay still covers the screen with
+   position:fixed;inset:0 and swallows every click. */
+.clar-modal-overlay.hidden { display:none; }
