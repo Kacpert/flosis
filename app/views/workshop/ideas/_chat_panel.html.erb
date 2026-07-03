@@ -1,6 +1,8 @@
 <%# Briefing stage: Clar chat panel (left panel of the workspace grid).
     Ports task_chat_controller.js's SSE core, re-skinned as clar-chat. The
-    reset button is a stub for now — the confirmation modal is Task 4.4. %>
+    persona-banner "Reset session" button opens the confirmation modal
+    (Task 4.4, _reset_modal.html.erb, shared clar-modal scope from
+    show.html.erb); confirming there calls clar-chat#resetSession. %>
 <div class="flex flex-col min-h-0 h-full" data-controller="clar-chat"
      data-clar-chat-create-url-value="<%= jira_task_brief_chat_session_path(idea) %>"
      data-clar-chat-show-url-value="<%= jira_task_brief_chat_session_path(idea) %>"
@@ -15,7 +17,7 @@
     </span>
     <span class="text-[12px] clar-text-faint">Reads project &amp; task description first</span>
     <span class="flex-1"></span>
-    <button type="button" title="Reset this AI session" class="clar-btn" data-action="click->clar-chat#resetConversation">
+    <button type="button" title="Reset this AI session" class="clar-btn" data-action="click->clar-modal#open" data-clar-modal-id-param="reset-session">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
       Reset session
     </button>

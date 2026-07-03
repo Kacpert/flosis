@@ -119,8 +119,14 @@
                         method: :post, class: "clar-btn clar-btn-ai clar-btn-block" %>
         <% end %>
         <div class="flex gap-2.5">
+          <%# No shared Stimulus scope with the chat panel (siblings in the
+              workspace grid, separate turbo-frame) — dispatch a window event,
+              same cross-panel convention as clar:document-updated below.
+              clar_chat_controller.js listens for clar:reset-conversation and
+              calls resetConversation(), which DELETEs then re-creates with
+              mode=refine_current. %>
           <button type="button" title="Restart the chat, keep this version as the base"
-                  class="clar-btn flex-1" data-clar-reset-chat-stub="true">
+                  class="clar-btn flex-1" data-controller="clar-reset-chat" data-action="click->clar-reset-chat#dispatch">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5M3 8a9 9 0 1 0 2.6-5.6L3 8"/></svg>
             Reset chat
           </button>

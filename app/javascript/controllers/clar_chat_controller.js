@@ -24,11 +24,14 @@ export default class extends Controller {
 
   connect() {
     this.abortController = null
+    this.boundResetConversation = this.resetConversation.bind(this)
+    window.addEventListener("clar:reset-conversation", this.boundResetConversation)
     this.loadOrStart()
   }
 
   disconnect() {
     this.abortIfStreaming()
+    window.removeEventListener("clar:reset-conversation", this.boundResetConversation)
   }
 
   async loadOrStart() {
@@ -46,14 +49,16 @@ export default class extends Controller {
     await this.createSession()
   }
 
-  async createSession() {
+  async createSession(mode = null) {
     this.messagesTarget.innerHTML = ""
     const assistantBubble = this.appendMessage("ai", "")
     const textSpan = assistantBubble.querySelector("[data-chat-text]")
     this.showThinking(textSpan)
 
+    const url = mode ? `${this.createUrlValue}?mode=${encodeURIComponent(mode)}` : this.createUrlValue
+
     try {
-      const response = await fetch(this.createUrlValue, {
+      const response = await fetch(url, {
         method: "POST",
         headers: this.headers()
       })
@@ -215,7 +220,26 @@ export default class extends Controller {
     messages.forEach(msg => this.appendMessage(msg.role === "assistant" ? "ai" : msg.role, msg.content, msg.author))
   }
 
+  // Tier 1 — "Reset session" (persona-banner button, behind the "Reset AI
+  // session" confirmation modal, _reset_modal.html.erb). Full restart: no
+  // mode param, so build_initial_prompt behaves exactly as it does for a
+  // brand-new session. All saved brief versions and the description are
+  // untouched (destroy only soft-closes the ChatSession; briefs belong to
+  // the task, not the session).
+  async resetSession() {
+    await this.performReset(null, "Chat reset · all versions kept")
+  }
+
+  // Tier 2 — "Reset chat" (document-panel footer, no modal; dispatched here
+  // via the clar:reset-conversation window event from
+  // clar_reset_chat_controller.js). Passes mode=refine_current so
+  // build_initial_prompt nudges the AI to revise the current brief instead
+  // of starting from zero.
   async resetConversation() {
+    await this.performReset("refine_current", "Conversation reset — current version kept")
+  }
+
+  async performReset(mode, toastMessage) {
     this.abortIfStreaming()
     try {
       const response = await fetch(this.resetUrlValue || this.createUrlValue, {
@@ -228,7 +252,8 @@ export default class extends Controller {
       }
       this.hasSessionValue = false
       this.messagesTarget.innerHTML = ""
-      await this.createSession()
+      await this.createSession(mode)
+      window.dispatchEvent(new CustomEvent("clar:toast", { detail: { message: toastMessage } }))
     } catch (e) {
       this.showError("Failed to reset conversation")
     }

@@ -38,6 +38,25 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "active", chat_sessions(:one).reload.status, "refine session must stay active"
   end
 
+  test "destroy soft-closes the session but keeps the task's Brief rows" do
+    session = ChatSession.create!(
+      task: @task, workspace: @workspace, user: users(:one),
+      claude_session_id: "br-uuid", codebase_path: "/tmp", purpose: "brief"
+    )
+    brief = @task.briefs.create!(
+      workspace: @workspace, chat_session: session, version: 1,
+      content: "The concept is X.", status: "draft"
+    )
+
+    assert_difference -> { Brief.count }, 0 do
+      delete jira_task_brief_chat_session_path(@task)
+    end
+
+    assert_response :no_content
+    assert_equal "closed", session.reload.status, "session must be soft-closed, not destroyed"
+    assert Brief.exists?(brief.id), "Brief rows belong to the task, not the session, and must survive a session reset"
+  end
+
   test "non-admin without workshop access is blocked" do
     sign_in_as(users(:two)) # employee without Workshop access
     get jira_task_brief_chat_session_path(@task), as: :json
@@ -92,5 +111,50 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, b.version
     assert_match "concept is X", b.content
     assert_equal "draft", b.status
+  end
+
+  # Unit-tests build_initial_prompt directly on a bare controller instance —
+  # same seam the extract_and_save_results test above already uses (set
+  # @task, stub the params/current_workspace accessors this private method
+  # touches, then call it via #send). This gives a real assertion on the
+  # generated prompt text without needing to spin up the SSE/create endpoint.
+  test "build_initial_prompt appends the refine_current paragraph and current brief when mode=refine_current" do
+    @task.briefs.create!(
+      workspace: @workspace, version: 1, content: "Existing brief content Z.", status: "draft"
+    )
+
+    controller = BriefChatSessionsController.new
+    controller.instance_variable_set(:@task, @task)
+    def controller.params; { mode: "refine_current" }; end
+
+    prompt = controller.send(:build_initial_prompt)
+
+    assert_includes prompt, "The team already has a current version of the brief (included below). Ask what should change instead of starting from zero."
+    assert_includes prompt, "Existing brief content Z."
+  end
+
+  test "build_initial_prompt does not append the refine_current paragraph without the mode param" do
+    @task.briefs.create!(
+      workspace: @workspace, version: 1, content: "Existing brief content Z.", status: "draft"
+    )
+
+    controller = BriefChatSessionsController.new
+    controller.instance_variable_set(:@task, @task)
+    def controller.params; {}; end
+
+    prompt = controller.send(:build_initial_prompt)
+
+    refute_includes prompt, "The team already has a current version of the brief"
+    refute_includes prompt, "Existing brief content Z."
+  end
+
+  test "build_initial_prompt ignores mode=refine_current when there is no current brief" do
+    controller = BriefChatSessionsController.new
+    controller.instance_variable_set(:@task, @task)
+    def controller.params; { mode: "refine_current" }; end
+
+    prompt = controller.send(:build_initial_prompt)
+
+    refute_includes prompt, "The team already has a current version of the brief"
   end
 end
