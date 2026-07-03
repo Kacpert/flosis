@@ -18,7 +18,9 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
         status_category: "new",
         status_name: "To Do",
         assignee_email: "two@example.com",
-        url: "https://elvium.atlassian.net/browse/ELV-2"
+        url: "https://elvium.atlassian.net/browse/ELV-2",
+        story_points: 5.0,
+        jira_created_at: "2026-06-01T10:00:00.000+0000"
       },
       {
         key: "ELV-3",
@@ -29,18 +31,39 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
         url: "https://elvium.atlassian.net/browse/ELV-3"
       }
     ]
+    @done_issues = [
+      {
+        key: "ELV-500",
+        title: "Shipped last quarter",
+        issue_type: "Story",
+        assignee_email: "three@example.com",
+        assignee_name: "Three Person",
+        reporter_email: "four@example.com",
+        reporter_name: "Four Person",
+        story_points: 8.0,
+        jira_created_at: "2026-01-01T10:00:00.000+0000",
+        resolved_at: "2026-01-10T10:00:00.000+0000"
+      }
+    ]
   end
 
-  def stub_client(issues, project_key = "ELV")
+  def stub_client(issues, project_key = "ELV", done_issues: [])
     expected_key = project_key
     expected_issues = issues
+    expected_done_issues = done_issues
     Class.new do
       define_method(:fetch_boards) { |_key| [] }
       define_method(:fetch_statuses) { {} }
       define_method(:fetch_sprint_issue_keys) { |_sprint_id| [] }
-      define_method(:fetch_issues) do |key|
+      define_method(:fetch_all_comments) { |_issue_key| [] }
+      define_method(:resolve_story_points_field) { "customfield_10040" }
+      define_method(:fetch_issues) do |key, story_points_field_id: nil|
         raise "Expected #{expected_key}, got #{key}" unless key == expected_key
         expected_issues
+      end
+      define_method(:fetch_recent_done_issues) do |key, since: nil, story_points_field_id: nil|
+        raise "Expected #{expected_key}, got #{key}" unless key == expected_key
+        expected_done_issues
       end
     end.new
   end
@@ -112,5 +135,63 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
     synced = @project.tasks.find_by(external_reference: "ELV-99", external_type: "jira")
     assert synced.present?
     assert_equal "ELV-99 Colliding name [ELV-99]", synced.name
+  end
+
+  test "fills story_points and jira_created_at on open issues" do
+    mock_client = stub_client(@jira_issues)
+
+    JiraSyncService.new(@project, client: mock_client).sync
+
+    new_task = @project.tasks.find_by(external_reference: "ELV-2")
+    assert_equal 5.0, new_task.story_points
+    assert_equal Time.zone.parse("2026-06-01T10:00:00.000+0000"), new_task.jira_created_at
+  end
+
+  test "sync_delivered_issues upserts DeliveredIssue rows from done-issue payload" do
+    mock_client = stub_client(@jira_issues, done_issues: @done_issues)
+
+    assert_difference -> { DeliveredIssue.count }, 1 do
+      JiraSyncService.new(@project, client: mock_client).sync_delivered_issues
+    end
+
+    delivered = @project.delivered_issues.find_by(jira_key: "ELV-500")
+    assert delivered.present?
+    assert_equal "Shipped last quarter", delivered.title
+    assert_equal "Story", delivered.issue_type
+    assert_equal "three@example.com", delivered.assignee_email
+    assert_equal "Three Person", delivered.assignee_name
+    assert_equal "four@example.com", delivered.reporter_email
+    assert_equal "Four Person", delivered.reporter_name
+    assert_equal 8.0, delivered.story_points
+    assert_equal Time.zone.parse("2026-01-01T10:00:00.000+0000"), delivered.jira_created_at
+    assert_equal Time.zone.parse("2026-01-10T10:00:00.000+0000"), delivered.resolved_at
+  end
+
+  test "HR-BOUNDARY: delivered issues never become tasks" do
+    mock_client = stub_client(@jira_issues, done_issues: @done_issues)
+
+    assert_no_difference -> { @project.tasks.count } do
+      JiraSyncService.new(@project, client: mock_client).sync_delivered_issues
+    end
+
+    assert_nil @project.tasks.find_by(external_reference: "ELV-500")
+  end
+
+  test "sync_delivered_issues is idempotent" do
+    mock_client = stub_client(@jira_issues, done_issues: @done_issues)
+
+    JiraSyncService.new(@project, client: mock_client).sync_delivered_issues
+    assert_no_difference -> { DeliveredIssue.count } do
+      JiraSyncService.new(@project, client: mock_client).sync_delivered_issues
+    end
+  end
+
+  test "full sync also syncs delivered issues without touching tasks count for done work" do
+    mock_client = stub_client(@jira_issues, done_issues: @done_issues)
+
+    JiraSyncService.new(@project, client: mock_client).sync
+
+    assert_equal 1, @project.delivered_issues.where(jira_key: "ELV-500").count
+    assert_nil @project.tasks.find_by(external_reference: "ELV-500")
   end
 end

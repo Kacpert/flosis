@@ -13,4 +13,24 @@ class WorkspaceTest < ActiveSupport::TestCase
     assert_not w.pr_review_enabled
     assert_nil w.github_status_ok
   end
+
+  test "estimation_field_names defaults to AI estimation when nil" do
+    w = Workspace.create!(name: "Estimation Co")
+    assert_equal ["AI estimation"], w.estimation_field_names
+  end
+
+  test "estimation_field_names returns the stored value when present" do
+    w = Workspace.create!(name: "Estimation Co", estimation_field_names: ["Custom field"])
+    assert_equal ["Custom field"], w.estimation_field_names
+  end
+
+  test "estimation_trigger defaults to manual" do
+    w = Workspace.create!(name: "Estimation Co")
+    assert_equal "manual", w.estimation_trigger
+  end
+
+  test "estimation_status_trigger defaults to Ready for dev" do
+    w = Workspace.create!(name: "Estimation Co")
+    assert_equal "Ready for dev", w.estimation_status_trigger
+  end
 end

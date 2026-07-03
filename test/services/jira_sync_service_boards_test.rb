@@ -5,13 +5,14 @@ class JiraSyncServiceBoardsTest < ActiveSupport::TestCase
     @project = projects(:jira_project)
   end
 
-  def build_mock_client(boards: [], board_configs: {}, sprints: {}, issues: [], statuses: {}, sprint_issues: {})
+  def build_mock_client(boards: [], board_configs: {}, sprints: {}, issues: [], statuses: {}, sprint_issues: {}, done_issues: [])
     boards_data = boards
     configs = board_configs
     sprints_data = sprints
     issues_data = issues
     statuses_data = statuses
     sprint_issues_data = sprint_issues
+    done_issues_data = done_issues
 
     Class.new do
       define_method(:fetch_boards) { |_key| boards_data }
@@ -24,12 +25,20 @@ class JiraSyncServiceBoardsTest < ActiveSupport::TestCase
         sprints_data[board_id] || []
       end
 
-      define_method(:fetch_issues) { |_key| issues_data }
+      define_method(:fetch_issues) { |_key, story_points_field_id: nil| issues_data }
 
       define_method(:fetch_statuses) { statuses_data }
 
       define_method(:fetch_sprint_issue_keys) do |sprint_id|
         sprint_issues_data[sprint_id] || []
+      end
+
+      define_method(:fetch_all_comments) { |_issue_key| [] }
+
+      define_method(:resolve_story_points_field) { nil }
+
+      define_method(:fetch_recent_done_issues) do |_key, since: nil, story_points_field_id: nil|
+        done_issues_data
       end
     end.new
   end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_03_000006) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_03_131208) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -98,6 +98,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_000006) do
     t.bigint "workspace_id", null: false
     t.index ["workspace_id", "name"], name: "index_clients_on_workspace_id_and_name", unique: true
     t.index ["workspace_id"], name: "index_clients_on_workspace_id"
+  end
+
+  create_table "delivered_issues", force: :cascade do |t|
+    t.string "assignee_email"
+    t.string "assignee_name"
+    t.datetime "created_at", null: false
+    t.string "issue_type"
+    t.datetime "jira_created_at"
+    t.string "jira_key", null: false
+    t.bigint "project_id", null: false
+    t.string "reporter_email"
+    t.string "reporter_name"
+    t.datetime "resolved_at"
+    t.decimal "story_points", precision: 5, scale: 1
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.index ["project_id", "jira_key"], name: "index_delivered_issues_on_project_id_and_jira_key", unique: true
+    t.index ["project_id", "resolved_at"], name: "index_delivered_issues_on_project_id_and_resolved_at"
+    t.index ["project_id"], name: "index_delivered_issues_on_project_id"
   end
 
   create_table "design_requests", force: :cascade do |t|
@@ -483,6 +502,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_000006) do
   end
 
   create_table "tasks", force: :cascade do |t|
+    t.decimal "ai_estimate_points", precision: 5, scale: 1
+    t.datetime "ai_estimated_at"
     t.string "assignee_email"
     t.string "assignee_name"
     t.datetime "brief_saved_locally_at"
@@ -578,12 +599,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_000006) do
     t.datetime "created_at", null: false
     t.string "discord_channel_id"
     t.string "discord_user_token"
+    t.json "estimation_field_names"
+    t.string "estimation_status_trigger", default: "Ready for dev"
+    t.string "estimation_trigger", default: "manual", null: false
     t.string "github_repo"
     t.datetime "github_status_checked_at"
     t.string "github_status_error"
     t.boolean "github_status_ok"
     t.string "github_token"
     t.string "jira_ai_actions_field_id"
+    t.string "jira_ai_estimation_field_id"
+    t.string "jira_story_points_field_id"
     t.string "name", null: false
     t.integer "pr_poll_minutes", default: 7, null: false
     t.datetime "pr_polled_at"
@@ -603,6 +629,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_000006) do
   add_foreign_key "chat_sessions", "users"
   add_foreign_key "chat_sessions", "workspaces"
   add_foreign_key "clients", "workspaces"
+  add_foreign_key "delivered_issues", "projects"
   add_foreign_key "design_requests", "tasks"
   add_foreign_key "design_requests", "users", column: "designer_id"
   add_foreign_key "design_requests", "users", column: "requester_id"
