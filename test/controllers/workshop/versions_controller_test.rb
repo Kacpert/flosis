@@ -71,4 +71,53 @@ class Workshop::VersionsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/v1 set as current/, flash[:clar_toast])
     assert_match(/local description updated/, flash[:clar_toast])
   end
+
+  # Details stage: the same route/action also accepts a TaskDraft id (source
+  # "ai") — the document panel's chips post here regardless of stage. This
+  # does NOT touch tasks.description (that column is briefing's; details
+  # drafts are separate) and, for a Jira-linked idea, pushes via JiraClient
+  # exactly like the brief path.
+  test "make_current makes the selected AI draft current exclusively (local task)" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    v0 = idea.task_drafts.create!(source: "ai", origin: "user", version: 0, content: "v0 detail")
+    v1 = idea.task_drafts.create!(source: "ai", origin: "ai", version: 1, content: "v1 detail")
+    v1.make_current!
+
+    post make_current_workshop_idea_version_path(idea, v0)
+
+    assert_response :redirect
+    assert v0.reload.current?
+    refute v1.reload.current?
+    assert_nil idea.reload.description, "details set-current must not overwrite tasks.description"
+  end
+
+  test "make_current on a Jira-linked task pushes the AI draft's content via JiraClient" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    v0 = idea.task_drafts.create!(source: "ai", origin: "user", version: 0, content: "v0 detail")
+    v1 = idea.task_drafts.create!(source: "ai", origin: "ai", version: 1, content: "v1 detail")
+    v1.make_current!
+
+    stub_update_description do |calls|
+      post make_current_workshop_idea_version_path(idea, v0)
+      assert_equal 1, calls.size
+      assert_equal idea.external_reference, calls.first[:issue_key]
+      assert_equal "v0 detail", calls.first[:description_text]
+    end
+
+    assert_response :redirect
+    assert v0.reload.current?
+  end
+
+  test "make_current for an AI draft sets a toast" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    v0 = idea.task_drafts.create!(source: "ai", origin: "user", version: 0, content: "v0 detail").tap(&:make_current!)
+    v1 = idea.task_drafts.create!(source: "ai", origin: "ai", version: 1, content: "v1 detail")
+
+    post make_current_workshop_idea_version_path(idea, v1)
+
+    assert_match(/v1 set as current/, flash[:clar_toast])
+  end
 end

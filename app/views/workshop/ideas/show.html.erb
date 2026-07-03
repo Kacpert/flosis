@@ -4,18 +4,24 @@
 <div class="flex flex-col h-full" data-controller="clar-modal">
   <%= render "workshop/ideas/workspace_header", idea: @idea, stage: @stage %>
 
-  <%# chat + document panels: left panel (Task 4.2, briefing stage only) and
-      right document panel (Task 4.3) %>
+  <%# chat + document panels: left panel (Task 4.2 briefing / Task 5.1 details)
+      and right document panel (Task 4.3 briefing / Task 5.1 details). Only one
+      stage's chat ever mounts per page load, so the clar-chat controller
+      never double-mounts (see chat_sessions_controller.rb notes). %>
   <div class="flex-1 grid grid-cols-2 min-h-0">
     <div class="border-r clar-divider min-h-0">
       <% if @stage == "briefing" %>
-        <%= render "workshop/ideas/chat_panel", idea: @idea %>
+        <%= render "workshop/ideas/chat_panel", idea: @idea, persona: "briefing" %>
+      <% elsif @stage == "details" %>
+        <%= render "workshop/ideas/chat_panel", idea: @idea, persona: "details" %>
       <% end %>
     </div>
     <div class="min-h-0">
       <%= turbo_frame_tag "clar-document" do %>
         <% if @stage == "briefing" %>
-          <%= render "workshop/ideas/document_panel", idea: @idea %>
+          <%= render "workshop/ideas/document_panel", idea: @idea, stage: "briefing" %>
+        <% elsif @stage == "details" %>
+          <%= render "workshop/ideas/document_panel", idea: @idea, stage: "details" %>
         <% end %>
       <% end %>
     </div>
@@ -23,5 +29,11 @@
 
   <%# Reset session modal (Task 4.4) — shares this clar-modal scope with the
       "Reset session" trigger in the chat panel's persona banner. %>
-  <%= render "workshop/ideas/reset_modal", idea: @idea %>
+  <%= render "workshop/ideas/reset_modal", idea: @idea, stage: @stage %>
+
+  <%# Brief history modal (Task 5.1) — details stage only; shares the same
+      clar-modal scope, keyed "brief-history". %>
+  <% if @stage == "details" %>
+    <%= render "workshop/ideas/brief_history_modal", idea: @idea %>
+  <% end %>
 </div>

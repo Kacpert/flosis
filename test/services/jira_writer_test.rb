@@ -77,4 +77,39 @@ class JiraWriterTest < ActiveSupport::TestCase
     res = JiraWriter.new(workspace: @workspace, client: fake_client).commit_breakdown(task)
     assert_not res[:ok]
   end
+
+  test "commit_detail updates the description, sets the Detailed AI action, and stamps pushed_at" do
+    task = @project.tasks.create!(name: "JW-11 Existing", external_type: "jira", external_reference: "JW-11")
+    draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detailed text")
+    c = fake_client
+    res = JiraWriter.new(workspace: @workspace, client: c).commit_detail(draft)
+
+    assert res[:ok], res.inspect
+    assert_equal 1, c.calls[:update]
+    assert_equal "Detailed", c.calls[:action][:value]
+    assert_equal "JW-11", c.calls[:action][:issue_key]
+    assert_not_nil draft.reload.pushed_at
+  end
+
+  test "commit_detail fails when the task is not linked to Jira" do
+    task = @project.tasks.create!(name: "Local idea")
+    draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detailed text")
+    res = JiraWriter.new(workspace: @workspace, client: fake_client).commit_detail(draft)
+
+    assert_not res[:ok]
+    assert_equal "Task is not linked to Jira", res[:error]
+    assert_nil draft.reload.pushed_at
+  end
+
+  test "commit_detail returns the error and does not stamp pushed_at when the description update fails" do
+    task = @project.tasks.create!(name: "JW-12 Existing", external_type: "jira", external_reference: "JW-12")
+    draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detailed text")
+    c = fake_client(update: { ok: false, error: "403 Forbidden" })
+    res = JiraWriter.new(workspace: @workspace, client: c).commit_detail(draft)
+
+    assert_not res[:ok]
+    assert_equal "403 Forbidden", res[:error]
+    assert_nil draft.reload.pushed_at
+    assert_nil c.calls[:action], "AI action must not be set when the description update failed"
+  end
 end

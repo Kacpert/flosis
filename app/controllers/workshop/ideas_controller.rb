@@ -14,6 +14,8 @@ class Workshop::IdeasController < Workshop::BaseController
     @stage = params[:stage].presence_in(%w[briefing details ready]) ||
              (@idea.stage_new? ? "briefing" : @idea.workshop_stage)
 
+    seed_v0_detail_draft if @stage == "details"
+
     render "workshop/ideas/show"
   end
 
@@ -54,33 +56,59 @@ class Workshop::IdeasController < Workshop::BaseController
     end
   end
 
-  # Stamps the brief as saved-locally without pushing to Jira. Stage stays
-  # at briefing either way — this is a "keep it here for now" action.
+  # Stamps the current stage's content as saved-locally without pushing to
+  # Jira. Briefing: stamps brief_saved_locally_at, stays at briefing (a "keep
+  # it here for now" action). Details: stamps detail_saved_locally_at and
+  # ADVANCES to "ready" — details is the last stage with AI involvement, so
+  # "save locally" here means "finished, without Jira".
   def save_locally
     @idea = current_workshop_project.tasks.pipeline.find(params[:id])
-    @idea.update!(brief_saved_locally_at: Time.current)
 
-    flash[:clar_toast] = "Brief saved to the task locally · not pushed"
-    redirect_to workshop_idea_path(@idea, stage: "briefing")
+    if @idea.workshop_stage == "details"
+      @idea.update!(detail_saved_locally_at: Time.current, workshop_stage: "ready")
+      flash[:clar_toast] = "Saved to the task locally · finished without Jira"
+      redirect_to workshop_idea_path(@idea, stage: "ready")
+    else
+      @idea.update!(brief_saved_locally_at: Time.current)
+      flash[:clar_toast] = "Brief saved to the task locally · not pushed"
+      redirect_to workshop_idea_path(@idea, stage: "briefing")
+    end
   end
 
-  # Commits the current brief to Jira (creating the issue for a local idea,
-  # or updating the description for a Jira-linked one) and sets AI actions =
-  # Briefed — see JiraWriter#commit_brief. Only advances the idea to the
-  # "details" stage when the Jira write actually succeeds; a failure leaves
-  # the idea in briefing and surfaces the error instead of silently
+  # Commits the current stage's content to Jira. Briefing: commits the current
+  # brief (creating the issue for a local idea, or updating the description
+  # for a Jira-linked one) and sets AI actions = Briefed — see
+  # JiraWriter#commit_brief. Details: commits the current AI draft's
+  # description and sets AI actions = Detailed — see JiraWriter#commit_detail
+  # (local ideas without a Jira key cannot push details; the primary button is
+  # disabled in that case, see _document_panel.html.erb). Either way, only
+  # advances the stage when the Jira write actually succeeds; a failure keeps
+  # the idea on its current stage and surfaces the error instead of silently
   # "succeeding".
   def push_jira
     @idea = current_workshop_project.tasks.pipeline.find(params[:id])
-    result = JiraWriter.new(workspace: current_workspace).commit_brief(@idea.current_brief)
 
-    if result[:ok]
-      @idea.current_brief.mark_briefed!
-      @idea.update!(brief_saved_locally_at: nil, workshop_stage: "details")
-      flash[:clar_toast] = "Pushed to Jira · AI actions = Briefed"
-      redirect_to workshop_idea_path(@idea, stage: "details")
+    if @idea.workshop_stage == "details"
+      result = JiraWriter.new(workspace: current_workspace).commit_detail(@idea.current_detail_draft)
+
+      if result[:ok]
+        @idea.update!(detail_saved_locally_at: nil, workshop_stage: "ready")
+        flash[:clar_toast] = "Description sent to Jira · marked Detailed"
+        redirect_to workshop_idea_path(@idea, stage: "ready")
+      else
+        redirect_to workshop_idea_path(@idea, stage: "details"), alert: "Couldn't write to Jira: #{result[:error]}"
+      end
     else
-      redirect_to workshop_idea_path(@idea, stage: "briefing"), alert: "Couldn't write to Jira: #{result[:error]}"
+      result = JiraWriter.new(workspace: current_workspace).commit_brief(@idea.current_brief)
+
+      if result[:ok]
+        @idea.current_brief.mark_briefed!
+        @idea.update!(brief_saved_locally_at: nil, workshop_stage: "details")
+        flash[:clar_toast] = "Pushed to Jira · AI actions = Briefed"
+        redirect_to workshop_idea_path(@idea, stage: "details")
+      else
+        redirect_to workshop_idea_path(@idea, stage: "briefing"), alert: "Couldn't write to Jira: #{result[:error]}"
+      end
     end
   end
 
@@ -120,6 +148,18 @@ class Workshop::IdeasController < Workshop::BaseController
 
     flash[:clar_toast] = "Imported #{task.external_reference} from Jira"
     redirect_to workshop_idea_path(task)
+  end
+
+  # On first entering the details stage, seed a v0 "user description" AI
+  # draft from the task's current description so the details document panel
+  # always shows something to refine from, same as briefing's v0 brief.
+  # Explicit version: 0 survives TaskDraft's `before_create { self.version ||= ... }`.
+  def seed_v0_detail_draft
+    return if @idea.task_drafts.by_source(TaskDraft::REFINE_SOURCE).exists?
+    return if @idea.description.blank?
+
+    @idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "user", version: 0,
+                              content: @idea.description).make_current!
   end
 
   def idea_params

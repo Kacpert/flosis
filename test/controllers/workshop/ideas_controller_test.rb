@@ -104,14 +104,117 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "button", text: /Reset session/
   end
 
-  test "GET show at details stage does not render the briefing chat panel" do
+  test "GET show at details stage renders the Clar chat panel wired to the refine chat routes" do
     idea = tasks(:jira_task)
     idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
 
     get workshop_idea_path(idea, stage: "details")
 
     assert_response :success
-    assert_select "[data-controller='clar-chat']", count: 0
+    assert_select "[data-controller='clar-chat']" do
+      assert_select "[data-clar-chat-create-url-value='#{jira_task_chat_session_path(idea)}']"
+      assert_select "[data-clar-chat-message-url-value='#{message_jira_task_chat_session_path(idea)}']"
+      assert_select "[data-clar-chat-persona-value='details']"
+    end
+    assert_select "span", text: /Details Gathering/
+    assert_select "span", text: /senior partner/
+  end
+
+  test "GET show at briefing stage does not render the details chat panel routes" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+
+    get workshop_idea_path(idea, stage: "briefing")
+
+    assert_response :success
+    assert_select "[data-clar-chat-persona-value='details']", count: 0
+  end
+
+  test "GET show at details stage seeds a v0 user-description draft when there are no ai drafts yet" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago,
+                 description: "The Jira description text")
+
+    assert_difference -> { idea.task_drafts.count }, 1 do
+      get workshop_idea_path(idea, stage: "details")
+    end
+
+    draft = idea.task_drafts.by_source("ai").current.first
+    assert_not_nil draft
+    assert_equal 0, draft.version
+    assert_equal "user", draft.origin
+    assert_equal "The Jira description text", draft.content
+  end
+
+  test "GET show at details stage does not reseed when an ai draft already exists" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago,
+                 description: "The Jira description text")
+    idea.task_drafts.create!(source: "ai", origin: "ai", content: "Already drafted").make_current!
+
+    assert_no_difference -> { idea.task_drafts.count } do
+      get workshop_idea_path(idea, stage: "details")
+    end
+  end
+
+  test "GET show at details stage does not seed when the task has no description" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago, description: "")
+
+    assert_no_difference -> { idea.task_drafts.count } do
+      get workshop_idea_path(idea, stage: "details")
+    end
+  end
+
+  test "GET show at details stage renders a disabled push button with tooltip for a local (non-Jira) idea" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago,
+                 description: "Local idea description")
+
+    get workshop_idea_path(idea, stage: "details")
+
+    assert_response :success
+    assert_select "button[disabled][title='Push the brief first to create the Jira issue']"
+  end
+
+  test "GET show at details stage enables 'Update Jira description' for a Jira-linked idea" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago,
+                 description: "Jira idea description")
+
+    get workshop_idea_path(idea, stage: "details")
+
+    assert_response :success
+    assert_select "form[action='#{push_jira_workshop_idea_path(idea)}'] button:not([disabled])", text: /Update Jira description/
+  end
+
+  test "GET show at details stage renders the Brief history button and read-only modal when briefs exist" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago,
+                 description: "Jira idea description")
+    idea.briefs.create!(workspace: idea.project.workspace, version: 1, origin: "ai", status: "briefed",
+                        content: "The historical brief content").make_current!
+
+    get workshop_idea_path(idea, stage: "details")
+
+    assert_response :success
+    assert_select "button", text: /Brief history/
+    assert_select "[data-clar-modal-panel-id-value='brief-history']" do
+      assert_select "h2", text: /Briefing history/
+      assert_select "*", text: /The historical brief content/
+      assert_select "a[href='#{workshop_idea_path(idea, stage: "briefing")}']", text: /Back to briefing to improve/
+    end
+  end
+
+  test "GET show at details stage does not render the Brief history button when there are no briefs" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago,
+                 description: "Local idea description")
+
+    get workshop_idea_path(idea, stage: "details")
+
+    assert_response :success
+    assert_select "button", text: /Brief history/, count: 0
   end
 
   test "PATCH update renames a local task and sets a toast" do
@@ -195,5 +298,81 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_equal "briefing", idea.reload.workshop_stage
     follow_redirect!
     assert_match "403", response.body
+  end
+
+  test "POST save_locally at details stamps detail_saved_locally_at, advances to ready, and sets a toast" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    idea.task_drafts.create!(source: "ai", origin: "ai", content: "the detailed description").make_current!
+
+    post save_locally_workshop_idea_path(idea)
+
+    assert_response :redirect
+    idea.reload
+    assert_not_nil idea.detail_saved_locally_at
+    assert_equal "ready", idea.workshop_stage
+    assert_equal "Saved to the task locally · finished without Jira", flash[:clar_toast]
+  end
+
+  test "POST save_locally at briefing does not touch detail_saved_locally_at" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+
+    post save_locally_workshop_idea_path(idea)
+
+    assert_nil idea.reload.detail_saved_locally_at
+    assert_equal "briefing", idea.workshop_stage
+  end
+
+  def stub_commit_detail(result)
+    orig = JiraWriter.instance_method(:commit_detail)
+    JiraWriter.define_method(:commit_detail) { |_d| result }
+    yield
+  ensure
+    JiraWriter.define_method(:commit_detail, orig)
+  end
+
+  test "POST push_jira at details on success clears detail_saved_locally_at, advances to ready, and sets a toast" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago,
+                 detail_saved_locally_at: 1.minute.ago)
+    idea.task_drafts.create!(source: "ai", origin: "ai", content: "the detailed description").make_current!
+
+    stub_commit_detail({ ok: true }) do
+      post push_jira_workshop_idea_path(idea)
+    end
+
+    assert_response :redirect
+    idea.reload
+    assert_nil idea.detail_saved_locally_at
+    assert_equal "ready", idea.workshop_stage
+    assert_equal "Description sent to Jira · marked Detailed", flash[:clar_toast]
+  end
+
+  test "POST push_jira at details on failure stays at details and surfaces the error" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    idea.task_drafts.create!(source: "ai", origin: "ai", content: "the detailed description").make_current!
+
+    stub_commit_detail({ ok: false, error: "403 Forbidden" }) do
+      post push_jira_workshop_idea_path(idea)
+    end
+
+    assert_equal "details", idea.reload.workshop_stage
+    follow_redirect!
+    assert_match "403", response.body
+  end
+
+  test "POST push_jira at briefing still uses the briefing branch (existing behavior unaffected)" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+    idea.briefs.create!(workspace: idea.project.workspace, version: 0, origin: "user", status: "draft",
+                        content: "the brief").make_current!
+
+    stub_commit_brief({ ok: true, key: "ELV-9", url: "https://example.com/ELV-9" }) do
+      post push_jira_workshop_idea_path(idea)
+    end
+
+    assert_equal "details", idea.reload.workshop_stage
   end
 end

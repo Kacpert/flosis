@@ -1,33 +1,70 @@
-<%# Briefing stage: the Document panel (right panel of the workspace grid).
-    Lives in a turbo-frame so the chat (clar_chat_controller.js) can reload it
-    via `clar:document-updated` — simplest contract: the frame's src includes
-    the current `?v=` selection, and the browser does a normal frame-scoped
-    GET (Turbo intercepts it); a full navigation also works since `show` just
-    re-renders this same partial. See turbo-frame wrapper in show.html.erb. %>
+<%# Document panel (right panel of the workspace grid). Lives in a turbo-frame
+    so the chat (clar_chat_controller.js) can reload it via
+    `clar:document-updated` — simplest contract: the frame's src includes the
+    current `?v=` selection, and the browser does a normal frame-scoped GET
+    (Turbo intercepts it); a full navigation also works since `show` just
+    re-renders this same partial. See turbo-frame wrapper in show.html.erb.
+
+    Shared by both stages that have a document: briefing (binds to
+    `idea.briefs`) and details (binds to `idea.task_drafts.by_source("ai")`,
+    Task 5.1) — the chips/badges/set-current/markdown machinery is identical,
+    only the underlying records, header label, empty-state copy, and the
+    push/history buttons differ, so this partial takes `stage` and switches on
+    it rather than duplicating the whole panel. Default `stage` keeps existing
+    briefing call sites (and their tests) working unchanged. %>
 <%
-  briefs = idea.briefs.newest_first.to_a
-  current_brief = idea.current_brief
-  selected_version = params[:v].presence&.to_i
-  selected = briefs.find { |b| b.version == selected_version } || current_brief
-  is_current = selected.present? && current_brief.present? && selected.id == current_brief.id
+  stage ||= "briefing"
+  is_details = stage == "details"
+
+  if is_details
+    versions = idea.task_drafts.by_source(TaskDraft::REFINE_SOURCE).newest_first.to_a
+    current_version = idea.current_detail_draft
+  else
+    versions = idea.briefs.newest_first.to_a
+    current_version = idea.current_brief
+  end
+
+  selected_version_number = params[:v].presence&.to_i
+  selected = versions.find { |v| v.version == selected_version_number } || current_version
+  is_current = selected.present? && current_version.present? && selected.id == current_version.id
+
+  panel_title = is_details ? "Description" : "Brief"
+  pushed = is_details ? selected&.pushed_at? : current_version&.briefed?
+  saved_locally = is_details ? idea.detail_saved_locally_at.present? : idea.brief_saved_locally_at.present?
+
+  jira_linked = idea.external_reference.present?
+  push_label = is_details ? (jira_linked ? "Update Jira description" : "Push to Jira") : "Brief &amp; mark Briefed".html_safe
+  ai_copy = if is_details
+    "The AI reads the project code and the task description to run the question session, then drafts the implementation-ready description automatically."
+  else
+    "The AI reads the project code and this description, then drafts the brief as you talk &mdash; it #{jira_linked ? 'replaces the description above in Jira.' : 'becomes the Jira description when you push.'}"
+  end
 %>
 <div class="flex flex-col min-h-0 h-full bg-[var(--surface)]">
   <div class="px-[22px] py-3 flex items-center justify-between border-b clar-divider">
-    <span class="text-[13px] font-bold clar-text-text">Brief</span>
+    <span class="text-[13px] font-bold clar-text-text"><%= panel_title %></span>
     <div class="flex items-center gap-2">
+      <% if is_details && idea.briefs.exists? %>
+        <button type="button" title="View the briefing history, read-only" class="clar-btn !py-[5px] !px-[10px] !text-[12px]"
+                data-action="click->clar-modal#open" data-clar-modal-id-param="brief-history">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5M3 8a9 9 0 1 0 2.6-5.6L3 8"/></svg>
+          Brief history
+        </button>
+      <% end %>
+
       <% if selected.present? %>
         <div class="flex gap-[5px]">
-          <% briefs.sort_by(&:version).each do |brief| %>
+          <% versions.sort_by(&:version).each do |version| %>
             <%
-              chip_current = current_brief.present? && brief.id == current_brief.id
-              chip_selected = brief.id == selected.id
+              chip_current = current_version.present? && version.id == current_version.id
+              chip_selected = version.id == selected.id
               chip_classes = chip_selected ? "clar-chip-active" : ""
             %>
-            <%= link_to workshop_idea_path(idea, stage: "briefing", v: brief.version),
+            <%= link_to workshop_idea_path(idea, stage: stage, v: version.version),
                         class: "clar-chip #{chip_classes}",
-                        title: "#{brief.label}#{chip_current ? ' · current' : ''}" do %>
+                        title: "#{version.label}#{chip_current ? ' · current' : ''}" do %>
               <% if chip_current %><span class="clar-dot bg-[var(--success)]"></span><% end %>
-              v<%= brief.version %>
+              v<%= version.version %>
             <% end %>
           <% end %>
         </div>
@@ -59,9 +96,9 @@
             CURRENT
           </span>
         <% end %>
-        <% if is_current && current_brief.briefed? %>
+        <% if is_current && pushed %>
           <span class="clar-badge clar-badge-primary">IN JIRA</span>
-        <% elsif is_current && !current_brief.briefed? && idea.brief_saved_locally_at.present? %>
+        <% elsif is_current && !pushed && saved_locally %>
           <span class="clar-badge clar-badge-warn">SAVED LOCALLY</span>
         <% end %>
       </div>
@@ -102,8 +139,7 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
           </span>
           <span class="text-[12.5px] clar-text-muted leading-[1.5]">
-            The AI reads the project code and this description, then drafts the brief as you talk &mdash; it
-            <%= idea.external_reference.present? ? "replaces the description above in Jira." : "becomes the Jira description when you push." %>
+            <%= ai_copy %>
           </span>
         </div>
       </div>
@@ -114,7 +150,7 @@
     <% if selected.present? %>
       <div class="flex flex-col gap-2.5">
         <% unless is_current %>
-          <%= button_to "Set v#{selected.version} as current #{idea.external_reference.present? ? '· update Jira description' : '· update local description'}",
+          <%= button_to "Set v#{selected.version} as current #{jira_linked ? '· update Jira description' : '· update local description'}",
                         make_current_workshop_idea_version_path(idea, selected),
                         method: :post, class: "clar-btn clar-btn-ai clar-btn-block" %>
         <% end %>
@@ -135,15 +171,23 @@
             Save locally
           <% end %>
         </div>
-        <%= button_to push_jira_workshop_idea_path(idea), method: :post, class: "clar-btn clar-btn-primary clar-btn-block" do %>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
-          Brief &amp; mark Briefed
+        <% if is_details && !jira_linked %>
+          <button type="button" class="clar-btn clar-btn-primary clar-btn-block opacity-50 cursor-not-allowed" disabled
+                  title="Push the brief first to create the Jira issue">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+            Push to Jira
+          </button>
+        <% else %>
+          <%= button_to push_jira_workshop_idea_path(idea), method: :post, class: "clar-btn clar-btn-primary clar-btn-block" do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+            <%= push_label %>
+          <% end %>
         <% end %>
       </div>
     <% else %>
       <div class="flex items-center justify-center gap-[7px] text-[12px] clar-text-faint">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
-        The AI drafts the brief as you talk
+        The AI drafts the <%= is_details ? "description" : "brief" %> as you talk
       </div>
     <% end %>
   </div>

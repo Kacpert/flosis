@@ -28,6 +28,7 @@ class ChatSessionsController < ApplicationController
     ref = @task.external_reference
     attachments_section = build_attachments_section(@task)
     comments_section = build_comments_section(@task)
+    refine_current_section = build_refine_current_section
 
     <<~PROMPT
       # Role
@@ -42,7 +43,7 @@ class ChatSessionsController < ApplicationController
       ```
       #{desc}
       ```
-      #{comments_section}#{attachments_section}
+      #{comments_section}#{attachments_section}#{refine_current_section}
 
       # How you must operate
 
@@ -118,5 +119,28 @@ class ChatSessionsController < ApplicationController
 
       Do your upfront investigation silently, then post your first message: a brief 1–2 sentence summary of what you found (mentioning concrete files where useful) followed by your first clarifying question. No multi-question lists.
     PROMPT
+  end
+
+  # "Reset chat" (document-panel footer, no confirmation modal) restarts the
+  # session but should nudge the AI to revise the current AI draft rather than
+  # start from zero. The chat's create request passes mode=refine_current
+  # (see clar_chat_controller.js#resetConversation); only append this section
+  # when that mode is requested. Also surfaces the current BRIEF (mirrors
+  # BriefChatSessionsController#build_refine_current_section) so the details
+  # session picks up where briefing left off.
+  def build_refine_current_section
+    return "" unless params[:mode] == "refine_current"
+
+    current_brief = @task.current_brief
+    return "" if current_brief.blank?
+
+    <<~SECTION
+
+      # Current version of the brief
+
+      Briefed version is in. I've re-read the relevant services and any designs attached. The team's current brief is included below — ask what should change instead of starting from zero.
+
+      #{current_brief.content}
+    SECTION
   end
 end

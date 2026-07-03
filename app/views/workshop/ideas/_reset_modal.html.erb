@@ -1,13 +1,17 @@
-<%# "Reset AI session" confirmation modal (Task 4.4) — opened by the persona
-    banner's "Reset session" button (clar-modal#open). Confirming triggers the
-    chat controller's resetSession() (DELETE, then a plain create with no
-    mode param — the opener re-seeds itself), which keeps all saved brief
-    versions and the description untouched. Contrast: the document-footer
-    "Reset chat" button skips this modal entirely and calls resetConversation()
-    with mode=refine_current instead. %>
+<%# "Reset AI session" confirmation modal (Task 4.4; parameterized by stage in
+    Task 5.1) — opened by the persona banner's "Reset session" button
+    (clar-modal#open). Confirming triggers the chat controller's
+    resetSession() (DELETE, then a plain create with no mode param — the
+    opener re-seeds itself), which keeps all saved versions and the
+    description untouched. Contrast: the document-footer "Reset chat" button
+    skips this modal entirely and calls resetConversation() with
+    mode=refine_current instead. %>
 <%
+  stage ||= "briefing"
+  is_details = stage == "details"
   kept_label = idea.external_reference.present? ? "JIRA DESCRIPTION" : "LOCAL DESCRIPTION"
-  kept_content = idea.current_brief&.content.presence || idea.description
+  kept_content = is_details ? idea.current_detail_draft&.content.presence : idea.current_brief&.content.presence
+  kept_content ||= idea.description
 %>
 <div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="reset-session" data-action="click->clar-modal#close">
   <div class="clar-modal p-5.5 max-w-[480px]" data-action="click->clar-modal#stopPropagation">
@@ -18,7 +22,7 @@
       </button>
     </div>
     <p class="text-[13px] leading-normal clar-text-muted mb-4">
-      Restarts this briefing conversation from scratch &mdash; the AI re-reads the code.
+      Restarts this <%= is_details ? "details" : "briefing" %> conversation from scratch &mdash; the AI re-reads the code.
       <b class="clar-text-text">All saved versions and the description are kept</b>.
     </p>
     <div class="bg-[var(--surface-2)] border clar-divider rounded-[10px] px-[13px] py-3 mb-5">
