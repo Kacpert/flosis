@@ -67,4 +67,15 @@ module ClarHelper
     else "clar-text-faint"
     end
   end
+
+  # Text color for the AI Alerts rules-list "last run" status chip
+  # (AlertRule#last_run_status: :fired/:quiet are both green "ok" outcomes,
+  # :error is red, :not_run is neutral gray).
+  def alert_last_run_color_class(status)
+    case status
+    when :fired, :quiet then "text-[color:var(--success)]"
+    when :error then "text-[color:var(--danger)]"
+    else "clar-text-faint"
+    end
+  end
 end

@@ -110,6 +110,9 @@ Rails.application.routes.draw do
       resource :design_request, only: [ :create, :update, :destroy ]
     end
     get "process", to: "process#show", as: :process
+    resources :alert_rules, only: [ :create, :destroy ] do
+      member { get :history }
+    end
   end
 
   # Jira integration

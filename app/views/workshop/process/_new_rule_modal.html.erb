@@ -1,0 +1,66 @@
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="new-alert-rule"
+     data-action="click->clar-modal#close">
+  <div class="clar-modal p-5.5 max-w-[520px] max-h-[88vh] overflow-y-auto" data-action="click->clar-modal#stopPropagation">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="text-lg font-bold clar-text-text m-0">New alert rule</h2>
+      <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <p class="text-[13px] leading-normal clar-text-muted mb-4.5">A scheduled prompt. On its schedule the AI inspects the live Jira board state and posts to the channel only if the condition is met.</p>
+
+    <%= form_with model: AlertRule.new, url: workshop_alert_rules_path, method: :post,
+          data: { controller: "clar-required clar-alert-rule-form", turbo: false } do |f| %>
+      <label class="clar-field-label">NAME <span class="clar-text-danger">*</span></label>
+      <%= f.text_field "alert_rule[name]", value: nil, autofocus: true, placeholder: "e.g. QA backlog watch",
+            class: "clar-input mb-4", data: { clar_required_target: "input", action: "input->clar-required#toggle" } %>
+
+      <label class="clar-field-label">WHAT TO WATCH FOR <span class="clar-text-danger">*</span></label>
+      <%= f.text_area "alert_rule[prompt]", value: nil, rows: 3,
+            placeholder: "If more than 4 tasks have been in QA for longer than 3 days, send a notification.",
+            class: "clar-textarea mb-1.5" %>
+      <div class="text-[11px] clar-text-faint mb-4">Write it as a condition &mdash; natural language is fine.</div>
+
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label class="clar-field-label">FREQUENCY</label>
+          <%= f.select "alert_rule[frequency]", AlertRule::FREQUENCY_LABELS.map { |value, label| [label, value] },
+                { selected: "daily" }, class: "clar-select", data: { clar_alert_rule_form_target: "frequency", action: "change->clar-alert-rule-form#syncTimeDisabled" } %>
+        </div>
+        <div>
+          <label class="clar-field-label">TIME</label>
+          <%= f.time_field "alert_rule[run_at_time]", value: "09:00", include_seconds: false,
+                class: "clar-input", data: { clar_alert_rule_form_target: "time" } %>
+        </div>
+      </div>
+
+      <label class="clar-field-label">NOTIFY CHANNEL <span class="font-medium clar-text-faint">&middot; Discord</span></label>
+      <% if @discord_webhooks.present? %>
+        <div class="flex flex-wrap gap-1.5 mb-5.5">
+          <% @discord_webhooks.each_with_index do |webhook, i| %>
+            <label class="clar-chip <%= "clar-chip-active" if i.zero? %>" data-clar-alert-rule-form-target="channelChip" data-action="click->clar-alert-rule-form#selectChannel">
+              <input type="radio" name="alert_rule[discord_webhook_id]" value="<%= webhook.id %>" <%= "checked" if i.zero? %> class="hidden">
+              <%= webhook.channel_name %>
+            </label>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="text-[12.5px] clar-text-muted mb-5.5">
+          No Discord webhooks configured yet.
+          <% if respond_to?(:workshop_configuration_path) %>
+            <%= link_to "Go to Configuration → Integrations → Discord", workshop_configuration_path, class: "font-semibold clar-text-primary no-underline" %>
+          <% else %>
+            <%# workshop_configuration_path doesn't exist yet (lands in Task 9.1). %>
+            <span class="font-semibold">Configuration &rarr; Integrations &rarr; Discord</span> (coming in a later step).
+          <% end %>
+        </div>
+      <% end %>
+
+      <div class="flex gap-2.5 justify-end">
+        <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+        <%= f.submit "Create rule", class: "clar-btn clar-btn-primary", disabled: true,
+              data: { clar_required_target: "submit" } %>
+      </div>
+    <% end %>
+  </div>
+</div>

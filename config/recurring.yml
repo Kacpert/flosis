@@ -37,3 +37,10 @@ production:
   project_features_scan:
     class: ProjectFeaturesScanJob
     schedule: "0 5 * * *"
+  # Evaluated in the app time zone (Warsaw): every 5 minutes, enqueues an
+  # AlertRuleRunJob for each active AlertRule whose schedule says it's due
+  # right now (AlertRule#due?). The dispatch itself is cheap (no AI calls) —
+  # the per-rule AI evaluation happens in the enqueued job.
+  alert_rules_dispatch:
+    class: AlertRulesDispatchJob
+    schedule: every 5 minutes

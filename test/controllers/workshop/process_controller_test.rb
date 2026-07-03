@@ -98,4 +98,43 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "body", /—/
   end
+
+  test "renders the AI Alerts tab with rules list, new-rule modal, and history modal frame" do
+    project = tasks(:jira_task).project
+    post switch_workshop_project_path, params: { project_id: project.id }
+    webhook = DiscordWebhook.create!(workspace: @workspace, channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/abc")
+    rule = AlertRule.create!(
+      workspace: @workspace, project: project, discord_webhook: webhook,
+      name: "QA backlog watch", prompt: "If more than 4 tasks have been in QA for longer than 3 days, send a notification.",
+      frequency: "daily", run_at_time: "13:00"
+    )
+    rule.alert_runs.create!(fired: true, summary: "2 tasks flagged", detail: "SP-1, SP-2", status: "ok", ran_at: 1.hour.ago)
+
+    get workshop_process_path(tab: "alerts")
+
+    assert_response :success
+    assert_select ".clar-tab.clar-tab-active", /AI Alerts/
+    assert_select "body", /QA backlog watch/
+    assert_select "body", /Sent · 2 tasks flagged/
+    assert_select "body", /Daily · 13:00/
+    assert_select "body", /#dev-alerts · Discord/
+    assert_select "body", /View history/
+    assert_select "body", /New rule/
+    assert_select "body", /A scheduled prompt\. On its schedule the AI inspects the live Jira board state/
+    assert_select "body", /WHAT TO WATCH FOR/
+    assert_select "turbo-frame##{dom_id_for_history(rule)}"
+  end
+
+  test "AI Alerts empty state renders without error" do
+    get workshop_process_path(tab: "alerts")
+
+    assert_response :success
+    assert_select "body", /No alert rules yet/
+  end
+
+  private
+
+  def dom_id_for_history(rule)
+    "clar-alert-history-#{rule.id}"
+  end
 end

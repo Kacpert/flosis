@@ -13,6 +13,8 @@ class Workspace < ApplicationRecord
   has_many :holiday_balance_entries, dependent: :destroy
   has_many :discord_reminder_recipients, dependent: :destroy
   has_many :pr_reviews, dependent: :delete_all
+  has_many :discord_webhooks, dependent: :destroy
+  has_many :alert_rules, dependent: :destroy
 
   validates :name, presence: true
 

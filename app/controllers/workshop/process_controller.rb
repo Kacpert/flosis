@@ -1,7 +1,5 @@
 # Process Optimization: three AI automations (PR reviews, estimate, alerts)
-# that comment/propose but never decide for the team. AI PR Reviews and AI
-# Estimate are built; alerts renders a "coming later" placeholder (Task 6.4
-# fills it in).
+# that comment/propose but never decide for the team.
 class Workshop::ProcessController < Workshop::BaseController
   TABS = %w[pr estimate alerts].freeze
 
@@ -18,10 +16,17 @@ class Workshop::ProcessController < Workshop::BaseController
       @poll_minutes = [ 7, current_workspace.pr_poll_minutes ].max
     when "estimate"
       load_estimate_tab
+    when "alerts"
+      load_alerts_tab
     end
   end
 
   private
+
+  def load_alerts_tab
+    @alert_rules = current_workshop_project ? current_workshop_project.alert_rules.order(created_at: :desc) : AlertRule.none
+    @discord_webhooks = current_workspace.discord_webhooks.order(:channel_name)
+  end
 
   def load_estimate_tab
     @estimation_board_name = current_workshop_project&.name

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_03_131208) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_03_140002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_131208) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "alert_rules", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.bigint "discord_webhook_id", null: false
+    t.string "frequency", default: "daily", null: false
+    t.datetime "last_run_at"
+    t.string "name", null: false
+    t.bigint "project_id", null: false
+    t.text "prompt", null: false
+    t.string "run_at_time"
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["discord_webhook_id"], name: "index_alert_rules_on_discord_webhook_id"
+    t.index ["project_id"], name: "index_alert_rules_on_project_id"
+    t.index ["workspace_id"], name: "index_alert_rules_on_workspace_id"
+  end
+
+  create_table "alert_runs", force: :cascade do |t|
+    t.bigint "alert_rule_id", null: false
+    t.datetime "created_at", null: false
+    t.text "detail"
+    t.boolean "fired", default: false, null: false
+    t.datetime "ran_at", null: false
+    t.string "status", default: "ok", null: false
+    t.string "summary"
+    t.datetime "updated_at", null: false
+    t.index ["alert_rule_id"], name: "index_alert_runs_on_alert_rule_id"
   end
 
   create_table "briefs", force: :cascade do |t|
@@ -154,6 +183,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_131208) do
     t.index ["user_id"], name: "index_discord_reminder_recipients_on_user_id"
     t.index ["workspace_id", "user_id"], name: "index_discord_reminder_recipients_on_workspace_id_and_user_id", unique: true
     t.index ["workspace_id"], name: "index_discord_reminder_recipients_on_workspace_id"
+  end
+
+  create_table "discord_webhooks", force: :cascade do |t|
+    t.string "channel_name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "url", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["workspace_id"], name: "index_discord_webhooks_on_workspace_id"
   end
 
   create_table "feedback_meetings", force: :cascade do |t|
@@ -620,6 +658,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_131208) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "alert_rules", "discord_webhooks"
+  add_foreign_key "alert_rules", "projects"
+  add_foreign_key "alert_rules", "workspaces"
+  add_foreign_key "alert_runs", "alert_rules"
   add_foreign_key "briefs", "chat_sessions"
   add_foreign_key "briefs", "tasks"
   add_foreign_key "briefs", "workspaces"
@@ -636,6 +678,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_131208) do
   add_foreign_key "discord_reminder_pings", "discord_reminder_recipients"
   add_foreign_key "discord_reminder_recipients", "users"
   add_foreign_key "discord_reminder_recipients", "workspaces"
+  add_foreign_key "discord_webhooks", "workspaces"
   add_foreign_key "feedback_meetings", "users", column: "creator_id"
   add_foreign_key "feedback_meetings", "users", column: "employee_id"
   add_foreign_key "feedback_meetings", "workspaces"
