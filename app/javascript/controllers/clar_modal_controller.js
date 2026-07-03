@@ -1,8 +1,11 @@
 import { Controller } from "@hotwired/stimulus"
 
 // Generic modal for the Clar workshop shell — replaces per-feature modal
-// wiring. Backdrop click closes; clicks on the panel itself don't bubble to
-// the backdrop; Escape closes; body scroll is locked while open.
+// wiring. The controller sits on a wrapper containing both the trigger
+// (e.g. an entry card with data-action="clar-modal#open") and the modal
+// overlay itself (marked data-clar-modal-target="panel", starts .hidden).
+// Backdrop click closes; clicks on the panel itself don't bubble to the
+// backdrop; Escape closes; body scroll is locked while open.
 export default class extends Controller {
   static targets = ["panel"]
 
@@ -17,13 +20,13 @@ export default class extends Controller {
 
   open(event) {
     if (event) event.preventDefault()
-    this.element.classList.remove("hidden")
+    this.panelTarget.classList.remove("hidden")
     document.addEventListener("keydown", this.boundKeydown)
     document.body.style.overflow = "hidden"
   }
 
   close() {
-    this.element.classList.add("hidden")
+    this.panelTarget.classList.add("hidden")
     document.removeEventListener("keydown", this.boundKeydown)
     document.body.style.overflow = ""
   }

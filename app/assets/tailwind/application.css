@@ -2135,6 +2135,7 @@ span.flatpickr-weekday {
 .clar-text-primary { color:var(--primary); }
 .clar-text-text { color:var(--text); }
 .clar-text-warn { color:var(--warn); }
+.clar-text-danger { color:var(--danger); }
 
 /* Structural utilities additive to the component classes above. */
 .clar-divider { background:var(--border); }
