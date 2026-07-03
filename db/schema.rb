@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_03_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_03_000003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -47,12 +47,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_000002) do
     t.bigint "chat_session_id"
     t.text "content", null: false
     t.datetime "created_at", null: false
+    t.boolean "current", default: false, null: false
+    t.datetime "edited_at"
+    t.string "origin", default: "ai", null: false
     t.string "status", default: "draft", null: false
     t.bigint "task_id", null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 1, null: false
     t.bigint "workspace_id", null: false
     t.index ["chat_session_id"], name: "index_briefs_on_chat_session_id"
+    t.index ["task_id", "current"], name: "index_briefs_on_task_id_and_current"
     t.index ["task_id", "version"], name: "index_briefs_on_task_id_and_version", unique: true
     t.index ["task_id"], name: "index_briefs_on_task_id"
     t.index ["workspace_id"], name: "index_briefs_on_workspace_id"
@@ -444,19 +448,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_000002) do
   create_table "task_drafts", force: :cascade do |t|
     t.text "content"
     t.datetime "created_at", null: false
+    t.boolean "current", default: false, null: false
+    t.datetime "edited_at"
+    t.string "origin", default: "ai", null: false
+    t.datetime "pushed_at"
     t.string "source"
     t.bigint "task_id", null: false
     t.datetime "updated_at", null: false
+    t.integer "version"
     t.index ["task_id", "created_at"], name: "index_task_drafts_on_task_id_and_created_at"
+    t.index ["task_id", "source", "current"], name: "index_task_drafts_on_task_id_and_source_and_current"
     t.index ["task_id"], name: "index_task_drafts_on_task_id"
   end
 
   create_table "tasks", force: :cascade do |t|
     t.string "assignee_email"
     t.string "assignee_name"
+    t.datetime "brief_saved_locally_at"
     t.datetime "created_at", null: false
     t.text "description"
     t.text "description_adf"
+    t.datetime "detail_saved_locally_at"
     t.string "external_reference"
     t.string "external_type"
     t.string "external_url"

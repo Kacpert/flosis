@@ -16,7 +16,7 @@ class ChatSessionsController < ApplicationController
   def extract_and_save_results(text)
     text.scan(DRAFT_REGEX).each do |(body)|
       next if body.blank?
-      @task.task_drafts.create!(content: body.strip, source: TaskDraft::REFINE_SOURCE)
+      @task.task_drafts.create!(content: body.strip, source: TaskDraft::REFINE_SOURCE).make_current!
     end
   rescue StandardError => e
     Rails.logger.warn("[ChatSessions] Draft extraction failed: #{e.message}")

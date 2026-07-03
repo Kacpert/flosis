@@ -32,7 +32,7 @@ class BriefChatSessionsController < ApplicationController
         version: Brief.next_version_for(@task),
         content: content,
         status: "draft"
-      )
+      ).make_current!
     end
   rescue StandardError => e
     Rails.logger.warn("[BriefChat] Brief extraction failed: #{e.message}")

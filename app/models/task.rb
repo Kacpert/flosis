@@ -23,6 +23,16 @@ class Task < ApplicationRecord
     briefs.newest_first.first
   end
 
+  # The brief currently marked as current, falling back to the newest.
+  def current_brief
+    briefs.current.first || briefs.newest_first.first
+  end
+
+  # The AI-refined draft currently marked as current, falling back to the latest.
+  def current_detail_draft
+    task_drafts.by_source("ai").current.first || latest_draft
+  end
+
   enum :status, { active: 0, done: 1 }
 
   # Where attachments are copied for Claude to read. The Jira issue key
