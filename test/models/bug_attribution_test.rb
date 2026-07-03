@@ -72,4 +72,15 @@ class BugAttributionTest < ActiveSupport::TestCase
     attribution = BugAttribution.new(project: projects(:jira_project), jira_key: "ELV-907", confidence: nil)
     assert attribution.valid?
   end
+
+  test "destroying the attributed task nullifies task_id instead of raising a FK violation" do
+    task = tasks(:jira_task)
+    attribution = BugAttribution.create!(project: task.project, jira_key: task.external_reference,
+                                         task: task, status: "done")
+
+    assert_nothing_raised { task.destroy }
+    # The attribution survives (keyed by jira_key), with task_id nullified.
+    assert BugAttribution.exists?(attribution.id)
+    assert_nil attribution.reload.task_id
+  end
 end

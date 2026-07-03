@@ -1,6 +1,10 @@
 class Task < ApplicationRecord
   belongs_to :project
   has_many :time_entries, dependent: :nullify
+  # nullify (not destroy): a bug's attribution is keyed by jira_key and must
+  # survive the task's deletion (the bug lives on in delivered_issues). Without
+  # this, deleting a Bug task that has an attribution would raise a FK violation.
+  has_many :bug_attributions, dependent: :nullify
   has_many :chat_sessions, dependent: :destroy
   has_many :jira_comments, dependent: :destroy
   has_many :task_drafts, dependent: :destroy
