@@ -89,7 +89,8 @@ class Workshop::IdeasController < Workshop::BaseController
   def push_jira
     @idea = current_workshop_project.tasks.pipeline.find(params[:id])
 
-    if @idea.workshop_stage == "details"
+    case @idea.workshop_stage
+    when "details"
       result = JiraWriter.new(workspace: current_workspace).commit_detail(@idea.current_detail_draft)
 
       if result[:ok]
@@ -98,6 +99,21 @@ class Workshop::IdeasController < Workshop::BaseController
         redirect_to workshop_idea_path(@idea, stage: "ready")
       else
         redirect_to workshop_idea_path(@idea, stage: "details"), alert: "Couldn't write to Jira: #{result[:error]}"
+      end
+    when "ready"
+      # A local idea that finished via "Save locally" reaches Ready with no Jira
+      # issue. Pushing from the Ready screen creates the issue (commit_brief is
+      # the only issue-creating path) and marks it Briefed, but MUST keep the
+      # idea at "ready" — it's already done; pushing must not regress the stage.
+      result = JiraWriter.new(workspace: current_workspace).commit_brief(@idea.current_brief)
+
+      if result[:ok]
+        @idea.current_brief.mark_briefed!
+        @idea.update!(brief_saved_locally_at: nil)
+        flash[:clar_toast] = "Pushed to Jira"
+        redirect_to workshop_idea_path(@idea, stage: "ready")
+      else
+        redirect_to workshop_idea_path(@idea, stage: "ready"), alert: "Couldn't write to Jira: #{result[:error]}"
       end
     else
       result = JiraWriter.new(workspace: current_workspace).commit_brief(@idea.current_brief)

@@ -363,6 +363,26 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_match "403", response.body
   end
 
+  test "POST push_jira at ready pushes without regressing the stage back to details" do
+    # A local idea that finished via Save locally reaches Ready with no Jira
+    # issue. Pushing from the Ready screen creates the issue but must KEEP the
+    # idea at "ready" (not fall through to the briefing branch's ->details bump).
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "ready", pipeline_entered_at: 1.hour.ago,
+                 brief_saved_locally_at: 1.minute.ago)
+    idea.briefs.create!(workspace: idea.project.workspace, version: 0, origin: "user", status: "draft",
+                        content: "the brief").make_current!
+
+    stub_commit_brief({ ok: true, key: "ELV-9", url: "https://example.com/ELV-9" }) do
+      post push_jira_workshop_idea_path(idea)
+    end
+
+    idea.reload
+    assert_equal "ready", idea.workshop_stage, "push at ready must not regress to details"
+    assert_nil idea.brief_saved_locally_at
+    assert_equal "Pushed to Jira", flash[:clar_toast]
+  end
+
   test "POST push_jira at briefing still uses the briefing branch (existing behavior unaffected)" do
     idea = tasks(:local_task)
     idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
