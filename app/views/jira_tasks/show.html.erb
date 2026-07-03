@@ -40,7 +40,7 @@
       <%= @task.name.sub(/\A#{Regexp.escape(@task.external_reference.to_s)}\s*/, '') %>
     </span>
     <div class="ml-auto flex items-center gap-2">
-      <span class="clar-badge-primary">
+      <span class="clar-badge clar-badge-primary">
         <%= @task.jira_status_name %>
       </span>
     </div>
@@ -64,11 +64,11 @@
 
         <%# Status badges %>
         <div class="flex items-center gap-2">
-          <span class="clar-badge-primary">
+          <span class="clar-badge clar-badge-primary">
             <%= @task.jira_status_name %>
           </span>
           <% if @task.issue_type.present? %>
-            <span class="clar-badge-ai">
+            <span class="clar-badge clar-badge-ai">
               <%= @task.issue_type %>
             </span>
           <% end %>
@@ -281,7 +281,7 @@
                 <dt class="text-xs mb-1 clar-text-faint">Labels</dt>
                 <dd class="flex flex-wrap gap-1">
                   <% labels.each do |label| %>
-                    <span class="clar-badge-muted">
+                    <span class="clar-badge clar-badge-muted">
                       <%= label %>
                     </span>
                   <% end %>

@@ -22,11 +22,11 @@
     </div>
 
     <div class="flex items-center gap-2">
-      <span class="clar-badge-primary">
+      <span class="clar-badge clar-badge-primary">
         <%= @task.jira_status_name %>
       </span>
       <% if @task.issue_type.present? %>
-        <span class="clar-badge-ai">
+        <span class="clar-badge clar-badge-ai">
           <%= @task.issue_type %>
         </span>
       <% end %>
@@ -72,7 +72,7 @@
               <dt class="clar-text-faint">Labels</dt>
               <dd class="flex flex-wrap gap-1 mt-0.5">
                 <% labels.each do |label| %>
-                  <span class="clar-badge-muted">
+                  <span class="clar-badge clar-badge-muted">
                     <%= label %>
                   </span>
                 <% end %>

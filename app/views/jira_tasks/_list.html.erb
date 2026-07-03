@@ -32,7 +32,7 @@
                 <%= task.name.sub(/\A#{Regexp.escape(task.external_reference.to_s)}\s*/, '') %>
               </td>
               <td class="py-3 px-4">
-                <span class="clar-badge-primary">
+                <span class="clar-badge clar-badge-primary">
                   <%= task.jira_status_name %>
                 </span>
               </td>
