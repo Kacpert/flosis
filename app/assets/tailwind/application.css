@@ -1974,3 +1974,151 @@ span.flatpickr-weekday {
   font-size: 0.8125rem; font-weight: 600; color: var(--color-primary);
 }
 .ws-resume-cta svg { width: 1rem; height: 1rem; }
+
+/* ============================================================
+   CLAR — Workshop redesign design system. Scoped under .clar-app.
+   Do NOT use m3-* classes inside .clar-app, or clar-* outside it.
+   ============================================================ */
+.clar-app {
+  --bg:#f6f7f9; --surface:#ffffff; --surface-2:#f1f3f5; --border:#e6e8ec;
+  --text:#1a1d24; --muted:#6b7280; --faint:#9aa3af;
+  --primary:#4f46e5; --primary-soft:#eef2ff; --primary-2:#4338ca;
+  --success:#16a34a; --success-soft:#ecfdf3;
+  --warn:#d97706; --warn-soft:#fffbeb;
+  --danger:#dc2626; --danger-soft:#fef2f2;
+  --ai:#7c3aed; --ai-soft:#f5f3ff;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.04);
+  --shadow-lg:0 8px 28px rgba(16,24,40,.12);
+  font-family:Figtree,system-ui,sans-serif;
+  background:var(--bg); color:var(--text);
+}
+.clar-app[data-clar-theme="dark"] {
+  --bg:#0e1014; --surface:#161a20; --surface-2:#1d222a; --border:#272d36;
+  --text:#e7eaef; --muted:#9aa3b2; --faint:#6b7480;
+  --primary:#6366f1; --primary-soft:#1f2138; --primary-2:#818cf8;
+  --success:#22c55e; --success-soft:#10241a;
+  --warn:#f59e0b; --warn-soft:#2a210f;
+  --danger:#ef4444; --danger-soft:#2a1414;
+  --ai:#a78bfa; --ai-soft:#1c1830;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+  --shadow-lg:0 12px 36px rgba(0,0,0,.5);
+}
+.clar-mono { font-family:'JetBrains Mono',monospace; }
+
+@keyframes clar-fade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+@keyframes clar-toast-in { from{opacity:0;transform:translate(-50%,12px)} to{opacity:1;transform:translate(-50%,0)} }
+@keyframes clar-blink { 0%,80%,100%{opacity:.25} 40%{opacity:1} }
+
+/* Shell */
+.clar-topbar { height:56px; flex:0 0 56px; display:flex; align-items:center; gap:18px;
+  padding:0 18px; background:var(--surface); border-bottom:1px solid var(--border);
+  position:relative; z-index:40; }
+.clar-logo { width:26px; height:26px; border-radius:7px; background:var(--primary);
+  display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:15px; }
+.clar-sidebar { width:236px; flex:0 0 236px; background:var(--surface);
+  border-right:1px solid var(--border); padding:14px 12px; display:flex;
+  flex-direction:column; gap:3px; transition:width .16s ease; }
+.clar-sidebar[data-collapsed="true"] { width:64px; flex-basis:64px; padding:14px 10px; }
+.clar-nav-item { display:flex; align-items:center; gap:11px; width:100%; padding:9px 10px;
+  border-radius:9px; border:none; cursor:pointer; font-size:13.5px; font-weight:500;
+  background:transparent; color:var(--muted); text-decoration:none; }
+.clar-nav-item:hover { background:var(--surface-2); }
+.clar-nav-item-active { background:var(--primary-soft); color:var(--primary); font-weight:650; }
+.clar-nav-label { font-size:10.5px; font-weight:700; letter-spacing:.7px; color:var(--faint); padding:6px 10px 8px; }
+.clar-nav-badge { font-size:10.5px; font-weight:700; background:var(--primary); color:#fff;
+  border-radius:20px; padding:1px 7px; }
+.clar-status-card { margin-top:8px; padding:12px; border-radius:10px; background:var(--ai-soft);
+  border:1px solid var(--border); }
+
+/* Surfaces */
+.clar-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; }
+.clar-card-hover { transition:border-color .12s, box-shadow .12s; }
+.clar-card-hover:hover { border-color:var(--primary); box-shadow:var(--shadow-lg); }
+.clar-row { background:var(--surface); border:1px solid var(--border); border-radius:12px; }
+.clar-row-hover:hover { border-color:var(--primary); }
+.clar-modal-overlay { position:fixed; inset:0; z-index:55; background:rgba(10,12,16,.45);
+  display:flex; align-items:center; justify-content:center; padding:24px; animation:clar-fade .12s ease; }
+.clar-modal { width:100%; background:var(--surface); border:1px solid var(--border);
+  border-radius:16px; box-shadow:var(--shadow-lg); }
+.clar-toast { position:fixed; bottom:26px; left:50%; transform:translateX(-50%); z-index:60;
+  background:var(--text); color:var(--bg); padding:12px 18px; border-radius:11px;
+  box-shadow:var(--shadow-lg); display:flex; align-items:center; gap:10px;
+  font-size:13px; font-weight:600; animation:clar-toast-in .2s ease; }
+
+/* Controls */
+.clar-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  font-family:inherit; font-weight:600; font-size:13px; border-radius:9px; padding:9px 16px;
+  border:1px solid var(--border); background:var(--surface); color:var(--text); cursor:pointer; }
+.clar-btn-primary { background:var(--primary); border-color:transparent; color:#fff; font-weight:650; }
+.clar-btn-ai { background:var(--ai); border-color:transparent; color:#fff; font-weight:650; }
+.clar-btn-danger { color:var(--danger); background:var(--danger-soft); }
+.clar-btn:disabled { background:var(--surface-2); color:var(--faint); cursor:not-allowed; border-color:transparent; }
+.clar-btn-block { width:100%; padding:12px; border-radius:10px; font-size:13.5px; }
+.clar-input, .clar-select, .clar-textarea { font-family:inherit; font-size:13.5px; color:var(--text);
+  background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:10px 13px;
+  outline:none; width:100%; }
+.clar-input:focus, .clar-textarea:focus { border-color:var(--primary); }
+.clar-field-label { display:block; font-size:11.5px; font-weight:700; color:var(--faint); margin-bottom:6px; }
+.clar-tabs { display:flex; gap:4px; background:var(--surface-2); border:1px solid var(--border);
+  border-radius:11px; padding:4px; width:fit-content; }
+.clar-tab { font-size:13px; font-weight:600; padding:7px 15px; border-radius:8px; border:none;
+  cursor:pointer; background:transparent; color:var(--muted); }
+.clar-tab-active { background:var(--surface); color:var(--text); box-shadow:var(--shadow); }
+.clar-chip { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600;
+  padding:5px 11px; border-radius:20px; cursor:pointer; border:1px solid var(--border);
+  background:var(--surface); color:var(--muted); }
+.clar-chip-active { border-color:var(--primary); background:var(--primary-soft); color:var(--primary); }
+.clar-chip-dark-active { border-color:var(--text); background:var(--text); color:var(--bg); }
+.clar-fade { animation:clar-fade .12s ease; }
+.clar-toggle { width:40px; height:23px; border-radius:20px; border:none; cursor:pointer;
+  position:relative; flex:0 0 40px; background:var(--border); transition:background .15s; }
+.clar-toggle[aria-checked="true"] { background:var(--primary); }
+.clar-toggle .knob { position:absolute; top:2px; left:2px; width:19px; height:19px; border-radius:50%;
+  background:#fff; transition:left .15s; box-shadow:0 1px 2px rgba(0,0,0,.2); }
+.clar-toggle[aria-checked="true"] .knob { left:19px; }
+
+/* Data display */
+.clar-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700;
+  padding:3px 9px; border-radius:7px; white-space:nowrap; }
+.clar-badge-primary { color:var(--primary); background:var(--primary-soft); }
+.clar-badge-success { color:var(--success); background:var(--success-soft); }
+.clar-badge-warn    { color:var(--warn); background:var(--warn-soft); }
+.clar-badge-danger  { color:var(--danger); background:var(--danger-soft); }
+.clar-badge-ai      { color:var(--ai); background:var(--ai-soft); }
+.clar-badge-muted   { color:var(--muted); background:var(--surface-2); border:1px solid var(--border); }
+.clar-key { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600;
+  color:var(--primary); background:var(--primary-soft); padding:1px 6px; border-radius:5px; }
+.clar-avatar { border-radius:50%; color:#fff; display:inline-flex; align-items:center;
+  justify-content:center; font-weight:700; }
+.clar-dot { width:7px; height:7px; border-radius:50%; display:inline-block; }
+.clar-metric { padding:18px; }
+.clar-metric .label { font-size:12px; color:var(--faint); margin-bottom:8px; }
+.clar-metric .value { font-size:28px; font-weight:700; letter-spacing:-.5px; }
+.clar-metric .sub { font-size:11.5px; color:var(--faint); margin-top:5px; }
+.clar-table-head { display:flex; padding:11px 20px; font-size:11px; font-weight:700;
+  letter-spacing:.3px; color:var(--faint); border-bottom:1px solid var(--border); }
+.clar-h1 { margin:0; font-size:25px; font-weight:700; letter-spacing:-.5px; color:var(--text); }
+.clar-sub { margin:7px 0 22px; color:var(--muted); font-size:14px; line-height:1.5; }
+.clar-section-label { font-size:13px; font-weight:700; letter-spacing:.4px; color:var(--faint); }
+
+/* Chat + prose (ported semantics from mockup) */
+.clar-bubble-ai { background:var(--ai-soft); border:1px solid var(--border); border-radius:13px;
+  border-top-left-radius:4px; padding:11px 14px; font-size:13.5px; line-height:1.55;
+  color:var(--text); max-width:78%; }
+.clar-bubble-user { background:var(--primary); color:#fff; border-radius:13px;
+  border-top-right-radius:4px; padding:11px 14px; font-size:13.5px; line-height:1.55; max-width:78%; }
+.clar-prose h4 { font-size:11px; font-weight:700; letter-spacing:.4px; color:var(--ai);
+  margin:15px 0 4px; text-transform:uppercase; }
+.clar-prose > h4:first-child { margin-top:0; }
+.clar-prose p { font-size:13px; line-height:1.6; color:var(--text); margin:3px 0; }
+.clar-prose ul, .clar-prose ol { margin:5px 0; padding-left:20px; }
+.clar-prose li { font-size:13px; line-height:1.6; color:var(--text); }
+.clar-prose pre { font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--surface-2);
+  border:1px solid var(--border); border-radius:8px; padding:9px 11px; margin:5px 0; white-space:pre-wrap; }
+.clar-prose a { color:var(--primary); }
+.clar-editor { outline:none; min-height:240px; padding:12px 14px; background:var(--bg);
+  border:1px solid var(--border); border-radius:10px; }
+.clar-editor:focus { border-color:var(--primary); }
+.clar-app ::-webkit-scrollbar { width:10px; height:10px; }
+.clar-app ::-webkit-scrollbar-thumb { background:var(--border); border-radius:8px;
+  border:2px solid transparent; background-clip:padding-box; }
