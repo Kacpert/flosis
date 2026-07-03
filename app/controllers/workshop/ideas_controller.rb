@@ -34,7 +34,8 @@ class Workshop::IdeasController < Workshop::BaseController
     @idea = current_workshop_project.tasks.pipeline.find(params[:id])
 
     if @idea.update(rename_params)
-      flash.now[:clar_toast] = "Renamed"
+      # The toast is dispatched client-side by clar_rename_controller on success;
+      # a server flash never surfaces on this JSON response.
       render json: { name: @idea.name }
     else
       render json: { errors: @idea.errors.full_messages }, status: :unprocessable_entity
