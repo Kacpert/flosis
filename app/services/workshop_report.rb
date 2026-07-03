@@ -106,7 +106,7 @@ class WorkshopReport
     JiraSprint.joins(:jira_board)
                .where(jira_boards: { project_id: project.id })
                .where(state: "active")
-               .where.not(start_date: nil, end_date: nil)
+               .where.not(start_date: nil).where.not(end_date: nil)
                .order(start_date: :desc)
                .first
   end
@@ -259,7 +259,7 @@ class WorkshopReport
     sprints = JiraSprint.joins(:jira_board)
                          .where(jira_boards: { project_id: @project.id })
                          .where(state: %w[active closed])
-                         .where.not(start_date: nil, end_date: nil)
+                         .where.not(start_date: nil).where.not(end_date: nil)
                          .order(start_date: :asc)
                          .to_a
                          .last(range)

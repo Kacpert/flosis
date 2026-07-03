@@ -206,11 +206,17 @@ class WorkshopReportTest < ActiveSupport::TestCase
 
   test "trend sprints skips sprints with nil start_date or end_date" do
     board = jira_boards(:design_board)
-    bad_sprint = JiraSprint.create!(jira_board: board, jira_sprint_id: 9999, name: "No dates", state: "closed", start_date: nil, end_date: nil)
+    JiraSprint.create!(jira_board: board, jira_sprint_id: 9999, name: "No dates", state: "closed", start_date: nil, end_date: nil)
+    # A sprint with only ONE nil date must also be excluded — the guard must be
+    # "neither date nil", not "not (both nil)". A partial-nil sprint that slips
+    # through would NoMethodError on the nil date when building the window.
+    JiraSprint.create!(jira_board: board, jira_sprint_id: 9998, name: "Half dates", state: "closed",
+                       start_date: nil, end_date: @now.to_date)
 
     assert_nothing_raised { report.trend(granularity: "sprints", range: 8) }
     labels = report.trend(granularity: "sprints", range: 8).map { |p| p[:full] }
     refute_includes labels, "No dates"
+    refute_includes labels, "Half dates"
   end
 
   test "trend filters by developer via assignee_email" do
