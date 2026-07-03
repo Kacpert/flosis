@@ -85,6 +85,35 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-stepper-stage='briefing'][data-stepper-current='true']"
   end
 
+  test "GET show at briefing stage renders the Clar chat panel wired to the brief_chat routes" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+
+    get workshop_idea_path(idea, stage: "briefing")
+
+    assert_response :success
+    assert_select "[data-controller='clar-chat']" do
+      assert_select "[data-clar-chat-create-url-value='#{jira_task_brief_chat_session_path(idea)}']"
+      assert_select "[data-clar-chat-message-url-value='#{message_jira_task_brief_chat_session_path(idea)}']"
+      assert_select "[data-clar-chat-persona-value='briefing']"
+      assert_select "[data-clar-chat-target='messages']"
+      assert_select "[data-clar-chat-target='input']"
+    end
+    assert_select "span", text: /Briefing/
+    assert_select "span", text: /Reads project & task description first/
+    assert_select "button", text: /Reset session/
+  end
+
+  test "GET show at details stage does not render the briefing chat panel" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+
+    get workshop_idea_path(idea, stage: "details")
+
+    assert_response :success
+    assert_select "[data-controller='clar-chat']", count: 0
+  end
+
   test "PATCH update renames a local task and sets a toast" do
     idea = tasks(:local_task)
     idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)

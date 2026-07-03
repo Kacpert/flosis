@@ -53,6 +53,20 @@ module Authorization
     end
   end
 
+  # Gate AI/workshop-tooling endpoints (e.g. brief chat) to real workshop
+  # members. Deliberately does NOT reuse require_product!(:workshop) /
+  # User#can_access_workshop? — that predicate returns true for clients (they
+  # are Jira-Tasks-only, which lives in the Workshop product), and routes like
+  # /jira_tasks/* are client-allowed by redirect_clients_to_jira. Reusing it
+  # here would let a client spawn an AI chat session. This helper explicitly
+  # excludes clients and requires the workshop_access flag on the membership.
+  def require_workshop_member!
+    membership = current_user&.workspace_memberships&.find_by(workspace: current_workspace)
+    return if membership && !membership.client? && membership.workshop_access
+
+    redirect_to root_path, alert: "Not authorized"
+  end
+
   def can_see_money?
     current_user&.can_see_money?(current_workspace)
   end

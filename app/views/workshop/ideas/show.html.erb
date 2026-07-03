@@ -4,9 +4,14 @@
 <div class="flex flex-col h-full">
   <%= render "workshop/ideas/workspace_header", idea: @idea, stage: @stage %>
 
-  <%# chat + document panels land in Tasks 4.2/4.3 %>
+  <%# chat + document panels: left panel (Task 4.2, briefing stage only) and
+      right document panel (Task 4.3) %>
   <div class="flex-1 grid grid-cols-2 min-h-0">
-    <div class="border-r clar-divider"></div>
+    <div class="border-r clar-divider min-h-0">
+      <% if @stage == "briefing" %>
+        <%= render "workshop/ideas/chat_panel", idea: @idea %>
+      <% end %>
+    </div>
     <div></div>
   </div>
 </div>
