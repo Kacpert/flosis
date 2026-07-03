@@ -5,7 +5,7 @@
   <div class="flex items-center justify-between px-2.5 pb-2">
     <span class="clar-nav-label" data-clar-sidebar-hide-label>WORKSPACE</span>
     <button type="button" data-action="click->clar-sidebar#toggle" title="Collapse menu"
-            class="border-0 bg-transparent cursor-pointer p-1 rounded-md" style="color: var(--faint);">
+            class="border-0 bg-transparent cursor-pointer p-1 rounded-md clar-text-faint">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
     </button>
   </div>
@@ -73,11 +73,11 @@
       refreshed = clar_time_ago(current_workshop_project&.features_summary_updated_at) || "not yet scanned"
     %>
     <div class="clar-status-card" data-clar-sidebar-collapsed-only-hide title="Claude Opus &middot; master refreshed <%= refreshed %>">
-      <div class="flex items-center gap-1.5 text-[11.5px] font-bold" style="color: var(--ai);">
+      <div class="flex items-center gap-1.5 text-[11.5px] font-bold clar-text-ai">
         <span class="clar-dot" style="background: var(--ai);"></span>Claude Opus
       </div>
-      <div class="text-[11px] mt-1 leading-snug" style="color: var(--muted);">
-        Repo checked out &middot; <b style="color: var(--text);">master</b> refreshed <%= refreshed %>
+      <div class="text-[11px] mt-1 leading-snug clar-text-muted">
+        Repo checked out &middot; <b class="clar-text-text">master</b> refreshed <%= refreshed %>
       </div>
     </div>
     <div class="hidden justify-center py-2.5 mt-2" data-clar-sidebar-collapsed-only-show

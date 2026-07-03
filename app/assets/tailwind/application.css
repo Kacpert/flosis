@@ -2126,3 +2126,18 @@ span.flatpickr-weekday {
 .clar-app ::-webkit-scrollbar { width:10px; height:10px; }
 .clar-app ::-webkit-scrollbar-thumb { background:var(--border); border-radius:8px;
   border:2px solid transparent; background-clip:padding-box; }
+
+/* Text/icon color utilities — replace raw inline style="color:var(--X)" in views */
+.clar-text-muted { color:var(--muted); }
+.clar-text-faint { color:var(--faint); }
+.clar-text-ai { color:var(--ai); }
+.clar-text-success { color:var(--success); }
+.clar-text-primary { color:var(--primary); }
+.clar-text-text { color:var(--text); }
+
+/* Toast hidden-state fix: .clar-toast sets display:flex, which otherwise
+   beats Tailwind's .hidden{display:none} once both apply to the same
+   element (equal specificity, .clar-toast comes later in source order).
+   This rule keeps the same specificity but is the LAST word for the
+   hidden+clar-toast combination, so hidden actually hides it. */
+.clar-toast.hidden { display:none; }

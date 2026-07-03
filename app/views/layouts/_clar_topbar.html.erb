@@ -13,20 +13,20 @@
       <span class="clar-dot" style="background: var(--success);"></span>
       <span class="font-semibold text-[13.5px]"><%= current_workshop_project&.name || "No project selected" %></span>
       <% if current_workshop_project&.client %>
-        <span class="text-[11px]" style="color: var(--faint);"><%= current_workshop_project.client.name %></span>
+        <span class="text-[11px] clar-text-faint"><%= current_workshop_project.client.name %></span>
       <% end %>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
     </button>
 
     <div data-clar-dropdown-target="panel" class="hidden absolute top-[46px] left-0 w-[300px] clar-card clar-fade" style="box-shadow: var(--shadow-lg); padding: 6px; z-index: 50;">
-      <div class="text-[10.5px] font-bold tracking-wide px-2.5 pt-2 pb-1" style="color: var(--faint); letter-spacing: .6px;">SWITCH PROJECT &middot; SWAPS EVERYTHING</div>
+      <div class="text-[10.5px] font-bold tracking-wide px-2.5 pt-2 pb-1 clar-text-faint" style="letter-spacing: .6px;">SWITCH PROJECT &middot; SWAPS EVERYTHING</div>
       <% workshop_projects.each do |project| %>
         <%= button_to switch_workshop_project_path, params: { project_id: project.id }, method: :post,
               class: "flex items-center justify-between w-full px-2.5 py-2.5 rounded-lg border-0 text-left #{'bg-black/[.03]' if project == current_workshop_project}",
               style: project == current_workshop_project ? "background: var(--surface-2);" : "background: transparent;" do %>
           <div class="flex flex-col gap-0.5 text-left">
             <span class="font-semibold text-[13.5px]"><%= project.name %></span>
-            <span class="text-[11.5px]" style="color: var(--faint);"><%= [project.client&.name, project.external_reference].compact.join(" · ") %></span>
+            <span class="text-[11.5px] clar-text-faint"><%= [project.client&.name, project.external_reference].compact.join(" · ") %></span>
           </div>
           <% if project == current_workshop_project %>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
@@ -46,8 +46,8 @@
     %>
     <% chips.each do |label, on| %>
       <div title="<%= label %><%= on ? ' connected' : ' not connected' %>"
-           class="flex items-center gap-1.5 text-[11px] font-semibold rounded-md border px-2 py-1"
-           style="color: <%= on ? 'var(--muted)' : 'var(--faint)' %>; background: var(--surface-2); border-color: var(--border);">
+           class="flex items-center gap-1.5 text-[11px] font-semibold rounded-md border px-2 py-1 <%= on ? 'clar-text-muted' : 'clar-text-faint' %>"
+           style="background: var(--surface-2); border-color: var(--border);">
         <span class="clar-dot" style="background: <%= on ? 'var(--success)' : 'var(--faint)' %>;"></span><%= label %>
       </div>
     <% end %>
@@ -68,7 +68,7 @@
     </div>
     <div class="flex flex-col leading-tight">
       <span class="text-[12.5px] font-semibold"><%= current_user.name %></span>
-      <span class="text-[10.5px]" style="color: var(--faint);">
+      <span class="text-[10.5px] clar-text-faint">
         <%= current_user.admin_or_owner?(Current.workspace) ? "Administrator" : "Product Owner" %>
       </span>
     </div>
