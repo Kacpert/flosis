@@ -47,16 +47,22 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /later step/
   end
 
-  test "employee (non-admin) is blocked from Configuration" do
+  test "employee (non-admin) is blocked from Configuration show AND update" do
+    # workshop_access true + workshop_enabled true rule out require_product!/
+    # require_workshop! as the cause — so the block is provably require_admin!.
     workspace_memberships(:two_employee).update!(workshop_access: true)
     sign_out
     sign_in_as(users(:two))
     post switch_product_path, params: { product: "workshop" }
 
     get workshop_configuration_path
+    assert_redirected_to root_path # require_admin! target
 
-    assert_response :redirect
-    refute_match %r{/workshop/configuration}, response.location.to_s
+    # update must be gated too — a non-admin PATCH must not persist anything.
+    before = workspaces(:one).reload.pr_poll_minutes
+    patch workshop_configuration_path, params: { workspace: { pr_poll_minutes: 25 } }
+    assert_redirected_to root_path
+    assert_equal before, workspaces(:one).reload.pr_poll_minutes, "employee PATCH must not persist"
   end
 
   test "PATCH update persists AI settings and toasts" do

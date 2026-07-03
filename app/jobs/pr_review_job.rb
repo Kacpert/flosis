@@ -4,16 +4,25 @@ class PrReviewJob < ApplicationJob
   CAPS = { "initial" => 4, "followup" => 2 }.freeze
   CODEBASE_PATH = ENV.fetch("PR_REVIEW_CODEBASE_PATH", File.expand_path("~/work/elvium"))
 
-  # The static persona/instructions used when a workspace hasn't customized its
-  # PR review prompt (Workspace#pr_review_prompt blank). Configurable from
-  # Configuration -> AI (Task 9.1); this constant is also the textarea's seed
-  # value there. The dynamic pr/files/mode context is interpolated separately
-  # in build_prompt, appended after whichever base (custom or default) applies.
+  # The full PR-review prompt template used when a workspace hasn't customized
+  # its own (Workspace#pr_review_prompt blank). Configurable from Configuration
+  # -> AI (Task 9.1); this constant is also the textarea's seed value there.
+  # The dynamic context is substituted via the {{TICKET}}/{{DIFF}}/{{CAP}}
+  # tokens in build_prompt (double-brace tokens, chosen so they don't collide
+  # with the single-brace JSON example at the tail). Keeping the tokens IN the
+  # template — rather than appending context after the instructions — preserves
+  # the exact ordering (ticket + diff between the persona and the INVESTIGATE
+  # steps) of the pre-9.1 monolithic prompt.
   DEFAULT_PROMPT = <<~PROMPT.freeze
     You are a senior engineer reviewing a GitHub pull request. The repository is
     checked out in your current working directory. Be rigorous and skeptical,
     but VALUE THE READER'S TIME: it is far better to post one excellent comment,
     or none at all, than several shallow ones.
+
+    {{TICKET}}
+
+    Changed files and diffs:
+    {{DIFF}}
 
     Before writing anything, INVESTIGATE — do not review from the diff alone:
     1. Open the changed files in the checkout and read the surrounding code to
@@ -48,6 +57,11 @@ class PrReviewJob < ApplicationJob
       validation errors but the surrounding `transaction` only rolls back on a
       raised exception, so the `find_or_create_by!` competency rows persist as
       orphans. Use `save!` (and rescue) or `raise ActiveRecord::Rollback`."
+
+    Return ONLY a JSON array of AT MOST {{CAP}} items (fewer is better; an empty
+    array is a perfectly good result when the PR is sound):
+    {"path": "<file>", "line": <line number in the new file>,
+     "comment": "<the problem + fix, terse, 1–2 sentences>"}.
   PROMPT
 
   def perform(workspace_id, pr_number, mode)
@@ -169,21 +183,15 @@ class PrReviewJob < ApplicationJob
     end
     cap = CAPS.fetch(mode, 4)
     diff = files.map { |f| "FILE: #{f['filename']}\n#{f['patch']}" }.join("\n\n")
-    base = workspace.pr_review_prompt.presence || DEFAULT_PROMPT
+    template = workspace.pr_review_prompt.presence || DEFAULT_PROMPT
 
-    <<~PROMPT
-      #{base}
-
-      #{ticket}
-
-      Changed files and diffs:
-      #{diff}
-
-      Return ONLY a JSON array of AT MOST #{cap} items (fewer is better; an empty
-      array is a perfectly good result when the PR is sound):
-      {"path": "<file>", "line": <line number in the new file>,
-       "comment": "<the problem + fix, terse, 1–2 sentences>"}.
-    PROMPT
+    # Substitute the dynamic context into the (default or custom) template.
+    # A custom prompt without the tokens simply won't have them replaced —
+    # acceptable, since an admin editing the seeded default keeps the tokens.
+    template
+      .gsub("{{TICKET}}", ticket)
+      .gsub("{{DIFF}}", diff)
+      .gsub("{{CAP}}", cap.to_s)
   end
 
   def post_review(github, pr_number, issues)

@@ -178,26 +178,40 @@ class PrReviewJobTest < ActiveJob::TestCase
     assert_empty fake.captured, "auth failure must not post a review"
   end
 
-  test "build_prompt uses DEFAULT_PROMPT when workspace.pr_review_prompt is blank" do
+  test "build_prompt with blank pr_review_prompt preserves the original ticket/diff/instructions ORDER" do
     @workspace.update!(pr_review_prompt: nil)
     job = PrReviewJob.new
     prompt = job.send(:build_prompt, @workspace, pr_payload, [ { "filename" => "a.rb", "patch" => "@@ -1 +1 @@\n+code" } ], "initial")
 
-    assert_includes prompt, PrReviewJob::DEFAULT_PROMPT.split("\n").first
     assert_includes prompt, "senior engineer reviewing a GitHub pull request"
+    # The pre-9.1 monolithic prompt interleaved the ticket + diff BETWEEN the
+    # persona and the INVESTIGATE steps. The token-based template must keep that
+    # exact order (regression guard for the DEFAULT_PROMPT extraction).
+    ticket_idx = prompt.index("No linked Jira ticket.")
+    diff_idx = prompt.index("Changed files and diffs:")
+    investigate_idx = prompt.index("Before writing anything, INVESTIGATE")
+    json_idx = prompt.index(%q({"path":))
+    assert ticket_idx < diff_idx, "ticket must come before the diff"
+    assert diff_idx < investigate_idx, "diff must come before the INVESTIGATE instructions"
+    assert investigate_idx < json_idx, "JSON tail must come last"
+    # No leftover template tokens, and no doubled-blank-line seam.
+    refute_includes prompt, "{{", "all substitution tokens must be replaced"
+    refute_includes prompt, "\n\n\n", "must not introduce a doubled blank line"
+    assert_includes prompt, "AT MOST 4 items"
   end
 
-  test "build_prompt uses workspace.pr_review_prompt when present, still interpolating dynamic context" do
-    @workspace.update!(pr_review_prompt: "Custom persona: be extremely terse.")
+  test "build_prompt uses workspace.pr_review_prompt (with tokens) when present, still interpolating context" do
+    @workspace.update!(pr_review_prompt: "Custom persona: be extremely terse.\n\n{{TICKET}}\n\n{{DIFF}}\n\nAT MOST {{CAP}} items.")
     job = PrReviewJob.new
     files = [ { "filename" => "a.rb", "patch" => "@@ -1 +1 @@\n+code" } ]
     prompt = job.send(:build_prompt, @workspace, pr_payload, files, "initial")
 
     assert_includes prompt, "Custom persona: be extremely terse."
     refute_includes prompt, "senior engineer reviewing a GitHub pull request"
-    # Dynamic interpolation (ticket context + diff + cap) must still work.
+    # Dynamic token substitution (ticket context + diff + cap) still works for a custom prompt.
     assert_includes prompt, "No linked Jira ticket."
     assert_includes prompt, "FILE: a.rb"
     assert_includes prompt, "AT MOST 4 items"
+    refute_includes prompt, "{{"
   end
 end
