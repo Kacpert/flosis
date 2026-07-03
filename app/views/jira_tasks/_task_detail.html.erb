@@ -4,20 +4,17 @@
       <div>
         <div class="flex items-center gap-2 mb-1">
           <a href="<%= jira_task_path(@task, board_id: params[:board_id], project_id: params[:project_id], sprint_id: params[:sprint_id]) %>"
-             class="text-sm font-semibold hover:underline"
-             style="color: var(--color-primary)"
+             class="text-sm font-semibold hover:underline clar-text-primary"
              data-turbo-frame="_top">
             <%= @task.external_reference %>
           </a>
         </div>
-        <h2 class="text-xl font-bold" style="color: var(--color-on-surface)">
+        <h2 class="text-xl font-bold clar-text-text">
           <%= @task.name.sub(/\A#{Regexp.escape(@task.external_reference.to_s)}\s*/, '') %>
         </h2>
       </div>
-      <button type="button" class="p-1 rounded-lg transition-colors" style="color: var(--color-on-surface-variant)"
-              data-action="click->jira-task-modal#close"
-              onmouseover="this.style.background='var(--color-surface-container-high)'"
-              onmouseout="this.style.background='transparent'">
+      <button type="button" class="p-1 rounded-lg transition-colors clar-text-muted hover:bg-[color:var(--surface-2)]"
+              data-action="click->jira-task-modal#close">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
@@ -25,11 +22,11 @@
     </div>
 
     <div class="flex items-center gap-2">
-      <span class="text-xs px-2 py-1 rounded-full font-medium" style="background: var(--color-secondary-container); color: var(--color-on-secondary-container)">
+      <span class="clar-badge-primary">
         <%= @task.jira_status_name %>
       </span>
       <% if @task.issue_type.present? %>
-        <span class="text-xs px-2 py-1 rounded-full font-medium" style="background: var(--color-tertiary-container); color: var(--color-on-tertiary-container)">
+        <span class="clar-badge-ai">
           <%= @task.issue_type %>
         </span>
       <% end %>
@@ -37,8 +34,8 @@
 
     <% if @task.description.present? %>
       <div>
-        <h3 class="text-sm font-semibold mb-2" style="color: var(--color-on-surface-variant)">Description</h3>
-        <div class="adf-content text-sm leading-relaxed p-3 rounded-lg" style="color: var(--color-on-surface); background: var(--color-surface-container-low)">
+        <h3 class="text-sm font-semibold mb-2 clar-text-muted">Description</h3>
+        <div class="adf-content text-sm leading-relaxed p-3 rounded-lg clar-text-text bg-[color:var(--surface-2)]">
           <% if @task.description_adf.present? %>
             <%= adf_to_html(@task.description_adf) %>
           <% else %>
@@ -49,33 +46,33 @@
     <% end %>
 
     <div>
-      <h3 class="text-sm font-semibold mb-2" style="color: var(--color-on-surface-variant)">Details</h3>
+      <h3 class="text-sm font-semibold mb-2 clar-text-muted">Details</h3>
       <div class="grid grid-cols-2 gap-y-3 gap-x-6 text-sm">
         <div>
-          <dt style="color: var(--color-outline)">Assignee</dt>
-          <dd class="font-medium" style="color: var(--color-on-surface)"><%= @task.assignee_name || @task.assignee_email || "Unassigned" %></dd>
+          <dt class="clar-text-faint">Assignee</dt>
+          <dd class="font-medium clar-text-text"><%= @task.assignee_name || @task.assignee_email || "Unassigned" %></dd>
         </div>
         <div>
-          <dt style="color: var(--color-outline)">Reporter</dt>
-          <dd class="font-medium" style="color: var(--color-on-surface)"><%= @task.reporter_name || @task.reporter_email || "—" %></dd>
+          <dt class="clar-text-faint">Reporter</dt>
+          <dd class="font-medium clar-text-text"><%= @task.reporter_name || @task.reporter_email || "—" %></dd>
         </div>
         <div>
-          <dt style="color: var(--color-outline)">Priority</dt>
-          <dd class="font-medium" style="color: var(--color-on-surface)"><%= @task.priority || "—" %></dd>
+          <dt class="clar-text-faint">Priority</dt>
+          <dd class="font-medium clar-text-text"><%= @task.priority || "—" %></dd>
         </div>
         <div>
-          <dt style="color: var(--color-outline)">Sprint</dt>
-          <dd class="font-medium" style="color: var(--color-on-surface)"><%= @task.sprint_name || "—" %></dd>
+          <dt class="clar-text-faint">Sprint</dt>
+          <dd class="font-medium clar-text-text"><%= @task.sprint_name || "—" %></dd>
         </div>
 
         <% if @task.labels.present? %>
           <% labels = begin; JSON.parse(@task.labels); rescue; []; end %>
           <% if labels.any? %>
             <div class="col-span-2">
-              <dt style="color: var(--color-outline)">Labels</dt>
+              <dt class="clar-text-faint">Labels</dt>
               <dd class="flex flex-wrap gap-1 mt-0.5">
                 <% labels.each do |label| %>
-                  <span class="text-xs px-2 py-0.5 rounded-full" style="background: var(--color-surface-container-highest); color: var(--color-on-surface-variant)">
+                  <span class="clar-badge-muted">
                     <%= label %>
                   </span>
                 <% end %>
@@ -86,8 +83,8 @@
 
         <% if @task.time_estimate_seconds.present? && @task.time_estimate_seconds > 0 %>
           <div>
-            <dt style="color: var(--color-outline)">Estimate</dt>
-            <dd class="font-medium" style="color: var(--color-on-surface)">
+            <dt class="clar-text-faint">Estimate</dt>
+            <dd class="font-medium clar-text-text">
               <%= @task.time_estimate_seconds / 3600 %>h <%= (@task.time_estimate_seconds % 3600) / 60 %>m
             </dd>
           </div>
@@ -97,7 +94,7 @@
 
     <div class="pt-2">
       <a href="<%= @task.external_url %>" target="_blank" rel="noopener"
-         class="m3-btn m3-btn-filled inline-flex items-center gap-2">
+         class="clar-btn clar-btn-primary inline-flex items-center gap-2">
         View in Jira
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
