@@ -7,37 +7,45 @@ Chart.register(...registerables)
 // indigo line, ~8% fill, dashed crosshair via tooltip mode "index", thinned
 // x-axis labels. Data arrives as JSON on data-clar-trend-chart-points-value,
 // one point per { label, full, sp, bugs_created, bugs_fixed } (see
-// WorkshopReport#trend). Only the "sp" series is plotted (Story points
-// delivered over time); bugs_created/bugs_fixed ride along for Phase 8 reuse.
+// WorkshopReport#trend).
+//
+// By default only the "sp" series is plotted (Story points delivered over
+// time — Reporting's usage, unchanged). Bug Reporting (Task 8.2) passes an
+// explicit `series` value — an array of { key, label, color, fill } — to
+// plot bugs_created/bugs_fixed as two lines instead (created filled, per the
+// brief); this is a data-driven extension, not a fork, so both pages share
+// one controller/chart config.
+const DEFAULT_SERIES = [
+  { key: "sp", label: "Story points", color: "#4f46e5", fill: true },
+]
+
 export default class extends Controller {
   static targets = ["canvas"]
-  static values = { points: Array }
+  static values = { points: Array, series: Array }
 
   connect() {
     const points = this.pointsValue || []
+    const series = this.seriesValue?.length ? this.seriesValue : DEFAULT_SERIES
     const ctx = this.canvasTarget.getContext("2d")
 
-    const indigo = "#4f46e5"
     const step = Math.max(1, Math.ceil(points.length / 12))
 
     this.chart = new Chart(ctx, {
       type: "line",
       data: {
         labels: points.map((p) => p.label),
-        datasets: [
-          {
-            label: "Story points",
-            data: points.map((p) => p.sp),
-            borderColor: indigo,
-            backgroundColor: this.withAlpha(indigo, 0.08),
-            borderWidth: 2.5,
-            fill: true,
-            tension: 0.35,
-            pointRadius: 0,
-            pointHoverRadius: 4,
-            pointBackgroundColor: indigo,
-          },
-        ],
+        datasets: series.map((s) => ({
+          label: s.label,
+          data: points.map((p) => p[s.key]),
+          borderColor: s.color,
+          backgroundColor: this.withAlpha(s.color, 0.08),
+          borderWidth: 2.5,
+          fill: !!s.fill,
+          tension: 0.35,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          pointBackgroundColor: s.color,
+        })),
       },
       options: {
         responsive: true,
@@ -50,7 +58,7 @@ export default class extends Controller {
             intersect: false,
             callbacks: {
               title: (items) => points[items[0].dataIndex]?.full || "",
-              label: (item) => `Story points: ${item.parsed.y}`,
+              label: (item) => `${item.dataset.label}: ${item.parsed.y}`,
             },
           },
         },

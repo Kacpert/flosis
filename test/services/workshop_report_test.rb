@@ -130,17 +130,74 @@ class WorkshopReportTest < ActiveSupport::TestCase
     assert_equal 2, dev[:bugs_fixed]
   end
 
-  test "developer bugs_created is reporter-fallback: Bugs reported by reporter_email across open tasks + delivered_issues" do
-    # Task 8.2 will flip this to BugAttribution; until then it's the reporter fallback.
+  test "developer bugs_created counts BugAttribution rows authored by the dev (Task 8.2 flip)" do
     time_entry(@one, hours: 1) # gives @one a developer row via time-tracking presence
-    @project.tasks.create!(name: "Open bug reported by one", issue_type: "Bug", jira_created_at: @now,
-      reporter_email: @one.email_address, external_type: "jira", external_reference: "ELV-910")
-    delivered(issue_type: "Bug", jira_created_at: @now, reporter_email: @one.email_address)
-    delivered(issue_type: "Story", jira_created_at: @now, reporter_email: @one.email_address) # not a bug, excluded
-    delivered(issue_type: "Bug", jira_created_at: @now.prev_month, reporter_email: @one.email_address) # out of period
+    BugAttribution.create!(project: @project, jira_key: "ELV-910", author_email: @one.email_address, status: "done")
+    BugAttribution.create!(project: @project, jira_key: "ELV-911", author_email: @one.email_address, status: "done")
+    BugAttribution.create!(project: @project, jira_key: "ELV-912", author_email: @two.email_address, status: "done")
 
     dev = report.developers.find { |d| d[:user] == @one }
     assert_equal 2, dev[:bugs_created]
+  end
+
+  test "developer bugs_created falls back to matching author_name when author_email is blank" do
+    time_entry(@one, hours: 1)
+    BugAttribution.create!(project: @project, jira_key: "ELV-913", author_name: @one.name, author_email: nil, status: "done")
+
+    dev = report.developers.find { |d| d[:user] == @one }
+    assert_equal 1, dev[:bugs_created]
+  end
+
+  test "developer bugs_created is 0 when no attributions match this dev" do
+    time_entry(@one, hours: 1)
+    BugAttribution.create!(project: @project, jira_key: "ELV-914", author_email: @two.email_address, status: "done")
+
+    dev = report.developers.find { |d| d[:user] == @one }
+    assert_equal 0, dev[:bugs_created]
+  end
+
+  test "bugs_created_reporter_fallback is kept as a private method for reference" do
+    assert report.send(:respond_to?, :bugs_created_reporter_fallback, true)
+  end
+
+  # ---------------------------------------------------------------------
+  # bug_stats
+  # ---------------------------------------------------------------------
+
+  test "bug_stats created_this_month unions open tasks Bugs and delivered_issues Bugs by jira_created_at in period" do
+    @project.tasks.create!(name: "Open bug", issue_type: "Bug", jira_created_at: @now, external_type: "jira", external_reference: "ELV-920")
+    delivered(issue_type: "Bug", jira_created_at: @now)
+    delivered(issue_type: "Bug", jira_created_at: @now.prev_month) # out of period
+
+    assert_equal 2, report.bug_stats[:created_this_month]
+  end
+
+  test "bug_stats top_creator is the author with the most BugAttribution rows, name + count" do
+    BugAttribution.create!(project: @project, jira_key: "ELV-930", author_name: @one.name, author_email: @one.email_address, status: "done")
+    BugAttribution.create!(project: @project, jira_key: "ELV-931", author_name: @one.name, author_email: @one.email_address, status: "done")
+    BugAttribution.create!(project: @project, jira_key: "ELV-932", author_name: @two.name, author_email: @two.email_address, status: "done")
+
+    top = report.bug_stats[:top_creator]
+    assert_equal @one.name, top[:name]
+    assert_equal 2, top[:count]
+  end
+
+  test "bug_stats top_creator is nil when there are no attributions" do
+    assert_nil report.bug_stats[:top_creator]
+  end
+
+  test "bug_stats top_fixer is the assignee with the most delivered Bugs, name + count" do
+    delivered(issue_type: "Bug", resolved_at: @now, assignee_email: @one.email_address)
+    delivered(issue_type: "Bug", resolved_at: @now, assignee_email: @one.email_address)
+    delivered(issue_type: "Bug", resolved_at: @now, assignee_email: @two.email_address)
+
+    top = report.bug_stats[:top_fixer]
+    assert_equal @one.name, top[:name]
+    assert_equal 2, top[:count]
+  end
+
+  test "bug_stats top_fixer is nil when nothing delivered this period" do
+    assert_nil report.bug_stats[:top_fixer]
   end
 
   test "developer hours and cost_cents come from completed time_entries" do

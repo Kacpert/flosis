@@ -111,6 +111,8 @@ Rails.application.routes.draw do
     end
     get "process", to: "process#show", as: :process
     get "reporting", to: "reports#show", as: :reporting
+    get "bugs", to: "bugs#show", as: :bugs
+    post "bugs/:jira_key/analyze", to: "bugs#analyze", as: :analyze_bug, constraints: { jira_key: /[^\/]+/ }
     resources :alert_rules, only: [ :create, :destroy ] do
       member { get :history }
     end

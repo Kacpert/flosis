@@ -1,0 +1,46 @@
+<% confidence_classes = { "high" => "clar-badge-success", "medium" => "clar-badge-warn", "low" => "clar-badge-muted" } %>
+<div class="clar-card overflow-hidden">
+  <div class="px-5 py-3.5 border-b clar-divider font-bold text-[14px] clar-text-text">
+    Bug analysis
+  </div>
+
+  <% if bugs.any? %>
+    <% bugs.each do |bug| %>
+      <% attribution = bug[:attribution] %>
+      <div class="px-5 py-3.5 border-b clar-divider">
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <span class="clar-mono text-[12px] clar-text-primary"><%= bug[:key] %></span>
+          <span class="font-semibold text-[13.5px] clar-text-text flex-1 min-w-[160px]"><%= bug[:title] %></span>
+
+          <% if attribution&.status == "done" %>
+            <span class="clar-badge <%= attribution.origin_kind == "new_functionality" ? "clar-badge-ai" : "clar-badge-muted" %>">
+              <%= attribution.origin_kind == "new_functionality" ? "New functionality" : "Existing code" %>
+            </span>
+            <% author = attribution.confidence == "low" ? "Likely: #{attribution.author_name}" : attribution.author_name %>
+            <span class="clar-badge <%= confidence_classes.fetch(attribution.confidence, "clar-badge-muted") %>">
+              <%= author %> &middot; <%= attribution.confidence&.capitalize %>
+            </span>
+          <% elsif attribution&.status == "pending" %>
+            <span class="clar-badge clar-badge-muted">Analyzing&hellip;</span>
+          <% elsif attribution&.status == "failed" %>
+            <span class="clar-badge clar-badge-danger">Analysis failed</span>
+            <%= button_to "Analyze", workshop_analyze_bug_path(bug[:key]), method: :post, class: "clar-btn !text-[12px] !py-[5px] !px-2.5" %>
+          <% end %>
+        </div>
+
+        <% if attribution&.status == "done" && attribution.reasoning.present? %>
+          <div class="flex items-start gap-2 mt-2.5 px-3 py-2.5 bg-[color:var(--surface-2)] rounded-[9px]">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="clar-text-ai flex-none mt-[2px]">
+              <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/>
+            </svg>
+            <span class="text-[12.5px] clar-text-muted leading-relaxed"><%= attribution.reasoning %></span>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  <% else %>
+    <div class="text-center clar-text-faint text-[13px] p-[26px]">
+      No Bugs to analyze yet.
+    </div>
+  <% end %>
+</div>

@@ -84,7 +84,43 @@ class WorkshopReport
     end
   end
 
+  # ---------------------------------------------------------------------
+  # bug_stats (Task 8.2)
+  # ---------------------------------------------------------------------
+
+  def bug_stats
+    {
+      created_this_month: new_bugs_count,
+      top_creator: top_creator,
+      top_fixer: top_fixer
+    }
+  end
+
   private
+
+  # Author with the most BugAttribution rows in this period's project scope
+  # (attributions aren't period-scoped themselves — analyzed_at doesn't track
+  # a bug's creation date — so this counts across all attributions for the
+  # project, same as the "Created the most" stat card in the mock).
+  def top_creator
+    rows = @project.bug_attributions.where.not(author_name: [ nil, "" ])
+                    .group(:author_name).count
+    return nil if rows.empty?
+
+    name, count = rows.max_by { |(_, c)| c }
+    { name: name, count: count }
+  end
+
+  def top_fixer
+    counts = delivered_bugs.where.not(assignee_email: [ nil, "" ])
+                            .pluck(Arel.sql("LOWER(assignee_email)"))
+                            .tally
+    return nil if counts.empty?
+
+    top_email, count = counts.max_by { |(_, c)| c }
+    name = user_by_email(top_email)&.name || top_email
+    { name: name, count: count }
+  end
 
   # ---------------------------------------------------------------------
   # period resolution
@@ -188,7 +224,7 @@ class WorkshopReport
       name: user.name,
       sp: sum_points(features_delivered_for_email(email)),
       bugs_fixed: delivered_bugs_for_email(email).count,
-      bugs_created: bugs_created_reporter_fallback(email),
+      bugs_created: bugs_created_for_email(email, user),
       hours: hours_for(entries),
       cost_cents: cost_cents_for(entries)
     }
@@ -203,6 +239,26 @@ class WorkshopReport
   def delivered_bugs_for_email(email)
     @project.delivered_issues.where(resolved_at: @from..@to, issue_type: BUG)
             .where("LOWER(assignee_email) = ?", email)
+  end
+
+  # bugs_created (Task 8.2 flip): the count of BugAttribution rows this dev
+  # AUTHORED (the AI's origin attribution), not the Jira reporter. Matched by
+  # author_email first, falling back to author_name when author_email is
+  # blank (the CLI doesn't always resolve an email from git blame). Not
+  # period-scoped — attributions don't carry a created-in-period timestamp of
+  # their own (analyzed_at is when the AI ran, not when the bug was created) —
+  # so this is a project-wide "how many bugs is this dev responsible for"
+  # count, matching the "Created the most" stat card.
+  #
+  # bugs_created_reporter_fallback (below) is Phase 7's original rule (Bugs
+  # REPORTED by this email). Kept for reference only — no longer called.
+  def bugs_created_for_email(email, user)
+    scope = @project.bug_attributions
+    by_email = scope.where("LOWER(author_email) = ?", email).count
+    return by_email if by_email.positive?
+    return 0 unless user
+
+    scope.where("LOWER(author_name) = ?", user.name.to_s.downcase).count
   end
 
   # bugs_created (Phase 7 reporter-fallback): BugAttribution doesn't exist yet

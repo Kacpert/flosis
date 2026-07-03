@@ -1,0 +1,77 @@
+<%
+  gran_label = gran == "sprints" ? "sprint" : "month"
+  range_label = if gran == "sprints"
+    "Last #{range} sprints"
+  elsif range >= 24
+    "Last 2 years"
+  elsif range >= 12
+    "Last 12 months"
+  else
+    "Last #{range} months"
+  end
+  first_visible = trend.first
+  last_visible = trend.last
+  delta = (trend.size > 1) ? (last_visible[:bugs_created] - first_visible[:bugs_created]) : 0
+  # Hex values mirror the --warn/--success CSS custom properties (light
+  # theme) — Chart.js draws to <canvas>, which can't resolve CSS vars, so the
+  # chart color is hardcoded same as clar_trend_chart_controller.js's
+  # DEFAULT_SERIES indigo. The on-page legend dots use the real CSS vars
+  # (via Tailwind arbitrary-value classes) so they follow the dark theme.
+  bug_series = [
+    { key: "bugs_created", label: "Bugs created", color: "#d97706", fill: true, dot_class: "bg-[color:var(--warn)]" },
+    { key: "bugs_fixed", label: "Bugs fixed", color: "#16a34a", fill: false, dot_class: "bg-[color:var(--success)]" }
+  ]
+%>
+<div class="clar-card p-4.5 mb-6">
+  <div class="flex items-start justify-between gap-4 flex-wrap mb-3.5">
+    <div>
+      <div class="flex items-center gap-2.5">
+        <span class="font-bold text-[14px] clar-text-text">Bugs over time</span>
+        <span class="clar-badge <%= delta <= 0 ? 'clar-badge-success' : 'clar-badge-danger' %>">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <% if delta <= 0 %>
+              <path d="M7 7l10 10M17 17H8M17 17V8"/>
+            <% else %>
+              <path d="M7 17L17 7M17 7H8M17 7v9"/>
+            <% end %>
+          </svg>
+          <%= delta > 0 ? "+#{delta.to_i}" : delta.to_i %> vs start
+        </span>
+      </div>
+      <div class="text-[12px] clar-text-faint mt-[3px]">
+        Created vs fixed per <%= gran_label %>. <%= range_label %>
+      </div>
+    </div>
+
+    <div class="flex gap-2 items-center">
+      <div class="clar-tabs p-[3px] gap-[3px]">
+        <%= link_to "Months", request.query_parameters.merge(gran: "months", range: 12),
+              class: "clar-tab text-[12px] py-[5px] px-[11px] #{'clar-tab-active' if gran == 'months'}" %>
+        <%= link_to "Sprints", request.query_parameters.merge(gran: "sprints", range: 13),
+              class: "clar-tab text-[12px] py-[5px] px-[11px] #{'clar-tab-active' if gran == 'sprints'}" %>
+      </div>
+      <div class="clar-tabs p-[3px] gap-[3px]">
+        <% range_opts = gran == "sprints" ? [ [ 8, "8" ], [ 13, "13" ], [ 26, "26" ] ] : [ [ 6, "6m" ], [ 12, "1y" ], [ 24, "2y" ] ] %>
+        <% range_opts.each do |value, label| %>
+          <%= link_to label, request.query_parameters.merge(range: value),
+                class: "clar-tab text-[12px] py-[5px] px-[10px] #{'clar-tab-active' if range == value}" %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-4 mb-2.5">
+    <% bug_series.each do |s| %>
+      <span class="flex items-center gap-1.5 text-[12px] clar-text-muted">
+        <span class="w-2.5 h-2.5 rounded-full <%= s[:dot_class] %>"></span>
+        <%= s[:label] %>
+      </span>
+    <% end %>
+  </div>
+
+  <div data-controller="clar-trend-chart" class="h-[220px]">
+    <canvas data-clar-trend-chart-target="canvas"
+            data-clar-trend-chart-points-value="<%= trend.to_json %>"
+            data-clar-trend-chart-series-value="<%= bug_series.map { |s| s.except(:dot_class) }.to_json %>"></canvas>
+  </div>
+</div>

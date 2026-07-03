@@ -1,0 +1,10 @@
+<% content_for :title, "Bug Reporting · Clar" %>
+
+<h1 class="clar-h1">Bug Reporting</h1>
+<p class="clar-sub">Source: Jira issues of type <b class="clar-text-text">Bug</b>. The AI attributes origin from the code — and shows how sure it is.</p>
+
+<%= render "stats", bug_stats: @bug_stats %>
+
+<%= render "trend_card", trend: @trend, gran: @gran, range: @range %>
+
+<%= render "bug_list", bugs: @bugs %>
