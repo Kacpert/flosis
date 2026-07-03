@@ -11,30 +11,31 @@ class WorkshopController < ApplicationController
     redirect_to workshop_pipeline_path
   end
 
+  # Legacy screen retired (Task 10.1) — the new-idea MODAL on the pipeline
+  # replaces it.
   def new_idea
-    @project = workshop_projects.find_by(id: params[:project_id]) || current_workshop_project
-    redirect_to(workshop_path, alert: "No Jira project selected.") and return unless @project
-    @mode = params[:mode] == "new" ? "new" : "existing"
-    @design_tasks = @project.design_sprint_tasks.reject { |t| t.briefs.briefed.exists? }
+    redirect_to workshop_pipeline_path
   end
 
+  # Legacy screen retired (Task 10.1) — the pipeline's modals replace the old
+  # create-task flow.
   def start
-    project = current_workspace.projects.find(params[:project_id])
-
-    task =
-      if params[:mode] == "existing"
-        project.tasks.find(params[:task_id])
-      else
-        name = params[:title].presence || "Untitled idea"
-        project.tasks.create!(name: name, description: params[:body])
-      end
-
-    redirect_to workshop_brief_path(task)
+    redirect_to workshop_pipeline_path
   end
 
+  # Legacy screen retired (Task 10.1). Old bookmarked/linked brief URLs land on
+  # the new workspace at the briefing stage. A task that never entered the
+  # pipeline (e.g. a plain Jira task that was briefed pre-redesign but never
+  # opened in Clar) has no workshop/ideas#show to land on — fall back to the
+  # pipeline rather than 404.
   def brief
     @task = Task.where(project: current_workspace.projects).find(params[:id])
-    @briefs = @task.briefs.newest_first
+
+    if @task.in_pipeline?
+      redirect_to workshop_idea_path(@task, stage: "briefing")
+    else
+      redirect_to workshop_pipeline_path
+    end
   end
 
   private

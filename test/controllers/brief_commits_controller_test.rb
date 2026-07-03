@@ -32,6 +32,10 @@ class BriefCommitsControllerTest < ActionDispatch::IntegrationTest
       post commit_jira_task_brief_path(@task, @brief)
     end
     assert_equal "draft", @brief.reload.status
+    # workshop_brief_path (legacy) redirects onward — to the Clar idea
+    # workspace if the task is in the pipeline, otherwise (as here) to the
+    # pipeline itself. Follow the full chain to reach a rendered page.
+    follow_redirect!
     follow_redirect!
     assert_match "403", response.body
   end

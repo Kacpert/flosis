@@ -16,27 +16,12 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
   end
 
-  test "admin sees workshop and the design-sprint task when enabled" do
+  test "admin sees workshop and index redirects to the pipeline" do
     @workspace.update!(workshop_enabled: true)
     sign_in_as(users(:one))
     # index now redirects to the Create Tasks pipeline (Task 2.3).
     get workshop_path
     assert_redirected_to workshop_pipeline_path
-    get new_idea_workshop_path(project_id: @project.id)
-    assert_response :success
-    assert_match "WS-1 Design task", response.body
-  end
-
-  test "new_idea has a mode toggle and a task search" do
-    @workspace.update!(workshop_enabled: true)
-    sign_in_as(users(:one))
-    get new_idea_workshop_path(project_id: @project.id)
-    assert_response :success
-    assert_select "[data-controller=?]", "idea-picker"
-    assert_select "[data-idea-picker-target=existingTab]"
-    assert_select "[data-idea-picker-target=newTab]"
-    assert_select "input[data-idea-picker-target=search]"
-    assert_select "[data-idea-picker-target=item]", { count: 1 } # the one design task
   end
 
   # NOTE: "in-progress ideas to resume" and "landing choice cards" were features
@@ -48,13 +33,15 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
   # Existing Jira task) are covered by TwoProductUxSmokeTest's
   # "workshop landing offers New idea / Existing Jira task entry points".
 
-  test "new_idea honors the mode param so the chosen panel opens" do
+  # NOTE (Task 10.1): the old new_idea screen (mode toggle + idea-picker task
+  # search) is retired — the new-idea MODAL on the pipeline replaces it. The
+  # legacy `#new_idea` action now just redirects to the pipeline; see below.
+
+  test "new_idea redirects to the pipeline (legacy screen retired, modal replaces it)" do
     @workspace.update!(workshop_enabled: true)
     sign_in_as(users(:one))
-    get new_idea_workshop_path(project_id: @project.id, mode: "new")
-    assert_select "[data-idea-picker-mode-value=new]"
-    get new_idea_workshop_path(project_id: @project.id, mode: "existing")
-    assert_select "[data-idea-picker-mode-value=existing]"
+    get new_idea_workshop_path(project_id: @project.id)
+    assert_redirected_to workshop_pipeline_path
   end
 
   test "employee is blocked even when enabled" do
@@ -74,32 +61,38 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
   end
 
-  test "start with a new idea creates a local task and redirects to brief" do
+  test "start redirects to the pipeline (legacy create-task flow retired, modals replace it)" do
     @workspace.update!(workshop_enabled: true)
     sign_in_as(users(:one))
-    assert_difference -> { @project.tasks.count }, 1 do
+    assert_no_difference -> { @project.tasks.count } do
       post start_workshop_path, params: { project_id: @project.id, mode: "new",
         title: "Fresh idea", body: "do a thing" }
     end
-    task = @project.tasks.order(:created_at).last
-    assert_nil task.external_reference
-    assert_redirected_to workshop_brief_path(task)
+    assert_redirected_to workshop_pipeline_path
   end
 
-  test "start with an existing task redirects to its brief" do
+  test "start with an existing task also redirects to the pipeline" do
     @workspace.update!(workshop_enabled: true)
     sign_in_as(users(:one))
     post start_workshop_path, params: { project_id: @project.id, mode: "existing", task_id: @design.id }
-    assert_redirected_to workshop_brief_path(@design)
+    assert_redirected_to workshop_pipeline_path
   end
 
-  test "brief page renders for a task" do
+  test "brief redirects to the new workspace at the briefing stage (old links)" do
+    @workspace.update!(workshop_enabled: true)
+    sign_in_as(users(:one))
+    @design.enter_pipeline!(author: users(:one), stage: "briefing")
+    Brief.create!(task: @design, workspace: @workspace, version: 1, content: "the concept")
+    get workshop_brief_path(@design)
+    assert_redirected_to workshop_idea_path(@design, stage: "briefing")
+  end
+
+  test "brief falls back to the pipeline for a task that never entered it" do
     @workspace.update!(workshop_enabled: true)
     sign_in_as(users(:one))
     Brief.create!(task: @design, workspace: @workspace, version: 1, content: "the concept")
     get workshop_brief_path(@design)
-    assert_response :success
-    assert_match "the concept", response.body
+    assert_redirected_to workshop_pipeline_path
   end
 
   test "sidebar shows Workshop for admin when enabled and in the Workshop product" do

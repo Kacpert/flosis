@@ -44,7 +44,7 @@ module WorkspaceScoped
     return time_entries_path unless product&.to_sym == :workshop
     return jira_tasks_path if current_user&.client_role?(current_workspace)
 
-    workshop_path
+    workshop_pipeline_path
   end
 
   # The Jira-connected projects that form the Workshop "work context" — the same

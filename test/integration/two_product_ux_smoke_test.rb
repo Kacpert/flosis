@@ -22,7 +22,7 @@ class TwoProductUxSmokeTest < ActionDispatch::IntegrationTest
   test "owner: workshop product shows jira + workshop, no time nav" do
     sign_in_as(users(:one))
     post switch_product_path, params: { product: "workshop" }
-    assert_redirected_to workshop_path
+    assert_redirected_to workshop_pipeline_path
     get workshop_pipeline_path
     assert_response :success
     assert_select "a[href=?]", jira_tasks_path
