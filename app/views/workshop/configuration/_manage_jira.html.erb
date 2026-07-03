@@ -18,10 +18,10 @@
 
     <div class="p-5">
       <label class="clar-field-label">SITE URL</label>
-      <div class="clar-input clar-mono mb-4 flex items-center" style="background: var(--surface-2);"><%= ENV["JIRA_DOMAIN"].presence || "&mdash;".html_safe %></div>
+      <div class="clar-input clar-mono mb-4 flex items-center bg-[var(--surface-2)]"><%= ENV["JIRA_DOMAIN"].presence || "&mdash;".html_safe %></div>
 
       <label class="clar-field-label">PROJECT KEY</label>
-      <div class="clar-input clar-mono mb-4 flex items-center" style="background: var(--surface-2);"><%= current_workshop_project&.external_reference.presence || "&mdash;".html_safe %></div>
+      <div class="clar-input clar-mono mb-4 flex items-center bg-[var(--surface-2)]"><%= current_workshop_project&.external_reference.presence || "&mdash;".html_safe %></div>
 
       <div class="clar-field-label">CUSTOM FIELDS</div>
       <div class="flex flex-col gap-1.5 mb-4">

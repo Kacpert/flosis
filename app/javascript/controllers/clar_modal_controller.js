@@ -27,6 +27,10 @@ export default class extends Controller {
     if (event) event.preventDefault()
     const panel = this.resolvePanel(event)
     if (!panel) return
+    // Close any other panel in this scope first — only one modal open at a
+    // time (the Configuration page has several manage modals under one
+    // controller; without this they'd stack on top of each other).
+    this.panelTargets.forEach((p) => { if (p !== panel) p.classList.add("hidden") })
     panel.classList.remove("hidden")
     document.addEventListener("keydown", this.boundKeydown)
     document.body.style.overflow = "hidden"
