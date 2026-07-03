@@ -3,25 +3,20 @@
 <h1 class="clar-h1">Create Tasks</h1>
 <p class="clar-sub">Turn rough ideas and unclear tickets into implementation-ready Jira tasks. The AI reads the repo first, then helps you shape them.</p>
 
-<div class="grid grid-cols-2 gap-3.5 mb-7">
-  <%# The trigger lives inside the same clar-modal controller scope as the
-      modal partial below, since clar-modal#open/#close act on their own
-      element and Stimulus resolves the action to the nearest ancestor
-      controller. %>
-  <div data-controller="clar-modal">
-    <button type="button" class="clar-card clar-card-hover text-left flex flex-col gap-2 p-4.5 w-full"
-            data-action="clar-modal#open">
-      <span class="w-8.5 h-8.5 rounded-lg flex items-center justify-center clar-badge-primary">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-      </span>
-      <span class="font-semibold text-[14.5px] clar-text-text">New idea</span>
-      <span class="text-[12.5px] leading-snug clar-text-muted">Name it first so it&rsquo;s saved &mdash; then talk it through anytime. Stays local until you push it to Jira.</span>
-    </button>
+<%# Both entry cards + both modal panels share one clar-modal controller
+    scope: the "New idea" trigger has no id param and opens the first
+    (untagged) panel; "Existing Jira task" passes id param "jira-picker"
+    and opens the panel tagged data-clar-modal-panel-id-value="jira-picker". %>
+<div class="grid grid-cols-2 gap-3.5 mb-7" data-controller="clar-modal">
+  <button type="button" class="clar-card clar-card-hover text-left flex flex-col gap-2 p-4.5 w-full"
+          data-action="clar-modal#open">
+    <span class="w-8.5 h-8.5 rounded-lg flex items-center justify-center clar-badge-primary">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+    </span>
+    <span class="font-semibold text-[14.5px] clar-text-text">New idea</span>
+    <span class="text-[12.5px] leading-snug clar-text-muted">Name it first so it&rsquo;s saved &mdash; then talk it through anytime. Stays local until you push it to Jira.</span>
+  </button>
 
-    <%= render "workshop/pipeline/new_idea_modal" %>
-  </div>
-
-  <%# Opens the Jira board browser modal (Phase 3). Same stub approach. %>
   <button type="button" class="clar-card clar-card-hover text-left flex flex-col gap-2 p-4.5"
           data-action="clar-modal#open" data-clar-modal-id-param="jira-picker">
     <span class="w-8.5 h-8.5 rounded-lg flex items-center justify-center clar-badge-primary">
@@ -30,6 +25,9 @@
     <span class="font-semibold text-[14.5px] clar-text-text">Existing Jira task</span>
     <span class="text-[12.5px] leading-snug clar-text-muted">Browse your Jira boards &mdash; design, development, backlog &mdash; and pull a ticket in to refine.</span>
   </button>
+
+  <%= render "workshop/pipeline/new_idea_modal" %>
+  <%= render "workshop/pipeline/jira_browser_modal" %>
 </div>
 
 <div class="flex items-center justify-between gap-4 mb-3.5 flex-wrap">

@@ -16,6 +16,12 @@ module ClarHelper
     AVATAR_PALETTE[index]
   end
 
+  # Tailwind arbitrary-value bg class for the same deterministic palette
+  # (avoids a raw inline style attribute wherever an avatar needs the color).
+  def clar_avatar_bg_class(seed)
+    "bg-[#{clar_avatar_color(seed)}]"
+  end
+
   # "4 min ago" / "2h ago" / "3d ago" style relative time for the Claude
   # status card and similar spots. Falls back to nil-safe handling.
   def clar_time_ago(time)
@@ -40,5 +46,25 @@ module ClarHelper
   # next page render.
   def clar_toast(message)
     flash[:clar_toast] = message
+  end
+
+  # Text color utility for the Jira board browser's TYPE dot/label
+  # (Story/Task/Bug on Task#issue_type). Falls back to muted for anything else.
+  def issue_type_color_class(issue_type)
+    case issue_type
+    when "Bug"  then "text-[color:var(--danger)]"
+    when "Task" then "text-[color:var(--primary)]"
+    when "Story" then "text-[color:var(--success)]"
+    else "clar-text-muted"
+    end
+  end
+
+  # Dot/text color for the backlog grooming table's PRIORITY column.
+  def priority_color_class(priority)
+    case priority
+    when "High"   then "text-[color:var(--danger)]"
+    when "Medium" then "text-[color:var(--warn)]"
+    else "clar-text-faint"
+    end
   end
 end

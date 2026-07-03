@@ -1,9 +1,14 @@
 import { Controller } from "@hotwired/stimulus"
 
 // Generic modal for the Clar workshop shell — replaces per-feature modal
-// wiring. The controller sits on a wrapper containing both the trigger
-// (e.g. an entry card with data-action="clar-modal#open") and the modal
-// overlay itself (marked data-clar-modal-target="panel", starts .hidden).
+// wiring. The controller sits on a wrapper containing one or more triggers
+// (e.g. an entry card with data-action="clar-modal#open") and one or more
+// modal overlays (each marked data-clar-modal-target="panel", starts
+// .hidden). A trigger with no data-clar-modal-id-param opens the first/only
+// panel. A trigger with data-clar-modal-id-param="foo" opens the panel whose
+// data-clar-modal-panel-id-value is "foo" — this lets several entry cards
+// share one controller scope (see the Create Tasks page: "New idea" opens
+// the untagged panel, "Existing Jira task" opens the "jira-picker" panel).
 // Backdrop click closes; clicks on the panel itself don't bubble to the
 // backdrop; Escape closes; body scroll is locked while open.
 export default class extends Controller {
@@ -20,13 +25,15 @@ export default class extends Controller {
 
   open(event) {
     if (event) event.preventDefault()
-    this.panelTarget.classList.remove("hidden")
+    const panel = this.resolvePanel(event)
+    if (!panel) return
+    panel.classList.remove("hidden")
     document.addEventListener("keydown", this.boundKeydown)
     document.body.style.overflow = "hidden"
   }
 
   close() {
-    this.panelTarget.classList.add("hidden")
+    this.panelTargets.forEach((panel) => panel.classList.add("hidden"))
     document.removeEventListener("keydown", this.boundKeydown)
     document.body.style.overflow = ""
   }
@@ -37,5 +44,11 @@ export default class extends Controller {
 
   handleKeydown(event) {
     if (event.key === "Escape") this.close()
+  }
+
+  resolvePanel(event) {
+    const id = event && event.params && event.params.id
+    if (!id) return this.panelTargets[0]
+    return this.panelTargets.find((panel) => panel.dataset.clarModalPanelIdValue === id) || this.panelTargets[0]
   }
 }

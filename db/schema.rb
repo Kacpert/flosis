@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_03_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_03_000004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -474,6 +474,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_000003) do
     t.string "external_url"
     t.boolean "in_pipeline", default: false, null: false
     t.string "issue_type"
+    t.datetime "jira_created_at"
     t.string "jira_status_name"
     t.datetime "jira_updated_at"
     t.text "labels"
@@ -487,6 +488,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_000003) do
     t.integer "sprint_id"
     t.string "sprint_name"
     t.integer "status", default: 0, null: false
+    t.decimal "story_points", precision: 5, scale: 1
     t.integer "time_estimate_seconds"
     t.datetime "updated_at", null: false
     t.string "workshop_stage", default: "new", null: false

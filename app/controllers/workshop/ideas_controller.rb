@@ -7,6 +7,20 @@ class Workshop::IdeasController < Workshop::BaseController
   end
 
   def create
+    if params[:task_id].present?
+      import_from_jira
+    else
+      create_new_idea
+    end
+  end
+
+  def update
+    head :not_implemented
+  end
+
+  private
+
+  def create_new_idea
     task = current_workshop_project.tasks.new(name: idea_params[:title], description: idea_params[:description])
 
     if task.save
@@ -26,11 +40,21 @@ class Workshop::IdeasController < Workshop::BaseController
     end
   end
 
-  def update
-    head :not_implemented
-  end
+  # Pulls an existing Jira-synced task (browsed via the Jira board modal)
+  # into the pipeline. Seeds a v0 user brief from its current description,
+  # same as the new-idea path, so Briefing always starts from something.
+  def import_from_jira
+    task = current_workshop_project.tasks.find(params[:task_id])
+    task.enter_pipeline!(author: current_user, stage: "briefing")
 
-  private
+    if task.description.present?
+      task.briefs.create!(workspace: task.project.workspace, version: 0,
+                          origin: "user", status: "draft", content: task.description).make_current!
+    end
+
+    flash[:clar_toast] = "Imported #{task.external_reference} from Jira"
+    redirect_to workshop_idea_path(task)
+  end
 
   def idea_params
     params.require(:idea).permit(:title, :description)

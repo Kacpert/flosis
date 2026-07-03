@@ -100,6 +100,7 @@ Rails.application.routes.draw do
   # process/reporting/bugs/configuration) land in later phases.
   namespace :workshop do
     get "pipeline", to: "pipeline#index", as: :pipeline
+    get "jira_browser", to: "jira_browser#show", as: :jira_browser
     resources :ideas, only: [ :create, :show, :update ]
   end
 
