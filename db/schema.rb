@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_03_000004) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_03_000005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -98,6 +98,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_000004) do
     t.bigint "workspace_id", null: false
     t.index ["workspace_id", "name"], name: "index_clients_on_workspace_id_and_name", unique: true
     t.index ["workspace_id"], name: "index_clients_on_workspace_id"
+  end
+
+  create_table "design_requests", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "delivered_at"
+    t.bigint "designer_id", null: false
+    t.json "links"
+    t.text "note"
+    t.bigint "requester_id", null: false
+    t.string "status", default: "requested", null: false
+    t.bigint "task_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["designer_id"], name: "index_design_requests_on_designer_id"
+    t.index ["requester_id"], name: "index_design_requests_on_requester_id"
+    t.index ["task_id"], name: "index_design_requests_on_task_id", unique: true
   end
 
   create_table "discord_reminder_pings", force: :cascade do |t|
@@ -580,6 +595,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_000004) do
   add_foreign_key "chat_sessions", "users"
   add_foreign_key "chat_sessions", "workspaces"
   add_foreign_key "clients", "workspaces"
+  add_foreign_key "design_requests", "tasks"
+  add_foreign_key "design_requests", "users", column: "designer_id"
+  add_foreign_key "design_requests", "users", column: "requester_id"
   add_foreign_key "discord_reminder_pings", "discord_reminder_recipients"
   add_foreign_key "discord_reminder_recipients", "users"
   add_foreign_key "discord_reminder_recipients", "workspaces"

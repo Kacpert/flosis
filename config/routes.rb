@@ -97,7 +97,8 @@ Rails.application.routes.draw do
 
   # Workshop redesign (Clar): Create Tasks pipeline + idea intake. Additive —
   # more routes (advance/save_locally/push_jira, versions, design_request,
-  # process/reporting/bugs/configuration) land in later phases.
+  # process/reporting/bugs/configuration) land in later phases (design_request
+  # landed in Task 5.3).
   namespace :workshop do
     get "pipeline", to: "pipeline#index", as: :pipeline
     get "jira_browser", to: "jira_browser#show", as: :jira_browser
@@ -106,6 +107,7 @@ Rails.application.routes.draw do
       resources :versions, only: [ :create, :update ] do
         member { post :make_current }
       end
+      resource :design_request, only: [ :create, :update, :destroy ]
     end
   end
 

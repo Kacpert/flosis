@@ -179,4 +179,98 @@ class JiraWriterTest < ActiveSupport::TestCase
     assert res[:ok], res.inspect
     assert_equal markdown, c.captured[:update][:description_text]
   end
+
+  # --- Task 5.3: designs strip → Jira description sync ---
+
+  test "sync_design_links appends a --- Designs --- block with one line per link" do
+    task = @project.tasks.create!(name: "JW-30 Existing", external_type: "jira", external_reference: "JW-30",
+      description: "Original description text")
+    c = capturing_client
+    links = [
+      { "name" => "Results · Export flow", "url" => "https://figma.com/file/a" },
+      { "name" => "Empty & error states", "url" => "https://figma.com/file/b" },
+    ]
+
+    res = JiraWriter.new(workspace: @workspace, client: c).sync_design_links(task, links)
+
+    assert res[:ok], res.inspect
+    text = c.captured[:update][:description_text]
+    assert_match(/--- Designs ---/, text)
+    assert_match(/Results · Export flow: https:\/\/figma\.com\/file\/a/, text)
+    assert_match(/Empty & error states: https:\/\/figma\.com\/file\/b/, text)
+    assert_match(/Original description text/, text)
+    assert_equal text, task.reload.description, "the local mirror must match what was pushed"
+  end
+
+  test "sync_design_links is idempotent — calling it twice does not duplicate the block" do
+    task = @project.tasks.create!(name: "JW-31 Existing", external_type: "jira", external_reference: "JW-31",
+      description: "Original text")
+    c = capturing_client
+    writer = JiraWriter.new(workspace: @workspace, client: c)
+    links = [{ "name" => "Frame 1", "url" => "https://figma.com/file/a" }]
+
+    writer.sync_design_links(task, links)
+    writer.sync_design_links(task, links)
+
+    text = task.reload.description
+    assert_equal 1, text.scan("--- Designs ---").size, "the block header must appear exactly once: #{text.inspect}"
+    assert_equal 1, text.scan("Frame 1: https://figma.com/file/a").size
+  end
+
+  test "sync_design_links replaces the block's contents when links change" do
+    task = @project.tasks.create!(name: "JW-32 Existing", external_type: "jira", external_reference: "JW-32",
+      description: "Original text")
+    c = capturing_client
+    writer = JiraWriter.new(workspace: @workspace, client: c)
+
+    writer.sync_design_links(task, [{ "name" => "Frame 1", "url" => "https://figma.com/file/a" }])
+    writer.sync_design_links(task, [
+      { "name" => "Frame 1", "url" => "https://figma.com/file/a" },
+      { "name" => "Frame 2", "url" => "https://figma.com/file/b" },
+    ])
+
+    text = task.reload.description
+    assert_equal 1, text.scan("--- Designs ---").size
+    assert_match(/Frame 2: https:\/\/figma\.com\/file\/b/, text)
+  end
+
+  test "sync_design_links with an empty list removes the whole block" do
+    task = @project.tasks.create!(name: "JW-33 Existing", external_type: "jira", external_reference: "JW-33",
+      description: "Original text")
+    c = capturing_client
+    writer = JiraWriter.new(workspace: @workspace, client: c)
+
+    writer.sync_design_links(task, [{ "name" => "Frame 1", "url" => "https://figma.com/file/a" }])
+    res = writer.sync_design_links(task, [])
+
+    assert res[:ok], res.inspect
+    text = task.reload.description
+    assert_no_match(/--- Designs ---/, text)
+    assert_match(/Original text/, text)
+  end
+
+  test "sync_design_links updates the local mirror only when the task has no Jira key (never raises)" do
+    task = @project.tasks.create!(name: "Local idea", description: "Local text")
+    c = capturing_client
+
+    res = JiraWriter.new(workspace: @workspace, client: c).sync_design_links(task,
+      [{ "name" => "Frame 1", "url" => "https://figma.com/file/a" }])
+
+    assert res[:ok], res.inspect
+    assert_nil c.captured[:update], "a local task must not attempt a Jira write"
+    assert_match(/--- Designs ---/, task.reload.description)
+  end
+
+  test "sync_design_links returns not-ok (never raises) when the Jira push fails, but keeps the local mirror updated" do
+    task = @project.tasks.create!(name: "JW-34 Existing", external_type: "jira", external_reference: "JW-34",
+      description: "Original text")
+    c = capturing_client(update: { ok: false, error: "403 Forbidden" })
+
+    res = JiraWriter.new(workspace: @workspace, client: c).sync_design_links(task,
+      [{ "name" => "Frame 1", "url" => "https://figma.com/file/a" }])
+
+    assert_not res[:ok]
+    assert_equal "403 Forbidden", res[:error]
+    assert_match(/--- Designs ---/, task.reload.description)
+  end
 end

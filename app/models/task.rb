@@ -5,6 +5,7 @@ class Task < ApplicationRecord
   has_many :jira_comments, dependent: :destroy
   has_many :task_drafts, dependent: :destroy
   has_many :briefs, dependent: :destroy
+  has_one :design_request, dependent: :destroy
   has_many_attached :attachments
 
   # The most recent AI-refined ticket description. Scoped to the "ai" source

@@ -78,6 +78,38 @@ class JiraWriter
     action[:ok] ? { ok: true, key: task.external_reference } : { ok: false, error: action[:error] }
   end
 
+  # Rewrites the delimited "--- Designs ---" block in the task's description
+  # IDEMPOTENTLY: a single header line followed by one "{name}: {url}" line
+  # per link, always at the very end of the description. Called on delivery,
+  # on per-link removal, and on request-changes, so the IN DESCRIPTION badge
+  # is always truthful. Removing the last link removes the whole block.
+  #
+  # The block lives in `task.description` (the local mirror) first — this is
+  # the single source of truth the regex rewrites — then the FULL updated
+  # description is pushed to Jira via update_issue_description when the task
+  # is linked (external_reference present). A local-only task just updates
+  # the mirror; never raises either way (matches the rest of JiraWriter).
+  DESIGNS_BLOCK_HEADER = "--- Designs ---".freeze
+  DESIGNS_BLOCK_PATTERN = /\n*#{Regexp.escape(DESIGNS_BLOCK_HEADER)}\n(?:.*\n?)*\z/
+
+  def sync_design_links(task, links)
+    base = task.description.to_s.sub(DESIGNS_BLOCK_PATTERN, "").rstrip
+    new_description =
+      if links.blank?
+        base
+      else
+        lines = links.map { |l| "#{l["name"] || l[:name]}: #{l["url"] || l[:url]}" }
+        [base, "", DESIGNS_BLOCK_HEADER, *lines].join("\n")
+      end
+
+    task.update!(description: new_description)
+
+    return { ok: true } if task.external_reference.blank?
+
+    res = @client.update_issue_description(issue_key: task.external_reference, description_text: new_description)
+    res[:ok] ? { ok: true } : { ok: false, error: res[:error] }
+  end
+
   def ai_actions_field_id
     return @workspace.jira_ai_actions_field_id if @workspace.jira_ai_actions_field_id.present?
 

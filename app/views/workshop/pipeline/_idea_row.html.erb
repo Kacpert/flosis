@@ -21,12 +21,12 @@
     </div>
   </div>
 
-  <% if idea.respond_to?(:design_request) && idea.design_request&.requested? %>
+  <% if idea.design_request&.requested? %>
     <span class="clar-badge clar-badge-warn whitespace-nowrap">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
       Designs requested
     </span>
-  <% elsif idea.respond_to?(:design_request) && idea.design_request&.delivered? %>
+  <% elsif idea.design_request&.delivered? %>
     <span class="clar-badge clar-badge-success whitespace-nowrap">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
       Designs ready

@@ -29,4 +29,8 @@
 
     <%= render "workshop/ideas/stepper", idea: idea, stage: stage %>
   </div>
+
+  <% if %w[details ready].include?(stage) %>
+    <%= render "workshop/ideas/designs_strip", idea: idea %>
+  <% end %>
 </div>
