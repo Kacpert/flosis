@@ -248,6 +248,21 @@ class WorkshopReportTest < ActiveSupport::TestCase
     assert_equal 1, current_point[:bugs_fixed]
   end
 
+  test "trend bugs_created (opened) and bugs_fixed (resolved) are distinct series from different sources" do
+    # Two bugs FIXED this month but opened long ago → fixed=2, created=0 this month.
+    delivered(issue_type: "Bug", jira_created_at: @now.prev_year, resolved_at: @now)
+    delivered(issue_type: "Bug", jira_created_at: @now.prev_year, resolved_at: @now)
+    # One OPEN bug created this month, never fixed → created=1, fixed=0.
+    @project.tasks.create!(name: "Fresh bug", issue_type: "Bug", external_type: "jira",
+                           external_reference: "ELV-CREATED-1", jira_created_at: @now)
+
+    current = report.trend(granularity: "months", range: 6).last
+    assert_equal 2, current[:bugs_fixed], "bugs_fixed = delivered Bugs resolved this month"
+    assert_equal 1, current[:bugs_created], "bugs_created = Bugs opened this month (tasks+delivered by jira_created_at)"
+    refute_equal current[:bugs_fixed], current[:bugs_created],
+                 "the two series must be computed from different sources, not the same duplicated count"
+  end
+
   test "trend granularity sprints buckets by resolved_at between sprint start/end date" do
     board = jira_boards(:design_board)
     sprint = jira_sprints(:design_sprint) # 2026-03-01..2026-03-15, board: design_board (project jira_project)

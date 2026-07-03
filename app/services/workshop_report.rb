@@ -299,6 +299,7 @@ class WorkshopReport
     rows = trend_base_scope.where.not(resolved_at: nil)
                             .where(resolved_at: months.first..now.end_of_month.end_of_day)
                             .pluck(:issue_type, :story_points, :resolved_at)
+    created = bug_created_timestamps(months.first, now.end_of_month.end_of_day)
 
     months.map do |month_start|
       month_end = month_start.end_of_month.end_of_day
@@ -306,7 +307,8 @@ class WorkshopReport
       build_point(
         label: month_start.strftime("%b").to_s + " " + month_start.strftime("%y").to_s,
         full: month_start.strftime("%B %Y"),
-        rows: in_month
+        rows: in_month,
+        bugs_created: created.count { |ts| ts.between?(month_start, month_end) }
       )
     end
   end
@@ -321,23 +323,42 @@ class WorkshopReport
                          .last(range)
 
     all_rows = trend_base_scope.where.not(resolved_at: nil).pluck(:issue_type, :story_points, :resolved_at)
+    created = sprints.any? ? bug_created_timestamps(sprints.first.start_date.beginning_of_day,
+                                                     sprints.last.end_date.end_of_day) : []
 
     sprints.map do |sprint|
       window = sprint.start_date.beginning_of_day..sprint.end_date.end_of_day
       in_sprint = all_rows.select { |(_, _, resolved_at)| window.cover?(resolved_at) }
-      build_point(label: sprint.name, full: sprint.name, rows: in_sprint)
+      build_point(label: sprint.name, full: sprint.name, rows: in_sprint,
+                  bugs_created: created.count { |ts| window.cover?(ts) })
     end
   end
 
-  def build_point(label:, full:, rows:)
+  # Bugs *opened* (by jira_created_at) across both open tasks and delivered
+  # issues in the window — the "created" trend series, distinct from the
+  # "fixed" (resolved) series which reads delivered_issues by resolved_at.
+  # Developer-scoped by assignee_email to match the rest of the trend.
+  def bug_created_timestamps(from, to)
+    open_scope = open_bugs_scope
+    delivered_scope = @project.delivered_issues.where(issue_type: BUG)
+    if @developer
+      email = @developer.email_address.downcase
+      open_scope = open_scope.where("LOWER(assignee_email) = ?", email)
+      delivered_scope = delivered_scope.where("LOWER(assignee_email) = ?", email)
+    end
+    (open_scope.where(jira_created_at: from..to).pluck(:jira_created_at) +
+     delivered_scope.where(jira_created_at: from..to).pluck(:jira_created_at)).compact
+  end
+
+  def build_point(label:, full:, rows:, bugs_created:)
     non_bug = rows.reject { |(issue_type, _, _)| issue_type == BUG }
-    bugs = rows.select { |(issue_type, _, _)| issue_type == BUG }
+    bugs_fixed = rows.count { |(issue_type, _, _)| issue_type == BUG }
     {
       label: label,
       full: full,
       sp: non_bug.sum { |(_, points, _)| points.to_f },
-      bugs_created: bugs.size,
-      bugs_fixed: bugs.size
+      bugs_created: bugs_created,
+      bugs_fixed: bugs_fixed
     }
   end
 
