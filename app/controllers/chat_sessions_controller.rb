@@ -6,6 +6,16 @@ class ChatSessionsController < ApplicationController
 
   CHAT_PURPOSE = "refine".freeze
 
+  # ACCESS NOTE (Workshop redesign, Task 5.1): this refine chat is the SHARED
+  # Jira Tasks feature — deliberately client-accessible (require_client_or_employee!)
+  # because clients have always been able to refine tickets on the Jira Tasks board
+  # (see authorization.rb: "Jira tasks + their AI features are open to clients").
+  # The Workshop "details" stage REUSES this same endpoint. Clients cannot reach
+  # the Workshop UI (redirect_clients_to_jira bounces them to /jira_tasks), and any
+  # mode=refine_current brief content injected is the client's own project data, so
+  # this reuse grants no new data access. Blocking clients here would regress the
+  # existing Jira Tasks board behavior — an accepted, documented tradeoff. The
+  # Workshop-only BRIEF chat (Task 4.2) uses the stricter require_workshop_member!.
   before_action :require_client_or_employee!
   before_action :set_task
 
