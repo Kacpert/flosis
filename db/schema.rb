@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_03_000005) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_03_000006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -262,11 +262,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_000005) do
   end
 
   create_table "pr_reviews", force: :cascade do |t|
+    t.integer "comment_count"
     t.datetime "created_at", null: false
     t.string "enqueued_sha"
     t.boolean "initial_done", default: false, null: false
     t.string "last_reviewed_sha"
+    t.string "outcome", default: "pending", null: false
+    t.string "pr_author"
+    t.string "pr_branch"
     t.integer "pr_number", null: false
+    t.string "pr_title"
+    t.string "pr_url"
     t.datetime "reviewed_at"
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
@@ -579,6 +585,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_000005) do
     t.string "github_token"
     t.string "jira_ai_actions_field_id"
     t.string "name", null: false
+    t.integer "pr_poll_minutes", default: 7, null: false
+    t.datetime "pr_polled_at"
     t.boolean "pr_review_enabled", default: false, null: false
     t.datetime "updated_at", null: false
     t.boolean "workshop_enabled", default: false, null: false

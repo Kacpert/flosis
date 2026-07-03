@@ -20,6 +20,14 @@ class PrReviewJob < ApplicationJob
     head_sha = pr.dig("head", "sha")
     files = github.pull_request_files(pr_number)
 
+    record = PrReview.find_or_initialize_by(workspace_id: workspace.id, pr_number: pr_number)
+    record.update!(
+      pr_title: pr["title"],
+      pr_author: pr.dig("user", "login"),
+      pr_branch: pr.dig("head", "ref"),
+      pr_url: pr["html_url"]
+    )
+
     issues = ai_issues(pr, files, mode)
     # parse failure → release the claim so the next cycle retries (don't post,
     # don't mark reviewed).
@@ -28,8 +36,13 @@ class PrReviewJob < ApplicationJob
     issues = issues.first(CAPS.fetch(mode, 4))
     post_review(github, pr_number, issues)
 
-    record = PrReview.find_or_initialize_by(workspace_id: workspace.id, pr_number: pr_number)
-    record.update!(last_reviewed_sha: head_sha, initial_done: true, reviewed_at: Time.current)
+    record.update!(
+      last_reviewed_sha: head_sha,
+      initial_done: true,
+      reviewed_at: Time.current,
+      outcome: issues.any? ? "comments" : "looks_good",
+      comment_count: issues.size
+    )
   end
 
   private

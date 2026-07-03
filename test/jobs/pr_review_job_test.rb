@@ -65,6 +65,54 @@ class PrReviewJobTest < ActiveJob::TestCase
     assert review.initial_done
   end
 
+  test "persists PR metadata after fetch" do
+    pr = pr_payload(sha: "abc").merge(
+      "title" => "DEV-836 thing",
+      "html_url" => "https://github.com/acme/widgets/pull/7",
+      "user" => { "login" => "octocat" }
+    )
+    fake = fake_github(pr: pr)
+    with_github(fake) do
+      with_ai("[]") do
+        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+      end
+    end
+
+    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    assert_equal "DEV-836 thing", review.pr_title
+    assert_equal "octocat", review.pr_author
+    assert_equal "dev-836-thing", review.pr_branch
+    assert_equal "https://github.com/acme/widgets/pull/7", review.pr_url
+  end
+
+  test "sets outcome looks_good and comment_count 0 when no comments" do
+    fake = fake_github(pr: pr_payload(sha: "abc"))
+    with_github(fake) do
+      with_ai("[]") do
+        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+      end
+    end
+
+    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    assert_equal "looks_good", review.outcome
+    assert_equal 0, review.comment_count
+  end
+
+  test "sets outcome comments and comment_count N when comments posted" do
+    fake = fake_github(pr: pr_payload(sha: "abc"))
+    ai = [ 1, 2, 3 ].map { |i| { "path" => "a.rb", "line" => i, "comment" => "c#{i}" } }.to_json
+
+    with_github(fake) do
+      with_ai(ai) do
+        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+      end
+    end
+
+    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    assert_equal "comments", review.outcome
+    assert_equal 3, review.comment_count
+  end
+
   test "followup caps at 2 comments" do
     PrReview.create!(workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true)
     fake = fake_github(pr: pr_payload(sha: "new"), commits: [ { "sha" => "new" } ])

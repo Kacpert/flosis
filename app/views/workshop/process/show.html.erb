@@ -1,0 +1,21 @@
+<% content_for :title, "Process Optimization · Clar" %>
+
+<h1 class="clar-h1">Process Optimization</h1>
+<p class="clar-sub">Three AI automations watching this project. They comment and propose — humans decide.</p>
+
+<div class="clar-tabs mb-6">
+  <%= link_to "AI PR Reviews", workshop_process_path(tab: "pr"),
+        class: "clar-tab #{'clar-tab-active' if @tab == 'pr'}" %>
+  <%= link_to "AI Estimate", workshop_process_path(tab: "estimate"),
+        class: "clar-tab #{'clar-tab-active' if @tab == 'estimate'}" %>
+  <%= link_to "AI Alerts", workshop_process_path(tab: "alerts"),
+        class: "clar-tab #{'clar-tab-active' if @tab == 'alerts'}" %>
+</div>
+
+<% if @tab == "pr" %>
+  <%= render "pr_tab" %>
+<% else %>
+  <div class="clar-card p-8 text-center">
+    <p class="clar-text-muted text-[14px]">Coming in a later step.</p>
+  </div>
+<% end %>

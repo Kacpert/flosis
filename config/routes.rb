@@ -109,6 +109,7 @@ Rails.application.routes.draw do
       end
       resource :design_request, only: [ :create, :update, :destroy ]
     end
+    get "process", to: "process#show", as: :process
   end
 
   # Jira integration

@@ -99,6 +99,44 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
     assert @workspace.reload.github_status_ok
   end
 
+  test "stamps pr_polled_at on each poll" do
+    travel_to Time.zone.local(2026, 6, 15, 10, 0) do
+      with_github(fake_github(prs: [])) { PrReviewCheckJob.perform_now }
+    end
+    assert_equal Time.zone.local(2026, 6, 15, 10, 0), @workspace.reload.pr_polled_at
+  end
+
+  test "skips a workspace polled less than max(7, pr_poll_minutes) minutes ago" do
+    travel_to Time.zone.local(2026, 6, 15, 10, 0) do
+      @workspace.update!(pr_poll_minutes: 5, pr_polled_at: 2.minutes.ago)
+      with_github(fake_github(prs: [ pr(7, "abc") ])) do
+        assert_no_enqueued_jobs(only: PrReviewJob) { PrReviewCheckJob.perform_now }
+      end
+    end
+  end
+
+  test "polls a workspace whose pr_polled_at is nil" do
+    @workspace.update!(pr_polled_at: nil)
+    travel_to Time.zone.local(2026, 6, 15, 10, 0) do
+      with_github(fake_github(prs: [ pr(7, "abc") ])) do
+        assert_enqueued_with(job: PrReviewJob, args: [ @workspace.id, 7, "initial" ]) do
+          PrReviewCheckJob.perform_now
+        end
+      end
+    end
+  end
+
+  test "polls a workspace whose pr_polled_at is older than the effective interval" do
+    travel_to Time.zone.local(2026, 6, 15, 10, 0) do
+      @workspace.update!(pr_poll_minutes: 3, pr_polled_at: 8.minutes.ago)
+      with_github(fake_github(prs: [ pr(7, "abc") ])) do
+        assert_enqueued_with(job: PrReviewJob, args: [ @workspace.id, 7, "initial" ]) do
+          PrReviewCheckJob.perform_now
+        end
+      end
+    end
+  end
+
   test "no-op outside working hours" do
     travel_to Time.zone.local(2026, 6, 15, 21, 0) do
       with_github(fake_github(prs: [ pr(7, "abc") ])) do
