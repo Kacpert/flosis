@@ -101,7 +101,9 @@ Rails.application.routes.draw do
   namespace :workshop do
     get "pipeline", to: "pipeline#index", as: :pipeline
     get "jira_browser", to: "jira_browser#show", as: :jira_browser
-    resources :ideas, only: [ :create, :show, :update ]
+    resources :ideas, only: [ :create, :show, :update ] do
+      member { post :advance }
+    end
   end
 
   # Jira integration

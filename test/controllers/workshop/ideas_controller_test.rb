@@ -72,4 +72,46 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
     refute other.reload.in_pipeline, "cross-project task must not enter the pipeline"
   end
+
+  test "GET show renders the workspace shell with the stepper at the idea's stage" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+
+    get workshop_idea_path(idea)
+
+    assert_response :success
+    assert_select "h1", idea.name
+    assert_select ".clar-key", idea.external_reference
+    assert_select "[data-stepper-stage='briefing'][data-stepper-current='true']"
+  end
+
+  test "PATCH update renames a local task and sets a toast" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+
+    patch workshop_idea_path(idea), params: { idea: { name: "New name" } }
+
+    assert_response :success
+    assert_equal "New name", idea.reload.name
+  end
+
+  test "POST advance with a legal transition sets workshop_stage" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+
+    post advance_workshop_idea_path(idea), params: { to: "details" }
+
+    assert_response :redirect
+    assert_equal "details", idea.reload.workshop_stage
+  end
+
+  test "POST advance with an illegal transition is rejected" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "new", pipeline_entered_at: 1.hour.ago)
+
+    post advance_workshop_idea_path(idea), params: { to: "ready" }
+
+    assert_response :unprocessable_entity
+    assert_equal "new", idea.reload.workshop_stage
+  end
 end

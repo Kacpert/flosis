@@ -1,9 +1,20 @@
 class Workshop::IdeasController < Workshop::BaseController
-  # show/update land in Phase 4. head :not_implemented guards against a stray
-  # request raising MissingTemplate before those actions are filled in.
+  # Server-side whitelist of legal stepper transitions. Anything else (e.g.
+  # skipping a stage, or moving backwards) is rejected with 422 — the stepper
+  # UI only ever links to done/current steps, but the endpoint still guards
+  # itself against a forged/stray request.
+  LEGAL_TRANSITIONS = {
+    "new"      => "briefing",
+    "briefing" => "details",
+    "details"  => "ready",
+  }.freeze
 
   def show
-    head :not_implemented
+    @idea = current_workshop_project.tasks.pipeline.find(params[:id])
+    @stage = params[:stage].presence_in(%w[briefing details ready]) ||
+             (@idea.stage_new? ? "briefing" : @idea.workshop_stage)
+
+    render "workshop/ideas/show"
   end
 
   def create
@@ -14,8 +25,32 @@ class Workshop::IdeasController < Workshop::BaseController
     end
   end
 
+  # Rename: local tasks rename freely; Jira-linked tasks rename the local
+  # mirror only (the `name` column) — never pushed back to Jira from here.
+  # The header pencil (clar_rename_controller.js) issues a fetch PATCH and
+  # applies the new name optimistically, so a plain 200 is enough — no body
+  # required, but we return the persisted name for the JS to reconcile with.
   def update
-    head :not_implemented
+    @idea = current_workshop_project.tasks.pipeline.find(params[:id])
+
+    if @idea.update(rename_params)
+      flash.now[:clar_toast] = "Renamed"
+      render json: { name: @idea.name }
+    else
+      render json: { errors: @idea.errors.full_messages }, status: :unprocessable_entity
+    end
+  end
+
+  def advance
+    @idea = current_workshop_project.tasks.pipeline.find(params[:id])
+    to = params[:to].to_s
+
+    if LEGAL_TRANSITIONS[@idea.workshop_stage] == to
+      @idea.update!(workshop_stage: to)
+      redirect_to workshop_idea_path(@idea, stage: to)
+    else
+      head :unprocessable_entity
+    end
   end
 
   private
@@ -58,5 +93,12 @@ class Workshop::IdeasController < Workshop::BaseController
 
   def idea_params
     params.require(:idea).permit(:title, :description)
+  end
+
+  # Rename only ever touches the local `name` column — for Jira-linked tasks
+  # this deliberately does NOT sync back to Jira (the header shows a "local
+  # only" hint for those; see _workspace_header.html.erb).
+  def rename_params
+    params.require(:idea).permit(:name)
   end
 end

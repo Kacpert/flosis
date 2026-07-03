@@ -1,0 +1,12 @@
+<% content_for :title, "#{@idea.name} · Clar" %>
+<% content_for :clar_full_bleed, true %>
+
+<div class="flex flex-col h-full">
+  <%= render "workshop/ideas/workspace_header", idea: @idea, stage: @stage %>
+
+  <%# chat + document panels land in Tasks 4.2/4.3 %>
+  <div class="flex-1 grid grid-cols-2 min-h-0">
+    <div class="border-r clar-divider"></div>
+    <div></div>
+  </div>
+</div>
