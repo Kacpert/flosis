@@ -5,6 +5,8 @@
 class TaskBreakdownsController < ApplicationController
   include WorkspaceScoped
 
+  layout "workshop"
+
   before_action { require_product!(:workshop) }
 
   before_action :require_client_or_employee!

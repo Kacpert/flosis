@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title><%= content_for(:title) || "Clar" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="application-name" content="Clar">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <%= yield :head %>
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <script>
+      (function(){
+        try {
+          var t = localStorage.getItem("clarTheme");
+          if (t === "dark" || t === "light") {
+            document.documentElement.dataset.clarThemePending = t;
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+  </head>
+
+  <body class="min-h-screen">
+    <%
+      pending_theme = "light"
+    %>
+    <div class="clar-app flex flex-col h-screen overflow-hidden"
+         data-controller="clar-theme clar-toast"
+         data-clar-theme="<%= pending_theme %>"
+         data-clar-toast-initial-value="<%= flash[:clar_toast] %>">
+      <script>
+        (function(el){
+          var t = el.ownerDocument.documentElement.dataset.clarThemePending;
+          if (t) el.setAttribute("data-clar-theme", t);
+        })(document.currentScript.closest(".clar-app"));
+      </script>
+
+      <%= render "layouts/clar_topbar" %>
+
+      <div class="flex flex-1 min-h-0">
+        <%= render "layouts/clar_sidebar" %>
+
+        <main class="flex-1 min-w-0 overflow-y-auto">
+          <% if content_for?(:clar_full_bleed) %>
+            <%= render "layouts/clar_flash" %>
+            <%= yield %>
+          <% else %>
+            <div class="max-w-[1120px] mx-auto px-8 py-7">
+              <%= render "layouts/clar_flash" %>
+              <%= yield %>
+            </div>
+          <% end %>
+        </main>
+      </div>
+
+      <div data-clar-toast-target="toast" class="clar-toast hidden">
+        <span class="check" style="color: var(--success); display: flex;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+        </span>
+        <span data-clar-toast-target="message"></span>
+      </div>
+    </div>
+  </body>
+</html>

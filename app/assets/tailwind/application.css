@@ -2019,6 +2019,10 @@ span.flatpickr-weekday {
   border-right:1px solid var(--border); padding:14px 12px; display:flex;
   flex-direction:column; gap:3px; transition:width .16s ease; }
 .clar-sidebar[data-collapsed="true"] { width:64px; flex-basis:64px; padding:14px 10px; }
+.clar-sidebar[data-collapsed="true"] [data-clar-sidebar-hide-label] { display:none; }
+.clar-sidebar[data-collapsed="true"] .clar-nav-item { justify-content:center; padding:10px 0; }
+.clar-sidebar[data-collapsed="true"] [data-clar-sidebar-collapsed-only-hide] { display:none; }
+.clar-sidebar[data-collapsed="true"] [data-clar-sidebar-collapsed-only-show] { display:flex !important; }
 .clar-nav-item { display:flex; align-items:center; gap:11px; width:100%; padding:9px 10px;
   border-radius:9px; border:none; cursor:pointer; font-size:13.5px; font-weight:500;
   background:transparent; color:var(--muted); text-decoration:none; }

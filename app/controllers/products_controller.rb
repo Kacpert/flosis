@@ -18,7 +18,10 @@ class ProductsController < ApplicationController
   # a project the user can actually see; redirects back to where they came from.
   def switch_project
     project = workshop_projects.find_by(id: params[:project_id])
-    session[:workshop_project_id] = project.id if project
+    if project
+      session[:workshop_project_id] = project.id
+      flash[:clar_toast] = "Switched to #{project.name}"
+    end
     redirect_back fallback_location: workshop_path
   end
 end

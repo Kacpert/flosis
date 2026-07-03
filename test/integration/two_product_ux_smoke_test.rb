@@ -36,9 +36,10 @@ class TwoProductUxSmokeTest < ActionDispatch::IntegrationTest
     post switch_product_path, params: { product: "workshop" }
     get workshop_path
     assert_response :success
-    # project switcher present (posts to the workshop project switch route)
+    # project switcher present (posts to the workshop project switch route) —
+    # now the Clar top-bar dropdown (Task 1.2), not the old M3 "Working in" select.
     assert_select "form[action=?]", switch_workshop_project_path
-    assert_match "Working in", response.body
+    assert_match "SWITCH PROJECT", response.body
     # the time-tracking timer must NOT appear in Workshop
     assert_select "form[action=?]", update_running_timer_path, count: 0
     assert_select "[data-controller~=timer]", count: 0

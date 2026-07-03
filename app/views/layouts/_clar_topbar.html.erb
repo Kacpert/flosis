@@ -1,0 +1,76 @@
+<%# Clar workshop top bar: logo, project switcher, integration chips,
+    theme toggle, user chip. Structure/icons ported from redesign.html. %>
+<header class="clar-topbar">
+  <div class="flex items-center gap-2 pr-1.5">
+    <div class="clar-logo">C</div>
+    <span class="font-bold text-base tracking-tight">Clar</span>
+  </div>
+
+  <div class="relative" data-controller="clar-dropdown">
+    <button type="button" data-action="click->clar-dropdown#toggle"
+            class="flex items-center gap-2.5 h-[38px] px-3 rounded-lg border clar-btn"
+            style="border-color: var(--border); background: var(--surface-2);">
+      <span class="clar-dot" style="background: var(--success);"></span>
+      <span class="font-semibold text-[13.5px]"><%= current_workshop_project&.name || "No project selected" %></span>
+      <% if current_workshop_project&.client %>
+        <span class="text-[11px]" style="color: var(--faint);"><%= current_workshop_project.client.name %></span>
+      <% end %>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+
+    <div data-clar-dropdown-target="panel" class="hidden absolute top-[46px] left-0 w-[300px] clar-card clar-fade" style="box-shadow: var(--shadow-lg); padding: 6px; z-index: 50;">
+      <div class="text-[10.5px] font-bold tracking-wide px-2.5 pt-2 pb-1" style="color: var(--faint); letter-spacing: .6px;">SWITCH PROJECT &middot; SWAPS EVERYTHING</div>
+      <% workshop_projects.each do |project| %>
+        <%= button_to switch_workshop_project_path, params: { project_id: project.id }, method: :post,
+              class: "flex items-center justify-between w-full px-2.5 py-2.5 rounded-lg border-0 text-left #{'bg-black/[.03]' if project == current_workshop_project}",
+              style: project == current_workshop_project ? "background: var(--surface-2);" : "background: transparent;" do %>
+          <div class="flex flex-col gap-0.5 text-left">
+            <span class="font-semibold text-[13.5px]"><%= project.name %></span>
+            <span class="text-[11.5px]" style="color: var(--faint);"><%= [project.client&.name, project.external_reference].compact.join(" · ") %></span>
+          </div>
+          <% if project == current_workshop_project %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-1.5">
+    <%
+      jira_on = current_workshop_project&.jira_connected?
+      github_on = Current.workspace.github_repo.present? && Current.workspace.github_status_ok
+      discord_on = Current.workspace.discord_channel_id.present?
+      figma_on = false # Phase 9 (figma_read_enabled) not implemented yet — render gray.
+      chips = { "Jira" => jira_on, "GitHub" => github_on, "Discord" => discord_on, "Figma" => figma_on }
+    %>
+    <% chips.each do |label, on| %>
+      <div title="<%= label %><%= on ? ' connected' : ' not connected' %>"
+           class="flex items-center gap-1.5 text-[11px] font-semibold rounded-md border px-2 py-1"
+           style="color: <%= on ? 'var(--muted)' : 'var(--faint)' %>; background: var(--surface-2); border-color: var(--border);">
+        <span class="clar-dot" style="background: <%= on ? 'var(--success)' : 'var(--faint)' %>;"></span><%= label %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="flex-1"></div>
+
+  <button type="button" data-action="click->clar-theme#toggle" title="Toggle theme"
+          class="w-9 h-9 rounded-lg border flex items-center justify-center"
+          style="border-color: var(--border); background: var(--surface-2);">
+    <svg data-clar-theme-target="sunIcon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    <svg data-clar-theme-target="moonIcon" class="hidden" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+  </button>
+
+  <div class="flex items-center gap-2.5 pl-1">
+    <div class="clar-avatar" style="width: 32px; height: 32px; font-size: 12px; background: <%= clar_avatar_color(current_user.name) %>;">
+      <%= clar_initials(current_user.name) %>
+    </div>
+    <div class="flex flex-col leading-tight">
+      <span class="text-[12.5px] font-semibold"><%= current_user.name %></span>
+      <span class="text-[10.5px]" style="color: var(--faint);">
+        <%= current_user.admin_or_owner?(Current.workspace) ? "Administrator" : "Product Owner" %>
+      </span>
+    </div>
+  </div>
+</header>
