@@ -17,15 +17,21 @@
     <span class="flex-1 text-left" data-clar-sidebar-hide-label>Jira Tasks</span>
   <% end %>
 
-  <% unless is_client %>
+  <%
+    # Whether the Workshop tab itself is reachable at all — mirrors
+    # Workshop::BaseController's gates (require_product!(:workshop) +
+    # require_workshop!; D1 relaxed this to any workshop_access member, not
+    # admin-only — see Task 2.3). Built items (like Create Tasks) are real
+    # routes now, but they'd still just bounce the user via require_workshop!
+    # if the workspace hasn't enabled Workshop, so the whole nav group (built
+    # and not-yet-built alike) stays gated on this.
+    workshop_reachable = current_user.can_access_workshop?(Current.workspace) && Current.workspace.workshop_enabled?
+  %>
+  <% if !is_client && workshop_reachable %>
     <%
       # Interim fallback: point not-yet-built Phase 2/6/7/8/9 items at workshop_path
-      # (guarded by respond_to?) only once the Workshop tab itself is actually
-      # reachable (admin + workshop_enabled?) — mirrors WorkshopController's own
-      # require_admin!/require_workshop! gates so we never render a live-looking
-      # link to a page that would just bounce the user to root_path.
-      workshop_reachable = current_user.admin_or_owner?(Current.workspace) && Current.workspace.workshop_enabled?
-      fallback_path = workshop_reachable ? workshop_path : "#"
+      # (guarded by respond_to?) so Phase 3+ only needs to add their real routes.
+      fallback_path = workshop_path
       nav_items = [
         { key: "process", label: "Process Optimization", real: respond_to?(:workshop_process_path),
           path: respond_to?(:workshop_process_path) ? workshop_process_path : fallback_path,

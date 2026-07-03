@@ -95,6 +95,14 @@ Rails.application.routes.draw do
   post "workshop/start",           to: "workshop#start",    as: :start_workshop
   get  "workshop/tasks/:id/brief", to: "workshop#brief",    as: :workshop_brief
 
+  # Workshop redesign (Clar): Create Tasks pipeline + idea intake. Additive —
+  # more routes (advance/save_locally/push_jira, versions, design_request,
+  # process/reporting/bugs/configuration) land in later phases.
+  namespace :workshop do
+    get "pipeline", to: "pipeline#index", as: :pipeline
+    resources :ideas, only: [ :create, :show, :update ]
+  end
+
   # Jira integration
   get "jira/projects", to: "jira#projects", as: :jira_projects
 

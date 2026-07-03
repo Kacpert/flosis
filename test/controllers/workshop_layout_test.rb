@@ -9,7 +9,7 @@ class WorkshopLayoutTest < ActionDispatch::IntegrationTest
   end
 
   test "workshop landing renders the Clar shell, not the HR shell" do
-    get workshop_path
+    get workshop_pipeline_path
     assert_response :success
     assert_select "div.clar-app"
     assert_select "header.clar-topbar"

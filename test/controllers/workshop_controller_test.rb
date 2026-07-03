@@ -19,8 +19,9 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
   test "admin sees workshop and the design-sprint task when enabled" do
     @workspace.update!(workshop_enabled: true)
     sign_in_as(users(:one))
+    # index now redirects to the Create Tasks pipeline (Task 2.3).
     get workshop_path
-    assert_response :success
+    assert_redirected_to workshop_pipeline_path
     get new_idea_workshop_path(project_id: @project.id)
     assert_response :success
     assert_match "WS-1 Design task", response.body
@@ -38,39 +39,14 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-idea-picker-target=item]", { count: 1 } # the one design task
   end
 
-  test "landing lists an in-progress idea so you can resume it" do
-    @workspace.update!(workshop_enabled: true)
-    sign_in_as(users(:one))
-    post switch_workshop_project_path, params: { project_id: @project.id }
-    idea = @project.tasks.create!(name: "Half-finished idea")
-    Brief.create!(task: idea, workspace: @workspace, version: 1, content: "draft concept")
-
-    get workshop_path
-    assert_response :success
-    assert_match "In progress", response.body
-    assert_match "Half-finished idea", response.body
-    assert_select "a[href=?]", workshop_brief_path(idea)
-  end
-
-  test "a briefed idea is NOT listed as in-progress" do
-    @workspace.update!(workshop_enabled: true)
-    sign_in_as(users(:one))
-    post switch_workshop_project_path, params: { project_id: @project.id }
-    idea = @project.tasks.create!(name: "Done idea")
-    Brief.create!(task: idea, workspace: @workspace, version: 1, content: "c", status: "briefed", briefed_at: Time.current)
-
-    get workshop_path
-    assert_select "a[href=?]", workshop_brief_path(idea), count: 0
-  end
-
-  test "landing choice cards link into the two modes" do
-    @workspace.update!(workshop_enabled: true)
-    sign_in_as(users(:one))
-    post switch_workshop_project_path, params: { project_id: @project.id }
-    get workshop_path
-    assert_select "a.ws-choice[href=?]", new_idea_workshop_path(project_id: @project.id, mode: "new")
-    assert_select "a.ws-choice[href=?]", new_idea_workshop_path(project_id: @project.id, mode: "existing")
-  end
+  # NOTE: "in-progress ideas to resume" and "landing choice cards" were features
+  # of the old (pre-Task 2.3) `workshop#index` landing, which no longer renders
+  # (it redirects to the Create Tasks pipeline — see Workshop::PipelineController).
+  # The pipeline shows all in-pipeline ideas (any stage) as rows — see
+  # test/controllers/workshop/pipeline_controller_test.rb — so a task already in
+  # the pipeline is always visible there, and the two entry cards (New idea /
+  # Existing Jira task) are covered by TwoProductUxSmokeTest's
+  # "workshop landing offers New idea / Existing Jira task entry points".
 
   test "new_idea honors the mode param so the chosen panel opens" do
     @workspace.update!(workshop_enabled: true)
@@ -130,8 +106,11 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
     @workspace.update!(workshop_enabled: true)
     sign_in_as(users(:one))
     post switch_product_path, params: { product: "workshop" }
-    get workshop_path
-    assert_select "a[href=?]", workshop_path
+    # The sidebar's "Create Tasks" item is the Workshop tab now that the
+    # pipeline route is real (Task 2.3) — it points at workshop_pipeline_path,
+    # not the old bare workshop_path.
+    get workshop_pipeline_path
+    assert_select "a[href=?]", workshop_pipeline_path
   end
 
   test "sidebar hides Workshop when disabled" do
@@ -139,13 +118,13 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
     sign_in_as(users(:one))
     post switch_product_path, params: { product: "workshop" }
     get jira_tasks_path
-    assert_select "a[href=?]", workshop_path, count: 0
+    assert_select "a[href=?]", workshop_pipeline_path, count: 0
   end
 
   test "Workshop nav is absent in the Time & HR product" do
     @workspace.update!(workshop_enabled: true)
     sign_in_as(users(:one))
     get time_entries_path
-    assert_select "a[href=?]", workshop_path, count: 0
+    assert_select "a[href=?]", workshop_pipeline_path, count: 0
   end
 end

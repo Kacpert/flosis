@@ -2134,6 +2134,11 @@ span.flatpickr-weekday {
 .clar-text-success { color:var(--success); }
 .clar-text-primary { color:var(--primary); }
 .clar-text-text { color:var(--text); }
+.clar-text-warn { color:var(--warn); }
+
+/* Structural utilities additive to the component classes above. */
+.clar-divider { background:var(--border); }
+.clar-dashed { border:1px dashed var(--border); }
 
 /* Toast hidden-state fix: .clar-toast sets display:flex, which otherwise
    beats Tailwind's .hidden{display:none} once both apply to the same
