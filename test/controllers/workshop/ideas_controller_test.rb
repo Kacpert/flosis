@@ -375,4 +375,87 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal "details", idea.reload.workshop_stage
   end
+
+  test "GET show at ready stage renders the Ready screen with the summary and branch cards" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "ready", pipeline_entered_at: 1.hour.ago,
+                 detail_saved_locally_at: nil)
+    idea.task_drafts.create!(source: "ai", origin: "ai", content: "the detailed description",
+                             pushed_at: 1.minute.ago).make_current!
+    idea.task_drafts.create!(source: "breakdown", origin: "ai",
+                             content: { total_points: 8, needs_breakdown: false, subtasks: [] }.to_json)
+
+    get workshop_idea_path(idea, stage: "ready")
+
+    assert_response :success
+    assert_select "h2", text: /Ready for the team/
+    assert_select "*", text: /#{idea.external_reference}/
+    assert_select "*", text: idea.name
+    assert_select "*", text: /IN JIRA/
+    assert_select "*", text: /Detailed/
+    assert_select "*", text: /8 pts/
+    assert_select "*", text: /auto/
+    assert_select "code", text: idea.suggested_branch
+    assert_select "*", text: /AI prepared a branch/
+  end
+
+  test "GET show at ready stage shows Push to Jira when the detail draft has not been pushed" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "ready", pipeline_entered_at: 1.hour.ago)
+    idea.task_drafts.create!(source: "ai", origin: "ai", content: "the detailed description",
+                             pushed_at: nil).make_current!
+
+    get workshop_idea_path(idea, stage: "ready")
+
+    assert_response :success
+    assert_select "form[action='#{push_jira_workshop_idea_path(idea)}']" do
+      assert_select "button", text: /Push to Jira/
+    end
+  end
+
+  test "GET show at ready stage hides Push to Jira once the detail draft is pushed" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "ready", pipeline_entered_at: 1.hour.ago)
+    idea.task_drafts.create!(source: "ai", origin: "ai", content: "the detailed description",
+                             pushed_at: 1.minute.ago).make_current!
+
+    get workshop_idea_path(idea, stage: "ready")
+
+    assert_response :success
+    assert_select "button", text: /Push to Jira/, count: 0
+  end
+
+  test "GET show at ready stage renders Detailed vs Briefed vs em-dash for AI actions" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "ready", pipeline_entered_at: 1.hour.ago)
+
+    get workshop_idea_path(idea, stage: "ready")
+    assert_response :success
+    assert_select "*", text: "—" # em-dash: no brief, no pushed detail
+
+    idea.briefs.create!(workspace: idea.project.workspace, version: 1, origin: "ai", status: "briefed",
+                        content: "briefed content").make_current!
+    get workshop_idea_path(idea, stage: "ready")
+    assert_select "*", text: /Briefed/
+  end
+
+  test "GET show at ready stage shows an em-dash for AI estimation when there is no breakdown" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "ready", pipeline_entered_at: 1.hour.ago)
+
+    get workshop_idea_path(idea, stage: "ready")
+
+    assert_response :success
+    assert_select "*", text: "—"
+  end
+
+  test "GET show at ready stage renders Back to pipeline" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "ready", pipeline_entered_at: 1.hour.ago)
+
+    get workshop_idea_path(idea, stage: "ready")
+
+    assert_response :success
+    assert_select "a[href='#{workshop_pipeline_path}']", text: /Back to pipeline/
+  end
 end

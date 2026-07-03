@@ -15,6 +15,7 @@ class Workshop::IdeasController < Workshop::BaseController
              (@idea.stage_new? ? "briefing" : @idea.workshop_stage)
 
     seed_v0_detail_draft if @stage == "details"
+    load_ready_summary if @stage == "ready"
 
     render "workshop/ideas/show"
   end
@@ -160,6 +161,24 @@ class Workshop::IdeasController < Workshop::BaseController
 
     @idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "user", version: 0,
                               content: @idea.description).make_current!
+  end
+
+  # Summary data for the Ready screen (Task 5.4). "Pushed" (detail committed
+  # to Jira) is the signal for both the IN JIRA/LOCAL badge and whether the
+  # Push to Jira button still makes sense — see JiraWriter#commit_detail,
+  # which stamps the current detail draft's pushed_at on success.
+  def load_ready_summary
+    @detail_pushed = @idea.current_detail_draft&.pushed_at.present?
+    @ai_actions = if @detail_pushed
+      "Detailed"
+    elsif @idea.current_brief&.briefed?
+      "Briefed"
+    else
+      "—"
+    end
+    @ai_estimate_points = @idea.latest_breakdown_total_points
+    @versions_saved = @idea.briefs.count + @idea.task_drafts.by_source("ai").count
+    @show_push_to_jira = !@detail_pushed && !@idea.current_brief&.briefed?
   end
 
   def idea_params

@@ -19,6 +19,19 @@ class Task < ApplicationRecord
     task_drafts.by_source(TaskDraft::BREAKDOWN_SOURCE).newest_first.first
   end
 
+  # AI estimation total (points) for the Ready screen (Task 5.4). There is no
+  # `ai_estimate_points` column yet (that lands in Phase 6) — until then this
+  # falls back to the latest breakdown TaskDraft's JSON `total_points`.
+  # Guards a missing breakdown and malformed/missing JSON, same rescue
+  # pattern as JiraWriter#format_breakdown.
+  def latest_breakdown_total_points
+    breakdown = latest_breakdown
+    return nil if breakdown.blank?
+
+    data = JSON.parse(breakdown.content) rescue nil
+    data && data["total_points"]
+  end
+
   # The most recent brief (any status) for this task.
   def latest_brief
     briefs.newest_first.first
@@ -59,5 +72,13 @@ class Task < ApplicationRecord
     update!(in_pipeline: true, workshop_stage: stage,
             pipeline_entered_at: pipeline_entered_at || Time.current,
             pipeline_author: pipeline_author || author)
+  end
+
+  # A suggested (informational-only) branch name for the Ready screen (Task
+  # 5.4). Nothing is created server-side — this is copy, not a git operation.
+  def suggested_branch
+    slug = name.parameterize[0, 32].delete_suffix("-")
+    key  = external_reference&.downcase
+    "feat/#{[key, slug].compact.join("-")}"
   end
 end
