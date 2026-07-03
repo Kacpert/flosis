@@ -1,0 +1,41 @@
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="manage-figma"
+     data-action="click->clar-modal#close">
+  <div class="clar-modal max-w-[520px] max-h-[88vh] overflow-y-auto" data-action="click->clar-modal#stopPropagation">
+    <div class="p-5 border-b border-[color:var(--border)] flex items-center gap-3.5">
+      <span class="w-10 h-10 rounded-[10px] bg-[var(--surface-2)] flex items-center justify-center clar-text-text flex-none">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      </span>
+      <div class="flex-1">
+        <div class="font-bold text-[16px] clar-text-text">Figma</div>
+        <div class="inline-flex items-center gap-1.5 text-[11px] font-bold <%= workspace.figma_read_enabled ? 'text-[color:var(--success)]' : 'clar-text-faint' %> mt-0.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-current"></span><%= workspace.figma_read_enabled ? "Connected" : "Disabled" %>
+        </div>
+      </div>
+      <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <%= form_with model: workspace, url: workshop_configuration_path(tab: "integrations"), method: :patch,
+          data: { controller: "clar-toggle" } do |f| %>
+      <div class="p-5">
+        <p class="text-[13px] leading-relaxed clar-text-muted mb-4">Access is configured as an MCP server in the analysis checkout &mdash; this toggle only controls whether Details Gathering instructs the AI to read Figma frames.</p>
+
+        <div class="flex items-center justify-between gap-3 py-2.5">
+          <div class="font-semibold text-[13px] clar-text-text">Read designs in Details Gathering</div>
+          <%= f.check_box :figma_read_enabled, class: "sr-only", data: { clar_toggle_target: "input", action: "change->clar-toggle#render" } %>
+          <button type="button" class="clar-toggle" data-clar-toggle-target="button"
+                  aria-checked="<%= workspace.figma_read_enabled? ? 'true' : 'false' %>"
+                  data-action="clar-toggle#toggle">
+            <span class="knob"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="p-3.5 border-t border-[color:var(--border)] flex items-center justify-end gap-2.5">
+        <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+        <%= f.submit "Save changes", class: "clar-btn clar-btn-primary" %>
+      </div>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,56 @@
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="manage-jira"
+     data-action="click->clar-modal#close">
+  <div class="clar-modal max-w-[520px] max-h-[88vh] overflow-y-auto" data-action="click->clar-modal#stopPropagation">
+    <div class="p-5 border-b border-[color:var(--border)] flex items-center gap-3.5">
+      <span class="w-10 h-10 rounded-[10px] bg-[var(--surface-2)] flex items-center justify-center clar-text-text flex-none">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+      </span>
+      <div class="flex-1">
+        <div class="font-bold text-[16px] clar-text-text">Jira Cloud</div>
+        <div class="inline-flex items-center gap-1.5 text-[11px] font-bold <%= @jira_configured ? 'text-[color:var(--success)]' : 'clar-text-faint' %> mt-0.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-current"></span><%= @jira_configured ? "Connected" : "Not connected" %>
+        </div>
+      </div>
+      <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="p-5">
+      <label class="clar-field-label">SITE URL</label>
+      <div class="clar-input clar-mono mb-4 flex items-center" style="background: var(--surface-2);"><%= ENV["JIRA_DOMAIN"].presence || "&mdash;".html_safe %></div>
+
+      <label class="clar-field-label">PROJECT KEY</label>
+      <div class="clar-input clar-mono mb-4 flex items-center" style="background: var(--surface-2);"><%= current_workshop_project&.external_reference.presence || "&mdash;".html_safe %></div>
+
+      <div class="clar-field-label">CUSTOM FIELDS</div>
+      <div class="flex flex-col gap-1.5 mb-4">
+        <% [["AI estimation", workspace.jira_ai_estimation_field_id], ["AI actions", workspace.jira_ai_actions_field_id], ["Story points", workspace.jira_story_points_field_id]].each do |label, field_id| %>
+          <div class="flex items-center gap-2.5 bg-[var(--bg)] border border-[color:var(--border)] rounded-[9px] px-3 py-2.5">
+            <span class="<%= field_id.present? ? 'text-[color:var(--success)]' : 'clar-text-faint' %> flex">
+              <% if field_id.present? %>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <% else %>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              <% end %>
+            </span>
+            <span class="font-semibold text-[13px] clar-text-text flex-1"><%= label %></span>
+            <span class="text-[11px] clar-text-faint"><%= field_id.presence || "not verified" %></span>
+          </div>
+        <% end %>
+      </div>
+
+      <%= button_to "Verify fields", workshop_verify_jira_fields_configuration_path, method: :post, class: "clar-btn mb-4", form: { data: { turbo: false } } %>
+
+      <div class="text-[11px] clar-text-faint">Credentials are configured on the server (.env).</div>
+    </div>
+
+    <div class="p-3.5 border-t border-[color:var(--border)] flex items-center justify-between gap-2.5">
+      <%= button_to "Test connection", workshop_verify_jira_fields_configuration_path, method: :post, class: "clar-btn", form: { data: { turbo: false } } %>
+      <div class="flex gap-2.5">
+        <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+        <button type="button" class="clar-btn clar-btn-primary" data-action="clar-modal#close">Save changes</button>
+      </div>
+    </div>
+  </div>
+</div>

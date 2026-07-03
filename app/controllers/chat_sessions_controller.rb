@@ -65,12 +65,7 @@ class ChatSessionsController < ApplicationController
       - List the top-level `app/` directory to learn the domain.
       - Identify the 2–5 files most likely involved in this ticket (models, controllers, views, services). Read them.
       - If there are screenshots in the attachments list, read them with the `Read` tool — they usually carry critical UI context.
-      - **Figma links.** If the ticket description or any comment contains a Figma URL (figma.com/design/... or figma.com/file/...), you have access to a Figma MCP server with an authenticated read-only token. For **every** Figma URL you must do BOTH:
-        1. Call `mcp__figma__get_figma_data` for the node tree (text, structure, component names).
-        2. Call `mcp__figma__download_figma_images` to download the rendered PNGs of the relevant frames and then `Read` those PNG files. Visual details (color coding, spacing, micro-copy in icons, badges, empty states) are routinely the deciding factor for UI tickets and are NOT in the node tree alone.
-
-        Don't stop after the node tree. If the file is too large for a single PNG, request individual frame IDs separately and read each one. If a node hits Read's pixel limit, ask for a smaller scale or fetch a sub-frame — don't give up.
-
+      #{figma_instructions_section}
       Do all of this with your tools (Read, Grep, Glob, figma MCP). Do **not** narrate any of it. Don't say "let me read X", "now let me load the Figma", "I'll check Y" — go completely silent until you're ready to post your first user-facing message. Your first message should be a 1–2 sentence summary of what you found (referencing concrete files) followed by your first clarifying question. **Do not emit any text before that summary.**
 
       ## Step 2 — Ask product/UX/business questions only, one at a time
@@ -152,5 +147,22 @@ class ChatSessionsController < ApplicationController
 
       #{current_brief.content}
     SECTION
+  end
+
+  # Configuration -> Integrations -> Figma toggle (Task 9.2, figma_read_enabled):
+  # only instruct the AI to read Figma frames when the workspace has opted in.
+  # Access itself is a server-side MCP config either way — this toggle purely
+  # controls whether Details Gathering tells the AI to use it. Returns "" when
+  # disabled so the investigation list simply omits the Figma bullet.
+  def figma_instructions_section
+    return "" unless @task.project.workspace.figma_read_enabled
+
+    <<~FIGMA.strip
+      - **Figma links.** If the ticket description or any comment contains a Figma URL (figma.com/design/... or figma.com/file/...), you have access to a Figma MCP server with an authenticated read-only token. For **every** Figma URL you must do BOTH:
+        1. Call `mcp__figma__get_figma_data` for the node tree (text, structure, component names).
+        2. Call `mcp__figma__download_figma_images` to download the rendered PNGs of the relevant frames and then `Read` those PNG files. Visual details (color coding, spacing, micro-copy in icons, badges, empty states) are routinely the deciding factor for UI tickets and are NOT in the node tree alone.
+
+        Don't stop after the node tree. If the file is too large for a single PNG, request individual frame IDs separately and read each one. If a node hits Read's pixel limit, ask for a smaller scale or fetch a sub-frame — don't give up.
+    FIGMA
   end
 end
