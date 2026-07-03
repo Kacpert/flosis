@@ -37,4 +37,16 @@ class Task < ApplicationRecord
   scope :local_only, -> { where(external_type: [nil, ""]) }
 
   validates :name, presence: true, uniqueness: { scope: :project_id }
+
+  WORKSHOP_STAGES = %w[new briefing details ready].freeze
+  enum :workshop_stage, WORKSHOP_STAGES.index_with(&:itself), prefix: :stage
+  belongs_to :pipeline_author, class_name: "User", optional: true
+  scope :pipeline, -> { where(in_pipeline: true).order(pipeline_entered_at: :desc) }
+  scope :pipeline_active, -> { pipeline.where.not(workshop_stage: "ready") }
+
+  def enter_pipeline!(author:, stage: "new")
+    update!(in_pipeline: true, workshop_stage: stage,
+            pipeline_entered_at: pipeline_entered_at || Time.current,
+            pipeline_author: pipeline_author || author)
+  end
 end
