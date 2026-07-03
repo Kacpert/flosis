@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_03_140002) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_03_140003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -89,6 +89,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_140002) do
     t.index ["task_id", "version"], name: "index_briefs_on_task_id_and_version", unique: true
     t.index ["task_id"], name: "index_briefs_on_task_id"
     t.index ["workspace_id"], name: "index_briefs_on_workspace_id"
+  end
+
+  create_table "bug_attributions", force: :cascade do |t|
+    t.datetime "analyzed_at"
+    t.string "author_email"
+    t.string "author_name"
+    t.string "confidence"
+    t.datetime "created_at", null: false
+    t.string "jira_key", null: false
+    t.string "origin_kind"
+    t.bigint "project_id", null: false
+    t.text "reasoning"
+    t.string "status", default: "pending", null: false
+    t.bigint "task_id"
+    t.datetime "updated_at", null: false
+    t.index ["project_id", "jira_key"], name: "index_bug_attributions_on_project_id_and_jira_key", unique: true
+    t.index ["project_id"], name: "index_bug_attributions_on_project_id"
+    t.index ["task_id"], name: "index_bug_attributions_on_task_id"
   end
 
   create_table "chat_messages", force: :cascade do |t|
@@ -665,6 +683,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_140002) do
   add_foreign_key "briefs", "chat_sessions"
   add_foreign_key "briefs", "tasks"
   add_foreign_key "briefs", "workspaces"
+  add_foreign_key "bug_attributions", "projects"
+  add_foreign_key "bug_attributions", "tasks"
   add_foreign_key "chat_messages", "chat_sessions"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "chat_sessions", "tasks"

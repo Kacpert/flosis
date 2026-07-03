@@ -317,4 +317,58 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
       JiraSyncService.new(@project, client: mock_client).sync_issues
     end
   end
+
+  # --- BugAttributionJob post-sync hook (Task 8.1) ---
+
+  test "enqueues BugAttributionJob for a newly-synced Bug without an existing attribution" do
+    issues = [ {
+      key: "ELV-777", summary: "Export crashes on large CSV", status_category: "new", status_name: "To Do",
+      assignee_email: nil, url: "https://elvium.atlassian.net/browse/ELV-777", issue_type: "Bug"
+    } ]
+    mock_client = stub_client(issues)
+
+    assert_enqueued_with(job: BugAttributionJob, args: [ @project.id, "ELV-777" ]) do
+      JiraSyncService.new(@project, client: mock_client).sync_issues
+    end
+  end
+
+  test "does NOT enqueue BugAttributionJob for a non-Bug issue type" do
+    issues = [ {
+      key: "ELV-778", summary: "Add export button", status_category: "new", status_name: "To Do",
+      assignee_email: nil, url: "https://elvium.atlassian.net/browse/ELV-778", issue_type: "Story"
+    } ]
+    mock_client = stub_client(issues)
+
+    assert_no_enqueued_jobs(only: BugAttributionJob) do
+      JiraSyncService.new(@project, client: mock_client).sync_issues
+    end
+  end
+
+  test "does NOT enqueue BugAttributionJob for a Bug that already has an attribution" do
+    BugAttribution.create!(project: @project, jira_key: "ELV-779", status: "done")
+
+    issues = [ {
+      key: "ELV-779", summary: "Existing crash bug", status_category: "new", status_name: "To Do",
+      assignee_email: nil, url: "https://elvium.atlassian.net/browse/ELV-779", issue_type: "Bug"
+    } ]
+    mock_client = stub_client(issues)
+
+    assert_no_enqueued_jobs(only: BugAttributionJob) do
+      JiraSyncService.new(@project, client: mock_client).sync_issues
+    end
+  end
+
+  test "caps BugAttributionJob enqueues at 3 per run" do
+    issues = (1..5).map do |n|
+      {
+        key: "ELV-80#{n}", summary: "Bug number #{n}", status_category: "new", status_name: "To Do",
+        assignee_email: nil, url: "https://elvium.atlassian.net/browse/ELV-80#{n}", issue_type: "Bug"
+      }
+    end
+    mock_client = stub_client(issues)
+
+    assert_enqueued_jobs 3, only: BugAttributionJob do
+      JiraSyncService.new(@project, client: mock_client).sync_issues
+    end
+  end
 end

@@ -77,6 +77,10 @@ class JiraSyncService
     name.to_s.match?(/design/i)
   end
 
+  # Cap on BugAttributionJob enqueues per sync run — bounds CLI cost when a
+  # large batch of Bugs syncs at once (e.g. first sync of a new project).
+  BUG_ATTRIBUTION_CAP = 3
+
   def sync_issues
     trigger_on_status = @project.workspace.estimation_trigger == "status"
     status_trigger = @project.workspace.estimation_status_trigger
@@ -84,17 +88,26 @@ class JiraSyncService
     issues = @client.fetch_issues(@project.external_reference, story_points_field_id: story_points_field_id)
     return if issues.nil?
 
+    bug_attributions_enqueued = 0
+
     issues.each do |issue|
       previous_status = trigger_on_status ? @project.tasks.jira_synced.find_by(external_reference: issue[:key])&.jira_status_name : nil
 
       sync_issue(issue)
 
-      next unless trigger_on_status
-      next if previous_status == status_trigger # already there — not a transition
-      next unless issue[:status_name] == status_trigger
+      if trigger_on_status
+        if previous_status != status_trigger && issue[:status_name] == status_trigger
+          task = @project.tasks.jira_synced.find_by(external_reference: issue[:key])
+          AutoEstimateJob.perform_later(task.id) if task
+        end
+      end
 
-      task = @project.tasks.jira_synced.find_by(external_reference: issue[:key])
-      AutoEstimateJob.perform_later(task.id) if task
+      next unless issue[:issue_type] == "Bug"
+      next if bug_attributions_enqueued >= BUG_ATTRIBUTION_CAP
+      next if BugAttribution.exists?(project_id: @project.id, jira_key: issue[:key])
+
+      BugAttributionJob.perform_later(@project.id, issue[:key])
+      bug_attributions_enqueued += 1
     end
   end
 
