@@ -1,0 +1,46 @@
+<% total_pts = delivered.sum { |d| d[:pts] } %>
+<div class="clar-card overflow-hidden">
+  <div class="px-5 py-3.5 border-b clar-divider flex items-center justify-between">
+    <span class="font-bold text-[14px] clar-text-text flex items-center gap-2">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+      Delivered this period
+    </span>
+    <span class="text-[11.5px] clar-text-faint">
+      <%= pluralize(delivered.size, "feature") %> shipped &middot; <%= number_with_precision(total_pts, precision: 0) %> pts merged to master
+    </span>
+  </div>
+
+  <% if delivered.any? %>
+    <div class="clar-table-head">
+      <span class="w-[74px] flex-none">KEY</span>
+      <span class="flex-1">FEATURE</span>
+      <span class="w-[150px]">DELIVERED BY</span>
+      <span class="w-[70px] text-right">PTS</span>
+      <span class="w-[70px] text-right">PRS</span>
+      <span class="w-[80px] text-right">MERGED</span>
+    </div>
+
+    <% delivered.each do |row| %>
+      <div class="flex items-center px-5 py-3.5 border-b clar-divider">
+        <span class="w-[74px] flex-none clar-mono text-[11.5px] font-semibold clar-text-primary"><%= row[:key] %></span>
+        <span class="flex-1 font-semibold text-[13.5px] clar-text-text min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pr-3"><%= row[:title] %></span>
+        <span class="w-[150px] flex items-center gap-2">
+          <% if row[:dev] %>
+            <span class="clar-avatar w-6 h-6 text-[10px] flex-none <%= clar_avatar_bg_class(row[:dev].name) %>"><%= clar_initials(row[:dev].name) %></span>
+            <span class="text-[12.5px] clar-text-muted overflow-hidden text-ellipsis whitespace-nowrap"><%= row[:dev].name %></span>
+          <% else %>
+            <span class="clar-avatar w-6 h-6 text-[10px] flex-none bg-[color:var(--faint)]">?</span>
+            <span class="text-[12.5px] clar-text-muted">Unassigned</span>
+          <% end %>
+        </span>
+        <span class="w-[70px] text-right font-bold text-[13.5px] clar-text-text"><%= number_with_precision(row[:pts], precision: 0) %></span>
+        <span class="w-[70px] text-right text-[13px] clar-text-muted"><%= row[:prs] %></span>
+        <span class="w-[80px] text-right text-[12.5px] clar-text-faint"><%= row[:merged]&.strftime("%b %-d") %></span>
+      </div>
+    <% end %>
+  <% else %>
+    <div class="text-center clar-text-faint text-[13px] p-[26px]">
+      No features delivered by <%= developer ? developer.name : "the team" %> this period.
+    </div>
+  <% end %>
+</div>

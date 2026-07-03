@@ -1,0 +1,53 @@
+<%
+  team_sp = developers.sum { |d| d[:sp] }
+  team_bugs_fixed = developers.sum { |d| d[:bugs_fixed] }
+  team_bugs_created = developers.sum { |d| d[:bugs_created] }
+  team_hours = developers.sum { |d| d[:hours] }
+  team_cost_cents = developers.sum { |d| d[:cost_cents] }
+%>
+<div class="clar-card overflow-hidden mb-6">
+  <div class="px-5 py-3.5 border-b clar-divider flex items-center justify-between">
+    <span class="font-bold text-[14px] clar-text-text">Per-developer results</span>
+    <span class="text-[11.5px] clar-text-faint">Hours &amp; cost from internal time-tracking</span>
+  </div>
+
+  <div class="clar-table-head">
+    <span class="flex-1">DEVELOPER</span>
+    <span class="w-[90px] text-right">SP DONE</span>
+    <span class="w-[90px] text-right">BUGS FIXED</span>
+    <span class="w-[100px] text-right">BUGS CREATED</span>
+    <span class="w-[80px] text-right">HOURS</span>
+    <% if can_see_money? %>
+      <span class="w-[110px] text-right">COST</span>
+    <% end %>
+  </div>
+
+  <% developers.each do |dev| %>
+    <div class="flex items-center px-5 py-3.5 border-b clar-divider">
+      <span class="flex-1 flex items-center gap-2.5">
+        <span class="clar-avatar w-7 h-7 text-[11px] flex-none <%= clar_avatar_bg_class(dev[:name]) %>"><%= clar_initials(dev[:name]) %></span>
+        <span class="font-semibold text-[13.5px] clar-text-text"><%= dev[:name] %></span>
+      </span>
+      <span class="w-[90px] text-right font-bold text-[14px] clar-text-text"><%= number_with_precision(dev[:sp], precision: 0) %></span>
+      <span class="w-[90px] text-right text-[13.5px] clar-text-success"><%= dev[:bugs_fixed] %></span>
+      <span class="w-[100px] text-right text-[13.5px] <%= dev[:bugs_created] >= 4 ? 'clar-text-danger' : (dev[:bugs_created].zero? ? 'clar-text-faint' : 'clar-text-muted') %>"><%= dev[:bugs_created] %></span>
+      <span class="w-[80px] text-right text-[13.5px] clar-text-muted"><%= number_with_precision(dev[:hours], precision: 1) %></span>
+      <% if can_see_money? %>
+        <span class="w-[110px] text-right text-[13.5px] font-mono clar-text-text"><%= format_money(dev[:cost_cents], current_workshop_project&.currency) %></span>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if developer.nil? %>
+    <div class="flex items-center px-5 py-3.5 bg-[color:var(--surface-2)]">
+      <span class="flex-1 font-bold text-[13px] clar-text-text">Team total</span>
+      <span class="w-[90px] text-right font-bold text-[14px] clar-text-text"><%= number_with_precision(team_sp, precision: 0) %></span>
+      <span class="w-[90px] text-right font-semibold text-[13.5px] clar-text-success"><%= team_bugs_fixed %></span>
+      <span class="w-[100px] text-right font-semibold text-[13.5px] clar-text-warn"><%= team_bugs_created %></span>
+      <span class="w-[80px] text-right font-semibold text-[13.5px] clar-text-text"><%= number_with_precision(team_hours, precision: 1) %></span>
+      <% if can_see_money? %>
+        <span class="w-[110px] text-right font-bold text-[13.5px] font-mono clar-text-text"><%= format_money(team_cost_cents, current_workshop_project&.currency) %></span>
+      <% end %>
+    </div>
+  <% end %>
+</div>
