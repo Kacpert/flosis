@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_03_140003) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_03_173559) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -658,6 +658,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_140003) do
     t.json "estimation_field_names"
     t.string "estimation_status_trigger", default: "Ready for dev"
     t.string "estimation_trigger", default: "manual", null: false
+    t.boolean "figma_read_enabled", default: false, null: false
     t.string "github_repo"
     t.datetime "github_status_checked_at"
     t.string "github_status_error"
@@ -670,6 +671,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_140003) do
     t.integer "pr_poll_minutes", default: 7, null: false
     t.datetime "pr_polled_at"
     t.boolean "pr_review_enabled", default: false, null: false
+    t.text "pr_review_prompt"
     t.datetime "updated_at", null: false
     t.boolean "workshop_enabled", default: false, null: false
   end

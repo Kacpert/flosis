@@ -177,4 +177,27 @@ class PrReviewJobTest < ActiveJob::TestCase
     assert_nil PrReview.find_by(workspace: @workspace, pr_number: 7), "auth failure must not mark reviewed"
     assert_empty fake.captured, "auth failure must not post a review"
   end
+
+  test "build_prompt uses DEFAULT_PROMPT when workspace.pr_review_prompt is blank" do
+    @workspace.update!(pr_review_prompt: nil)
+    job = PrReviewJob.new
+    prompt = job.send(:build_prompt, @workspace, pr_payload, [ { "filename" => "a.rb", "patch" => "@@ -1 +1 @@\n+code" } ], "initial")
+
+    assert_includes prompt, PrReviewJob::DEFAULT_PROMPT.split("\n").first
+    assert_includes prompt, "senior engineer reviewing a GitHub pull request"
+  end
+
+  test "build_prompt uses workspace.pr_review_prompt when present, still interpolating dynamic context" do
+    @workspace.update!(pr_review_prompt: "Custom persona: be extremely terse.")
+    job = PrReviewJob.new
+    files = [ { "filename" => "a.rb", "patch" => "@@ -1 +1 @@\n+code" } ]
+    prompt = job.send(:build_prompt, @workspace, pr_payload, files, "initial")
+
+    assert_includes prompt, "Custom persona: be extremely terse."
+    refute_includes prompt, "senior engineer reviewing a GitHub pull request"
+    # Dynamic interpolation (ticket context + diff + cap) must still work.
+    assert_includes prompt, "No linked Jira ticket."
+    assert_includes prompt, "FILE: a.rb"
+    assert_includes prompt, "AT MOST 4 items"
+  end
 end

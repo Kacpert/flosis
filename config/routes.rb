@@ -116,6 +116,8 @@ Rails.application.routes.draw do
     resources :alert_rules, only: [ :create, :destroy ] do
       member { get :history }
     end
+    get "configuration", to: "configuration#show", as: :configuration
+    patch "configuration", to: "configuration#update"
   end
 
   # Jira integration

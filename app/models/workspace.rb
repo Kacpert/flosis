@@ -20,6 +20,17 @@ class Workspace < ApplicationRecord
 
   DEFAULT_ESTIMATION_FIELD_NAME = "AI estimation".freeze
 
+  # Configuration -> AI tab (Task 9.1): the built-in Jira field-name choices
+  # offered as chips. A workspace may also have a custom (free-added) field
+  # name stored in estimation_field_names that isn't in this list — the view
+  # renders those as extra pre-checked chips alongside these options.
+  ESTIMATION_FIELD_OPTIONS = [
+    "AI estimation",
+    "Story point estimate",
+    "T-shirt size",
+    "Confidence (1–5)"
+  ].freeze
+
   ESTIMATION_TRIGGERS = {
     "sprint" => "Added to a Development sprint",
     "status" => "Status changes to “Ready for dev”",
