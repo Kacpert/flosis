@@ -59,4 +59,17 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :unprocessable_entity
   end
+
+  test "importing a task from another project is rejected (not scoped to the workshop project)" do
+    # secret_task lives in other_jira_project, outside current_workshop_project's
+    # scope, so import must not reach it — the lookup 404s rather than leaking it
+    # into this project's pipeline.
+    other = tasks(:secret_task)
+
+    # In integration tests the RecordNotFound is caught by the exception
+    # middleware and rendered as a 404 rather than propagating to the test.
+    post workshop_ideas_path, params: { task_id: other.id }
+    assert_response :not_found
+    refute other.reload.in_pipeline, "cross-project task must not enter the pipeline"
+  end
 end
