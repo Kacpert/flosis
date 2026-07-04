@@ -40,11 +40,25 @@ class Workspace < ApplicationRecord
 
   # MySQL (prod) doesn't support JSON column defaults, so the default lives
   # here instead of in the migration (dev/test = PostgreSQL, prod = MySQL).
+  #
+  # MySQL also hands a :json column back as a raw JSON *string* in some cases
+  # (PostgreSQL parses it to an Array). Normalize to an Array so callers/views
+  # ("names - OPTIONS", "names.each") never get a String and 500.
   def estimation_field_names
-    super.presence || [DEFAULT_ESTIMATION_FIELD_NAME]
+    normalize_field_names(super)
   end
 
   def estimation_trigger_label
     ESTIMATION_TRIGGERS[estimation_trigger] || estimation_trigger
+  end
+
+  private
+
+  def normalize_field_names(value)
+    if value.is_a?(String)
+      value = value.blank? ? nil : (JSON.parse(value) rescue value)
+    end
+    array = Array(value).reject { |v| v.nil? || v == "" }
+    array.presence || [DEFAULT_ESTIMATION_FIELD_NAME]
   end
 end

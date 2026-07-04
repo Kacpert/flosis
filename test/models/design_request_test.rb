@@ -17,6 +17,25 @@ class DesignRequestTest < ActiveSupport::TestCase
     assert_equal [], dr.reload.links
   end
 
+  # On MySQL (production) a :json column can come back as a raw JSON *string*.
+  # The reader must normalize to an Array so views (.each_with_index/.size/.map)
+  # don't 500 with "undefined method 'each' for a String".
+  test "links normalizes a raw JSON string (MySQL) into an Array of hashes" do
+    dr = DesignRequest.new(task: @task, requester: @requester, designer: @designer)
+    normalized = dr.send(:links_from, %q([{"name":"Frame 1","url":"https://figma.com/x"}]))
+    assert_kind_of Array, normalized
+    assert_equal "Frame 1", normalized.first["name"]
+    assert_nothing_raised { normalized.each_with_index { |l, i| l }; normalized.size }
+  end
+
+  test "links normalizer tolerates malformed / blank / nil raw values" do
+    dr = DesignRequest.new(task: @task, requester: @requester, designer: @designer)
+    assert_equal [], dr.send(:links_from, nil)
+    assert_equal [], dr.send(:links_from, "")
+    assert_equal [], dr.send(:links_from, "not json")
+    assert_equal [{ "url" => "x" }], dr.send(:links_from, [{ "url" => "x" }])
+  end
+
   test "defaults to status requested on create" do
     dr = DesignRequest.create!(task: @task, requester: @requester, designer: @designer)
     assert_equal "requested", dr.status

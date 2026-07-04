@@ -13,6 +13,13 @@ class DesignRequest < ApplicationRecord
   # (Postgres) and prod (MySQL) behaving identically.
   attribute :links, default: []
 
+  # MySQL can also hand a :json column back as a raw JSON *string* (Postgres
+  # parses it to an Array). Normalize to an Array so views iterating links
+  # (.each_with_index, .map, .size) never get a String and 500 in production.
+  def links
+    links_from(super)
+  end
+
   STATUSES = %w[requested delivered cancelled].freeze
   validates :status, inclusion: { in: STATUSES }
   validates :task_id, uniqueness: true
@@ -39,5 +46,14 @@ class DesignRequest < ApplicationRecord
     attrs[:designer] = designer if designer.present?
     attrs[:note] = note if note.present?
     update!(attrs)
+  end
+
+  private
+
+  # Coerce a raw links value (Array on Postgres, sometimes a JSON String on
+  # MySQL, or nil) into a plain Array. Never raises.
+  def links_from(value)
+    value = (JSON.parse(value) rescue []) if value.is_a?(String)
+    value.is_a?(Array) ? value : []
   end
 end
