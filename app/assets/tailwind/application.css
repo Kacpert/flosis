@@ -2147,7 +2147,10 @@ span.flatpickr-weekday {
 .clar-text-danger { color:var(--danger); }
 
 /* Structural utilities additive to the component classes above. */
-.clar-divider { background:var(--border); }
+/* Pairs with a border-* utility to color the border (border-t/b/r/l clar-divider).
+   For a standalone 1px separator span, add bg-[var(--border)] instead — this class
+   no longer sets a background (doing so flooded whole panels grey). */
+.clar-divider { border-color:var(--border); }
 .clar-dashed { border:1px dashed var(--border); }
 
 /* Toast hidden-state fix: .clar-toast sets display:flex, which otherwise
