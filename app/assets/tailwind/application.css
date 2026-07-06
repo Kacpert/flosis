@@ -2113,14 +2113,22 @@ span.flatpickr-weekday {
   color:var(--text); max-width:78%; }
 .clar-bubble-user { background:var(--primary); color:#fff; border-radius:13px;
   border-top-right-radius:4px; padding:11px 14px; font-size:13.5px; line-height:1.55; max-width:78%; }
-/* Collapsible "thinking" (tool-use narration) shown under the clean answer. */
-.clar-chat-thinking { margin-top:9px; border-top:1px solid var(--border); padding-top:7px; }
+/* Collapsible "thinking" (tool-use narration) shown under the clean answer.
+   Visually distinct from the answer: a small pill trigger + a tinted, left-barred,
+   dimmer body so it reads clearly as the AI's working, not the answer. */
+.clar-chat-thinking { margin-top:10px; }
 .clar-chat-thinking > summary { list-style:none; cursor:pointer; display:inline-flex; align-items:center; gap:5px;
-  font-size:11.5px; font-weight:600; color:var(--muted); user-select:none; }
+  font-size:11px; font-weight:700; letter-spacing:.02em; color:var(--ai); user-select:none;
+  background:var(--ai-soft); border:1px solid var(--border); border-radius:20px; padding:3px 10px; }
 .clar-chat-thinking > summary::-webkit-details-marker { display:none; }
-.clar-chat-thinking > summary::before { content:"▸"; font-size:9px; transition:transform .12s; }
-.clar-chat-thinking[open] > summary::before { transform:rotate(90deg); }
-.clar-chat-thinking-body { margin-top:7px; font-size:12.5px; color:var(--muted); opacity:.85; }
+.clar-chat-thinking > summary::before { content:"✦"; font-size:10px; }
+.clar-chat-thinking > summary::after { content:"▸"; font-size:8px; margin-left:1px; transition:transform .12s; }
+.clar-chat-thinking[open] > summary::after { transform:rotate(90deg); }
+.clar-chat-thinking-body { margin-top:8px; padding:9px 12px; font-size:12px; line-height:1.5;
+  color:var(--muted); background:var(--surface-2); border-left:2px solid var(--ai);
+  border-radius:0 8px 8px 0; opacity:.9; }
+.clar-chat-thinking-body p { margin:0 0 6px; }
+.clar-chat-thinking-body p:last-child { margin-bottom:0; }
 .clar-bubble-avatar { width:26px; height:26px; flex:0 0 26px; border-radius:7px; background:var(--ai-soft);
   display:flex; align-items:center; justify-content:center; color:var(--ai); font-size:10px; font-weight:800; }
 .clar-blink { width:6px; height:6px; border-radius:50%; background:var(--ai); display:inline-block;

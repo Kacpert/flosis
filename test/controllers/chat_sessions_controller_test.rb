@@ -25,6 +25,19 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert json["chat_session"]["messages"].length >= 1
   end
 
+  test "show serializes the persisted thinking so the toggle survives reload" do
+    chat_sessions(:one).chat_messages.create!(
+      role: "assistant", content: "The clean answer.", thinking: "Let me search the code.\n\nNow the locale."
+    )
+
+    get jira_task_chat_session_path(@task), as: :json
+    assert_response :success
+
+    msg = JSON.parse(response.body)["chat_session"]["messages"].last
+    assert_equal "The clean answer.", msg["content"]
+    assert_includes msg["thinking"], "Let me search the code."
+  end
+
   test "show returns 404 when no active session" do
     chat_sessions(:one).update!(status: "closed")
     get jira_task_chat_session_path(@task), as: :json

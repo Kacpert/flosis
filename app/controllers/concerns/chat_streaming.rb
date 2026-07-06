@@ -66,7 +66,9 @@ module ChatStreaming
           claude_session_id: new_session_id,
           codebase_path: ClaudeCliService::DEFAULT_CODEBASE_PATH
         )
-        @chat_session.chat_messages.create!(role: "assistant", content: final_text)
+        @chat_session.chat_messages.create!(
+          role: "assistant", content: final_text, thinking: thinking_for(full_response, final_text)
+        )
         extract_and_save_results(final_text)
         # Send the clean authoritative final text so the bubble collapses from the
         # live tool-use progress to just the answer (same as the #message path).
@@ -191,8 +193,18 @@ module ChatStreaming
     text = @authoritative_result.presence || full_response
     return if text.blank?
 
-    @chat_session.chat_messages.create!(role: "assistant", content: text)
+    @chat_session.chat_messages.create!(role: "assistant", content: text, thinking: thinking_for(full_response, text))
     extract_and_save_results(text)
+  end
+
+  # The tool-use narration to persist alongside the answer: the streamed text,
+  # but only when it actually differs from the clean answer (otherwise there's
+  # nothing to "show" and we store nil so no toggle renders).
+  def thinking_for(streamed, answer)
+    streamed = streamed.to_s.strip
+    return nil if streamed.blank?
+    return nil if streamed.gsub(/\s+/, " ") == answer.to_s.strip.gsub(/\s+/, " ")
+    streamed
   end
 
   def write_sse_headers
@@ -266,6 +278,7 @@ module ChatStreaming
             id: msg.id,
             role: msg.role,
             content: msg.content,
+            thinking: msg.thinking,
             created_at: msg.created_at,
             author: msg.user&.name
           }

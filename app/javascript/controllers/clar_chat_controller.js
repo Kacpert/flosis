@@ -124,25 +124,36 @@ export default class extends Controller {
   // toggle. Otherwise just render the streamed text.
   renderFinal(textSpan, streamedText, finalText) {
     const answer = (finalText && finalText.trim()) || streamedText
-    const hasThinking = finalText && streamedText && this.normalize(streamedText) !== this.normalize(finalText)
+    const thinking = (finalText && streamedText && this.normalize(streamedText) !== this.normalize(finalText))
+      ? streamedText : null
 
     textSpan.innerHTML = this.renderMarkdown(this.stripResultBlocks(answer))
-    if (!hasThinking) return
+    const toggle = this.buildThinkingToggle(thinking)
+    if (toggle) textSpan.appendChild(toggle)
+  }
+
+  // Builds the collapsible "Show thinking" block from the AI's tool-use narration.
+  // Returns null when there's nothing to show. Uses the native <details> toggle
+  // event so it reliably expands/collapses (live and on reload).
+  buildThinkingToggle(thinkingText) {
+    if (!thinkingText || !thinkingText.trim()) return null
 
     const details = document.createElement("details")
     details.className = "clar-chat-thinking"
     const summary = document.createElement("summary")
-    summary.textContent = "Show thinking"
-    summary.addEventListener("click", () => {
-      // Swap the label on the next tick, after `open` toggles.
-      setTimeout(() => { summary.textContent = details.open ? "Hide thinking" : "Show thinking" }, 0)
-    })
+    const label = document.createElement("span")
+    label.className = "clar-chat-thinking-label"
+    label.textContent = "Show thinking"
+    summary.appendChild(label)
     const body = document.createElement("div")
     body.className = "clar-prose clar-chat-thinking-body"
-    body.innerHTML = this.renderMarkdown(this.stripResultBlocks(streamedText))
+    body.innerHTML = this.renderMarkdown(this.stripResultBlocks(thinkingText))
+    details.addEventListener("toggle", () => {
+      label.textContent = details.open ? "Hide thinking" : "Show thinking"
+    })
     details.appendChild(summary)
     details.appendChild(body)
-    textSpan.appendChild(details)
+    return details
   }
 
   normalize(s) {
@@ -213,7 +224,7 @@ export default class extends Controller {
     }
   }
 
-  appendMessage(role, content, author = null) {
+  appendMessage(role, content, author = null, thinking = null) {
     const wrapper = document.createElement("div")
     wrapper.style.cssText = "display:flex;gap:10px;align-items:flex-start;" +
       (role === "ai" ? "" : "flex-direction:row-reverse")
@@ -234,6 +245,11 @@ export default class extends Controller {
     } else {
       textSpan.textContent = content
     }
+    // Persisted thinking (reload path): show the collapsible toggle.
+    if (role === "ai" && thinking) {
+      const toggle = this.buildThinkingToggle(thinking)
+      if (toggle) textSpan.appendChild(toggle)
+    }
     bubble.appendChild(textSpan)
 
     if (role === "user" && author) {
@@ -253,7 +269,7 @@ export default class extends Controller {
 
   renderMessages(messages) {
     this.messagesTarget.innerHTML = ""
-    messages.forEach(msg => this.appendMessage(msg.role === "assistant" ? "ai" : msg.role, msg.content, msg.author))
+    messages.forEach(msg => this.appendMessage(msg.role === "assistant" ? "ai" : msg.role, msg.content, msg.author, msg.thinking))
   }
 
   // Tier 1 — "Reset session" (persona-banner button, behind the "Reset AI
