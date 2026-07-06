@@ -37,7 +37,7 @@
   ai_copy = if is_details
     "The AI reads the project code and the task description to run the question session, then drafts the implementation-ready description automatically."
   else
-    "The AI reads the project code and this description, then drafts the brief as you talk &mdash; it #{jira_linked ? 'replaces the description above in Jira.' : 'becomes the Jira description when you push.'}"
+    "The AI reads the project code and this description, then drafts the brief as you talk — it #{jira_linked ? 'replaces the description above in Jira.' : 'becomes the Jira description when you push.'}"
   end
 %>
 <div class="flex flex-col min-h-0 h-full bg-[var(--surface)]"
@@ -87,8 +87,9 @@
         </button>
       <% end %>
       <span class="w-px h-[18px] clar-divider"></span>
-      <button type="button" title="Full screen" class="flex items-center justify-center w-7 h-7 clar-text-muted border clar-divider rounded-lg" data-clar-focus-toggle="true">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+      <button type="button" title="Full screen" class="flex items-center justify-center w-7 h-7 clar-text-muted border clar-divider rounded-lg" data-action="click->clar-focus#toggle">
+        <svg data-clar-focus-target="expandIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        <svg data-clar-focus-target="collapseIcon" class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 9L4 4m0 0v4m0-4h4M15 9l5-5m0 0v4m0-4h-4M9 15l-5 5m0 0v-4m0 4h4M15 15l5 5m0 0v-4m0 4h-4"/></svg>
       </button>
     </div>
   </div>

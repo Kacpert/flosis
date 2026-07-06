@@ -104,6 +104,14 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", idea.name
     assert_select ".clar-key", idea.external_reference
     assert_select "[data-stepper-stage='briefing'][data-stepper-current='true']"
+
+    # The full-screen ("make it bigger") toggle must be wired: the grid carries
+    # the clar-focus controller + grid/chat targets, and the header button
+    # dispatches to it. Regression guard — the button previously had only an
+    # inert data-clar-focus-toggle attribute and did nothing.
+    assert_select "[data-controller~='clar-focus'][data-clar-focus-target='grid']"
+    assert_select "[data-clar-focus-target='chat']"
+    assert_select "button[data-action='click->clar-focus#toggle']"
   end
 
   test "GET show at briefing stage renders the Clar chat panel wired to the brief_chat routes" do
