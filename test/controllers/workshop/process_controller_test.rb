@@ -8,13 +8,6 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     post switch_product_path, params: { product: "workshop" }
   end
 
-  test "Process Optimization shows a Briefing setup link to Configuration for admins" do
-    get workshop_process_path
-
-    assert_response :success
-    assert_select "a[href=?]", workshop_configuration_path(tab: "briefing"), text: /Briefing setup/
-  end
-
   test "renders the PR tab with stats trio, feed rows, and polling chip" do
     PrReview.create!(
       workspace: @workspace, pr_number: 7, pr_title: "DEV-836 thing", pr_author: "octocat",

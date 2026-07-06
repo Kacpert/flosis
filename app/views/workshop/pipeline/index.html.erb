@@ -1,7 +1,19 @@
 <% content_for :title, "Create Tasks · Clar" %>
 
-<h1 class="clar-h1">Create Tasks</h1>
-<p class="clar-sub">Turn rough ideas and unclear tickets into implementation-ready Jira tasks. The AI reads the repo first, then helps you shape them.</p>
+<div class="flex items-start justify-between gap-3">
+  <div>
+    <h1 class="clar-h1">Create Tasks</h1>
+    <p class="clar-sub">Turn rough ideas and unclear tickets into implementation-ready Jira tasks. The AI reads the repo first, then helps you shape them.</p>
+  </div>
+  <% if current_user&.admin_or_owner?(current_workspace) %>
+    <%= link_to workshop_configuration_path(tab: "briefing"),
+          title: "Briefing setup — personas & app feature list",
+          class: "clar-btn !text-[12px] !py-1.5 !px-3 flex-none whitespace-nowrap mt-1" do %>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="inline-block align-[-2px] mr-1"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Briefing setup
+    <% end %>
+  <% end %>
+</div>
 
 <%# Both entry cards + both modal panels share one clar-modal controller
     scope: the "New idea" trigger has no id param and opens the first

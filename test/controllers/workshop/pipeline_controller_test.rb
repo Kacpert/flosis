@@ -17,6 +17,13 @@ class Workshop::PipelineControllerTest < ActionDispatch::IntegrationTest
     assert_select ".clar-badge", /Briefing/
   end
 
+  test "Create Tasks shows a Briefing setup link to Configuration for admins" do
+    get workshop_pipeline_path
+
+    assert_response :success
+    assert_select "a[href=?]", workshop_configuration_path(tab: "briefing"), text: /Briefing setup/
+  end
+
   test "stage filter narrows the list" do
     get workshop_pipeline_path(stage: "ready")
     assert_select ".clar-row", count: 0
