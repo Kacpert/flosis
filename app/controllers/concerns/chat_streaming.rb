@@ -68,7 +68,9 @@ module ChatStreaming
         )
         @chat_session.chat_messages.create!(role: "assistant", content: final_text)
         extract_and_save_results(final_text)
-        write_sse("done" => true, "session_id" => @chat_session.id)
+        # Send the clean authoritative final text so the bubble collapses from the
+        # live tool-use progress to just the answer (same as the #message path).
+        write_sse("done" => true, "session_id" => @chat_session.id, "final" => @authoritative_result.presence)
       else
         write_sse("error" => "Claude did not return a session ID")
       end
@@ -163,15 +165,23 @@ module ChatStreaming
     when "assistant"
       text = data.dig("message", "content")&.filter_map { |c| c["text"] }&.join("")
       if text.present?
-        yield text if block_given?
-        response.stream.write("data: #{text.to_json}\n\n")
+        # Each "assistant" event is a distinct turn (e.g. a thought before a tool
+        # call). They must not be glued together ("…Rails app.Now let me search…").
+        # Separate consecutive turns with a blank line so they render as their own
+        # paragraphs, both in the live stream and the accumulated full_response.
+        chunk = @streamed_any_assistant ? "\n\n#{text}" : text
+        @streamed_any_assistant = true
+        yield chunk if block_given?
+        response.stream.write("data: #{chunk.to_json}\n\n")
       end
     when "result"
-      # The final "result" event carries the authoritative full text, used for
-      # block extraction so it runs against the complete, untruncated response.
+      # The final "result" event carries the authoritative full text (the clean
+      # final answer, WITHOUT the intermediate tool-use narration streamed above).
+      # Used for block extraction and sent to the client so the bubble collapses
+      # from the live progress to just the clean answer.
       @authoritative_result = data["result"] if data["result"].present?
       @stream_session_id = data["session_id"] if data["session_id"].present?
-      write_sse("done" => true) if final_done
+      write_sse({ "done" => true, "final" => @authoritative_result }.compact) if final_done
     when "system"
       @stream_session_id ||= data["session_id"]
     end

@@ -84,6 +84,8 @@ export default class extends Controller {
     let error = null
     let thinking = true
 
+    let finalText = null
+
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
@@ -96,7 +98,8 @@ export default class extends Controller {
         let data
         try { data = JSON.parse(jsonStr) } catch { continue }
         if (data.done) {
-          // final marker — nothing else to do, we'll re-render below
+          // Clean authoritative answer (no tool-use narration), if the server sent it.
+          if (typeof data.final === "string" && data.final.length) finalText = data.final
         } else if (data.error) {
           error = data.error
         } else if (typeof data === "string") {
@@ -109,8 +112,41 @@ export default class extends Controller {
     }
 
     if (thinking) this.hideThinking(textSpan)
-    if (fullText) textSpan.innerHTML = this.renderMarkdown(this.stripResultBlocks(fullText))
+    // Collapse to the clean final answer; keep the streamed "thinking" behind a
+    // toggle when it differs (i.e. the AI narrated tool use while investigating).
+    this.renderFinal(textSpan, fullText, finalText)
     return { fullText, error }
+  }
+
+  // Renders the assistant bubble after streaming completes. When the server sent
+  // a clean `finalText` that differs from the streamed text (the AI narrated its
+  // investigation), show the clean answer with a collapsible "Show thinking"
+  // toggle. Otherwise just render the streamed text.
+  renderFinal(textSpan, streamedText, finalText) {
+    const answer = (finalText && finalText.trim()) || streamedText
+    const hasThinking = finalText && streamedText && this.normalize(streamedText) !== this.normalize(finalText)
+
+    textSpan.innerHTML = this.renderMarkdown(this.stripResultBlocks(answer))
+    if (!hasThinking) return
+
+    const details = document.createElement("details")
+    details.className = "clar-chat-thinking"
+    const summary = document.createElement("summary")
+    summary.textContent = "Show thinking"
+    summary.addEventListener("click", () => {
+      // Swap the label on the next tick, after `open` toggles.
+      setTimeout(() => { summary.textContent = details.open ? "Hide thinking" : "Show thinking" }, 0)
+    })
+    const body = document.createElement("div")
+    body.className = "clar-prose clar-chat-thinking-body"
+    body.innerHTML = this.renderMarkdown(this.stripResultBlocks(streamedText))
+    details.appendChild(summary)
+    details.appendChild(body)
+    textSpan.appendChild(details)
+  }
+
+  normalize(s) {
+    return (s || "").replace(/\s+/g, " ").trim()
   }
 
   showThinking(textSpan) {
