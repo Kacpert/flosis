@@ -48,6 +48,14 @@ class BriefChatSessionsController < ApplicationController
   def build_initial_prompt
     project = @task.project
     context = project.context_info.presence || "(no project context provided)"
+    # Two additional, admin-maintained inputs layered onto the main brief prompt:
+    #   * features_summary — auto-scanned daily (+ manual refresh) plain-language
+    #     list of what the app already does, so the PO knows the current product.
+    #   * briefing_personas — human-written personas / product perspective.
+    features = project.features_summary.presence
+    personas = project.briefing_personas.presence
+    features_section = features ? "\n\n# What the app already does (auto-maintained; read this so you don't propose things that already exist)\n\n#{features}" : ""
+    personas_section = personas ? "\n\n# Who uses this app & our perspective (set by the team)\n\n#{personas}" : ""
     ticket_section = if @task.external_reference.present?
       "Existing Jira ticket #{@task.external_reference}: #{ticket_title}\n\nDescription:\n#{@task.description.presence || '(none)'}"
     else
@@ -67,7 +75,7 @@ class BriefChatSessionsController < ApplicationController
 
       # Project context (set by the team)
 
-      #{context}
+      #{context}#{personas_section}#{features_section}
 
       # The idea to brief
 

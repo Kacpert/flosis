@@ -140,6 +140,39 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_match(/AI settings saved/, flash[:clar_toast])
   end
 
+  test "PATCH update saves briefing_personas onto the current workshop project" do
+    patch workshop_configuration_path, params: {
+      workspace: { briefing_personas: "  Recruiters posting jobs; Admins configuring.  " },
+      tab: "ai"
+    }
+
+    assert_redirected_to workshop_configuration_path(tab: "ai")
+    assert_equal "Recruiters posting jobs; Admins configuring.", @project.reload.briefing_personas
+  end
+
+  test "the AI tab shows the personas field, the feature-summary card, and a Refresh button" do
+    @project.update!(briefing_personas: "Recruiters and admins.",
+                     features_summary: "Users can post jobs and review candidates.",
+                     features_summary_updated_at: 2.hours.ago)
+
+    get workshop_configuration_path(tab: "ai")
+
+    assert_response :success
+    assert_select "textarea[name='workspace[briefing_personas]']", /Recruiters and admins\./
+    assert_select "body", /what the app already does/i
+    assert_select "body", /Users can post jobs and review candidates\./
+    assert_select "form[action='#{workshop_refresh_features_configuration_path}']"
+  end
+
+  test "refresh_features enqueues a single-project scan and toasts" do
+    assert_enqueued_with(job: ProjectFeaturesScanJob, args: [ @project.id ]) do
+      post workshop_refresh_features_configuration_path
+    end
+
+    assert_redirected_to workshop_configuration_path(tab: "ai")
+    assert_match(/Refreshing the app feature summary/, flash[:clar_toast])
+  end
+
   test "PATCH update rejects a blank estimation_field_names array" do
     original = @workspace.estimation_field_names
 

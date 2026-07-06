@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_03_173559) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_06_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -368,6 +368,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_173559) do
 
   create_table "projects", force: :cascade do |t|
     t.boolean "archived", default: false, null: false
+    t.text "briefing_personas"
     t.integer "budget_cents"
     t.decimal "budget_hours", precision: 10, scale: 2
     t.integer "budget_type", default: 0, null: false

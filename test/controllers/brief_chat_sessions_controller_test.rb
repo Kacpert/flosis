@@ -186,4 +186,33 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     refute_includes tools, "Glob"
     refute_includes tools, "Grep"
   end
+
+  test "build_initial_prompt appends the project's personas and feature summary when present" do
+    @task.project.update!(
+      briefing_personas: "Recruiters posting jobs; Admins configuring.",
+      features_summary: "Users can post jobs, review candidates, and export CSVs."
+    )
+    controller = BriefChatSessionsController.new
+    controller.instance_variable_set(:@task, @task)
+    def controller.params; {}; end
+
+    prompt = controller.send(:build_initial_prompt)
+
+    assert_includes prompt, "Who uses this app & our perspective"
+    assert_includes prompt, "Recruiters posting jobs; Admins configuring."
+    assert_includes prompt, "What the app already does"
+    assert_includes prompt, "Users can post jobs, review candidates, and export CSVs."
+  end
+
+  test "build_initial_prompt omits the personas/features sections when blank" do
+    @task.project.update!(briefing_personas: nil, features_summary: nil)
+    controller = BriefChatSessionsController.new
+    controller.instance_variable_set(:@task, @task)
+    def controller.params; {}; end
+
+    prompt = controller.send(:build_initial_prompt)
+
+    refute_includes prompt, "Who uses this app & our perspective"
+    refute_includes prompt, "What the app already does"
+  end
 end

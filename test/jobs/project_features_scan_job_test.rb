@@ -55,4 +55,15 @@ class ProjectFeaturesScanJobTest < ActiveJob::TestCase
     end
     assert_nil @project.reload.features_summary
   end
+
+  test "single-project mode scans only the given project (the manual Refresh button)" do
+    other = @workspace.projects.create!(name: "Other", color: "#666666",
+      external_type: "jira", external_reference: "OTH")
+    with_ai("A long enough plain-language feature list for the requested project only.") do
+      job_without_pull.perform(@project.id)
+    end
+
+    assert_match "feature list", @project.reload.features_summary
+    assert_nil other.reload.features_summary, "must not scan other projects in single-project mode"
+  end
 end

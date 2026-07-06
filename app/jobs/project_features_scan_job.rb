@@ -11,19 +11,35 @@ class ProjectFeaturesScanJob < ApplicationJob
   CODEBASE_PATH = ENV.fetch("PR_REVIEW_CODEBASE_PATH", File.expand_path("~/work/elvium")).freeze
   CLI_FAILURE_MARKERS = /\b(401|403|429|invalid authentication|failed to authenticate|api error|credit balance|rate limit|usage limit|overloaded|unauthorized)\b/i
 
-  def perform
+  # No project_id → the daily sweep over every Workshop project.
+  # With project_id → a single-project refresh (the manual "Refresh" button).
+  # Returns true when a single-project scan actually updated the summary.
+  def perform(project_id = nil)
     return unless pull_latest!
+
+    if project_id
+      project = Project.find_by(id: project_id)
+      return false unless project
+      return scan_and_store(project)
+    end
 
     Workspace.where(workshop_enabled: true).find_each do |workspace|
       workspace.projects.where(external_type: "jira").find_each do |project|
-        summary = scan_summary(project)
-        next if summary.blank? # preserve prior on failure
-        project.update_columns(features_summary: summary, features_summary_updated_at: Time.current)
+        scan_and_store(project)
       end
     end
   end
 
   private
+
+  # Scans one project and stores the summary, preserving the prior value on any
+  # failure (blank/CLI error). Returns true only when a new summary was stored.
+  def scan_and_store(project)
+    summary = scan_summary(project)
+    return false if summary.blank? # preserve prior on failure
+    project.update_columns(features_summary: summary, features_summary_updated_at: Time.current)
+    true
+  end
 
   def pull_latest!
     out = `cd #{CODEBASE_PATH.shellescape} && git pull --ff-only 2>&1`
@@ -49,13 +65,19 @@ class ProjectFeaturesScanJob < ApplicationJob
 
   def prompt_for(project)
     <<~PROMPT
-      Summarise the CURRENT features and main architecture of the application in this
-      working directory, for the project "#{project.name}". Read CLAUDE.md, the routes,
-      and the main app/ directories. Output a concise plain-text summary (no preamble):
-      a bulleted list of the main features the app already has, plus 2–4 sentences on
-      the overall architecture (frameworks, main models, how the pieces fit). This is
-      reference material for a product owner briefing new work — keep it factual and
-      tight, no more than ~400 words.
+      Read the application in this working directory (CLAUDE.md, the routes, and the
+      main app/ directories) for the project "#{project.name}", and produce a
+      plain-language list of WHAT THE APP DOES FOR ITS USERS — the features and
+      capabilities that already exist, described the way a product person would.
+
+      This is reference material for a product owner briefing new work, so a
+      non-technical reader must fully understand it:
+      - Bulleted list of the main features / things a user can do today.
+      - Group related features if helpful.
+      - Describe them in terms of user-facing behaviour and value, NOT implementation.
+      - Do NOT mention code, file paths, class/model/table names, frameworks,
+        libraries, or database/API details. No architecture section.
+      - No preamble. Factual and tight, no more than ~400 words.
     PROMPT
   end
 end

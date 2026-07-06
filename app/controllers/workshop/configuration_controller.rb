@@ -61,6 +61,19 @@ class Workshop::ConfigurationController < Workshop::BaseController
     redirect_to workshop_configuration_path(tab: "integrations")
   end
 
+  # Manually re-scan the current project's feature summary (the auto-maintained
+  # "what the app already does" reference for the briefing chat). Enqueued so the
+  # request returns immediately — the scan reads the repo and can take a while.
+  def refresh_features
+    if current_workshop_project
+      ProjectFeaturesScanJob.perform_later(current_workshop_project.id)
+      flash[:clar_toast] = "Refreshing the app feature summary — this runs in the background."
+    else
+      flash[:alert] = "No project selected."
+    end
+    redirect_to workshop_configuration_path(tab: "ai")
+  end
+
   private
 
   def update_integrations_settings
@@ -86,6 +99,11 @@ class Workshop::ConfigurationController < Workshop::BaseController
     @estimation_trigger = current_workspace.estimation_trigger
     @pr_review_prompt = current_workspace.pr_review_prompt.presence || PrReviewJob::DEFAULT_PROMPT
     @poll_minutes = current_workspace.pr_poll_minutes
+    # Briefing inputs (per-project): human-written personas + the auto-scanned
+    # feature summary that both feed the briefing PO chat.
+    @briefing_personas = current_workshop_project&.briefing_personas
+    @features_summary = current_workshop_project&.features_summary
+    @features_summary_updated_at = current_workshop_project&.features_summary_updated_at
   end
 
   def load_integrations_tab
@@ -107,6 +125,10 @@ class Workshop::ConfigurationController < Workshop::BaseController
       attrs.delete(:estimation_field_names)
     end
 
+    # briefing_personas lives on the project, not the workspace.
+    personas = attrs.delete(:briefing_personas)
+    current_workshop_project&.update(briefing_personas: personas.to_s.strip.presence) if params[:workspace]&.key?(:briefing_personas)
+
     if current_workspace.update(attrs)
       flash[:clar_toast] = "AI settings saved"
     else
@@ -121,6 +143,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
       :estimation_trigger,
       :estimation_status_trigger,
       :figma_read_enabled,
+      :briefing_personas,
       estimation_field_names: []
     )
   end
