@@ -158,33 +158,32 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     refute_includes prompt, "The team already has a current version of the brief"
   end
 
-  test "build_initial_prompt frames a UX-minded PO and forbids code / codebase talk" do
+  test "build_initial_prompt frames a UX-minded PO that investigates code but talks product, tersely" do
     controller = BriefChatSessionsController.new
     controller.instance_variable_set(:@task, @task)
     def controller.params; {}; end
 
     prompt = controller.send(:build_initial_prompt)
 
-    # Product Owner with UX/UI sensibility, opinionated + debate + questions.
+    # Product Owner with UX/UI sensibility.
     assert_includes prompt, "Product Owner with strong UX/UI sensibility"
-    assert_includes prompt, "React first"
-    assert_includes prompt, "OPINIONATED"
-    # No-code contract: it must explicitly forbid code, files, and technical detail.
-    assert_includes prompt, "NO code"
-    assert_includes prompt, "file paths"
-    assert_includes prompt, "NOT a technical one"
-    # And it must NOT tell the AI to investigate/read the codebase anymore.
-    refute_includes prompt, "Investigate the codebase"
-    refute_includes prompt, "read CLAUDE.md"
+    # Terse/direct contract — no water.
+    assert_includes prompt, "SHORT and DIRECT"
+    # It SHOULD investigate the codebase to learn conventions (e.g. required fields).
+    assert_includes prompt, "Investigate the codebase"
+    assert_includes prompt, "required fields"
+    assert_includes prompt, "CLAUDE.md"
+    # But still talks product, not an implementation readout.
+    assert_includes prompt, "Talk product, not implementation"
+    assert_includes prompt, "Don't dump code at the user"
   end
 
-  test "briefing chat runs with a code-free tool set (no filesystem tools)" do
-    tools = BriefChatSessionsController.new.send(:chat_allowed_tools)
-
-    assert_equal ClaudeCliService::BRIEFING_TOOLS, tools
-    refute_includes tools, "Read"
-    refute_includes tools, "Glob"
-    refute_includes tools, "Grep"
+  test "briefing chat uses the full read/search tool set (inherits the default)" do
+    # nil → ChatStreaming/ClaudeCliService fall back to ALLOWED_TOOLS (incl. Read/Glob/Grep),
+    # so the PO can read the codebase to ground its advice.
+    assert_nil BriefChatSessionsController.new.send(:chat_allowed_tools)
+    assert_includes ClaudeCliService::ALLOWED_TOOLS, "Read"
+    assert_includes ClaudeCliService::ALLOWED_TOOLS, "Grep"
   end
 
   test "build_initial_prompt appends the project's personas and feature summary when present" do
