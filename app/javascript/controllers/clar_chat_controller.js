@@ -11,7 +11,7 @@ import { Controller } from "@hotwired/stimulus"
 // Details stage chat (Task 5.1) is expected to reuse this same controller
 // with persona: "details" and its own create/show/message/reset URLs.
 export default class extends Controller {
-  static targets = ["messages", "input"]
+  static targets = ["messages", "input", "liveThinkingBtn", "liveThinkingLabel"]
   static values = {
     createUrl: String,
     showUrl: String,
@@ -24,9 +24,29 @@ export default class extends Controller {
 
   connect() {
     this.abortController = null
+    // Whether to show the AI's live tool-use narration while it works, or just a
+    // "thinking…" indicator. Off by default; either way the trail is saved and
+    // available behind the per-message "Show thinking" toggle. Preference persists.
+    this.liveThinking = localStorage.getItem("clarLiveThinking") === "on"
+    this.syncLiveThinkingButton()
     this.boundResetConversation = this.resetConversation.bind(this)
     window.addEventListener("clar:reset-conversation", this.boundResetConversation)
     this.loadOrStart()
+  }
+
+  toggleLiveThinking() {
+    this.liveThinking = !this.liveThinking
+    localStorage.setItem("clarLiveThinking", this.liveThinking ? "on" : "off")
+    this.syncLiveThinkingButton()
+  }
+
+  syncLiveThinkingButton() {
+    if (this.hasLiveThinkingLabelTarget) {
+      this.liveThinkingLabelTarget.textContent = `Live thinking: ${this.liveThinking ? "on" : "off"}`
+    }
+    if (this.hasLiveThinkingBtnTarget) {
+      this.liveThinkingBtnTarget.classList.toggle("clar-btn-ai", this.liveThinking)
+    }
   }
 
   disconnect() {
@@ -103,9 +123,14 @@ export default class extends Controller {
         } else if (data.error) {
           error = data.error
         } else if (typeof data === "string") {
-          if (thinking) { this.hideThinking(textSpan); thinking = false }
+          // Always accumulate so the full trail is saved regardless of the toggle.
           fullText += data
-          textSpan.innerHTML = this.renderMarkdown(this.stripResultBlocks(fullText)) + this.streamingCursor()
+          if (this.liveThinking) {
+            // Live mode: reveal the narration as it streams.
+            if (thinking) { this.hideThinking(textSpan); thinking = false }
+            textSpan.innerHTML = this.renderMarkdown(this.stripResultBlocks(fullText)) + this.streamingCursor()
+          }
+          // Otherwise keep the "thinking…" dots until the final answer lands.
         }
       }
       this.scrollToBottom()

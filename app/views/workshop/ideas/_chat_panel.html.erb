@@ -27,6 +27,11 @@
     </span>
     <span class="text-[12px] clar-text-faint">Reads project &amp; task description first</span>
     <span class="flex-1"></span>
+    <button type="button" title="Show the AI's live thinking while it works (otherwise just a “thinking…” indicator)"
+            class="clar-btn" data-clar-chat-target="liveThinkingBtn" data-action="click->clar-chat#toggleLiveThinking">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
+      <span data-clar-chat-target="liveThinkingLabel">Live thinking: off</span>
+    </button>
     <button type="button" title="Reset this AI session" class="clar-btn" data-action="click->clar-modal#open" data-clar-modal-id-param="reset-session">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
       Reset session
