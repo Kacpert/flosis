@@ -5,13 +5,14 @@
 # This task builds the page shell + the AI tab in full. Integrations (9.2) and
 # Users (9.3) render as placeholders for now.
 class Workshop::ConfigurationController < Workshop::BaseController
-  TABS = %w[integrations ai users].freeze
+  TABS = %w[integrations ai briefing users].freeze
 
   before_action :require_admin!
 
   def show
     @tab = TABS.include?(params[:tab]) ? params[:tab] : "ai"
     load_ai_tab if @tab == "ai"
+    load_briefing_tab if @tab == "briefing"
     load_integrations_tab if @tab == "integrations"
     load_users_tab if @tab == "users"
   end
@@ -22,6 +23,8 @@ class Workshop::ConfigurationController < Workshop::BaseController
     case tab
     when "ai"
       update_ai_settings
+    when "briefing"
+      update_briefing_settings
     when "integrations"
       update_integrations_settings
     end
@@ -71,7 +74,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
     else
       flash[:alert] = "No project selected."
     end
-    redirect_to workshop_configuration_path(tab: "ai")
+    redirect_to workshop_configuration_path(tab: "briefing")
   end
 
   private
@@ -99,8 +102,11 @@ class Workshop::ConfigurationController < Workshop::BaseController
     @estimation_trigger = current_workspace.estimation_trigger
     @pr_review_prompt = current_workspace.pr_review_prompt.presence || PrReviewJob::DEFAULT_PROMPT
     @poll_minutes = current_workspace.pr_poll_minutes
-    # Briefing inputs (per-project): human-written personas + the auto-scanned
-    # feature summary that both feed the briefing PO chat.
+  end
+
+  # Briefing tab: the two inputs (per-project) that feed the briefing PO chat —
+  # human-written personas + the auto-scanned plain-language feature summary.
+  def load_briefing_tab
     @briefing_personas = current_workshop_project&.briefing_personas
     @features_summary = current_workshop_project&.features_summary
     @features_summary_updated_at = current_workshop_project&.features_summary_updated_at
@@ -125,14 +131,20 @@ class Workshop::ConfigurationController < Workshop::BaseController
       attrs.delete(:estimation_field_names)
     end
 
-    # briefing_personas lives on the project, not the workspace.
-    personas = attrs.delete(:briefing_personas)
-    current_workshop_project&.update(briefing_personas: personas.to_s.strip.presence) if params[:workspace]&.key?(:briefing_personas)
-
     if current_workspace.update(attrs)
       flash[:clar_toast] = "AI settings saved"
     else
       flash[:alert] = current_workspace.errors.full_messages.to_sentence
+    end
+  end
+
+  # briefing_personas lives on the project, not the workspace.
+  def update_briefing_settings
+    personas = params.dig(:workspace, :briefing_personas)
+    if current_workshop_project&.update(briefing_personas: personas.to_s.strip.presence)
+      flash[:clar_toast] = "Briefing settings saved"
+    else
+      flash[:alert] = "No project selected."
     end
   end
 
@@ -143,7 +155,6 @@ class Workshop::ConfigurationController < Workshop::BaseController
       :estimation_trigger,
       :estimation_status_trigger,
       :figma_read_enabled,
-      :briefing_personas,
       estimation_field_names: []
     )
   end

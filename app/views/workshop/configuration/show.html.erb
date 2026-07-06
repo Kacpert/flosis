@@ -9,6 +9,8 @@
         class: "clar-tab #{'clar-tab-active' if @tab == 'integrations'}" %>
   <%= link_to "AI", workshop_configuration_path(tab: "ai"),
         class: "clar-tab #{'clar-tab-active' if @tab == 'ai'}" %>
+  <%= link_to "Briefing", workshop_configuration_path(tab: "briefing"),
+        class: "clar-tab #{'clar-tab-active' if @tab == 'briefing'}" %>
   <%= link_to "Users", workshop_configuration_path(tab: "users"),
         class: "clar-tab #{'clar-tab-active' if @tab == 'users'}" %>
 </div>
@@ -17,6 +19,8 @@
   <%= render "integrations_tab" %>
 <% elsif @tab == "ai" %>
   <%= render "ai_tab" %>
+<% elsif @tab == "briefing" %>
+  <%= render "briefing_tab" %>
 <% else %>
   <%= render "users_tab" %>
 <% end %>

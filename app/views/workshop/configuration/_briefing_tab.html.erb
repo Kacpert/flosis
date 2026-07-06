@@ -1,0 +1,53 @@
+<%# Briefing tab — the two admin-maintained inputs layered onto the main
+    briefing (Product Owner) prompt: human-written personas/perspective, and the
+    auto-scanned plain-language feature list. Both are per-project. %>
+
+<div class="clar-card p-4.5 mb-4.5">
+  <div class="text-[12.5px] clar-text-muted">
+    These two inputs are added on top of the main briefing prompt, so the Product
+    Owner chat understands who the app is for and what it already does. They're
+    per-project and used the next time a briefing chat starts.
+  </div>
+</div>
+
+<%= form_with url: workshop_configuration_path, method: :patch, class: "flex flex-col gap-4.5",
+      data: { controller: "auto-save" } do %>
+  <%= hidden_field_tag :tab, "briefing" %>
+
+  <div class="clar-card p-4.5">
+    <div class="font-bold text-[14px] clar-text-text mb-1">Who uses the app &amp; our perspective</div>
+    <div class="text-[12.5px] clar-text-muted mb-3">Human context for the briefing chat: the personas that use the app, your product perspective, priorities. Plain language — no code.</div>
+    <textarea name="workspace[briefing_personas]" rows="6" class="clar-textarea !text-[13px] !leading-[1.6] resize-y"
+              placeholder="e.g. Recruiters posting jobs (want speed, hate friction); Admins configuring the account; Candidates applying on mobile. Our perspective: we optimise for the recruiter's time…"
+              data-action="change->auto-save#save"><%= @briefing_personas %></textarea>
+  </div>
+
+  <noscript>
+    <button type="submit" class="clar-btn clar-btn-primary">Save briefing settings</button>
+  </noscript>
+<% end %>
+
+<%# Rendered OUTSIDE the auto-save form above: the "Refresh now" button posts its
+    own form to a different endpoint, so it must not be nested inside that form. %>
+<div class="clar-card p-4.5 mt-4.5">
+  <div class="flex items-start justify-between gap-3 mb-1">
+    <div>
+      <div class="font-bold text-[14px] clar-text-text mb-1">What the app already does</div>
+      <div class="text-[12.5px] clar-text-muted">Auto-maintained plain-language feature list, so the briefing AI knows what already exists. Refreshed daily from the latest master, or on demand.</div>
+    </div>
+    <%= button_to workshop_refresh_features_configuration_path, method: :post, class: "clar-btn !text-[12px] !py-1.5 !px-3 flex-none whitespace-nowrap" do %>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="inline-block align-[-2px] mr-1"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
+      Refresh now
+    <% end %>
+  </div>
+  <div class="text-[11px] clar-text-faint mb-2.5">
+    <% if @features_summary_updated_at %>
+      Last updated <%= clar_time_ago(@features_summary_updated_at) %>.
+    <% else %>
+      Not scanned yet — click &ldquo;Refresh now&rdquo; or wait for the daily scan.
+    <% end %>
+  </div>
+  <% if @features_summary.present? %>
+    <div class="text-[12.5px] clar-text-muted bg-[var(--surface-2)] border border-[color:var(--border)] rounded-[10px] px-3.5 py-3 max-h-[220px] overflow-y-auto whitespace-pre-wrap"><%= @features_summary %></div>
+  <% end %>
+</div>
