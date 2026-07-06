@@ -154,8 +154,6 @@
           <% end %>
         <% end %>
 
-        <%= render "workshop/ideas/attachments", idea: idea %>
-
         <div class="flex items-start gap-2 px-[13px] py-[11px] bg-[var(--ai-soft)] border clar-divider rounded-[10px] mt-0.5">
           <span class="clar-text-ai flex flex-none w-[15px] mt-px">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
@@ -166,6 +164,12 @@
         </div>
       </div>
     <% end %>
+
+    <%# Jira attachments (screenshots) — shown under whichever content is active
+        (brief version or the raw description), like they appear on the Jira ticket. %>
+    <div class="mt-5">
+      <%= render "workshop/ideas/attachments", idea: idea %>
+    </div>
   </div>
 
   <div class="px-[22px] pt-3.5 pb-[18px] border-t clar-divider"<% if selected.present? %> data-clar-editor-target="footer"<% end %>>
