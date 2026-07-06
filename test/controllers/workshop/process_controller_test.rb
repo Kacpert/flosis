@@ -123,6 +123,17 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /A scheduled prompt\. On its schedule the AI inspects the live Jira board state/
     assert_select "body", /WHAT TO WATCH FOR/
     assert_select "turbo-frame##{dom_id_for_history(rule)}"
+
+    # Regression: the new-rule form inputs must submit under alert_rule[<attr>],
+    # NOT the double-nested alert_rule[alert_rule[<attr>]] that resulted from
+    # passing a bracketed string to f.text_field on an alert_rule form builder.
+    # The double-nesting made every create fail with "… can't be blank".
+    assert_select "form input[name='alert_rule[name]']"
+    assert_select "form textarea[name='alert_rule[prompt]']"
+    assert_select "form select[name='alert_rule[frequency]']"
+    assert_select "form input[name='alert_rule[run_at_time]']"
+    assert_select "form input[name='alert_rule[alert_rule[name]]']", false,
+      "alert_rule form fields must not be double-nested"
   end
 
   test "AI Alerts empty state renders without error" do

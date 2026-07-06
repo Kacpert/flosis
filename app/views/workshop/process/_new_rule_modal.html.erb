@@ -12,11 +12,11 @@
     <%= form_with model: AlertRule.new, url: workshop_alert_rules_path, method: :post,
           data: { controller: "clar-required clar-alert-rule-form", turbo: false } do |f| %>
       <label class="clar-field-label">NAME <span class="clar-text-danger">*</span></label>
-      <%= f.text_field "alert_rule[name]", value: nil, autofocus: true, placeholder: "e.g. QA backlog watch",
+      <%= f.text_field :name, value: nil, autofocus: true, placeholder: "e.g. QA backlog watch",
             class: "clar-input mb-4", data: { clar_required_target: "input", action: "input->clar-required#toggle" } %>
 
       <label class="clar-field-label">WHAT TO WATCH FOR <span class="clar-text-danger">*</span></label>
-      <%= f.text_area "alert_rule[prompt]", value: nil, rows: 3,
+      <%= f.text_area :prompt, value: nil, rows: 3,
             placeholder: "If more than 4 tasks have been in QA for longer than 3 days, send a notification.",
             class: "clar-textarea mb-1.5" %>
       <div class="text-[11px] clar-text-faint mb-4">Write it as a condition &mdash; natural language is fine.</div>
@@ -24,12 +24,12 @@
       <div class="grid grid-cols-2 gap-3 mb-4">
         <div>
           <label class="clar-field-label">FREQUENCY</label>
-          <%= f.select "alert_rule[frequency]", AlertRule::FREQUENCY_LABELS.map { |value, label| [label, value] },
+          <%= f.select :frequency, AlertRule::FREQUENCY_LABELS.map { |value, label| [label, value] },
                 { selected: "daily" }, class: "clar-select", data: { clar_alert_rule_form_target: "frequency", action: "change->clar-alert-rule-form#syncTimeDisabled" } %>
         </div>
         <div>
           <label class="clar-field-label">TIME</label>
-          <%= f.time_field "alert_rule[run_at_time]", value: "09:00", include_seconds: false,
+          <%= f.time_field :run_at_time, value: "09:00", include_seconds: false,
                 class: "clar-input", data: { clar_alert_rule_form_target: "time" } %>
         </div>
       </div>
