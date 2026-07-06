@@ -116,15 +116,16 @@ class Workshop::IdeasController < Workshop::BaseController
         redirect_to workshop_idea_path(@idea, stage: "ready"), alert: "Couldn't write to Jira: #{result[:error]}"
       end
     else
-      result = JiraWriter.new(workspace: current_workspace).commit_brief(@idea.current_brief)
-
-      if result[:ok]
-        @idea.current_brief.mark_briefed!
-        @idea.update!(brief_saved_locally_at: nil, workshop_stage: "details")
-        flash[:clar_toast] = "Pushed to Jira · AI actions = Briefed"
-        redirect_to workshop_idea_path(@idea, stage: "details")
+      # Briefing → Details does NOT push to Jira (the Jira write happens on the
+      # Details step). "Brief & mark Briefed" just marks the brief briefed locally
+      # and advances the stage. If there's no brief yet, stay put and warn.
+      if @idea.current_brief.blank?
+        redirect_to workshop_idea_path(@idea, stage: "briefing"), alert: "Draft a brief first."
       else
-        redirect_to workshop_idea_path(@idea, stage: "briefing"), alert: "Couldn't write to Jira: #{result[:error]}"
+        @idea.current_brief.mark_briefed!
+        @idea.update!(workshop_stage: "details")
+        flash[:clar_toast] = "Briefed · moved to Details"
+        redirect_to workshop_idea_path(@idea, stage: "details")
       end
     end
   end

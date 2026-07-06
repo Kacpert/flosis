@@ -296,37 +296,57 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     JiraWriter.define_method(:commit_brief, orig)
   end
 
-  test "POST push_jira on success clears brief_saved_locally_at, advances to details, and sets a toast" do
-    idea = tasks(:local_task)
-    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago,
-                 brief_saved_locally_at: 1.minute.ago)
-    idea.briefs.create!(workspace: idea.project.workspace, version: 0, origin: "user", status: "draft",
-                        content: "the brief").make_current!
-
-    stub_commit_brief({ ok: true, key: "ELV-9", url: "https://example.com/ELV-9" }) do
-      post push_jira_workshop_idea_path(idea)
-    end
-
-    assert_response :redirect
-    idea.reload
-    assert_nil idea.brief_saved_locally_at
-    assert_equal "details", idea.workshop_stage
-    assert_equal "Pushed to Jira · AI actions = Briefed", flash[:clar_toast]
-  end
-
-  test "POST push_jira on failure does not advance the stage and surfaces the error" do
+  test "POST push_jira at briefing marks the brief briefed and advances to details WITHOUT pushing to Jira" do
     idea = tasks(:local_task)
     idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
-    idea.briefs.create!(workspace: idea.project.workspace, version: 0, origin: "user", status: "draft",
-                        content: "the brief").make_current!
+    brief = idea.briefs.create!(workspace: idea.project.workspace, version: 0, origin: "user", status: "draft",
+                                content: "the brief")
+    brief.make_current!
 
-    stub_commit_brief({ ok: false, error: "403 Forbidden" }) do
+    # The Jira write must NOT be called at the briefing step — Jira happens at Details.
+    jira_called = false
+    orig = JiraWriter.instance_method(:commit_brief)
+    JiraWriter.define_method(:commit_brief) { |_b| jira_called = true; { ok: true } }
+    begin
       post push_jira_workshop_idea_path(idea)
+    ensure
+      JiraWriter.define_method(:commit_brief, orig)
     end
 
+    assert_not jira_called, "briefing → details must not push to Jira"
+    assert_response :redirect
+    idea.reload
+    assert_equal "details", idea.workshop_stage
+    assert brief.reload.briefed?, "the brief must be marked briefed"
+    assert_equal "Briefed · moved to Details", flash[:clar_toast]
+  end
+
+  test "POST push_jira at briefing with no brief stays put and warns" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+
+    post push_jira_workshop_idea_path(idea)
+
     assert_equal "briefing", idea.reload.workshop_stage
-    follow_redirect!
-    assert_match "403", response.body
+    assert_match(/Draft a brief first/, flash[:alert])
+  end
+
+  test "POST push_jira at DETAILS pushes to Jira and advances to ready" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    idea.task_drafts.create!(source: "ai", origin: "ai", content: "the detailed description").make_current!
+
+    called = false
+    orig = JiraWriter.instance_method(:commit_detail)
+    JiraWriter.define_method(:commit_detail) { |_d| called = true; { ok: true } }
+    begin
+      post push_jira_workshop_idea_path(idea)
+    ensure
+      JiraWriter.define_method(:commit_detail, orig)
+    end
+
+    assert called, "the details step must push to Jira"
+    assert_equal "ready", idea.reload.workshop_stage
   end
 
   test "POST save_locally at details stamps detail_saved_locally_at, advances to ready, and sets a toast" do

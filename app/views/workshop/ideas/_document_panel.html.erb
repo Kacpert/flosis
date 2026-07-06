@@ -192,7 +192,11 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5M3 8a9 9 0 1 0 2.6-5.6L3 8"/></svg>
             Reset chat
           </button>
-          <%= button_to save_locally_workshop_idea_path(idea), method: :post, class: "clar-btn flex-1", title: "Save to the task locally, without Jira" do %>
+          <%# Save locally can advance details→ready, so it must navigate the whole
+              page (stepper/URL live outside this frame). %>
+          <%= button_to save_locally_workshop_idea_path(idea), method: :post,
+                form: { data: { turbo_frame: "_top" } },
+                class: "clar-btn flex-1", title: "Save to the task locally, without Jira" do %>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8"/></svg>
             Save locally
           <% end %>
@@ -204,7 +208,12 @@
             Push to Jira
           </button>
         <% else %>
-          <%= button_to push_jira_workshop_idea_path(idea), method: :post, class: "clar-btn clar-btn-primary clar-btn-block" do %>
+          <%# push_jira advances the stage (briefing→details, or details→ready) and
+              redirects — it must navigate the WHOLE page (stepper + URL live outside
+              this turbo-frame), so break out of the frame with turbo_frame: "_top". %>
+          <%= button_to push_jira_workshop_idea_path(idea), method: :post,
+                form: { data: { turbo_frame: "_top" } },
+                class: "clar-btn clar-btn-primary clar-btn-block" do %>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
             <%= push_label %>
           <% end %>
