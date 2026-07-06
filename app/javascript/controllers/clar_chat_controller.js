@@ -11,7 +11,7 @@ import { Controller } from "@hotwired/stimulus"
 // Details stage chat (Task 5.1) is expected to reuse this same controller
 // with persona: "details" and its own create/show/message/reset URLs.
 export default class extends Controller {
-  static targets = ["messages", "input", "liveThinkingBtn", "liveThinkingLabel"]
+  static targets = ["messages", "input", "liveThinkingBtn", "liveThinkingLabel", "liveThinkingIconOn", "liveThinkingIconOff"]
   static values = {
     createUrl: String,
     showUrl: String,
@@ -47,6 +47,8 @@ export default class extends Controller {
     if (this.hasLiveThinkingBtnTarget) {
       this.liveThinkingBtnTarget.classList.toggle("clar-btn-ai", this.liveThinking)
     }
+    if (this.hasLiveThinkingIconOnTarget) this.liveThinkingIconOnTarget.classList.toggle("hidden", !this.liveThinking)
+    if (this.hasLiveThinkingIconOffTarget) this.liveThinkingIconOffTarget.classList.toggle("hidden", this.liveThinking)
   }
 
   disconnect() {
