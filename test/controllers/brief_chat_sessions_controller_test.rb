@@ -181,6 +181,9 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes prompt, "not a yes-man"
     assert_includes prompt, "worth building"
     assert_includes prompt, "value do users get"
+    # Always carry Loom/video links into the brief.
+    assert_includes prompt, "Loom"
+    assert_includes prompt, "References:"
   end
 
   test "briefing chat uses the full read/search tool set (inherits the default)" do

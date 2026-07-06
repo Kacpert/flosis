@@ -163,6 +163,7 @@ module ChatStreaming
     data = JSON.parse(line) rescue nil
     return unless data
 
+    Rails.logger.info("[chat_streaming] event type=#{data["type"].inspect} has_text=#{data.dig("message", "content").present?} has_result=#{data["result"].present?}")
     case data["type"]
     when "assistant"
       text = data.dig("message", "content")&.filter_map { |c| c["text"] }&.join("")
@@ -202,9 +203,15 @@ module ChatStreaming
   # nothing to "show" and we store nil so no toggle renders).
   def thinking_for(streamed, answer)
     streamed = streamed.to_s.strip
-    return nil if streamed.blank?
-    return nil if streamed.gsub(/\s+/, " ") == answer.to_s.strip.gsub(/\s+/, " ")
-    streamed
+    result = if streamed.blank?
+      nil
+    elsif streamed.gsub(/\s+/, " ") == answer.to_s.strip.gsub(/\s+/, " ")
+      nil
+    else
+      streamed
+    end
+    Rails.logger.info("[chat_streaming] thinking_for: streamed=#{streamed.length}ch answer=#{answer.to_s.length}ch -> #{result ? "#{result.length}ch saved" : 'NIL'}")
+    result
   end
 
   def write_sse_headers

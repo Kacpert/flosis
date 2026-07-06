@@ -134,9 +134,14 @@ class BriefChatSessionsController < ApplicationController
       product language, CONCISE — problem/value, who it's for, what we build for the
       user, high-level acceptance. Something a stakeholder reads in under a minute.
 
+      ALWAYS carry over any video links (Loom, etc.) or other reference links from
+      the idea/description/comments into the brief, under a short "References:" line.
+      A Loom walkthrough usually shows details a developer needs — never drop it.
+
       <brief>
       (Problem/value, who it's for, what we'll build for the user, acceptance at a
-      high level — plain terms.)
+      high level — plain terms. Include a "References:" line with any Loom/video or
+      other links from the source when present.)
       </brief>
 
       Each new `<brief>` block is a new saved version; earlier ones stay. Revise into
