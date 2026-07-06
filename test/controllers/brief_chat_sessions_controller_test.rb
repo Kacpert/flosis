@@ -176,6 +176,11 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     # But still talks product, not an implementation readout.
     assert_includes prompt, "Talk product, not implementation"
     assert_includes prompt, "Don't dump code at the user"
+    # Sharp, critical mind — challenges worth/value, not a yes-man.
+    assert_includes prompt, "SHARP, CRITICAL mind"
+    assert_includes prompt, "not a yes-man"
+    assert_includes prompt, "worth building"
+    assert_includes prompt, "value do users get"
   end
 
   test "briefing chat uses the full read/search tool set (inherits the default)" do
