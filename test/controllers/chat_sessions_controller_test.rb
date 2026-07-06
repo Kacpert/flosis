@@ -96,6 +96,22 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
     refute_includes prompt, "Briefed version is in."
   end
 
+  test "details prompt tells the AI to talk product in chat, not dump code / file paths" do
+    controller = ChatSessionsController.new
+    controller.instance_variable_set(:@task, @task)
+    def controller.params; {}; end
+
+    prompt = controller.send(:build_initial_prompt)
+
+    # Investigates for grounding but speaks to a non-technical PO.
+    assert_includes prompt, "Talk PRODUCT, not implementation"
+    assert_includes prompt, "Do NOT dump code at the user"
+    assert_includes prompt, "no line numbers"
+    # First message is plain-language, not "referencing concrete files".
+    assert_includes prompt, "PLAIN-LANGUAGE summary"
+    refute_includes prompt, "referencing concrete files"
+  end
+
   # Task 9.2: the Figma instruction paragraph is gated by the Configuration ->
   # Integrations "Figma" toggle (workspace.figma_read_enabled). Enabled
   # preserves today's behavior; disabled must not instruct the AI to read Figma.

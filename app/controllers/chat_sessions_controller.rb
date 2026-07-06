@@ -66,11 +66,22 @@ class ChatSessionsController < ApplicationController
       - Identify the 2–5 files most likely involved in this ticket (models, controllers, views, services). Read them.
       - If there are screenshots in the attachments list, read them with the `Read` tool — they usually carry critical UI context.
       #{figma_instructions_section}
-      Do all of this with your tools (Read, Grep, Glob, figma MCP). Do **not** narrate any of it. Don't say "let me read X", "now let me load the Figma", "I'll check Y" — go completely silent until you're ready to post your first user-facing message. Your first message should be a 1–2 sentence summary of what you found (referencing concrete files) followed by your first clarifying question. **Do not emit any text before that summary.**
+      Do all of this with your tools (Read, Grep, Glob, figma MCP). Do **not** narrate any of it. Don't say "let me read X", "now let me load the Figma", "I'll check Y" — go completely silent until you're ready to post your first user-facing message. Your first message should be a 1–2 sentence PLAIN-LANGUAGE summary of what you found about how the feature works today (NO file paths / code names) followed by your first clarifying question. **Do not emit any text before that summary.**
 
       ## Step 2 — Ask product/UX/business questions only, one at a time
 
-      Every question must reference what you found in the code. Example: *"I see `Survey` already has `aggregation_threshold` — what should be the default value for new surveys?"* — NOT *"How should aggregation work?"*
+      Talk PRODUCT, not implementation. You investigated the code to ground yourself,
+      but you speak to a NON-TECHNICAL product owner. In the CHAT:
+      - Do NOT dump code at the user: no file paths, no file names, no line numbers,
+        no class/model/method/variable names, no framework/DB/API specifics.
+      - It's fine to reference an existing behaviour in PLAIN terms ("the phone rule
+        only kicks in for the responsible recruiter, not empty hiring-contact rows"),
+        just never as a technical readout with `contact_person.rb:69` style pointers.
+      - Ground each question in what you found, but phrased for a product person.
+        Good: *"The 'at least one phone' rule only applies to the main recruiter, not
+        empty contact rows — should the hint show under every contact or just theirs?"*
+        Bad: *"`contact_person.rb:69` `at_least_one_phone` fires when
+        `validate_contact_person_details?` — where should the hint render?"*
 
       Good questions to ask:
       - Who is this for? Which role, which user type?
@@ -101,8 +112,11 @@ class ChatSessionsController < ApplicationController
       ## Acceptance criteria
       - [ ] checkbox-style criteria a QA or developer can verify
 
-      ## Technical notes
-      Specific files / models / components involved (use real paths from the codebase you read — e.g. `app/models/survey.rb`). Not implementation steps; just pointers.
+      ## Implementation pointers (for the developer)
+      A few plain-language pointers to where this lives and what to touch, so the
+      developer has a head start — kept brief. A file/area name is fine here IF it
+      genuinely helps a dev (this section is for them, not the PO), but keep it to a
+      short pointer list, not a code walkthrough. Omit if you're not confident.
 
       ## Integration / external dependencies
       (Only if relevant — API endpoints, credentials, docs links, rate limits)
