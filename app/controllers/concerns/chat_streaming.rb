@@ -27,6 +27,13 @@ module ChatStreaming
     self.class::CHAT_PURPOSE
   end
 
+  # Per-chat override of the CLI's pre-approved tool list. nil = use the service
+  # default (full read/search set). The briefing chat overrides this with a
+  # code-free set so it can't read the codebase.
+  def chat_allowed_tools
+    nil
+  end
+
   # POST — return the existing active session, or start a new one and stream
   # the initial investigation + first answer back as SSE.
   def create
@@ -39,7 +46,7 @@ module ChatStreaming
 
     write_sse_headers
 
-    service = ClaudeCliService.new
+    service = ClaudeCliService.new(allowed_tools: chat_allowed_tools)
     full_response = ""
     @stream_session_id = nil
 
@@ -109,7 +116,7 @@ module ChatStreaming
 
     write_sse_headers
 
-    service = ClaudeCliService.new(codebase_path: @chat_session.codebase_path)
+    service = ClaudeCliService.new(codebase_path: @chat_session.codebase_path, allowed_tools: chat_allowed_tools)
     full_response = ""
 
     begin

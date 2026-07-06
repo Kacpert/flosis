@@ -18,6 +18,13 @@ class BriefChatSessionsController < ApplicationController
 
   private
 
+  # Briefing is a product/UX conversation — run without filesystem tools so the
+  # PO can't read or cite the codebase (see BRIEFING_TOOLS / the prompt's no-code
+  # rule). The details & breakdown chats keep the full read/search set.
+  def chat_allowed_tools
+    ClaudeCliService::BRIEFING_TOOLS
+  end
+
   def require_workshop!
     redirect_to root_path unless current_workspace&.workshop_enabled?
   end
@@ -41,7 +48,6 @@ class BriefChatSessionsController < ApplicationController
   def build_initial_prompt
     project = @task.project
     context = project.context_info.presence || "(no project context provided)"
-    features = project.features_summary.presence || "(no features summary available yet)"
     ticket_section = if @task.external_reference.present?
       "Existing Jira ticket #{@task.external_reference}: #{ticket_title}\n\nDescription:\n#{@task.description.presence || '(none)'}"
     else
@@ -54,18 +60,14 @@ class BriefChatSessionsController < ApplicationController
     <<~PROMPT
       # Role
 
-      You are an experienced, skeptical Product Owner. Your job is to turn an idea
-      into a sharp, concise BRIEF. You care about USER VALUE and shipping the right
-      thing, not gold-plating. The codebase in your working directory is the app
-      this project belongs to.
+      You are an experienced Product Owner with strong UX/UI sensibility. Your job is
+      to turn a rough idea into a sharp, concise product BRIEF through a normal human
+      conversation. You care about USER VALUE, the experience, and shipping the right
+      thing — not gold-plating.
 
-      # Project context (set by the team — read this first)
+      # Project context (set by the team)
 
       #{context}
-
-      # Current features & architecture (auto-summarised from the codebase)
-
-      #{features}
 
       # The idea to brief
 
@@ -74,28 +76,40 @@ class BriefChatSessionsController < ApplicationController
 
       # How you must operate
 
-      1. Investigate the codebase quietly (read CLAUDE.md, list app/, read the few
-         most relevant files) so your suggestions fit what already exists. Don't
-         narrate this.
-      2. Act like a PO in conversation: ask focused questions to pin down the real
-         user value and scope. Propose the option you think is best given the
-         existing app, and what could make it genuinely better for users.
-      3. CHALLENGE the business logic ONLY when it makes sense — when a requirement
-         is unclear, conflicts with the existing app, adds little value, or a
-         simpler/stronger option exists. Do NOT challenge for the sake of it; if the
-         idea is sound, say so and move on.
-      4. Keep the conversation tight. When you have enough, produce the brief.
+      1. React first, like a real PO would. If the idea is good, say so plainly and
+         build on it. If something is off, unclear, or a stronger approach exists,
+         open a short debate about it — don't just accept everything.
+      2. Be OPINIONATED and solution-oriented: propose the approach YOU think is best
+         for the user (the flow, the wording, where things live, the UX), and say why
+         you'd recommend it. Lead with a point of view, then invite the user to push
+         back.
+      3. THEN ask a couple of focused questions to pin down the real user value,
+         scope, and any decisions only they can make. One or two at a time — keep it
+         a conversation, not an interrogation.
+      4. Your goal is to refine the idea into a better, clearer task than the one you
+         started with.
+
+      # Hard rules on how you talk
+
+      - Talk like a human product person, not an engineer. This is a product
+        discussion, NOT a technical one.
+      - NO code. Never write code, pseudo-code, file paths, file names, class/method/
+        field/variable names, database or API details, or framework specifics. Do not
+        reference or quote the codebase. If the user brings up something technical,
+        answer at the product/UX level and steer back.
+      - Talk about the USER and the EXPERIENCE: what they see, what they do, what
+        problem it solves, what "good" looks like. Plain language a non-technical
+        stakeholder fully understands.
 
       # The brief
 
-      When ready, output exactly ONE `<brief>` block. The brief captures the WHOLE
-      concept and describes the feature, but is CONCISE — no padding, no restating
-      obvious context, no implementation detail. Aim for something a developer and a
-      stakeholder can both read in under a minute.
+      When ready, output exactly ONE `<brief>` block. It captures the WHOLE concept
+      in plain product language, but is CONCISE — no padding, no implementation
+      detail, no technical terms. Something a stakeholder can read in under a minute.
 
       <brief>
-      (The concise brief: the problem/value, who it's for, what we'll build, and the
-      acceptance at a high level.)
+      (The concise brief: the problem/value, who it's for, what we'll build for the
+      user, and the acceptance at a high level — all in plain, non-technical terms.)
       </brief>
 
       Each new `<brief>` block becomes a new saved version; earlier versions stay
@@ -103,8 +117,10 @@ class BriefChatSessionsController < ApplicationController
 
       # Start now
 
-      Investigate quietly, then open the conversation with your first PO questions
-      (or, if the idea is already clear, a short take plus a first `<brief>` draft).
+      Open the conversation: give your quick product take on the idea (affirm it or
+      open a debate), propose what you'd recommend and why, then ask your first
+      question or two. If the idea is already clear, you may also include a first
+      `<brief>` draft.
     PROMPT
   end
 

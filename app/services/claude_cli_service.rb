@@ -2,8 +2,12 @@ class ClaudeCliService
   CLAUDE_CMD = "claude".freeze
   DEFAULT_CODEBASE_PATH = File.expand_path("~/work/elvium").freeze
 
-  def initialize(codebase_path: nil)
+  def initialize(codebase_path: nil, allowed_tools: nil)
     @codebase_path = codebase_path || ENV.fetch("CHAT_CODEBASE_PATH", DEFAULT_CODEBASE_PATH)
+    # Per-chat override of the pre-approved tool list. The briefing chat passes a
+    # code-free set (no Read/Glob/Grep) so it stays a product conversation and
+    # can't cite the codebase; other chats keep the full default.
+    @allowed_tools = allowed_tools || ALLOWED_TOOLS
   end
 
   # Start a new Claude session with an initial prompt.
@@ -76,6 +80,16 @@ class ClaudeCliService
     mcp__figma__download_figma_images
   ].freeze
 
+  # Code-free tool set for the briefing (Product Owner) chat: no filesystem
+  # tools, so it can't read or cite the codebase — it stays a product/UX
+  # conversation. Keeps web + Figma so it can still look at a linked reference.
+  BRIEFING_TOOLS = %w[
+    WebFetch
+    WebSearch
+    mcp__figma__get_figma_data
+    mcp__figma__download_figma_images
+  ].freeze
+
   def build_command(session_id: nil, streaming: false)
     cmd = [CLAUDE_CMD, "-p"]
 
@@ -88,7 +102,7 @@ class ClaudeCliService
     cmd += ["--resume", session_id] if session_id
     # Pre-approve the tools we want the chat assistant to use without
     # prompting. -p (non-interactive) refuses any tool not on this list.
-    ALLOWED_TOOLS.each { |t| cmd += ["--allowedTools", t] }
+    @allowed_tools.each { |t| cmd += ["--allowedTools", t] }
     cmd
   end
 

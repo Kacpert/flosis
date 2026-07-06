@@ -157,4 +157,33 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
 
     refute_includes prompt, "The team already has a current version of the brief"
   end
+
+  test "build_initial_prompt frames a UX-minded PO and forbids code / codebase talk" do
+    controller = BriefChatSessionsController.new
+    controller.instance_variable_set(:@task, @task)
+    def controller.params; {}; end
+
+    prompt = controller.send(:build_initial_prompt)
+
+    # Product Owner with UX/UI sensibility, opinionated + debate + questions.
+    assert_includes prompt, "Product Owner with strong UX/UI sensibility"
+    assert_includes prompt, "React first"
+    assert_includes prompt, "OPINIONATED"
+    # No-code contract: it must explicitly forbid code, files, and technical detail.
+    assert_includes prompt, "NO code"
+    assert_includes prompt, "file paths"
+    assert_includes prompt, "NOT a technical one"
+    # And it must NOT tell the AI to investigate/read the codebase anymore.
+    refute_includes prompt, "Investigate the codebase"
+    refute_includes prompt, "read CLAUDE.md"
+  end
+
+  test "briefing chat runs with a code-free tool set (no filesystem tools)" do
+    tools = BriefChatSessionsController.new.send(:chat_allowed_tools)
+
+    assert_equal ClaudeCliService::BRIEFING_TOOLS, tools
+    refute_includes tools, "Read"
+    refute_includes tools, "Glob"
+    refute_includes tools, "Grep"
+  end
 end
