@@ -93,6 +93,11 @@ class PrReviewJob < ApplicationJob
     # don't mark reviewed).
     return release_claim(workspace, pr_number, mode) if issues.nil?
 
+    # Since a followup re-reviews the whole cumulative diff, the AI re-flags issues
+    # it already commented on. Drop any that duplicate an existing inline comment so
+    # every push doesn't re-post the same comment.
+    issues = reject_already_posted(github, pr_number, issues)
+
     issues = issues.first(CAPS.fetch(mode, 4))
     post_review(github, pr_number, issues)
 
@@ -106,6 +111,36 @@ class PrReviewJob < ApplicationJob
   end
 
   private
+
+  # Filters out issues that duplicate a comment already posted on the PR. The AI
+  # only posts inline comments (bot login, from create_review), so we match new
+  # issues against existing inline review comments by file + comment text. Line
+  # numbers shift as the branch grows, so we key on path + a normalized body
+  # rather than the exact line. Never raises — on any read failure it posts as
+  # before (better a rare dupe than dropping a real review).
+  def reject_already_posted(github, pr_number, issues)
+    return issues if issues.blank?
+
+    existing = github.pull_request_review_comments(pr_number)
+    return issues if existing.blank?
+
+    seen = existing.map { |c| dedup_key(c["path"], c["body"]) }.to_set
+    issues.reject { |i| seen.include?(dedup_key(i[:path], i[:comment])) }
+  rescue StandardError => e
+    Rails.logger.warn("[PrReviewJob] dedup skipped: #{e.message}")
+    issues
+  end
+
+  # A stable signature for "the same comment on the same file": path + the body
+  # normalized (whitespace collapsed, our bot prefixes stripped, lowercased) so
+  # trivial rewording/prefixing doesn't defeat the match.
+  def dedup_key(path, body)
+    normalized = body.to_s
+      .gsub(/\s+/, " ")
+      .strip
+      .downcase
+    [path.to_s, normalized]
+  end
 
   # Undo the claim made by PrReviewCheckJob when a review can't complete, so the
   # PR is retried next cycle. An initial claim (no prior review) is deleted

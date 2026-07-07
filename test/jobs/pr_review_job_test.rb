@@ -6,12 +6,13 @@ class PrReviewJobTest < ActiveJob::TestCase
     @workspace.update!(github_token: "t", github_repo: "acme/widgets", pr_review_enabled: true)
   end
 
-  def fake_github(pr:, files: [ { "filename" => "a.rb", "patch" => "@@ -1 +1 @@\n+code" } ], commits: [])
+  def fake_github(pr:, files: [ { "filename" => "a.rb", "patch" => "@@ -1 +1 @@\n+code" } ], commits: [], existing_comments: [])
     fake = Object.new
     captured = {}
     fake.define_singleton_method(:pull_request) { |_n| pr }
     fake.define_singleton_method(:pull_request_files) { |_n| files }
     fake.define_singleton_method(:pull_request_commits) { |_n| commits }
+    fake.define_singleton_method(:pull_request_review_comments) { |_n| existing_comments }
     fake.define_singleton_method(:create_review) { |n, body:, event:, comments:| captured.merge!(n: n, body: body, comments: comments); true }
     fake.define_singleton_method(:configured?) { true }
     fake.define_singleton_method(:captured) { captured }
@@ -126,6 +127,43 @@ class PrReviewJobTest < ActiveJob::TestCase
 
     assert_equal 2, fake.captured[:comments].size
     assert_equal "new", PrReview.find_by(workspace: @workspace, pr_number: 7).last_reviewed_sha
+  end
+
+  test "does NOT re-post a comment already present on the PR (dedup across pushes)" do
+    PrReview.create!(workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true)
+    # The PR already has this exact comment from a previous review.
+    existing = [ { "path" => "a.rb", "line" => 5, "body" => "Wire the toggle into both tabs." } ]
+    fake = fake_github(pr: pr_payload(sha: "new"), commits: [ { "sha" => "new" } ], existing_comments: existing)
+    # The AI re-flags the same issue (whole diff re-reviewed) plus a genuinely new one.
+    ai = [
+      { "path" => "a.rb", "line" => 9, "comment" => "Wire the toggle into both tabs." }, # duplicate (line shifted)
+      { "path" => "a.rb", "line" => 12, "comment" => "A brand new issue." }
+    ].to_json
+
+    with_github(fake) do
+      with_ai(ai) do
+        PrReviewJob.perform_now(@workspace.id, 7, "followup")
+      end
+    end
+
+    bodies = fake.captured[:comments].map { |c| c[:body] }
+    assert_equal [ "A brand new issue." ], bodies, "must skip the already-posted comment, keep the new one"
+  end
+
+  test "when every issue was already posted, posts the no-issues review (no spam)" do
+    PrReview.create!(workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true)
+    existing = [ { "path" => "a.rb", "line" => 5, "body" => "Same old comment." } ]
+    fake = fake_github(pr: pr_payload(sha: "new"), commits: [ { "sha" => "new" } ], existing_comments: existing)
+    ai = [ { "path" => "a.rb", "line" => 5, "comment" => "Same old comment." } ].to_json
+
+    with_github(fake) do
+      with_ai(ai) do
+        PrReviewJob.perform_now(@workspace.id, 7, "followup")
+      end
+    end
+
+    assert_empty fake.captured[:comments]
+    assert_equal "🤖 No issues found 👍", fake.captured[:body]
   end
 
   test "no issues posts the no-issues review" do

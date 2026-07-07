@@ -36,6 +36,22 @@ class GithubClient
     get("/repos/#{@repo}/pulls/#{number}/files?per_page=100") || []
   end
 
+  # Existing inline review comments on the PR (across all prior reviews). Used to
+  # avoid re-posting the same comment on every push. Each entry has path, line
+  # (or original_line for outdated hunks), and body.
+  def pull_request_review_comments(number)
+    all = []
+    page = 1
+    loop do
+      batch = get("/repos/#{@repo}/pulls/#{number}/comments?per_page=100&page=#{page}")
+      break if batch.blank?
+      all.concat(batch)
+      break if batch.size < 100
+      page += 1
+    end
+    all
+  end
+
   def create_review(number, body:, event:, comments:)
     payload = { event: event, body: body }
     payload[:comments] = comments if comments.present?
