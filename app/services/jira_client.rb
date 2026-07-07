@@ -283,14 +283,11 @@ class JiraClient
   private
 
   # Minimal ADF document wrapping plain text in a single paragraph.
+  # Build the ADF description. The brief/draft text is lightweight Markdown
+  # (**bold**, "- " bullets, headings, links); convert it to real ADF nodes so
+  # Jira renders it instead of showing raw "**...**" / "- ..." text.
   def description_doc(text)
-    {
-      type: "doc",
-      version: 1,
-      content: [
-        { type: "paragraph", content: [{ type: "text", text: text.to_s }] }
-      ]
-    }
+    MarkdownToAdf.call(text)
   end
 
   # POST that distinguishes success from failure (unlike #post, which returns
