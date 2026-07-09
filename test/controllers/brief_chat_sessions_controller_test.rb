@@ -173,13 +173,26 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes prompt, "Investigate the codebase"
     assert_includes prompt, "required fields"
     assert_includes prompt, "CLAUDE.md"
-    # But still talks product, not an implementation readout: code is fuel, not a
-    # report — never narrate "the code shows", never name mechanisms, and translate
-    # technical facts into user-facing consequences.
+    # But still talks product, not an implementation readout: never narrate
+    # "the code shows", never name code artifacts (files/classes/methods/jobs).
     assert_includes prompt, "BUSINESS conversation"
-    assert_includes prompt, "is NOT\nsomething you report"
     assert_includes prompt, "NEVER say \"the code shows\""
-    assert_includes prompt, "Translate every code fact into a USER-FACING consequence"
+    assert_includes prompt, "NEVER name files, classes, methods, jobs"
+    # Code is FUEL for app-INTEGRATION thinking — the brief must reason about
+    # WHERE it lives and HOW it connects, in product (not code) terms, so a
+    # designer gets a real skeleton instead of a blank page.
+    assert_includes prompt, "app-integration"
+    assert_includes prompt, "WHERE does this live"
+    assert_includes prompt, "HOW does it connect"
+    assert_includes prompt, "in PRODUCT terms, not code terms"
+    # Brief is a designer/developer handoff with concrete sections.
+    assert_includes prompt, "HANDOFF ARTIFACT"
+    assert_includes prompt, "How it fits the app"
+    assert_includes prompt, "Screens & main flow"
+    assert_includes prompt, "Design starters & open questions"
+    # Re-emit the brief when the conversation changed the AI's thinking (so the
+    # saved version never contradicts a claim it already walked back).
+    assert_includes prompt, "RE-EMIT the brief"
     # Sharp, critical mind — challenges worth/value, not a yes-man.
     assert_includes prompt, "SHARP, CRITICAL mind"
     assert_includes prompt, "not a yes-man"
