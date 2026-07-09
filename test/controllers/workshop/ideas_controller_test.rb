@@ -133,6 +133,21 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "button", text: /Reset session/
   end
 
+  test "GET show wires the document frame to reload when the chat saves a new version" do
+    # Regression: a brief saved mid-conversation didn't appear until a full page
+    # refresh, because the clar:document-updated event had no listener. The
+    # document turbo-frame must carry the clar-document-refresh controller and a
+    # reload URL so the panel re-renders with the newest version.
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+
+    get workshop_idea_path(idea, stage: "briefing")
+
+    assert_response :success
+    assert_select "turbo-frame#clar-document[data-controller~='clar-document-refresh']" \
+      "[data-clar-document-refresh-reload-url-value='#{workshop_idea_path(idea, stage: 'briefing')}']"
+  end
+
   test "GET show at details stage renders the Clar chat panel wired to the refine chat routes" do
     idea = tasks(:jira_task)
     idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)

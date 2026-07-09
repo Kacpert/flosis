@@ -23,7 +23,15 @@
         <% end %>
       </div>
       <div class="min-h-0">
-        <%= turbo_frame_tag "clar-document" do %>
+        <%# No src on the tag (inline content, no load-time refetch). The chat
+            saves a new brief version mid-conversation and fires
+            clar:document-updated; clar_document_refresh_controller catches it and
+            sets src to reload-url, forcing a frame-scoped GET that re-renders this
+            panel with the current (newest) brief/draft. Without this the panel
+            showed the stale version until a full page refresh. %>
+        <%= turbo_frame_tag "clar-document",
+              data: { controller: "clar-document-refresh",
+                      clar_document_refresh_reload_url_value: workshop_idea_path(@idea, stage: @stage) } do %>
           <% if @stage == "briefing" %>
             <%= render "workshop/ideas/document_panel", idea: @idea, stage: "briefing" %>
           <% elsif @stage == "details" %>
