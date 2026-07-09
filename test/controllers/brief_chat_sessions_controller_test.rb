@@ -173,9 +173,13 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes prompt, "Investigate the codebase"
     assert_includes prompt, "required fields"
     assert_includes prompt, "CLAUDE.md"
-    # But still talks product, not an implementation readout.
-    assert_includes prompt, "Talk product, not implementation"
-    assert_includes prompt, "Don't dump code at the user"
+    # But still talks product, not an implementation readout: code is fuel, not a
+    # report — never narrate "the code shows", never name mechanisms, and translate
+    # technical facts into user-facing consequences.
+    assert_includes prompt, "BUSINESS conversation"
+    assert_includes prompt, "is NOT\nsomething you report"
+    assert_includes prompt, "NEVER say \"the code shows\""
+    assert_includes prompt, "Translate every code fact into a USER-FACING consequence"
     # Sharp, critical mind — challenges worth/value, not a yes-man.
     assert_includes prompt, "SHARP, CRITICAL mind"
     assert_includes prompt, "not a yes-man"
