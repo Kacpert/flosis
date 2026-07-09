@@ -1,5 +1,10 @@
 import { Controller } from "@hotwired/stimulus"
 
+// Session-creation lock, keyed by create URL, shared across all instances of
+// this controller. Prevents a re-connecting panel from spawning a second
+// (expensive, 60-80s) create request while the first is still running.
+const inFlightCreates = new Set()
+
 // Clar-skinned port of task_chat_controller.js's SSE core (create/resume/
 // message/reset streaming against ChatStreaming-backed endpoints), re-skinned
 // to clar-bubble-ai/clar-bubble-user bubbles. Unlike task_chat_controller.js
@@ -57,6 +62,13 @@ export default class extends Controller {
   }
 
   async loadOrStart() {
+    // Guard against a re-connect (Turbo frame swap, ?stage= change) firing a
+    // SECOND create while the first is still running. Creating the session takes
+    // 60-80s (the PO reads the codebase); without this guard the page fired the
+    // request 2-3× in a row — each a fresh Claude subprocess — and one of them
+    // 500'd when a later request killed the earlier stream. The lock is keyed by
+    // the create URL and lives on the module so it survives controller churn.
+    if (inFlightCreates.has(this.createUrlValue)) return
     try {
       const response = await fetch(this.showUrlValue || this.createUrlValue, { headers: this.headers() })
       if (response.ok) {
@@ -72,6 +84,10 @@ export default class extends Controller {
   }
 
   async createSession(mode = null) {
+    // A create for this session is already in flight — don't start another.
+    if (inFlightCreates.has(this.createUrlValue)) return
+    inFlightCreates.add(this.createUrlValue)
+
     this.messagesTarget.innerHTML = ""
     const assistantBubble = this.appendMessage("ai", "")
     const textSpan = assistantBubble.querySelector("[data-chat-text]")
@@ -93,6 +109,8 @@ export default class extends Controller {
       this.dispatchDocumentUpdated()
     } catch (e) {
       this.showError("Failed to start chat session")
+    } finally {
+      inFlightCreates.delete(this.createUrlValue)
     }
   }
 

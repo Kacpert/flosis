@@ -50,38 +50,37 @@ module ChatStreaming
     full_response = ""
     @stream_session_id = nil
 
+    client_gone = false
+    cli_error = nil
     begin
-      service.send_initial_streaming(prompt: build_initial_prompt) do |line|
-        handle_stream_line(line) { |chunk| full_response += chunk }
+      begin
+        service.send_initial_streaming(prompt: build_initial_prompt) do |line|
+          handle_stream_line(line) { |chunk| full_response += chunk }
+        end
+      rescue ClaudeCliService::ClaudeCliError => e
+        cli_error = e.message
+      rescue ActionController::Live::ClientDisconnected, IOError, Errno::EPIPE
+        # The client navigated away / a duplicate request superseded this one. The
+        # Claude subprocess still finished its work (60-80s), so DON'T throw it
+        # away — fall through and persist the session below so the next page load
+        # resumes it instead of paying that cost again.
+        client_gone = true
       end
 
       new_session_id = @stream_session_id
       final_text = @authoritative_result.presence || full_response
       if new_session_id.present? && final_text.present?
-        @chat_session = ChatSession.create!(
-          task: @task,
-          workspace: current_workspace,
-          user: current_user,
-          purpose: chat_purpose,
-          claude_session_id: new_session_id,
-          codebase_path: ClaudeCliService::DEFAULT_CODEBASE_PATH
-        )
-        @chat_session.chat_messages.create!(
-          role: "assistant", content: final_text, thinking: thinking_for(full_response, final_text)
-        )
-        extract_and_save_results(final_text)
+        @chat_session = persist_initial_session!(new_session_id, final_text, full_response)
         # Send the clean authoritative final text so the bubble collapses from the
         # live tool-use progress to just the answer (same as the #message path).
-        write_sse("done" => true, "session_id" => @chat_session.id, "final" => @authoritative_result.presence)
-      else
-        write_sse("error" => "Claude did not return a session ID")
+        write_sse_safe("done" => true, "session_id" => @chat_session.id, "final" => @authoritative_result.presence) unless client_gone
+      elsif cli_error
+        write_sse_safe("error" => cli_error) unless client_gone
+      elsif !client_gone
+        write_sse_safe("error" => "Claude did not return a session ID")
       end
-    rescue ClaudeCliService::ClaudeCliError => e
-      write_sse("error" => e.message)
-    rescue IOError, Errno::EPIPE
-      # client disconnected
     ensure
-      response.stream.close
+      close_stream_safe
     end
   end
 
@@ -137,15 +136,30 @@ module ChatStreaming
 
       persist_assistant_response(full_response)
     rescue ClaudeCliService::ClaudeCliError => e
-      write_sse("error" => e.message)
-    rescue IOError, Errno::EPIPE
+      write_sse_safe("error" => e.message)
+    rescue ActionController::Live::ClientDisconnected, IOError, Errno::EPIPE
+      # Client gone mid-answer — still persist what we got so it isn't lost.
       persist_assistant_response(full_response)
     ensure
-      response.stream.close
+      close_stream_safe
     end
   end
 
   private
+
+  # SSE writes/close can themselves raise ClientDisconnected once the client is
+  # gone; these swallow that so a disconnect never turns into a 500.
+  def write_sse_safe(payload)
+    write_sse(payload)
+  rescue ActionController::Live::ClientDisconnected, IOError, Errno::EPIPE
+    nil
+  end
+
+  def close_stream_safe
+    response.stream.close
+  rescue ActionController::Live::ClientDisconnected, IOError, Errno::EPIPE
+    nil
+  end
 
   # Parse one raw line from the Claude subprocess and stream the relevant part
   # to the client. Yields any assistant text chunk to the caller so it can
@@ -165,7 +179,14 @@ module ChatStreaming
 
     case data["type"]
     when "assistant"
-      text = data.dig("message", "content")&.filter_map { |c| c["text"] }&.join("")
+      # An assistant turn's content is an array of blocks: "text" (narration) and
+      # "tool_use" (a Read/Grep/etc call). We must surface BOTH. If we only kept
+      # text, a turn that goes straight to a tool call — common when the AI
+      # investigates the codebase — streamed nothing, so the user stared at
+      # frozen "thinking…" dots and, because nothing streamed, got no "Show
+      # thinking" toggle afterward. Render tool calls as a short narration line
+      # ("_Reading CLAUDE.md…_") so there's always live progress AND saved thinking.
+      text = Array(data.dig("message", "content")).filter_map { |c| block_narration(c) }.join("\n")
       if text.present?
         # Each "assistant" event is a distinct turn (e.g. a thought before a tool
         # call). They must not be glued together ("…Rails app.Now let me search…").
@@ -187,6 +208,71 @@ module ChatStreaming
     when "system"
       @stream_session_id ||= data["session_id"]
     end
+  end
+
+  # Turns one assistant content block into a line of streamable narration.
+  # "text" blocks pass through verbatim. "tool_use" blocks (Read/Grep/etc.)
+  # become a short italic "doing X…" line so the investigation is visible while
+  # it happens and is saved behind the "Show thinking" toggle. Unknown block
+  # types are ignored.
+  def block_narration(block)
+    return nil unless block.is_a?(Hash)
+
+    case block["type"]
+    when "text"
+      t = block["text"].to_s
+      t.presence
+    when "tool_use"
+      tool_narration(block["name"], block["input"])
+    end
+  end
+
+  # A human-readable one-liner for a tool call. Kept short and product-plain —
+  # this is what the user sees under "Show thinking", not a debugger.
+  def tool_narration(name, input)
+    input = input.is_a?(Hash) ? input : {}
+    case name.to_s
+    when "Read"
+      path = input["file_path"].to_s
+      "_Reading #{short_path(path)}…_"
+    when "Grep"
+      pat = input["pattern"].to_s
+      pat.present? ? "_Searching the code for `#{pat}`…_" : "_Searching the code…_"
+    when "Glob"
+      "_Looking for #{input["pattern"].presence || 'files'}…_"
+    when "WebFetch"
+      "_Opening #{input["url"].presence || 'a link'}…_"
+    when "WebSearch"
+      q = input["query"].to_s
+      q.present? ? "_Searching the web for “#{q}”…_" : "_Searching the web…_"
+    when /\Amcp__figma__/
+      "_Looking at the Figma reference…_"
+    else
+      name.present? ? "_Working (#{name})…_" : nil
+    end
+  end
+
+  # Trim an absolute path down to something readable in the chat (last 2-3 parts).
+  def short_path(path)
+    return "a file" if path.blank?
+    parts = path.split("/").reject(&:blank?)
+    parts.last(3).join("/")
+  end
+
+  def persist_initial_session!(session_id, final_text, full_response)
+    session = ChatSession.create!(
+      task: @task,
+      workspace: current_workspace,
+      user: current_user,
+      purpose: chat_purpose,
+      claude_session_id: session_id,
+      codebase_path: ClaudeCliService::DEFAULT_CODEBASE_PATH
+    )
+    session.chat_messages.create!(
+      role: "assistant", content: final_text, thinking: thinking_for(full_response, final_text)
+    )
+    extract_and_save_results(final_text)
+    session
   end
 
   def persist_assistant_response(full_response)
