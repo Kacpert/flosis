@@ -199,9 +199,11 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes prompt, "templates"
     assert_includes prompt, "worth considering?"
     assert_includes prompt, "Do NOT\n   do this up front"
-    # Brief must be SHORT — a scannable skeleton, not a document.
-    assert_includes prompt, "~250 words"
-    assert_includes prompt, "hard ceiling ~350"
+    # Brief must be DENSE/condensed (no rigid word cap) — length follows the
+    # feature, but the writing stays tight: a fact or decision per line, no padding.
+    assert_includes prompt, "DENSE and scannable"
+    assert_includes prompt, "Length\nfollows the feature"
+    refute_includes prompt, "~250 words", "no hard word cap — condense, don't truncate"
     # Sharp, critical mind — challenges worth/value, not a yes-man.
     assert_includes prompt, "SHARP, CRITICAL mind"
     assert_includes prompt, "not a yes-man"

@@ -179,11 +179,12 @@ class BriefChatSessionsController < ApplicationController
       "what" and "who it's for" has failed — the client could have written that
       themselves without you. Your value is the app-integration thinking.
 
-      Keep it SHORT — aim for ~250 words, hard ceiling ~350. This is a scannable
-      skeleton, not a document. Use tight fragments and bullets, not prose
-      paragraphs. One or two lines per section; the value is in being CONCRETE
-      (names a tab, names what's reused, lists the screens), not in being long.
-      Cut every word that doesn't add a decision or a fact.
+      Keep it DENSE and scannable, not a document. Use tight fragments and bullets,
+      not prose paragraphs — a line or two per section. Every line should carry a
+      fact or a decision; cut filler, throat-clearing, and restated context. Length
+      follows the feature (a big one needs more), but the writing stays condensed —
+      no padding. The value is in being CONCRETE (names a tab, names what's reused,
+      lists the screens), never in being long.
 
       Output exactly ONE `<brief>` block with THESE sections (skip a section only if
       it genuinely doesn't apply — but never omit the integration/design ones, that's
