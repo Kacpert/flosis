@@ -41,23 +41,35 @@ class JiraWriter
     { ok: true, key: key, url: url }
   end
 
-  # Pushes a details-stage AI draft's content to the linked Jira issue's
-  # description and sets the "AI actions" field to "Detailed". Local ideas
-  # (no Jira key yet) cannot receive a details push — the issue is only ever
-  # created via commit_brief.
+  # Pushes a details-stage AI draft's content to Jira and marks it "Detailed".
+  # If the task is already linked, updates the existing issue's description. If
+  # it's a LOCAL idea (no Jira key yet), CREATES the Jira issue from the draft
+  # and links the task — so "Push to Jira" at Details turns a local idea into a
+  # real Jira ticket in one step.
   def commit_detail(draft)
     task = draft.task
-    return { ok: false, error: "Task is not linked to Jira" } if task.external_reference.blank?
 
-    res = @client.update_issue_description(issue_key: task.external_reference,
-                                           description_text: plain_text(draft.content))
-    return res unless res[:ok]
+    if task.external_reference.present?
+      res = @client.update_issue_description(issue_key: task.external_reference,
+                                             description_text: plain_text(draft.content))
+      return res unless res[:ok]
+      key = task.external_reference
+    else
+      project_key = task.project.external_reference
+      return { ok: false, error: "Project is not linked to Jira" } if project_key.blank?
 
-    action = set_ai_action(task.external_reference, DETAILED_VALUE)
+      res = @client.create_issue(project_key: project_key, summary: task.name,
+                                 description_text: plain_text(draft.content))
+      return res unless res[:ok]
+      key = res[:key]
+      task.update!(external_reference: key, external_url: res[:url], external_type: "jira")
+    end
+
+    action = set_ai_action(key, DETAILED_VALUE)
     return action unless action[:ok]
 
     draft.update!(pushed_at: Time.current)
-    { ok: true }
+    { ok: true, key: key }
   end
 
   # Pushes the latest breakdown (spec) to the linked Jira issue's description and

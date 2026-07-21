@@ -91,13 +91,29 @@ class JiraWriterTest < ActiveSupport::TestCase
     assert_not_nil draft.reload.pushed_at
   end
 
-  test "commit_detail fails when the task is not linked to Jira" do
+  test "commit_detail CREATES the Jira issue and links a local idea (turns local → Jira)" do
     task = @project.tasks.create!(name: "Local idea")
+    draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detailed text")
+    c = fake_client
+    res = JiraWriter.new(workspace: @workspace, client: c).commit_detail(draft)
+
+    assert res[:ok], res.inspect
+    assert_equal 1, c.calls[:create], "must create the issue for a local task"
+    assert_equal 0, c.calls[:update], "no existing issue to update"
+    assert_equal "JW-1", task.reload.external_reference, "task is now linked to the new Jira issue"
+    assert_equal "jira", task.external_type
+    assert_equal "Detailed", c.calls[:action][:value]
+    assert_not_nil draft.reload.pushed_at
+  end
+
+  test "commit_detail on a local idea fails when the PROJECT is not linked to Jira" do
+    local_project = @workspace.projects.create!(name: "NoJira", color: "#222222")
+    task = local_project.tasks.create!(name: "Local idea")
     draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detailed text")
     res = JiraWriter.new(workspace: @workspace, client: fake_client).commit_detail(draft)
 
     assert_not res[:ok]
-    assert_equal "Task is not linked to Jira", res[:error]
+    assert_equal "Project is not linked to Jira", res[:error]
     assert_nil draft.reload.pushed_at
   end
 

@@ -102,14 +102,17 @@ class Workshop::IdeasController < Workshop::BaseController
       end
     when "ready"
       # A local idea that finished via "Save locally" reaches Ready with no Jira
-      # issue. Pushing from the Ready screen creates the issue (commit_brief is
-      # the only issue-creating path) and marks it Briefed, but MUST keep the
+      # issue. Pushing from the Ready screen creates the issue and MUST keep the
       # idea at "ready" — it's already done; pushing must not regress the stage.
-      result = JiraWriter.new(workspace: current_workspace).commit_brief(@idea.current_brief)
+      # Prefer the details draft (the richer, implementation-ready description); a
+      # task that skipped details straight from briefing pushes the brief instead.
+      writer = JiraWriter.new(workspace: current_workspace)
+      detail = @idea.current_detail_draft
+      result = detail.present? ? writer.commit_detail(detail) : writer.commit_brief(@idea.current_brief)
 
       if result[:ok]
-        @idea.current_brief.mark_briefed!
-        @idea.update!(brief_saved_locally_at: nil)
+        @idea.current_brief&.mark_briefed!
+        @idea.update!(brief_saved_locally_at: nil, detail_saved_locally_at: nil)
         flash[:clar_toast] = "Pushed to Jira"
         redirect_to workshop_idea_path(@idea, stage: "ready")
       else

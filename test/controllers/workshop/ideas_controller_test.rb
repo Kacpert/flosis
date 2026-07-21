@@ -249,7 +249,9 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "GET show at details stage renders a disabled push button with tooltip for a local (non-Jira) idea" do
+  test "GET show at details stage enables 'Push to Jira' for a local (non-Jira) idea (it creates the issue)" do
+    # A local idea at Details can now push: commit_detail creates the Jira issue
+    # and links the task. The button is enabled and labelled "Push to Jira".
     idea = tasks(:local_task)
     idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago,
                  description: "Local idea description")
@@ -257,7 +259,8 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     get workshop_idea_path(idea, stage: "details")
 
     assert_response :success
-    assert_select "button[disabled][title='Push the brief first to create the Jira issue']"
+    assert_select "button[disabled]", count: 0
+    assert_select "form[action='#{push_jira_workshop_idea_path(idea)}'] button:not([disabled])", text: /Push to Jira/
   end
 
   test "GET show at details stage enables 'Update Jira description' for a Jira-linked idea" do
@@ -400,6 +403,20 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert called, "the details step must push to Jira"
+    assert_equal "ready", idea.reload.workshop_stage
+  end
+
+  test "POST push_jira at DETAILS on a LOCAL idea creates the issue via commit_detail and advances to ready" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago, external_reference: nil)
+    idea.task_drafts.create!(source: "ai", origin: "ai", content: "the detailed description").make_current!
+
+    # commit_detail now handles issue creation for a local idea; stub it ok.
+    stub_commit_detail({ ok: true, key: "NEW-1" }) do
+      post push_jira_workshop_idea_path(idea)
+    end
+
+    assert_response :redirect
     assert_equal "ready", idea.reload.workshop_stage
   end
 
