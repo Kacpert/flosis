@@ -148,6 +148,45 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
       "[data-clar-document-refresh-reload-url-value='#{workshop_idea_path(idea, stage: 'briefing')}']"
   end
 
+  test "briefing panel has NO 'Save locally' button but details panel does" do
+    # Save locally is a confusing no-op in briefing (task is already local); it's
+    # only meaningful in details (finish-without-Jira → Ready). Guard both ways.
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+    idea.briefs.create!(workspace: idea.project.workspace, version: 0, origin: "user", status: "draft", content: "desc").tap(&:make_current!)
+
+    get workshop_idea_path(idea, stage: "briefing")
+    assert_response :success
+    assert_select "form[action='#{save_locally_workshop_idea_path(idea)}']", count: 0
+
+    idea.update!(workshop_stage: "details")
+    idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "user", content: "d").tap(&:make_current!)
+    get workshop_idea_path(idea, stage: "details")
+    assert_response :success
+    assert_select "form[action='#{save_locally_workshop_idea_path(idea)}']", count: 1
+  end
+
+  test "a non-current, non-v0 version shows a Delete button; current and v0 do not" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+    ws = idea.project.workspace
+    idea.briefs.create!(workspace: ws, version: 0, origin: "user", status: "draft", content: "v0")
+    v1 = idea.briefs.create!(workspace: ws, version: 1, origin: "ai", status: "draft", content: "v1")
+    v2 = idea.briefs.create!(workspace: ws, version: 2, origin: "ai", status: "draft", content: "v2").tap(&:make_current!)
+
+    # Viewing v1 (not current, not v0) → a version-delete form is present.
+    get workshop_idea_path(idea, stage: "briefing", v: 1)
+    assert_select "form[action='#{workshop_idea_version_path(idea, v1)}'][method='post'] input[name='_method'][value='delete']", count: 1
+
+    # Viewing v0 (original) → no version-delete form.
+    get workshop_idea_path(idea, stage: "briefing", v: 0)
+    assert_select "form[action='#{workshop_idea_version_path(idea, idea.briefs.find_by(version: 0))}'] input[name='_method'][value='delete']", count: 0
+
+    # Viewing v2 (current) → no version-delete form.
+    get workshop_idea_path(idea, stage: "briefing", v: 2)
+    assert_select "form[action='#{workshop_idea_version_path(idea, v2)}'] input[name='_method'][value='delete']", count: 0
+  end
+
   test "GET show at details stage renders the Clar chat panel wired to the refine chat routes" do
     idea = tasks(:jira_task)
     idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)

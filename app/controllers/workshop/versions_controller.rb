@@ -74,6 +74,32 @@ class Workshop::VersionsController < Workshop::BaseController
     end
   end
 
+  # Permanently deletes a brief/draft version. Guarded: the CURRENT version can't
+  # be deleted (set another current first), and v0 (the original user
+  # description) is kept. `kind: "detail"` targets a TaskDraft; otherwise a Brief.
+  def destroy
+    @idea = current_workshop_project.tasks.pipeline.find(params[:idea_id])
+    stage = params[:kind] == "detail" ? "details" : "briefing"
+
+    version = if params[:kind] == "detail"
+      @idea.task_drafts.by_source(TaskDraft::REFINE_SOURCE).find(params[:id])
+    else
+      @idea.briefs.find(params[:id])
+    end
+
+    if version.current?
+      flash[:clar_toast] = "Can't delete the current version — set another as current first."
+    elsif version.version.zero?
+      flash[:clar_toast] = "Can't delete v0 — it's the original description."
+    else
+      n = version.version
+      version.destroy!
+      flash[:clar_toast] = "v#{n} deleted."
+    end
+
+    redirect_to workshop_idea_path(@idea, stage: stage)
+  end
+
   private
 
   def make_current_brief(brief)

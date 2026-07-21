@@ -210,4 +210,60 @@ class Workshop::VersionsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/onerror/i, sanitized)
     assert_match(/Hello/, sanitized)
   end
+
+  # ---- destroy (delete a version) ----------------------------------------
+
+  def briefing_idea_with_versions
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+    ws = idea.project.workspace
+    v0 = idea.briefs.create!(workspace: ws, version: 0, origin: "user", status: "draft", content: "v0 text")
+    v1 = idea.briefs.create!(workspace: ws, version: 1, origin: "ai", status: "draft", content: "v1 text")
+    v2 = idea.briefs.create!(workspace: ws, version: 2, origin: "ai", status: "draft", content: "v2 text")
+    v2.make_current!
+    [ idea, v0, v1, v2 ]
+  end
+
+  test "destroy deletes a non-current, non-v0 brief version" do
+    idea, _v0, v1, _v2 = briefing_idea_with_versions
+
+    assert_difference -> { idea.briefs.count }, -1 do
+      delete workshop_idea_version_path(idea, v1)
+    end
+    assert_response :redirect
+    assert_nil Brief.find_by(id: v1.id)
+  end
+
+  test "destroy refuses to delete the current version" do
+    idea, _v0, _v1, v2 = briefing_idea_with_versions
+
+    assert_no_difference -> { idea.briefs.count } do
+      delete workshop_idea_version_path(idea, v2)
+    end
+    assert Brief.exists?(v2.id), "current version must not be deletable"
+    assert v2.reload.current?
+  end
+
+  test "destroy refuses to delete v0 (the original description)" do
+    idea, v0, _v1, _v2 = briefing_idea_with_versions
+
+    assert_no_difference -> { idea.briefs.count } do
+      delete workshop_idea_version_path(idea, v0)
+    end
+    assert Brief.exists?(v0.id), "v0 (original description) must not be deletable"
+  end
+
+  test "destroy works for a details-stage TaskDraft version too" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    d0 = idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "user", content: "d0")
+    d1 = idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "d1")
+    d2 = idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "d2")
+    d2.make_current!
+
+    assert_difference -> { idea.task_drafts.count }, -1 do
+      delete workshop_idea_version_path(idea, d1), params: { kind: "detail" }
+    end
+    assert_nil TaskDraft.find_by(id: d1.id)
+  end
 end

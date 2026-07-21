@@ -176,9 +176,28 @@
     <% if selected.present? %>
       <div class="flex flex-col gap-2.5">
         <% unless is_current %>
-          <%= button_to "Set v#{selected.version} as current #{jira_linked ? '· update Jira description' : '· update local description'}",
-                        make_current_workshop_idea_version_path(idea, selected),
-                        method: :post, class: "clar-btn clar-btn-ai clar-btn-block" %>
+          <%# "Set as current" + optional "Delete" side by side. A version is
+              deletable only when it is NOT current and NOT v0 (the original
+              description). Deleting is permanent, so it confirms first. %>
+          <% deletable = selected.version.to_i > 0 %>
+          <div class="flex gap-2.5">
+            <%= button_to "Set v#{selected.version} as current #{jira_linked ? '· update Jira description' : '· update local description'}",
+                          make_current_workshop_idea_version_path(idea, selected),
+                          method: :post, class: "clar-btn clar-btn-ai #{deletable ? 'flex-1' : 'clar-btn-block'}" %>
+            <% if deletable %>
+              <%# Delete lives outside the frame (redirects with a stepper/URL the
+                  frame can't own) → turbo_frame: "_top". Confirms before deleting. %>
+              <%= button_to workshop_idea_version_path(idea, selected),
+                    method: :delete,
+                    params: (is_details ? { kind: "detail" } : {}),
+                    form: { data: { turbo_frame: "_top" } },
+                    class: "clar-btn !px-3 clar-text-muted",
+                    title: "Delete v#{selected.version} (permanent)",
+                    data: { turbo_confirm: "Delete v#{selected.version}? This can't be undone." } do %>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 5v6m4-6v6"/></svg>
+              <% end %>
+            <% end %>
+          </div>
         <% end %>
         <div class="flex gap-2.5">
           <%# No shared Stimulus scope with the chat panel (siblings in the
@@ -192,13 +211,18 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5M3 8a9 9 0 1 0 2.6-5.6L3 8"/></svg>
             Reset chat
           </button>
-          <%# Save locally can advance details→ready, so it must navigate the whole
-              page (stepper/URL live outside this frame). %>
-          <%= button_to save_locally_workshop_idea_path(idea), method: :post,
-                form: { data: { turbo_frame: "_top" } },
-                class: "clar-btn flex-1", title: "Save to the task locally, without Jira" do %>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8"/></svg>
-            Save locally
+          <%# "Save locally" only appears in DETAILS, where it's the real "finish
+              without Jira → Ready" action. In briefing it was a confusing no-op
+              (the task is already local; the version chips + "Brief & mark Briefed"
+              are the real actions), so it's omitted there. Details→ready advance
+              lives outside this frame → turbo_frame: "_top". %>
+          <% if is_details %>
+            <%= button_to save_locally_workshop_idea_path(idea), method: :post,
+                  form: { data: { turbo_frame: "_top" } },
+                  class: "clar-btn flex-1", title: "Save to the task locally, without Jira" do %>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8"/></svg>
+              Save locally
+            <% end %>
           <% end %>
         </div>
         <% if is_details && !jira_linked %>
