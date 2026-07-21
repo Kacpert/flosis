@@ -193,6 +193,15 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     # Re-emit the brief when the conversation changed the AI's thinking (so the
     # saved version never contradicts a claim it already walked back).
     assert_includes prompt, "RE-EMIT the brief"
+    # LATE (not up front) — surface adjacent optional features (templates, etc.)
+    # before writing the brief, as a "worth considering?" question the user decides.
+    assert_includes prompt, "adjacent features worth considering"
+    assert_includes prompt, "templates"
+    assert_includes prompt, "worth considering?"
+    assert_includes prompt, "Do NOT\n   do this up front"
+    # Brief must be SHORT — a scannable skeleton, not a document.
+    assert_includes prompt, "~250 words"
+    assert_includes prompt, "hard ceiling ~350"
     # Sharp, critical mind — challenges worth/value, not a yes-man.
     assert_includes prompt, "SHARP, CRITICAL mind"
     assert_includes prompt, "not a yes-man"
