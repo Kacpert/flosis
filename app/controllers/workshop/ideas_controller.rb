@@ -95,7 +95,7 @@ class Workshop::IdeasController < Workshop::BaseController
 
       if result[:ok]
         @idea.update!(detail_saved_locally_at: nil, workshop_stage: "ready")
-        flash[:clar_toast] = "Description sent to Jira · marked Detailed"
+        flash[:clar_toast] = jira_toast("Description sent to Jira · marked Detailed", result)
         redirect_to workshop_idea_path(@idea, stage: "ready")
       else
         redirect_to workshop_idea_path(@idea, stage: "details"), alert: "Couldn't write to Jira: #{result[:error]}"
@@ -113,7 +113,7 @@ class Workshop::IdeasController < Workshop::BaseController
       if result[:ok]
         @idea.current_brief&.mark_briefed!
         @idea.update!(brief_saved_locally_at: nil, detail_saved_locally_at: nil)
-        flash[:clar_toast] = "Pushed to Jira"
+        flash[:clar_toast] = jira_toast("Pushed to Jira", result)
         redirect_to workshop_idea_path(@idea, stage: "ready")
       else
         redirect_to workshop_idea_path(@idea, stage: "ready"), alert: "Couldn't write to Jira: #{result[:error]}"
@@ -154,7 +154,8 @@ class Workshop::IdeasController < Workshop::BaseController
 
     if result[:ok]
       @idea.current_brief&.mark_briefed! if stage == "briefing"
-      flash[:clar_toast] = @idea.reload.external_reference.present? ? "Jira ticket updated" : "Jira ticket created"
+      base = @idea.reload.external_reference.present? ? "Jira ticket updated" : "Jira ticket created"
+      flash[:clar_toast] = jira_toast(base, result)
     else
       flash[:alert] = "Couldn't write to Jira: #{result[:error]}"
     end
@@ -197,6 +198,13 @@ class Workshop::IdeasController < Workshop::BaseController
   end
 
   private
+
+  # Builds the success toast for a Jira push. The description write is what
+  # matters; if a best-effort part failed (e.g. the "AI actions" field), append
+  # a soft note rather than showing a scary "couldn't write to Jira" error.
+  def jira_toast(base, result)
+    result[:warning].present? ? "#{base} · note: #{result[:warning]}" : base
+  end
 
   def create_new_idea
     task = current_workshop_project.tasks.new(name: idea_params[:title], description: idea_params[:description])

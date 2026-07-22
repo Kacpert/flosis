@@ -35,10 +35,11 @@ class JiraWriter
       task.update!(external_reference: key, external_url: url, external_type: "jira")
     end
 
+    # The description write above is what matters. Setting the "AI actions" field
+    # is a nice-to-have — if only that fails (e.g. the field's option names don't
+    # match), the push still SUCCEEDED; surface a soft warning, don't fail.
     action = set_ai_action(key, BRIEFED_VALUE)
-    return action unless action[:ok]
-
-    { ok: true, key: key, url: url }
+    { ok: true, key: key, url: url, warning: action[:ok] ? nil : action[:error] }
   end
 
   # Pushes a details-stage AI draft's content to Jira and marks it "Detailed".
@@ -65,11 +66,11 @@ class JiraWriter
       task.update!(external_reference: key, external_url: res[:url], external_type: "jira")
     end
 
+    # AI-actions field is best-effort — a failure there must not fail the push
+    # (the description saved fine). Surface it as a soft warning instead.
     action = set_ai_action(key, DETAILED_VALUE)
-    return action unless action[:ok]
-
     draft.update!(pushed_at: Time.current)
-    { ok: true, key: key }
+    { ok: true, key: key, warning: action[:ok] ? nil : action[:error] }
   end
 
   # Pushes the latest breakdown (spec) to the linked Jira issue's description and

@@ -259,10 +259,77 @@ class JiraClient
     res[:ok] ? { ok: true } : { ok: false, error: res[:error] }
   end
 
+  # Sets a multi-checkbox "AI actions"-style option field. The field's option
+  # names in Jira can differ from what we intend by typos/spacing/case (real
+  # example: our "Briefed" vs Jira's "Brifed", our "Detailed" vs Jira's
+  # "Details Gathered "). So we resolve our intended value against the field's
+  # ACTUAL allowed options (matched leniently) and send Jira's exact option —
+  # by id when we can, else the exact value string. Falls back to the raw value
+  # if we can't read the options (behaviour unchanged in that case).
   def add_ai_action(issue_key:, field_id:, value:)
-    body = { fields: { field_id => [{ "value" => value }] } }
+    option = resolve_field_option(issue_key, field_id, value)
+    payload = if option && option["id"]
+      { "id" => option["id"] }
+    elsif option && option["value"]
+      { "value" => option["value"] }
+    else
+      { "value" => value }
+    end
+
+    body = { fields: { field_id => [ payload ] } }
     res = put("/rest/api/3/issue/#{issue_key}", body)
     res[:ok] ? { ok: true } : { ok: false, error: res[:error] }
+  end
+
+  # Returns the field's allowed option ({"value"=>, "id"=>}) that best matches
+  # `intended`, tolerant of case/whitespace/punctuation AND small typos. Handles
+  # the real cases seen: "Briefed"→"Brifed" (a typo, needs edit-distance) and
+  # "Detailed"→"Details Gathered " (a prefix + extra words). nil if options can't
+  # be read or nothing is close enough (caller then sends the raw value).
+  def resolve_field_option(issue_key, field_id, intended)
+    data = get("/rest/api/3/issue/#{issue_key}/editmeta")
+    options = data&.dig("fields", field_id, "allowedValues")
+    return nil unless options.is_a?(Array) && options.any?
+
+    want = normalize_option(intended)
+
+    # 1. exact (normalized) match.
+    exact = options.find { |o| normalize_option(o["value"]) == want }
+    return exact if exact
+
+    # 2. one is a prefix of the other — catches "detailed" vs "detailsgathered"
+    #    (share the "detail" stem) as long as the shorter is >= 4 chars.
+    prefix = options.find do |o|
+      n = normalize_option(o["value"])
+      short, long = [ want, n ].sort_by(&:length)
+      short.length >= 4 && long.start_with?(short[0, [ short.length, 5 ].min])
+    end
+    return prefix if prefix
+
+    # 3. closest by edit distance, within a small threshold — catches "briefed"
+    #    vs "brifed" (distance 1).
+    best = options.min_by { |o| levenshtein(want, normalize_option(o["value"])) }
+    return best if best && levenshtein(want, normalize_option(best["value"])) <= 2
+
+    nil
+  end
+
+  def normalize_option(str)
+    str.to_s.downcase.gsub(/[^a-z0-9]/, "")
+  end
+
+  def levenshtein(a, b)
+    return b.length if a.empty?
+    return a.length if b.empty?
+    prev = (0..b.length).to_a
+    a.each_char.with_index do |ca, i|
+      cur = [ i + 1 ]
+      b.each_char.with_index do |cb, j|
+        cur << [ prev[j + 1] + 1, cur[j] + 1, prev[j] + (ca == cb ? 0 : 1) ].min
+      end
+      prev = cur
+    end
+    prev.last
   end
 
   def fetch_field_id(name)

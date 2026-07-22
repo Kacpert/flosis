@@ -31,7 +31,24 @@ class JiraClientWriteTest < ActiveSupport::TestCase
     assert res[:ok]
   end
 
-  test "add_ai_action PUTs the custom field value" do
+  test "add_ai_action resolves the option against the field's real values (typo-tolerant) and sends the exact option" do
+    # The Jira field's option is a TYPO'd 'Brifed' (real case); our intent is
+    # 'Briefed'. add_ai_action must resolve it and send Jira's exact option (by id).
+    stub_request(:get, "https://ex.atlassian.net/rest/api/3/issue/PROJ-5/editmeta")
+      .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+        body: { fields: { "customfield_10050" => { allowedValues: [
+          { value: "Brifed", id: "10022" }, { value: "Details Gathered ", id: "10023" }
+        ] } } }.to_json)
+    stub_request(:put, "https://ex.atlassian.net/rest/api/3/issue/PROJ-5")
+      .with(body: hash_including("fields" => { "customfield_10050" => [{ "id" => "10022" }] }))
+      .to_return(status: 204, body: "")
+
+    res = client.add_ai_action(issue_key: "PROJ-5", field_id: "customfield_10050", value: "Briefed")
+    assert res[:ok]
+  end
+
+  test "add_ai_action falls back to the raw value when options can't be read" do
+    stub_request(:get, "https://ex.atlassian.net/rest/api/3/issue/PROJ-5/editmeta").to_return(status: 500, body: "")
     stub_request(:put, "https://ex.atlassian.net/rest/api/3/issue/PROJ-5")
       .with(body: hash_including("fields" => { "customfield_10050" => [{ "value" => "Briefed" }] }))
       .to_return(status: 204, body: "")

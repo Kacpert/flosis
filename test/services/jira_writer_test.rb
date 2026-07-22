@@ -44,6 +44,31 @@ class JiraWriterTest < ActiveSupport::TestCase
     assert_equal 1, c.calls[:update]
   end
 
+  test "a FAILED AI-actions write does NOT fail the push — description saved, soft warning returned" do
+    # The description write is the success criterion. If only the "AI actions"
+    # field fails (e.g. option mismatch → 400), the push still succeeded.
+    task = @project.tasks.create!(name: "JW-8 Existing", external_type: "jira", external_reference: "JW-8")
+    brief = Brief.create!(task: task, workspace: @workspace, version: 1, content: "concept")
+    c = fake_client(action: { ok: false, error: "Issue saved but couldn't set 'AI actions': 400 Bad Request" })
+
+    res = JiraWriter.new(workspace: @workspace, client: c).commit_brief(brief)
+
+    assert res[:ok], "push must succeed even when the AI-actions field write fails"
+    assert_match(/AI actions/, res[:warning])
+  end
+
+  test "commit_detail also soft-warns instead of failing when AI-actions write fails" do
+    task = @project.tasks.create!(name: "JW-14 Existing", external_type: "jira", external_reference: "JW-14")
+    draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detailed text")
+    c = fake_client(action: { ok: false, error: "couldn't set 'AI actions': 400" })
+
+    res = JiraWriter.new(workspace: @workspace, client: c).commit_detail(draft)
+
+    assert res[:ok]
+    assert_match(/AI actions/, res[:warning])
+    assert_not_nil draft.reload.pushed_at, "the push counts as done"
+  end
+
   test "a failed write returns not-ok and does not mark briefed" do
     task = @project.tasks.create!(name: "JW-7 Existing", external_type: "jira", external_reference: "JW-7")
     brief = Brief.create!(task: task, workspace: @workspace, version: 1, content: "x")

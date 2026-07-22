@@ -137,10 +137,17 @@
         <div class="clar-prose" id="clar-document-body" data-controller="clar-markdown"><%= selected.content %></div>
       <% end %>
     <% else %>
+      <%# Empty state — no version selected yet. We show LOCAL state, not Jira's.
+          On DETAILS, the source material is the current brief the AI is drafting
+          from — show it so the panel isn't blank and you can see what the Details
+          AI is working with (it hasn't produced a draft yet). On BRIEFING, show
+          the task's own description / seed text. %>
+      <% source_brief = is_details ? idea.current_brief : nil %>
+      <% local_text = source_brief&.content.presence || idea.description.presence %>
       <div class="flex flex-col gap-3.5">
         <div class="flex items-center gap-2">
           <span class="text-[11px] font-bold tracking-[.4px] clar-text-faint">
-            <%= idea.external_reference.present? ? "CURRENT JIRA DESCRIPTION" : "TASK DESCRIPTION" %>
+            <%= is_details ? "WORKING FROM THE BRIEF" : (idea.external_reference.present? ? "TASK DESCRIPTION" : "TASK DESCRIPTION") %>
           </span>
           <% if idea.external_reference.present? %>
             <span class="clar-key"><%= idea.external_reference %></span>
@@ -152,18 +159,18 @@
           <% end %>
         </div>
 
-        <% if idea.external_reference.present? %>
-          <% if idea.description.present? %>
-            <div class="text-[13px] leading-[1.6] clar-text-text whitespace-pre-line"><%= idea.description %></div>
+        <% if local_text.present? %>
+          <% if is_details %>
+            <%# Render the brief (markdown) so it's readable, not raw. %>
+            <div class="clar-prose text-[13px] leading-[1.6]" data-controller="clar-markdown"><%= local_text %></div>
+            <div class="text-[11.5px] clar-text-faint">The Details AI is refining this into an implementation-ready description &mdash; it&rsquo;ll appear here as a version once drafted.</div>
+          <% elsif idea.external_reference.present? %>
+            <div class="text-[13px] leading-[1.6] clar-text-text whitespace-pre-line"><%= local_text %></div>
           <% else %>
-            <div class="text-[13px] leading-[1.6] clar-text-faint italic">This Jira task has no description yet.</div>
+            <div class="text-[13px] leading-[1.6] clar-text-text whitespace-pre-line px-3.5 py-3 bg-[var(--warn-soft)] border border-dashed border-[var(--warn)] rounded-[10px]"><%= local_text %></div>
           <% end %>
         <% else %>
-          <% if idea.description.present? %>
-            <div class="text-[13px] leading-[1.6] clar-text-text whitespace-pre-line px-3.5 py-3 bg-[var(--warn-soft)] border border-dashed border-[var(--warn)] rounded-[10px]"><%= idea.description %></div>
-          <% else %>
-            <div class="text-[13px] leading-[1.6] clar-text-faint italic">No description yet &mdash; talk it through below.</div>
-          <% end %>
+          <div class="text-[13px] leading-[1.6] clar-text-faint italic">No description yet &mdash; talk it through below.</div>
         <% end %>
 
         <div class="flex items-start gap-2 px-[13px] py-[11px] bg-[var(--ai-soft)] border clar-divider rounded-[10px] mt-0.5">

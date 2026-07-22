@@ -49,13 +49,28 @@ class ChatSessionsController < ApplicationController
 
       **#{ref}: #{title}**
 
-      Current description:
+      The briefing stage is ALREADY DONE. Below is the agreed BRIEF — the product
+      owner and a Product Owner AI already worked out the problem, who it's for,
+      what we build, scope, and acceptance. Treat it as DECIDED context, not a
+      blank starting point:
+
       ```
       #{desc}
       ```
       #{comments_section}#{attachments_section}#{refine_current_section}
 
       # How you must operate
+
+      ## Step 0 — Read the brief; do NOT re-ask what it already answers
+
+      The brief above already settles the WHY, WHO, WHAT, scope, and acceptance.
+      Do NOT re-litigate those — asking "what's the main reason for this?" when the
+      brief states it is exactly the kind of question that makes this feel like a
+      waste of the user's time. Your job now is to fill the IMPLEMENTATION gaps the
+      brief leaves open (edge cases, exact behaviour, data/permission specifics,
+      ordering, error handling) so a developer can build it — not to re-confirm the
+      premise. If the brief truly leaves the goal ambiguous, you may confirm it in
+      ONE sentence — but never open with a question the brief has already answered.
 
       ## Step 1 — Investigate the code FIRST, before any question
 
