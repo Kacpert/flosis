@@ -20,11 +20,13 @@ class AutoEstimateJob < ApplicationJob
   # retried, nor (worse) mistaken for a real number.
   CLI_FAILURE_MARKERS = /\b(401|403|429|invalid authentication|failed to authenticate|api error|credit balance|rate limit|usage limit|overloaded|unauthorized)\b/i
 
-  def perform(task_id)
+  # force: true bypasses the "already estimated" guard — used only by the manual
+  # "Estimate" button, where a human explicitly asked to (re-)estimate.
+  def perform(task_id, force: false)
     task = Task.find_by(id: task_id)
     return unless task
 
-    return if skip?(task)
+    return if skip?(task, force: force)
 
     workspace = task.project.workspace
     response = run_ai(task)
@@ -39,14 +41,16 @@ class AutoEstimateJob < ApplicationJob
 
   private
 
-  # Skip when the task already has an estimate that is still fresh relative
-  # to Jira — i.e. jira_updated_at hasn't moved since we last estimated it.
-  def skip?(task)
-    return false if task.ai_estimate_points.blank?
-    return false if task.ai_estimated_at.blank?
-    return false if task.jira_updated_at.blank?
-
-    task.jira_updated_at <= task.ai_estimated_at
+  # Estimate a task exactly ONCE. Once it has an AI estimate we never
+  # auto-re-estimate — no matter how many syncs run, whether Jira's
+  # updated-time moves, or whether the ticket is edited. This is deliberate:
+  # auto re-estimation created a feedback loop (our own estimate-write bumped
+  # Jira's updated-time → the next sync re-triggered → the value bounced
+  # 5→3→5…, spamming Jira watchers). Re-estimating is now only ever a manual,
+  # explicit action (the "Estimate" button passes force: true).
+  def skip?(task, force: false)
+    return false if force
+    task.ai_estimate_points.present?
   end
 
   def run_ai(task)

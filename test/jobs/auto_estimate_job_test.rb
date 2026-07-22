@@ -138,9 +138,8 @@ class AutoEstimateJobTest < ActiveJob::TestCase
     assert_empty fake.calls
   end
 
-  test "skip-guard: does not call the CLI when already estimated and jira_updated_at unchanged" do
-    updated_at = 2.days.ago
-    @task.update!(ai_estimate_points: 5, ai_estimated_at: 1.day.ago, jira_updated_at: updated_at)
+  test "estimate once: does not call the CLI when the task already has an estimate" do
+    @task.update!(ai_estimate_points: 5, ai_estimated_at: 1.day.ago, jira_updated_at: 2.days.ago)
 
     cli_called = false
     orig = ClaudeCliService.instance_method(:start_session)
@@ -155,13 +154,15 @@ class AutoEstimateJobTest < ActiveJob::TestCase
       ClaudeCliService.define_method(:start_session, orig)
     end
 
-    assert_not cli_called, "the CLI must not be called when the skip-guard applies"
+    assert_not cli_called, "an already-estimated task must not be re-estimated automatically"
     @task.reload
     assert_equal 5, @task.ai_estimate_points, "existing estimate must be untouched"
     assert_empty fake.calls
   end
 
-  test "re-estimates when jira_updated_at changed since the last estimate" do
+  test "estimate once: does NOT re-estimate even when jira_updated_at changed (no more loop)" do
+    # Old behavior re-estimated on any Jira timestamp bump — which our OWN
+    # estimate-write caused, creating a spam loop. Now we never auto-re-estimate.
     @task.update!(ai_estimate_points: 5, ai_estimated_at: 2.days.ago, jira_updated_at: 1.day.ago)
 
     fake = fake_jira_client
@@ -172,7 +173,22 @@ class AutoEstimateJobTest < ActiveJob::TestCase
     end
 
     @task.reload
-    assert_equal 13, @task.ai_estimate_points
+    assert_equal 5, @task.ai_estimate_points, "must keep the original estimate, not re-estimate"
+    assert_empty fake.calls, "must not write to Jira again"
+  end
+
+  test "force: re-estimates an already-estimated task (the manual button path)" do
+    @task.update!(ai_estimate_points: 5, ai_estimated_at: 2.days.ago, jira_updated_at: 3.days.ago)
+
+    fake = fake_jira_client
+    with_jira_client(fake) do
+      with_ai(estimate_block(points: 13)) do
+        AutoEstimateJob.perform_now(@task.id, force: true)
+      end
+    end
+
+    @task.reload
+    assert_equal 13, @task.ai_estimate_points, "force must bypass the estimate-once guard"
     assert_equal 1, fake.calls.size
   end
 

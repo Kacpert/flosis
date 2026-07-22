@@ -66,7 +66,12 @@ class JiraSyncService
         newly_assigned_keys = issue_keys.select { |key| previous_sprint_ids[key].nil? }
         next if newly_assigned_keys.empty?
 
-        @project.tasks.jira_synced.where(external_reference: newly_assigned_keys).find_each do |task|
+        # Estimate once: don't even enqueue for tasks that already have an AI
+        # estimate (the job would skip them anyway — this just avoids the
+        # per-sync queue churn of re-enqueuing every sprint task forever).
+        @project.tasks.jira_synced
+          .where(external_reference: newly_assigned_keys, ai_estimate_points: nil)
+          .find_each do |task|
           AutoEstimateJob.perform_later(task.id)
         end
       end
@@ -98,7 +103,8 @@ class JiraSyncService
       if trigger_on_status
         if previous_status != status_trigger && issue[:status_name] == status_trigger
           task = @project.tasks.jira_synced.find_by(external_reference: issue[:key])
-          AutoEstimateJob.perform_later(task.id) if task
+          # Estimate once — skip tasks that already have an AI estimate.
+          AutoEstimateJob.perform_later(task.id) if task && task.ai_estimate_points.blank?
         end
       end
 

@@ -166,7 +166,9 @@ class Workshop::IdeasController < Workshop::BaseController
   # regardless of the configured trigger — a human explicitly asked for it).
   def estimate
     @idea = current_workshop_project.tasks.find(params[:id])
-    AutoEstimateJob.perform_later(@idea.id)
+    # Manual = explicit human request → force a (re-)estimate past the
+    # estimate-once guard.
+    AutoEstimateJob.perform_later(@idea.id, force: true)
     flash[:clar_toast] = "Estimating…"
     redirect_to workshop_idea_path(@idea)
   end
