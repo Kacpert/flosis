@@ -3,7 +3,7 @@
 # current_workshop_project (find always via that association — a crafted
 # cross-project id 404s), same convention as DesignRequestsController.
 class Workshop::AlertRulesController < Workshop::BaseController
-  before_action :set_alert_rule, only: [ :destroy, :history ]
+  before_action :set_alert_rule, only: [ :update, :destroy, :history ]
 
   def create
     rule = current_workshop_project.alert_rules.new(create_params.except(:discord_webhook_id))
@@ -18,6 +18,24 @@ class Workshop::AlertRulesController < Workshop::BaseController
       flash[:clar_toast] = %(Alert rule created · "#{rule.name}")
     else
       flash[:alert] = rule.errors.full_messages.to_sentence
+    end
+
+    redirect_to workshop_process_path(tab: "alerts")
+  end
+
+  def update
+    attrs = create_params.except(:discord_webhook_id)
+    # Only reassign the webhook when a (workspace-scoped) one is provided; a
+    # blank/foreign id must not null out or hijack the existing channel.
+    if create_params[:discord_webhook_id].present?
+      wh = current_workspace.discord_webhooks.find_by(id: create_params[:discord_webhook_id])
+      attrs = attrs.merge(discord_webhook: wh) if wh
+    end
+
+    if @alert_rule.update(attrs)
+      flash[:clar_toast] = %(Alert rule updated · "#{@alert_rule.name}")
+    else
+      flash[:alert] = @alert_rule.errors.full_messages.to_sentence
     end
 
     redirect_to workshop_process_path(tab: "alerts")

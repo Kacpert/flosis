@@ -57,6 +57,60 @@ class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
     assert_not_nil flash[:alert]
   end
 
+  test "update changes the rule's fields and toasts" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "Old name", prompt: "old prompt", frequency: "daily", run_at_time: "09:00")
+
+    patch workshop_alert_rule_path(rule), params: {
+      alert_rule: { name: "New name", prompt: "new prompt", frequency: "weekly",
+                    run_at_time: "15:30", discord_webhook_id: @webhook.id }
+    }
+
+    rule.reload
+    assert_equal "New name", rule.name
+    assert_equal "new prompt", rule.prompt
+    assert_equal "weekly", rule.frequency
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_match(/updated/, flash[:clar_toast])
+  end
+
+  test "update with a blank name fails and keeps the rule unchanged" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "Keep me", prompt: "p", frequency: "daily", run_at_time: "09:00")
+
+    patch workshop_alert_rule_path(rule), params: { alert_rule: { name: "", prompt: "p", frequency: "daily", run_at_time: "09:00" } }
+
+    assert_equal "Keep me", rule.reload.name
+    assert_not_nil flash[:alert]
+  end
+
+  test "update ignores a discord_webhook from another workspace (keeps the current one)" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "R", prompt: "p", frequency: "daily", run_at_time: "09:00")
+    foreign = DiscordWebhook.create!(workspace: workspaces(:two), channel_name: "#other",
+                                     url: "https://discord.com/api/webhooks/9/xyz")
+
+    patch workshop_alert_rule_path(rule), params: {
+      alert_rule: { name: "R2", prompt: "p", frequency: "daily", run_at_time: "09:00", discord_webhook_id: foreign.id }
+    }
+
+    assert_equal @webhook, rule.reload.discord_webhook, "must not reassign to a foreign workspace's webhook"
+    assert_equal "R2", rule.name
+  end
+
+  test "update is scope-safe (404s for a rule outside the current workshop project)" do
+    # A rule on a DIFFERENT project than the selected workshop project must not
+    # be editable through this session's scope.
+    other_project = projects(:other_jira_project)
+    other_rule = AlertRule.create!(workspace: @workspace, project: other_project, discord_webhook: @webhook,
+      name: "Foreign", prompt: "p", frequency: "daily", run_at_time: "09:00")
+
+    patch workshop_alert_rule_path(other_rule), params: { alert_rule: { name: "hax" } }
+
+    assert_response :not_found
+    assert_equal "Foreign", other_rule.reload.name
+  end
+
   test "destroy removes the rule" do
     rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
       name: "Stale PR reminder", prompt: "If a PR has no activity for 2 days, remind.",

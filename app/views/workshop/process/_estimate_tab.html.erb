@@ -29,25 +29,50 @@
     </div>
   </div>
 
-  <div class="clar-card overflow-hidden">
-    <div class="flex px-4.5 py-2.5 text-[11px] font-bold tracking-[.3px] clar-text-faint border-b border-[color:var(--border)]">
-      <span class="w-[74px] flex-none">TASK</span>
-      <span class="flex-1">TITLE</span>
-      <span class="w-[90px] text-right">AI EST.</span>
-      <span class="w-[90px] text-right">MANUAL</span>
+  <div data-controller="clar-filter">
+    <%# Fuzzy search over the estimated-tasks list (client-side substring filter
+        on the task key + title). %>
+    <div class="relative mb-3">
+      <svg class="absolute left-3 top-1/2 -translate-y-1/2 clar-text-faint" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" placeholder="Search tasks…" class="clar-input !pl-9"
+             data-clar-filter-target="query" data-action="input->clar-filter#filter">
     </div>
 
-    <% if @estimated_tasks.empty? %>
-      <div class="p-8 text-center clar-text-muted text-[13.5px]" data-empty>No tasks estimated yet.</div>
-    <% else %>
-      <% @estimated_tasks.each do |task| %>
-        <div class="flex items-center px-4.5 py-3.5 border-b border-[color:var(--border)] last:border-b-0">
-          <span class="w-[74px] flex-none clar-mono text-[12px] clar-text-primary"><%= task.external_reference %></span>
-          <span class="flex-1 text-[13.5px] clar-text-text truncate"><%= task.name.sub(/\A#{Regexp.escape(task.external_reference.to_s)}\s*/, "") %></span>
-          <span class="w-[90px] text-right font-bold text-[14px] clar-text-ai"><%= number_with_precision(task.ai_estimate_points, strip_insignificant_zeros: true) %></span>
-          <span class="w-[90px] text-right text-[13.5px] clar-text-muted"><%= task.story_points.present? ? number_with_precision(task.story_points, strip_insignificant_zeros: true) : "—" %></span>
-        </div>
+    <div class="clar-card overflow-hidden">
+      <div class="flex px-4.5 py-2.5 text-[11px] font-bold tracking-[.3px] clar-text-faint border-b border-[color:var(--border)]">
+        <span class="w-[74px] flex-none">TASK</span>
+        <span class="flex-1">TITLE</span>
+        <span class="w-[70px] text-right">AI EST.</span>
+        <span class="w-[70px] text-right">MANUAL</span>
+        <span class="w-[110px] text-right"></span>
+      </div>
+
+      <% if @estimated_tasks.empty? %>
+        <div class="p-8 text-center clar-text-muted text-[13.5px]" data-empty>No tasks estimated yet.</div>
+      <% else %>
+        <% @estimated_tasks.each do |task| %>
+          <% title = task.name.sub(/\A#{Regexp.escape(task.external_reference.to_s)}\s*/, "") %>
+          <div class="flex items-center px-4.5 py-3.5 border-b border-[color:var(--border)] last:border-b-0"
+               data-clar-filter-target="item" data-filter-text="<%= "#{task.external_reference} #{title}" %>">
+            <span class="w-[74px] flex-none clar-mono text-[12px] clar-text-primary"><%= task.external_reference %></span>
+            <span class="flex-1 text-[13.5px] clar-text-text truncate"><%= title %></span>
+            <span class="w-[70px] text-right font-bold text-[14px] clar-text-ai"><%= number_with_precision(task.ai_estimate_points, strip_insignificant_zeros: true) %></span>
+            <span class="w-[70px] text-right text-[13.5px] clar-text-muted"><%= task.story_points.present? ? number_with_precision(task.story_points, strip_insignificant_zeros: true) : "—" %></span>
+            <span class="w-[110px] flex justify-end">
+              <%# Manual re-estimate — forces a fresh estimate for this one task
+                  (the estimate-once auto guard is bypassed). Redirects back. %>
+              <%= button_to estimate_workshop_idea_path(task),
+                    form: { data: { turbo_confirm: "Re-estimate #{task.external_reference}? The AI value may change." } },
+                    class: "clar-btn !py-[4px] !px-2.5 !text-[12px]",
+                    title: "Re-estimate this task now" do %>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
+                Re-estimate
+              <% end %>
+            </span>
+          </div>
+        <% end %>
+        <div class="hidden p-8 text-center clar-text-muted text-[13.5px]" data-clar-filter-target="empty">No tasks match your search.</div>
       <% end %>
-    <% end %>
+    </div>
   </div>
 </div>

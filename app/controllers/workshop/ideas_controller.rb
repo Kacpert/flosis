@@ -161,6 +161,27 @@ class Workshop::IdeasController < Workshop::BaseController
     redirect_to workshop_idea_path(@idea, stage: stage)
   end
 
+  # Remove a task from the Create Tasks pipeline.
+  #  - LOCAL idea (never pushed to Jira): destroyed entirely — it exists only here.
+  #  - JIRA-linked task: we NEVER delete the Jira issue (we can't, and shouldn't).
+  #    We only take it out of the pipeline; the ticket lives on in Jira. The toast
+  #    tells the user and links the issue so they can delete it there if they want.
+  def destroy
+    @idea = current_workshop_project.tasks.pipeline.find(params[:id])
+
+    if @idea.external_reference.present?
+      key = @idea.external_reference
+      @idea.update!(in_pipeline: false)
+      flash[:clar_toast] = "Removed #{key} from Create Tasks · the Jira ticket still exists"
+    else
+      name = @idea.name
+      @idea.destroy!
+      flash[:clar_toast] = %(Deleted "#{name}")
+    end
+
+    redirect_to workshop_pipeline_path, status: :see_other
+  end
+
   # Manual trigger for the AI auto-estimation engine (workspace.estimation_trigger
   # == "manual" is the button-only path, but this endpoint itself works
   # regardless of the configured trigger — a human explicitly asked for it).
@@ -169,8 +190,10 @@ class Workshop::IdeasController < Workshop::BaseController
     # Manual = explicit human request → force a (re-)estimate past the
     # estimate-once guard.
     AutoEstimateJob.perform_later(@idea.id, force: true)
-    flash[:clar_toast] = "Estimating…"
-    redirect_to workshop_idea_path(@idea)
+    flash[:clar_toast] = "Estimating #{@idea.external_reference.presence || @idea.name}…"
+    # Return to wherever the button was pressed (the AI Estimate list or the idea
+    # page); fall back to the idea page.
+    redirect_back(fallback_location: workshop_idea_path(@idea))
   end
 
   private

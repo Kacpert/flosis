@@ -1,0 +1,59 @@
+<%# Edit modal for one alert rule — mirrors _new_rule_modal but pre-filled and
+    PATCHes to update. `rule` is the AlertRule being edited. Opened by the card's
+    Edit button (data-clar-modal-id-param="edit-alert-rule-<id>"). %>
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="edit-alert-rule-<%= rule.id %>"
+     data-action="click->clar-modal#close">
+  <div class="clar-modal p-5.5 max-w-[520px] max-h-[88vh] overflow-y-auto" data-action="click->clar-modal#stopPropagation">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="text-lg font-bold clar-text-text m-0">Edit alert rule</h2>
+      <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <p class="text-[13px] leading-normal clar-text-muted mb-4.5">A scheduled prompt. On its schedule the AI inspects the live Jira board state and posts to the channel only if the condition is met.</p>
+
+    <%= form_with model: rule, url: workshop_alert_rule_path(rule), method: :patch,
+          data: { controller: "clar-alert-rule-form", turbo: false } do |f| %>
+      <label class="clar-field-label">NAME <span class="clar-text-danger">*</span></label>
+      <%= f.text_field :name, class: "clar-input mb-4" %>
+
+      <label class="clar-field-label">WHAT TO WATCH FOR <span class="clar-text-danger">*</span></label>
+      <%= f.text_area :prompt, rows: 3, class: "clar-textarea mb-1.5" %>
+      <div class="text-[11px] clar-text-faint mb-4">Write it as a condition &mdash; natural language is fine.</div>
+
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label class="clar-field-label">FREQUENCY</label>
+          <%= f.select :frequency, AlertRule::FREQUENCY_LABELS.map { |value, label| [label, value] },
+                {}, class: "clar-select", data: { clar_alert_rule_form_target: "frequency", action: "change->clar-alert-rule-form#syncTimeDisabled" } %>
+        </div>
+        <div>
+          <label class="clar-field-label">TIME</label>
+          <%# run_at_time is a string column ("HH:MM") — pass it straight through. %>
+          <%= f.time_field :run_at_time, value: rule.run_at_time, include_seconds: false,
+                class: "clar-input", data: { clar_alert_rule_form_target: "time" } %>
+        </div>
+      </div>
+
+      <label class="clar-field-label">NOTIFY CHANNEL <span class="font-medium clar-text-faint">&middot; Discord</span></label>
+      <% if @discord_webhooks.present? %>
+        <div class="flex flex-wrap gap-1.5 mb-5.5">
+          <% @discord_webhooks.each do |webhook| %>
+            <% selected = webhook.id == rule.discord_webhook_id %>
+            <label class="clar-chip <%= "clar-chip-active" if selected %>" data-clar-alert-rule-form-target="channelChip" data-action="click->clar-alert-rule-form#selectChannel">
+              <input type="radio" name="alert_rule[discord_webhook_id]" value="<%= webhook.id %>" <%= "checked" if selected %> class="hidden">
+              <%= webhook.channel_name %>
+            </label>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="text-[12.5px] clar-text-muted mb-5.5">No Discord webhooks configured.</div>
+      <% end %>
+
+      <div class="flex gap-2.5 justify-end">
+        <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+        <%= f.submit "Save changes", class: "clar-btn clar-btn-primary" %>
+      </div>
+    <% end %>
+  </div>
+</div>

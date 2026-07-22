@@ -102,7 +102,7 @@ Rails.application.routes.draw do
   namespace :workshop do
     get "pipeline", to: "pipeline#index", as: :pipeline
     get "jira_browser", to: "jira_browser#show", as: :jira_browser
-    resources :ideas, only: [ :create, :show, :update ] do
+    resources :ideas, only: [ :create, :show, :update, :destroy ] do
       member { post :advance; post :save_locally; post :push_jira; post :sync_jira; post :estimate }
       resources :versions, only: [ :create, :update, :destroy ] do
         member { post :make_current }
@@ -113,7 +113,7 @@ Rails.application.routes.draw do
     get "reporting", to: "reports#show", as: :reporting
     get "bugs", to: "bugs#show", as: :bugs
     post "bugs/:jira_key/analyze", to: "bugs#analyze", as: :analyze_bug, constraints: { jira_key: /[^\/]+/ }
-    resources :alert_rules, only: [ :create, :destroy ] do
+    resources :alert_rules, only: [ :create, :update, :destroy ] do
       member { get :history }
     end
     get "configuration", to: "configuration#show", as: :configuration

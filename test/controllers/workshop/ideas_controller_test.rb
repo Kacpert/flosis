@@ -60,15 +60,16 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
-  test "POST estimate enqueues AutoEstimateJob for the task and redirects with a toast" do
+  test "POST estimate enqueues a FORCED AutoEstimateJob for the task and redirects with a toast" do
     task = tasks(:jira_task)
 
-    assert_enqueued_with(job: AutoEstimateJob, args: [ task.id ]) do
+    # Manual estimate must force past the estimate-once guard.
+    assert_enqueued_with(job: AutoEstimateJob, args: [ task.id, { force: true } ]) do
       post estimate_workshop_idea_path(task)
     end
 
     assert_redirected_to workshop_idea_path(task)
-    assert_equal "Estimating…", flash[:clar_toast]
+    assert_match(/Estimating/, flash[:clar_toast])
   end
 
   test "POST estimate is scoped to the current workshop project (cross-project 404s)" do
@@ -146,6 +147,32 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "turbo-frame#clar-document[data-controller~='clar-document-refresh']" \
       "[data-clar-document-refresh-reload-url-value='#{workshop_idea_path(idea, stage: 'briefing')}']"
+  end
+
+  test "destroy: a LOCAL idea is deleted outright" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago, external_reference: nil)
+
+    assert_difference -> { Task.count }, -1 do
+      delete workshop_idea_path(idea)
+    end
+    assert_redirected_to workshop_pipeline_path
+    assert_match(/Deleted/, flash[:clar_toast])
+  end
+
+  test "destroy: a JIRA-linked task is only removed from the pipeline, NOT deleted, and the ticket is untouched" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+    ref = idea.external_reference
+    assert ref.present?, "fixture must be Jira-linked for this test"
+
+    assert_no_difference -> { Task.count } do
+      delete workshop_idea_path(idea)
+    end
+    idea.reload
+    assert_not idea.in_pipeline?, "must be removed from the pipeline"
+    assert_equal ref, idea.external_reference, "the Jira link (and thus the ticket) must be untouched"
+    assert_match(/still exists/, flash[:clar_toast])
   end
 
   test "stepper: a step the task has reached is clickable even when viewing an earlier stage" do
