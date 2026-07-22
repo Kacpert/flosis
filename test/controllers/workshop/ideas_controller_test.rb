@@ -187,9 +187,10 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "a", text: /Continue to Details/, count: 0
   end
 
-  test "briefing panel has NO 'Save locally' button but details panel does" do
-    # Save locally is a confusing no-op in briefing (task is already local); it's
-    # only meaningful in details (finish-without-Jira → Ready). Guard both ways.
+  test "details 'Finish · go to Ready' is a LOCAL save_locally action (no Jira); briefing has none" do
+    # Advancing stages is always local — Jira is only touched by the dedicated
+    # "Update/Create Jira Ticket" button. In details the primary "Finish · go to
+    # Ready" posts to save_locally (not push_jira, which would write to Jira).
     idea = tasks(:local_task)
     idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
     idea.briefs.create!(workspace: idea.project.workspace, version: 0, origin: "user", status: "draft", content: "desc").tap(&:make_current!)
@@ -202,7 +203,10 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "user", content: "d").tap(&:make_current!)
     get workshop_idea_path(idea, stage: "details")
     assert_response :success
-    assert_select "form[action='#{save_locally_workshop_idea_path(idea)}']", count: 1
+    # The "Finish · go to Ready" primary is a save_locally form…
+    assert_select "form[action='#{save_locally_workshop_idea_path(idea)}'] button", text: /Finish · go to Ready/
+    # …and the details advance does NOT go through push_jira (which writes to Jira).
+    assert_select "form[action='#{push_jira_workshop_idea_path(idea)}']", count: 0
   end
 
   test "a non-current, non-v0 version shows a Delete button; current and v0 do not" do

@@ -223,19 +223,6 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5M3 8a9 9 0 1 0 2.6-5.6L3 8"/></svg>
             Reset chat
           </button>
-          <%# "Save locally" only appears in DETAILS, where it's the real "finish
-              without Jira → Ready" action. In briefing it was a confusing no-op
-              (the task is already local; the version chips + "Brief & mark Briefed"
-              are the real actions), so it's omitted there. Details→ready advance
-              lives outside this frame → turbo_frame: "_top". %>
-          <% if is_details %>
-            <%= button_to save_locally_workshop_idea_path(idea), method: :post,
-                  form: { data: { turbo_frame: "_top" } },
-                  class: "clar-btn flex-1", title: "Save to the task locally, without Jira" do %>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8"/></svg>
-              Save locally
-            <% end %>
-          <% end %>
           <%# "Request from designer" lives here (footer) when no request exists yet
               — instead of a banner on top of the panels. Only on details/ready,
               where designs are relevant. Once a request/delivery exists, the designs
@@ -248,10 +235,11 @@
           <% end %>
         </div>
 
-        <%# Always-visible "Create/Update Jira Ticket". Creates the issue for a
-            local idea (commit_brief/commit_detail both issue-creating), updates it
-            otherwise. Locked when the current version is already in Jira with
-            nothing new to push. Navigates the whole page (redirect) → "_top". %>
+        <%# Always-visible "Create/Update Jira Ticket" — the ONLY action that touches
+            Jira. Everything else (advancing stages, finishing) saves locally.
+            Creates the issue for a local idea (commit_brief/commit_detail are both
+            issue-creating), updates it otherwise. Locked when the current version is
+            already in Jira with nothing new to push. Redirect → "_top". %>
         <% if jira_up_to_date %>
           <button type="button" disabled title="Nothing to update — this version is already in Jira"
                   class="clar-btn clar-btn-block opacity-50 cursor-not-allowed">
@@ -261,20 +249,23 @@
         <% else %>
           <%= button_to sync_jira_workshop_idea_path(idea, stage: stage), method: :post,
                 form: { data: { turbo_frame: "_top" } },
-                class: "clar-btn #{is_details ? 'clar-btn-primary' : 'clar-btn-ai'} clar-btn-block",
+                class: "clar-btn clar-btn-ai clar-btn-block",
                 title: jira_linked ? "Push this version to the Jira ticket" : "Create the Jira ticket from this version" do %>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
             <%= jira_btn_label %>
           <% end %>
         <% end %>
 
-        <%# Stage advance (whole-page redirect → "_top"). BRIEFING: "Brief & mark
-            Briefed" (advances to Details) until briefed, then "Continue to Details"
-            (just navigate). DETAILS: push_jira finishes → Ready. %>
+        <%# Stage advance — a LOCAL action (Jira has its own button above). Redirect
+            → "_top". BRIEFING: "Brief & mark Briefed" marks briefed locally +
+            advances to Details, then becomes "Continue to Details" (just navigate).
+            DETAILS: "Finish · go to Ready" saves locally + advances to Ready, no
+            Jira write. %>
         <% if is_details %>
-          <%= button_to push_jira_workshop_idea_path(idea), method: :post,
+          <%= button_to save_locally_workshop_idea_path(idea), method: :post,
                 form: { data: { turbo_frame: "_top" } },
-                class: "clar-btn clar-btn-primary clar-btn-block" do %>
+                class: "clar-btn clar-btn-primary clar-btn-block",
+                title: "Save locally and finish (use Update Jira Ticket to push to Jira)" do %>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             Finish · go to Ready
           <% end %>
