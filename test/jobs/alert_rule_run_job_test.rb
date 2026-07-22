@@ -133,4 +133,48 @@ class AlertRuleRunJobTest < ActiveJob::TestCase
   test "does nothing when the rule no longer exists" do
     assert_nothing_raised { AlertRuleRunJob.perform_now(-1) }
   end
+
+  # Capture the prompt the CLI was called with.
+  def capture_prompt
+    captured = nil
+    orig = ClaudeCliService.instance_method(:start_session)
+    ClaudeCliService.define_method(:start_session) { |**kw| captured = kw[:prompt]; { session_id: "s", response: "<alert>{\"fired\":false,\"summary\":\"x\",\"detail\":\"y\"}</alert>" } }
+    yield
+    captured
+  ensure
+    ClaudeCliService.define_method(:start_session, orig)
+  end
+
+  test "the prompt includes the rule's recent run history (so the AI can vary its message)" do
+    # Seed some prior runs — two fired (with messages), one quiet.
+    @rule.alert_runs.create!(fired: true, summary: "Come on Alex, 6 in QA!", detail: "releases slipping", status: "ok", ran_at: 3.days.ago)
+    @rule.alert_runs.create!(fired: false, summary: "quiet", detail: nil, status: "ok", ran_at: 2.days.ago)
+    @rule.alert_runs.create!(fired: true, summary: "Alex, the QA pile is back", detail: "5 stuck", status: "ok", ran_at: 1.day.ago)
+
+    prompt = capture_prompt { AlertRuleRunJob.perform_now(@rule.id) }
+
+    assert_includes prompt, "recent history for THIS rule"
+    assert_includes prompt, "Do NOT repeat previous wording"
+    # The actual posted messages must appear so the AI can avoid repeating them.
+    assert_includes prompt, "Come on Alex, 6 in QA!"
+    assert_includes prompt, "Alex, the QA pile is back"
+    assert_includes prompt, "quiet (condition not met)"
+  end
+
+  test "the recent-history section is omitted when the rule has never run" do
+    prompt = capture_prompt { AlertRuleRunJob.perform_now(@rule.id) }
+    refute_includes prompt, "recent history for THIS rule"
+  end
+
+  test "recent history is capped at 20 runs" do
+    25.times { |i| @rule.alert_runs.create!(fired: true, summary: "msg #{i}", detail: nil, status: "ok", ran_at: (25 - i).hours.ago) }
+
+    prompt = capture_prompt { AlertRuleRunJob.perform_now(@rule.id) }
+
+    # The 20 newest are msg 5..24; msg 0..4 (oldest) must be excluded.
+    assert_includes prompt, "msg 24"
+    assert_includes prompt, "msg 5"
+    refute_includes prompt, "msg 4 "
+    refute_includes prompt, "msg 0 "
+  end
 end

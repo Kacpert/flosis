@@ -85,10 +85,36 @@ class AlertRuleRunJob < ApplicationJob
 
       Condition:
       #{rule.prompt}
-
+      #{recent_runs_section(rule)}
       Board snapshot (JSON):
       #{board_snapshot(rule).to_json}
     PROMPT
+  end
+
+  # The last ~20 runs of THIS rule, so the AI can write a message that fits the
+  # cadence and — crucially for "vary the message each time" style rules — does
+  # NOT repeat what it already said. We show the actual posted summary/detail of
+  # fired runs (and note the quiet ones) newest-first.
+  def recent_runs_section(rule)
+    runs = rule.alert_runs.newest_first.limit(20).to_a
+    return "" if runs.empty?
+
+    lines = runs.map do |r|
+      when_at = r.ran_at&.strftime("%Y-%m-%d %H:%M") || "?"
+      if r.fired
+        "- #{when_at} — FIRED · #{r.summary}#{r.detail.present? ? " — #{r.detail}" : ''}"
+      else
+        "- #{when_at} — quiet (condition not met)"
+      end
+    end
+
+    <<~SECTION
+
+      Your recent history for THIS rule (newest first — the FIRED lines are the
+      messages you already posted). Do NOT repeat previous wording; keep it fresh
+      and varied, and stay consistent with the cadence/tone the condition asks for:
+      #{lines.join("\n")}
+    SECTION
   end
 
   # No MCP — a plain snapshot built from data already synced locally
