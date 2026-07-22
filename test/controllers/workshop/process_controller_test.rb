@@ -81,22 +81,27 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     # table
     assert_select "body", /TASK/
     assert_select "body", /TITLE/
-    assert_select "body", /AI EST\./
-    assert_select "body", /MANUAL/
+    assert_select "body", /AI ESTIMATION/
+    assert_select "body", /ACTION/
+    assert_select "body", /estimated/ # "N tasks estimated" card header
     assert_select "body", Regexp.new(Regexp.escape(task.external_reference))
     assert_select "body", /8/
-    assert_select "body", /5/
+    # A per-row Re-estimate button (forces a fresh estimate).
+    assert_select "form[action='#{estimate_workshop_idea_path(task)}'] button", text: /Re-estimate/
   end
 
-  test "AI Estimate tab MANUAL column shows an em-dash when there is no story_points" do
+  test "AI Estimate tab shows a search input and each row's estimated-at timestamp" do
     @workspace.update!(estimation_trigger: "manual")
     task = tasks(:jira_task)
-    task.update!(ai_estimate_points: 3, ai_estimated_at: 1.hour.ago, story_points: nil)
+    task.update!(ai_estimate_points: 3, ai_estimated_at: 1.hour.ago)
 
     get workshop_process_path(tab: "estimate")
 
     assert_response :success
-    assert_select "body", /—/
+    # Client-side search filter.
+    assert_select "input[placeholder='Search tasks…'][data-clar-filter-target='query']"
+    # Relative timestamp next to the title (e.g. "1h ago").
+    assert_select "body", /ago/
   end
 
   test "renders the AI Alerts tab with rules list, new-rule modal, and history modal frame" do

@@ -39,12 +39,16 @@
     </div>
 
     <div class="clar-card overflow-hidden">
+      <%# Card header — count of estimated tasks. %>
+      <div class="px-4.5 py-3 text-[12px] font-semibold clar-text-muted border-b border-[color:var(--border)]">
+        <%= pluralize(@estimated_tasks.size, "task") %> estimated
+      </div>
+
       <div class="flex px-4.5 py-2.5 text-[11px] font-bold tracking-[.3px] clar-text-faint border-b border-[color:var(--border)]">
         <span class="w-[74px] flex-none">TASK</span>
         <span class="flex-1">TITLE</span>
-        <span class="w-[70px] text-right">AI EST.</span>
-        <span class="w-[70px] text-right">MANUAL</span>
-        <span class="w-[110px] text-right"></span>
+        <span class="w-[110px] text-right">AI ESTIMATION</span>
+        <span class="w-[120px] text-right">ACTION</span>
       </div>
 
       <% if @estimated_tasks.empty? %>
@@ -55,17 +59,21 @@
           <div class="flex items-center px-4.5 py-3.5 border-b border-[color:var(--border)] last:border-b-0"
                data-clar-filter-target="item" data-filter-text="<%= "#{task.external_reference} #{title}" %>">
             <span class="w-[74px] flex-none clar-mono text-[12px] clar-text-primary"><%= task.external_reference %></span>
-            <span class="flex-1 text-[13.5px] clar-text-text truncate"><%= title %></span>
-            <span class="w-[70px] text-right font-bold text-[14px] clar-text-ai"><%= number_with_precision(task.ai_estimate_points, strip_insignificant_zeros: true) %></span>
-            <span class="w-[70px] text-right text-[13.5px] clar-text-muted"><%= task.story_points.present? ? number_with_precision(task.story_points, strip_insignificant_zeros: true) : "—" %></span>
-            <span class="w-[110px] flex justify-end">
+            <span class="flex-1 min-w-0 flex items-baseline gap-2">
+              <span class="text-[13.5px] clar-text-text truncate"><%= title %></span>
+              <% if task.ai_estimated_at.present? %>
+                <span class="text-[11.5px] clar-text-faint flex-none"><%= clar_time_ago(task.ai_estimated_at) %></span>
+              <% end %>
+            </span>
+            <span class="w-[110px] text-right font-bold text-[14px] clar-text-ai"><%= number_with_precision(task.ai_estimate_points, strip_insignificant_zeros: true) %></span>
+            <span class="w-[120px] flex justify-end">
               <%# Manual re-estimate — forces a fresh estimate for this one task
                   (the estimate-once auto guard is bypassed). Redirects back. %>
               <%= button_to estimate_workshop_idea_path(task),
                     form: { data: { turbo_confirm: "Re-estimate #{task.external_reference}? The AI value may change." } },
-                    class: "clar-btn !py-[4px] !px-2.5 !text-[12px]",
+                    class: "clar-btn !py-[5px] !px-[10px] !text-[12px]",
                     title: "Re-estimate this task now" do %>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
                 Re-estimate
               <% end %>
             </span>
