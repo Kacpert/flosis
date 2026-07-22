@@ -12,7 +12,10 @@
   <% else %>
     <div class="flex flex-col gap-3">
       <% @alert_rules.each do |rule| %>
-        <div class="clar-card clar-card-hover p-4 cursor-pointer" data-action="clar-modal#open" data-clar-modal-id-param="alert-history-<%= rule.id %>">
+        <%# NOTE: on a <div> the event MUST be explicit ("click->…"); Stimulus only
+            infers "click" for buttons/links/form controls, so a bare
+            "clar-modal#open" here silently never fired (View history did nothing). %>
+        <div class="clar-card clar-card-hover p-4 cursor-pointer" data-action="click->clar-modal#open" data-clar-modal-id-param="alert-history-<%= rule.id %>">
           <div class="flex items-center justify-between gap-3.5 mb-2">
             <span class="font-bold text-[14px] clar-text-text"><%= rule.name %></span>
             <span class="inline-flex items-center gap-1.5 text-[11.5px] font-semibold <%= alert_last_run_color_class(rule.last_run_status) %>">
