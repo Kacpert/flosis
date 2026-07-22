@@ -46,6 +46,13 @@
       "Reset session" trigger in the chat panel's persona banner. %>
   <%= render "workshop/ideas/reset_modal", idea: @idea, stage: @stage %>
 
+  <%# "Request from designer" modal for the empty state: the footer button (in the
+      document panel) opens it. When a request exists the designs strip renders it
+      instead. Only needed on details/ready, where designs are relevant. %>
+  <% if %w[details ready].include?(@stage) && @idea.design_request.nil? %>
+    <%= render "workshop/ideas/request_designs_modal", idea: @idea, design_request: nil %>
+  <% end %>
+
   <%# Brief history modal (Task 5.1) — details stage only; shares the same
       clar-modal scope, keyed "brief-history". %>
   <% if @stage == "details" %>

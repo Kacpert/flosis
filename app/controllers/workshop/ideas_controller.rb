@@ -133,6 +133,34 @@ class Workshop::IdeasController < Workshop::BaseController
     end
   end
 
+  # Create or update the Jira ticket for the CURRENT stage's version WITHOUT
+  # advancing the stage — the always-visible "Create/Update Jira Ticket" button.
+  # Briefing pushes the current brief (creating the issue for a local idea);
+  # details pushes the current detail draft (also issue-creating for a local
+  # idea via commit_detail). Stays on the same stage/view either way.
+  def sync_jira
+    @idea = current_workshop_project.tasks.pipeline.find(params[:id])
+    stage = params[:stage].presence_in(%w[briefing details]) || "briefing"
+    writer = JiraWriter.new(workspace: current_workspace)
+
+    result =
+      if stage == "details"
+        draft = @idea.current_detail_draft
+        draft.present? ? writer.commit_detail(draft) : { ok: false, error: "No description to push yet." }
+      else
+        brief = @idea.current_brief
+        brief.present? ? writer.commit_brief(brief) : { ok: false, error: "Draft a brief first." }
+      end
+
+    if result[:ok]
+      @idea.current_brief&.mark_briefed! if stage == "briefing"
+      flash[:clar_toast] = @idea.reload.external_reference.present? ? "Jira ticket updated" : "Jira ticket created"
+    else
+      flash[:alert] = "Couldn't write to Jira: #{result[:error]}"
+    end
+    redirect_to workshop_idea_path(@idea, stage: stage)
+  end
+
   # Manual trigger for the AI auto-estimation engine (workspace.estimation_trigger
   # == "manual" is the button-only path, but this endpoint itself works
   # regardless of the configured trigger — a human explicitly asked for it).

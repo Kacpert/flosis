@@ -33,7 +33,19 @@
   saved_locally = is_details ? idea.detail_saved_locally_at.present? : idea.brief_saved_locally_at.present?
 
   jira_linked = idea.external_reference.present?
-  push_label = is_details ? (jira_linked ? "Update Jira description" : "Push to Jira") : "Brief &amp; mark Briefed".html_safe
+
+  # Always-visible "Create/Update Jira Ticket" button. "Update" is locked when
+  # the current version is already in Jira with nothing newer to push (pushed +
+  # viewing the current version) — no point re-sending identical content.
+  # Generating/editing a new version clears `pushed`, re-enabling Update.
+  jira_btn_label = jira_linked ? "Update Jira Ticket" : "Create Jira Ticket"
+  jira_up_to_date = jira_linked && pushed && is_current
+
+  # Briefing stage advance: once the brief is briefed (task has reached details+),
+  # the primary action is just "Continue to Details" — no need to re-brief.
+  already_briefed = !is_details && current_version&.briefed? &&
+                    Task::WORKSHOP_STAGES.index(idea.workshop_stage).to_i >= Task::WORKSHOP_STAGES.index("details")
+
   ai_copy = if is_details
     "The AI reads the project code and the task description to run the question session, then drafts the implementation-ready description automatically."
   else
@@ -224,17 +236,61 @@
               Save locally
             <% end %>
           <% end %>
+          <%# "Request from designer" lives here (footer) when no request exists yet
+              — instead of a banner on top of the panels. Only on details/ready,
+              where designs are relevant. Once a request/delivery exists, the designs
+              strip renders in the header with full status. %>
+          <% if is_details && idea.design_request.nil? %>
+            <button type="button" class="clar-btn flex-1" data-action="click->clar-modal#open" data-clar-modal-id-param="request-designs" title="Ask a designer to prepare designs">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
+              Request from designer
+            </button>
+          <% end %>
         </div>
-        <%# push_jira advances the stage (briefing→details, or details→ready) and
-            redirects — it must navigate the WHOLE page (stepper + URL live outside
-            this turbo-frame), so break out of the frame with turbo_frame: "_top".
-            At Details a LOCAL idea can push too: it CREATES the Jira issue from the
-            draft and links the task (see JiraWriter#commit_detail). %>
-        <%= button_to push_jira_workshop_idea_path(idea), method: :post,
-              form: { data: { turbo_frame: "_top" } },
-              class: "clar-btn clar-btn-primary clar-btn-block" do %>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
-          <%= push_label %>
+
+        <%# Always-visible "Create/Update Jira Ticket". Creates the issue for a
+            local idea (commit_brief/commit_detail both issue-creating), updates it
+            otherwise. Locked when the current version is already in Jira with
+            nothing new to push. Navigates the whole page (redirect) → "_top". %>
+        <% if jira_up_to_date %>
+          <button type="button" disabled title="Nothing to update — this version is already in Jira"
+                  class="clar-btn clar-btn-block opacity-50 cursor-not-allowed">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+            <%= jira_btn_label %>
+          </button>
+        <% else %>
+          <%= button_to sync_jira_workshop_idea_path(idea, stage: stage), method: :post,
+                form: { data: { turbo_frame: "_top" } },
+                class: "clar-btn #{is_details ? 'clar-btn-primary' : 'clar-btn-ai'} clar-btn-block",
+                title: jira_linked ? "Push this version to the Jira ticket" : "Create the Jira ticket from this version" do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+            <%= jira_btn_label %>
+          <% end %>
+        <% end %>
+
+        <%# Stage advance (whole-page redirect → "_top"). BRIEFING: "Brief & mark
+            Briefed" (advances to Details) until briefed, then "Continue to Details"
+            (just navigate). DETAILS: push_jira finishes → Ready. %>
+        <% if is_details %>
+          <%= button_to push_jira_workshop_idea_path(idea), method: :post,
+                form: { data: { turbo_frame: "_top" } },
+                class: "clar-btn clar-btn-primary clar-btn-block" do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            Finish · go to Ready
+          <% end %>
+        <% elsif already_briefed %>
+          <%= link_to workshop_idea_path(idea, stage: "details"),
+                class: "clar-btn clar-btn-primary clar-btn-block", data: { turbo_frame: "_top" } do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            Continue to Details
+          <% end %>
+        <% else %>
+          <%= button_to push_jira_workshop_idea_path(idea), method: :post,
+                form: { data: { turbo_frame: "_top" } },
+                class: "clar-btn clar-btn-primary clar-btn-block" do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            Brief &amp; mark Briefed
+          <% end %>
         <% end %>
       </div>
     <% else %>

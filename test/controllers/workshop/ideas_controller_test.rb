@@ -148,6 +148,45 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
       "[data-clar-document-refresh-reload-url-value='#{workshop_idea_path(idea, stage: 'briefing')}']"
   end
 
+  test "stepper: a step the task has reached is clickable even when viewing an earlier stage" do
+    # Regression: viewing Briefing on a task that reached Details made the Details
+    # step un-clickable, so you couldn't jump forward again. Clickability is based
+    # on the task's furthest-reached stage, not the viewed stage.
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+
+    get workshop_idea_path(idea, stage: "briefing")
+    assert_response :success
+    # Details (reached) must be a link even though we're viewing Briefing.
+    assert_select "[data-stepper-stage='details'] a[href='#{workshop_idea_path(idea, stage: 'details')}']"
+    # Ready (not reached) stays non-clickable.
+    assert_select "[data-stepper-stage='ready'] a", count: 0
+  end
+
+  test "briefing shows 'Continue to Details' once briefed instead of 'Brief & mark Briefed'" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    brief = idea.briefs.create!(workspace: idea.project.workspace, version: 0, origin: "user", status: "draft", content: "b")
+    brief.make_current!
+    brief.mark_briefed!
+
+    get workshop_idea_path(idea, stage: "briefing")
+    assert_response :success
+    assert_select "a[href='#{workshop_idea_path(idea, stage: 'details')}']", text: /Continue to Details/
+    assert_select "button", text: /Brief & mark Briefed/, count: 0
+  end
+
+  test "briefing shows 'Brief & mark Briefed' when not yet briefed" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+    idea.briefs.create!(workspace: idea.project.workspace, version: 0, origin: "user", status: "draft", content: "b").make_current!
+
+    get workshop_idea_path(idea, stage: "briefing")
+    assert_response :success
+    assert_select "button", text: /Brief & mark Briefed/
+    assert_select "a", text: /Continue to Details/, count: 0
+  end
+
   test "briefing panel has NO 'Save locally' button but details panel does" do
     # Save locally is a confusing no-op in briefing (task is already local); it's
     # only meaningful in details (finish-without-Jira → Ready). Guard both ways.
@@ -249,29 +288,36 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "GET show at details stage enables 'Push to Jira' for a local (non-Jira) idea (it creates the issue)" do
-    # A local idea at Details can now push: commit_detail creates the Jira issue
-    # and links the task. The button is enabled and labelled "Push to Jira".
+  test "details stage shows an always-visible 'Create Jira Ticket' for a local (non-Jira) idea" do
+    # A local idea at Details can push: commit_detail creates the Jira issue. The
+    # sync_jira button is always visible and enabled, labelled "Create Jira Ticket".
     idea = tasks(:local_task)
-    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago,
-                 description: "Local idea description")
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago, external_reference: nil)
+    idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detail draft").make_current!
 
     get workshop_idea_path(idea, stage: "details")
 
     assert_response :success
-    assert_select "button[disabled]", count: 0
-    assert_select "form[action='#{push_jira_workshop_idea_path(idea)}'] button:not([disabled])", text: /Push to Jira/
+    assert_select "form[action='#{sync_jira_workshop_idea_path(idea, stage: 'details')}'] button:not([disabled])", text: /Create Jira Ticket/
   end
 
-  test "GET show at details stage enables 'Update Jira description' for a Jira-linked idea" do
+  test "details stage shows 'Update Jira Ticket' for a Jira-linked idea, LOCKED when nothing changed" do
     idea = tasks(:jira_task)
-    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago,
-                 description: "Jira idea description")
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    # A current draft that has NOT been pushed → Update is enabled.
+    draft = idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detail draft")
+    draft.make_current!
 
     get workshop_idea_path(idea, stage: "details")
-
     assert_response :success
-    assert_select "form[action='#{push_jira_workshop_idea_path(idea)}'] button:not([disabled])", text: /Update Jira description/
+    assert_select "form[action='#{sync_jira_workshop_idea_path(idea, stage: 'details')}'] button:not([disabled])", text: /Update Jira Ticket/
+
+    # Once pushed (in Jira, nothing new) → Update is LOCKED (disabled).
+    draft.update!(pushed_at: Time.current)
+    get workshop_idea_path(idea, stage: "details")
+    assert_response :success
+    assert_select "form[action='#{sync_jira_workshop_idea_path(idea, stage: 'details')}']", count: 0
+    assert_select "button[disabled]", text: /Update Jira Ticket/
   end
 
   test "GET show at details stage renders the Brief history button and read-only modal when briefs exist" do
@@ -404,6 +450,38 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
 
     assert called, "the details step must push to Jira"
     assert_equal "ready", idea.reload.workshop_stage
+  end
+
+  test "POST sync_jira at BRIEFING creates/updates the Jira ticket WITHOUT advancing the stage" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+    idea.briefs.create!(workspace: idea.project.workspace, version: 0, origin: "user", status: "draft", content: "b").make_current!
+
+    called = false
+    orig = JiraWriter.instance_method(:commit_brief)
+    JiraWriter.define_method(:commit_brief) { |_b| called = true; { ok: true, key: "NEW-9" } }
+    begin
+      post sync_jira_workshop_idea_path(idea, stage: "briefing")
+    ensure
+      JiraWriter.define_method(:commit_brief, orig)
+    end
+
+    assert called, "sync_jira must push to Jira"
+    assert_response :redirect
+    assert_equal "briefing", idea.reload.workshop_stage, "sync must NOT advance the stage"
+  end
+
+  test "POST sync_jira at DETAILS pushes the detail draft without advancing" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "d").make_current!
+
+    stub_commit_detail({ ok: true }) do
+      post sync_jira_workshop_idea_path(idea, stage: "details")
+    end
+
+    assert_response :redirect
+    assert_equal "details", idea.reload.workshop_stage
   end
 
   test "POST push_jira at DETAILS on a LOCAL idea creates the issue via commit_detail and advances to ready" do

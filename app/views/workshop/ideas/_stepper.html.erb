@@ -1,13 +1,20 @@
 <%
   steps = [["briefing", "Briefing"], ["details", "Details"], ["ready", "Ready"]]
   current_idx = steps.index { |key, _| key == stage } || 0
+  # A step is reachable if the task has actually progressed to it (or past it),
+  # regardless of which stage is currently being VIEWED. Otherwise, viewing an
+  # earlier step made later — already-reached — steps un-clickable, so you
+  # couldn't jump forward again (e.g. Briefing → back → Details was dead).
+  furthest_stage = idea.stage_new? ? "briefing" : idea.workshop_stage
+  furthest_idx = steps.index { |key, _| key == furthest_stage } || 0
 %>
 <div class="flex items-center gap-1">
   <% steps.each_with_index do |(key, label), i| %>
     <%
       done = i < current_idx
       current = i == current_idx
-      clickable = done || current
+      # Clickable when it's the current step OR any step the task has reached.
+      clickable = current || i <= furthest_idx
       circle_classes = if done
                          "bg-[var(--success)] text-white border-transparent"
                        elsif current
