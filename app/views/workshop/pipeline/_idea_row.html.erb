@@ -6,8 +6,13 @@
     "ready"    => ["clar-badge-success", idea.external_type.present? ? "Ready · in Jira" : "Ready · local"],
   }.fetch(idea.workshop_stage, ["clar-badge-muted", idea.workshop_stage.to_s.humanize])
 %>
-<div class="relative group">
-<%= link_to workshop_idea_path(idea), class: "clar-row clar-row-hover flex items-center gap-4 p-4 pr-[76px] no-underline" do %>
+<%# Flex row: the task link (flex-1) + a hover-revealed delete button as a
+    sibling. Delete can't live inside the <a> (nested form is invalid HTML), so
+    it sits beside it — flex keeps it reliably right-aligned (no fragile absolute
+    positioning). The link keeps its own chevron; delete appears to its right on
+    row hover. %>
+<div class="group flex items-stretch clar-row clar-row-hover">
+<%= link_to workshop_idea_path(idea), class: "flex-1 min-w-0 flex items-center gap-4 p-4 no-underline" do %>
   <div class="flex-1 min-w-0">
     <div class="flex items-center gap-2.5">
       <% if idea.external_type.present? %>
@@ -41,19 +46,20 @@
   </span>
 <% end %>
 
-<%# Delete lives OUTSIDE the row link (a nested <form> inside <a> is invalid) —
-    absolutely positioned just LEFT of the chevron, and revealed on row hover
-    (group-hover). Red-outlined square, matching the mockup. For a Jira task the
-    confirm makes clear the Jira ticket is NOT deleted (only removed from Create
-    Tasks); a local idea is deleted outright. %>
+<%# Delete button — flex sibling of the link, revealed on row hover. For a Jira
+    task the confirm makes clear the Jira ticket is NOT deleted (only removed from
+    Create Tasks); a local idea is deleted outright. %>
 <% jira = idea.external_reference.present? %>
 <% confirm = jira ?
      "Remove #{idea.external_reference} from Create Tasks?\n\nThis does NOT delete the Jira ticket — it stays in Jira#{idea.external_url.present? ? " (#{idea.external_url})" : ''}. Delete it there yourself if you want it gone." :
      "Delete \"#{idea.name}\"? This can't be undone." %>
-<%= button_to workshop_idea_path(idea), method: :delete,
-      form: { class: "absolute right-10 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity", data: { turbo_confirm: confirm } },
-      class: "flex items-center justify-center w-7 h-7 rounded-lg border border-[color:var(--danger)] text-[color:var(--danger)] bg-[var(--surface)] hover:bg-[color:var(--danger-soft)]",
-      title: jira ? "Remove from Create Tasks (keeps the Jira ticket)" : "Delete this idea" do %>
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 5v6m4-6v6"/></svg>
-<% end %>
+<div class="flex items-center pr-4 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+  <%= button_to workshop_idea_path(idea), method: :delete,
+        form: { class: "flex" },
+        data: { turbo_confirm: confirm },
+        class: "flex items-center justify-center w-8 h-8 rounded-lg border border-[color:var(--danger)] text-[color:var(--danger)] bg-[var(--surface)] hover:bg-[color:var(--danger-soft)]",
+        title: jira ? "Remove from Create Tasks (keeps the Jira ticket)" : "Delete this idea" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 5v6m4-6v6"/></svg>
+  <% end %>
+</div>
 </div>
