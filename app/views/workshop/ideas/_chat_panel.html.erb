@@ -13,30 +13,37 @@
   persona_label = is_briefing ? "Briefing &middot; acts like a Product Owner".html_safe : "Details Gathering &middot; senior partner".html_safe
   placeholder = is_briefing ? "Describe the idea, or reply&hellip;".html_safe : "Answer the question&hellip;".html_safe
 %>
-<div class="flex flex-col min-h-0 h-full" data-controller="clar-chat"
+<div class="flex flex-col min-h-0 h-full @container" data-controller="clar-chat"
      data-clar-chat-create-url-value="<%= create_url %>"
      data-clar-chat-show-url-value="<%= create_url %>"
      data-clar-chat-message-url-value="<%= message_url %>"
      data-clar-chat-reset-url-value="<%= create_url %>"
      data-clar-chat-persona-value="<%= persona %>"
      data-clar-chat-current-user-name-value="<%= current_user.name %>">
-  <div class="px-7 py-3 flex items-center gap-2.5 border-b clar-divider">
-    <span class="clar-badge clar-badge-ai">
+  <%# Toolbar must stay on ONE line even when the chat column is narrow (100% zoom
+      / expanded sidebar). flex-nowrap + min-w-0 lets the persona area shrink; the
+      buttons stay whole (flex-none, nowrap); the "Reads project…" subtitle is
+      secondary, so it truncates and then hides entirely on a narrow container. %>
+  <div class="px-4 py-3 flex items-center gap-2 border-b clar-divider flex-nowrap">
+    <span class="clar-badge clar-badge-ai flex-none">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
       <%= persona_label %>
     </span>
-    <span class="text-[12px] clar-text-faint">Reads project &amp; task description first</span>
-    <span class="flex-1"></span>
+    <span class="text-[12px] clar-text-faint min-w-0 truncate hidden @[34rem]:inline">Reads project &amp; task description first</span>
+    <span class="flex-1 min-w-0"></span>
     <button type="button" title="Show the AI's live thinking while it works (otherwise just a “thinking…” indicator)"
-            class="clar-btn" data-clar-chat-target="liveThinkingBtn" data-action="click->clar-chat#toggleLiveThinking">
+            class="clar-btn flex-none whitespace-nowrap" data-clar-chat-target="liveThinkingBtn" data-action="click->clar-chat#toggleLiveThinking">
       <%# eye (on) / eye-off (off) — swapped by the controller %>
       <svg data-clar-chat-target="liveThinkingIconOn" class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
       <svg data-clar-chat-target="liveThinkingIconOff" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-      <span data-clar-chat-target="liveThinkingLabel">Live thinking: off</span>
+      <%# label shortens to "Thinking" on a narrow container to save width %>
+      <span class="hidden @[30rem]:inline" data-clar-chat-target="liveThinkingLabel">Live thinking: off</span>
+      <span class="@[30rem]:hidden">Thinking</span>
     </button>
-    <button type="button" title="Reset this AI session" class="clar-btn" data-action="click->clar-modal#open" data-clar-modal-id-param="reset-session">
+    <button type="button" title="Reset this AI session" class="clar-btn flex-none whitespace-nowrap" data-action="click->clar-modal#open" data-clar-modal-id-param="reset-session">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
-      Reset session
+      <span class="hidden @[26rem]:inline">Reset session</span>
+      <span class="@[26rem]:hidden">Reset</span>
     </button>
   </div>
 
