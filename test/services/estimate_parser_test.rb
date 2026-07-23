@@ -5,7 +5,7 @@ class EstimateParserTest < ActiveSupport::TestCase
     "Here's my estimate:\n<estimate>\n#{json}\n</estimate>"
   end
 
-  test "extracts a valid estimate with Fibonacci points and rationale" do
+  test "extracts a valid estimate with an open-ended complexity number and rationale" do
     json = { points: 8, rationale: "Touches export + aggregation service, moderate scope." }.to_json
 
     result = EstimateParser.extract(block(json))
@@ -14,17 +14,24 @@ class EstimateParserTest < ActiveSupport::TestCase
     assert_equal "Touches export + aggregation service, moderate scope.", result[:rationale]
   end
 
-  test "accepts every Fibonacci value" do
-    BreakdownParser::FIBONACCI.each do |pts|
+  test "accepts any positive whole number (no Fibonacci scale, no upper limit)" do
+    [ 1, 4, 7, 9, 11, 16, 18, 40, 88, 137, 500, 9999 ].each do |pts|
       json = { points: pts, rationale: "r" }.to_json
       result = EstimateParser.extract(block(json))
       assert_equal pts, result[:points], "expected #{pts} to be accepted"
     end
   end
 
-  test "returns nil when points is not a Fibonacci value" do
-    json = { points: 4, rationale: "r" }.to_json
-    assert_nil EstimateParser.extract(block(json))
+  test "accepts a numeric string (coerced to integer)" do
+    json = { points: "12", rationale: "r" }.to_json
+    assert_equal 12, EstimateParser.extract(block(json))[:points]
+  end
+
+  test "rejects zero, negatives, non-numbers, and values too large to store" do
+    [ 0, -3, 10_000, "abc" ].each do |pts|
+      json = { points: pts, rationale: "r" }.to_json
+      assert_nil EstimateParser.extract(block(json)), "expected #{pts.inspect} to be rejected"
+    end
   end
 
   test "returns nil when there is no estimate block" do

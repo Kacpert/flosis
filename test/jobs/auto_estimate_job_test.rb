@@ -99,10 +99,22 @@ class AutoEstimateJobTest < ActiveJob::TestCase
     assert_empty fake.calls
   end
 
-  test "invalid (non-Fibonacci) points does not save or write" do
+  test "an arbitrary non-Fibonacci complexity number (e.g. 7) saves and writes" do
     fake = fake_jira_client
     with_jira_client(fake) do
-      with_ai("<estimate>#{ { points: 4, rationale: 'x' }.to_json }</estimate>") do
+      with_ai("<estimate>#{ { points: 7, rationale: 'x' }.to_json }</estimate>") do
+        AutoEstimateJob.perform_now(@task.id)
+      end
+    end
+
+    assert_equal 7, @task.reload.ai_estimate_points
+    assert_equal 1, fake.calls.size
+  end
+
+  test "an invalid points value (zero) does not save or write" do
+    fake = fake_jira_client
+    with_jira_client(fake) do
+      with_ai("<estimate>#{ { points: 0, rationale: 'x' }.to_json }</estimate>") do
         AutoEstimateJob.perform_now(@task.id)
       end
     end

@@ -33,7 +33,7 @@ class AutoEstimateJob < ApplicationJob
     return if response.nil? # CLI failed to run — do not save, do not crash
 
     estimate = EstimateParser.extract(response)
-    return if estimate.nil? # garbage / no block / non-Fibonacci — no estimate this run
+    return if estimate.nil? # garbage / no block / not a valid number — no estimate this run
 
     task.update!(ai_estimate_points: estimate[:points], ai_estimated_at: Time.current)
     write_to_jira(task, workspace, estimate[:points])
@@ -121,12 +121,16 @@ class AutoEstimateJob < ApplicationJob
 
       #{context_parts.join("\n\n")}
 
-      Estimate the story points for THIS ticket only, using the Fibonacci scale
-      (1, 2, 3, 5, 8, 13, 21). Do NOT break the ticket into sub-tasks — this is a
-      single whole-task estimate.
+      Estimate the COMPLEXITY of THIS ticket only, as a single positive whole
+      number. There is NO fixed scale and NO upper limit — do NOT snap to
+      Fibonacci or any preset set. Pick the number that best reflects how much
+      effort/complexity this task carries relative to a trivial one-line change
+      (which would be a small number). Higher = more complex. Any whole number is
+      fine — 1, 4, 7, 9, 11, 16, 18, 40, 88, whatever fits. Do NOT break the
+      ticket into sub-tasks — this is a single whole-task estimate.
 
       Reply with exactly one block:
-      <estimate>{"points": <fibonacci number>, "rationale": "<one or two sentences>"}</estimate>
+      <estimate>{"points": <positive whole number>, "rationale": "<one or two sentences>"}</estimate>
     PROMPT
   end
 end
