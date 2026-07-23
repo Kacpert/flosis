@@ -69,7 +69,7 @@ class WorkshopReport
   # ---------------------------------------------------------------------
 
   def delivered
-    rows = features_delivered.where.not(story_points: nil)
+    rows = features_delivered.where.not(ai_estimate_points: nil)
     pr_counts = pr_count_by_key(rows.map(&:jira_key))
 
     rows.map do |issue|
@@ -77,7 +77,7 @@ class WorkshopReport
         key: issue.jira_key,
         title: issue.title,
         dev: user_for_email(issue.assignee_email),
-        pts: issue.story_points.to_f,
+        pts: issue.ai_estimate_points.to_f,
         merged: issue.resolved_at,
         prs: pr_counts[issue.jira_key] || 0
       }
@@ -166,7 +166,7 @@ class WorkshopReport
   end
 
   def sum_points(scope)
-    scope.sum(:story_points).to_f
+    scope.sum(:ai_estimate_points).to_f
   end
 
   # ---------------------------------------------------------------------
@@ -298,7 +298,7 @@ class WorkshopReport
 
     rows = trend_base_scope.where.not(resolved_at: nil)
                             .where(resolved_at: months.first..now.end_of_month.end_of_day)
-                            .pluck(:issue_type, :story_points, :resolved_at)
+                            .pluck(:issue_type, :ai_estimate_points, :resolved_at)
     created = bug_created_timestamps(months.first, now.end_of_month.end_of_day)
 
     months.map do |month_start|
@@ -322,7 +322,7 @@ class WorkshopReport
                          .to_a
                          .last(range)
 
-    all_rows = trend_base_scope.where.not(resolved_at: nil).pluck(:issue_type, :story_points, :resolved_at)
+    all_rows = trend_base_scope.where.not(resolved_at: nil).pluck(:issue_type, :ai_estimate_points, :resolved_at)
     created = sprints.any? ? bug_created_timestamps(sprints.first.start_date.beginning_of_day,
                                                      sprints.last.end_date.end_of_day) : []
 

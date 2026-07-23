@@ -63,17 +63,28 @@ class JiraClient
   # `delivered_issues` reporting mirror (never `tasks` — see DeliveredIssue).
   # Deliberately excludes comments/attachments fields to keep the payload small
   # across a ~400-day window.
-  def fetch_recent_done_issues(project_key, since: "-400d", story_points_field_id: nil)
+  # Statuses that count as "delivered/done" for reporting. A task is done once it
+  # reaches any of the board's finished columns — not just Jira's Done category
+  # (LIT CONFIRMATION / AWAITS DEPLOYMENT sit in the In-Progress category but are
+  # finished from a delivery standpoint).
+  DONE_STATUS_NAMES = [ "LIT CONFIRMATION", "AWAITS DEPLOYMENT", "DONE" ].freeze
+
+  def fetch_recent_done_issues(project_key, since: "-400d", story_points_field_id: nil, ai_estimate_field_id: nil)
     return [] unless project_key.match?(PROJECT_KEY_FORMAT)
 
     results = []
     next_page_token = nil
-    fields = ["summary", "issuetype", "assignee", "reporter", "created", "resolutiondate"]
+    fields = ["summary", "issuetype", "status", "assignee", "reporter", "created", "updated", "resolutiondate"]
     fields << story_points_field_id if story_points_field_id.present?
+    fields << ai_estimate_field_id if ai_estimate_field_id.present?
+
+    status_clause = DONE_STATUS_NAMES.map { |s| "\"#{s}\"" }.join(", ")
 
     loop do
       body = {
-        jql: "project = #{project_key} AND statusCategory = Done AND updated >= #{since} ORDER BY updated DESC",
+        # Match any of the finished columns by name, OR anything Jira already
+        # categorises as Done (belt-and-suspenders if a status is renamed).
+        jql: "project = #{project_key} AND (status IN (#{status_clause}) OR statusCategory = Done) AND updated >= #{since} ORDER BY updated DESC",
         fields: fields,
         maxResults: 100
       }
@@ -83,7 +94,7 @@ class JiraClient
       return [] unless data
 
       issues = data["issues"] || []
-      results.concat(issues.map { |i| parse_done_issue(i, story_points_field_id: story_points_field_id) })
+      results.concat(issues.map { |i| parse_done_issue(i, story_points_field_id: story_points_field_id, ai_estimate_field_id: ai_estimate_field_id) })
 
       break if data["nextPageToken"].nil?
       next_page_token = data["nextPageToken"]
@@ -441,20 +452,24 @@ class JiraClient
   end
 
   # Lightweight parse for the done-issues pass — no attachments/description.
-  def parse_done_issue(issue, story_points_field_id: nil)
+  def parse_done_issue(issue, story_points_field_id: nil, ai_estimate_field_id: nil)
     fields = issue["fields"] || {}
 
     {
       key: issue["key"],
       title: fields["summary"],
       issue_type: fields.dig("issuetype", "name"),
+      status_name: fields.dig("status", "name"),
       assignee_email: fields.dig("assignee", "emailAddress"),
       assignee_name: fields.dig("assignee", "displayName"),
       reporter_email: fields.dig("reporter", "emailAddress"),
       reporter_name: fields.dig("reporter", "displayName"),
       story_points: story_points_field_id.present? ? fields[story_points_field_id] : nil,
+      ai_estimate_points: ai_estimate_field_id.present? ? fields[ai_estimate_field_id] : nil,
       jira_created_at: fields["created"],
-      resolved_at: fields["resolutiondate"]
+      # A task in LIT CONFIRMATION / AWAITS DEPLOYMENT often has no resolutiondate
+      # yet; fall back to `updated` so it still lands in a reporting window.
+      resolved_at: fields["resolutiondate"].presence || fields["updated"]
     }
   end
 

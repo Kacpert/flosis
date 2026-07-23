@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_06_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_23_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -149,6 +149,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_06_190000) do
   end
 
   create_table "delivered_issues", force: :cascade do |t|
+    t.decimal "ai_estimate_points", precision: 5, scale: 1
     t.string "assignee_email"
     t.string "assignee_name"
     t.datetime "created_at", null: false

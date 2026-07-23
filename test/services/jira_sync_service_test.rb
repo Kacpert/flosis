@@ -59,11 +59,12 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
       define_method(:fetch_sprint_issue_keys) { |_sprint_id| [] }
       define_method(:fetch_all_comments) { |_issue_key| [] }
       define_method(:resolve_story_points_field) { "customfield_10040" }
+      define_method(:fetch_field_id) { |_name| "customfield_10178" } # AI estimation field
       define_method(:fetch_issues) do |key, story_points_field_id: nil|
         raise "Expected #{expected_key}, got #{key}" unless key == expected_key
         expected_issues
       end
-      define_method(:fetch_recent_done_issues) do |key, since: nil, story_points_field_id: nil|
+      define_method(:fetch_recent_done_issues) do |key, since: nil, story_points_field_id: nil, ai_estimate_field_id: nil|
         raise "Expected #{expected_key}, got #{key}" unless key == expected_key
         expected_done_issues
       end

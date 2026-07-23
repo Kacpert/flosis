@@ -18,12 +18,16 @@ class JiraSyncService
   # `tasks` — see DeliveredIssue for why (HR's Projects index renders
   # project.tasks.size, which must stay unaffected by historical done work).
   def sync_delivered_issues
-    done_issues = @client.fetch_recent_done_issues(@project.external_reference, since: "-400d", story_points_field_id: story_points_field_id)
+    done_issues = @client.fetch_recent_done_issues(
+      @project.external_reference, since: "-400d",
+      story_points_field_id: story_points_field_id,
+      ai_estimate_field_id: ai_estimate_field_id
+    )
     return if done_issues.nil?
 
     done_issues.each do |issue|
       delivered = @project.delivered_issues.find_or_initialize_by(jira_key: issue[:key])
-      delivered.update!(
+      attrs = {
         title: issue[:title],
         issue_type: issue[:issue_type],
         assignee_email: issue[:assignee_email],
@@ -33,7 +37,13 @@ class JiraSyncService
         story_points: issue[:story_points],
         jira_created_at: issue[:jira_created_at],
         resolved_at: issue[:resolved_at]
-      )
+      }
+      # AI estimate: take Jira's value when present, but NEVER clobber an existing
+      # local estimate with a blank (the backfill writes locally first, and older
+      # issues may not have the Jira field set yet).
+      jira_ai = issue[:ai_estimate_points]
+      attrs[:ai_estimate_points] = jira_ai if jira_ai.present?
+      delivered.update!(attrs)
     end
   end
 
@@ -127,6 +137,18 @@ class JiraSyncService
 
     id = @client.resolve_story_points_field
     workspace.update_column(:jira_story_points_field_id, id) if id.present?
+    id
+  end
+
+  # The Jira "AI estimation" custom field id (cached on the workspace). This is
+  # the field AutoEstimateJob writes to and Reporting reads (via
+  # delivered_issues.ai_estimate_points).
+  def ai_estimate_field_id
+    workspace = @project.workspace
+    return workspace.jira_ai_estimation_field_id if workspace.jira_ai_estimation_field_id.present?
+
+    id = @client.fetch_field_id(Workspace::DEFAULT_ESTIMATION_FIELD_NAME)
+    workspace.update_column(:jira_ai_estimation_field_id, id) if id.present?
     id
   end
 

@@ -15,11 +15,17 @@ class WorkshopReportTest < ActiveSupport::TestCase
   teardown { travel_back }
 
   def delivered(attrs = {})
+    attrs = attrs.dup
+    # Reporting now sums ai_estimate_points (the halved AI complexity score), not
+    # story_points. Tests express the delivered "points" via story_points for
+    # readability; mirror it into ai_estimate_points unless a test sets it.
+    attrs[:ai_estimate_points] = attrs[:story_points] if attrs.key?(:story_points) && !attrs.key?(:ai_estimate_points)
     @project.delivered_issues.create!({
       jira_key: "ELV-#{rand(100_000)}",
       title: "Some feature",
       issue_type: "Story",
       story_points: 5,
+      ai_estimate_points: 5,
       resolved_at: @now,
       jira_created_at: @now - 10.days
     }.merge(attrs))
