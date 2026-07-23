@@ -1,8 +1,8 @@
 <% content_for :title, "Configuration · Clar" %>
+<% is_admin = current_user&.admin_or_owner?(current_workspace) %>
 
-<div class="clar-badge clar-badge-warn mb-2.5">ADMINISTRATOR ONLY</div>
 <h1 class="clar-h1">Configuration</h1>
-<p class="clar-sub">Per-project credentials, AI behaviour and access. Hidden from Product Owners.</p>
+<p class="clar-sub">Per-project credentials, AI behaviour<%= " and access" if is_admin %>.</p>
 
 <div class="clar-tabs mb-6">
   <%= link_to "Integrations", workshop_configuration_path(tab: "integrations"),
@@ -11,8 +11,11 @@
         class: "clar-tab #{'clar-tab-active' if @tab == 'ai'}" %>
   <%= link_to "Briefing", workshop_configuration_path(tab: "briefing"),
         class: "clar-tab #{'clar-tab-active' if @tab == 'briefing'}" %>
-  <%= link_to "Users", workshop_configuration_path(tab: "users"),
-        class: "clar-tab #{'clar-tab-active' if @tab == 'users'}" %>
+  <%# Users tab (member management) is admin/owner-only; hidden from workspace_clients. %>
+  <% if is_admin %>
+    <%= link_to "Users", workshop_configuration_path(tab: "users"),
+          class: "clar-tab #{'clar-tab-active' if @tab == 'users'}" %>
+  <% end %>
 </div>
 
 <% if @tab == "integrations" %>
@@ -21,6 +24,6 @@
   <%= render "ai_tab" %>
 <% elsif @tab == "briefing" %>
   <%= render "briefing_tab" %>
-<% else %>
+<% elsif @tab == "users" && is_admin %>
   <%= render "users_tab" %>
 <% end %>

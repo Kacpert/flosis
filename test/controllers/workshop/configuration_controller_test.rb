@@ -14,12 +14,11 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     get workshop_configuration_path
 
     assert_response :success
-    assert_select "body", /ADMINISTRATOR ONLY/
     assert_select "h1", "Configuration"
-    assert_select "body", /Per-project credentials, AI behaviour and access\. Hidden from Product Owners\./
+    assert_select "body", /Per-project credentials, AI behaviour and access\./
     assert_select ".clar-tab", /Integrations/
     assert_select ".clar-tab", /AI/
-    assert_select ".clar-tab", /Users/
+    assert_select ".clar-tab", /Users/ # admin sees the Users tab
 
     # AI tab content (default tab)
     assert_select "body", /Claude Opus/
@@ -115,6 +114,29 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     patch workshop_configuration_path, params: { workspace: { pr_poll_minutes: 25 } }
     assert_redirected_to root_path
     assert_equal before, workspaces(:one).reload.pr_poll_minutes, "employee PATCH must not persist"
+  end
+
+  test "workspace_client can reach Configuration (AI tab) and manage settings, but NOT the users tab" do
+    workspace_memberships(:two_employee).update!(role: "workspace_client")
+    sign_out
+    sign_in_as(users(:two))
+    post switch_product_path, params: { product: "workshop" }
+
+    # Can open Configuration and its non-users tabs.
+    get workshop_configuration_path
+    assert_response :success
+    assert_select ".clar-tab", /AI/
+    # The Users tab link is hidden for a workspace_client.
+    assert_select ".clar-tab", text: /Users/, count: 0
+
+    # Can manage settings — a real management action (AI tab) persists.
+    before = workspaces(:one).reload.pr_poll_minutes
+    patch workshop_configuration_path, params: { tab: "ai", workspace: { pr_poll_minutes: 21 } }
+    assert_equal 21, workspaces(:one).reload.pr_poll_minutes, "workspace_client must be able to manage settings"
+
+    # But is blocked from the users tab (show) and any users-tab update.
+    get workshop_configuration_path(tab: "users")
+    assert_redirected_to workshop_configuration_path(tab: "ai")
   end
 
   test "PATCH update persists AI settings and toasts" do

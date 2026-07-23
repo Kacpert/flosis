@@ -96,6 +96,8 @@ module ClarHelper
   def workshop_role_badge(membership)
     if membership.admin? || membership.owner?
       [ "clar-badge-warn", "Administrator" ]
+    elsif membership.workspace_client?
+      [ "clar-badge-primary", "Workspace Client" ]
     elsif membership.client?
       [ "clar-badge-muted", "Client" ]
     elsif membership.workshop_access?

@@ -49,13 +49,21 @@ class User < ApplicationRecord
     role_in(workspace) == "client"
   end
 
+  # A "workspace client": full Workshop access WITH pricing, but no Time & HR.
+  # Distinct from the Jira-Tasks-only `client` role.
+  def workspace_client_role?(workspace)
+    role_in(workspace) == "workspace_client"
+  end
+
   # Clients get Jira-tasks-only access alongside employees/admins/owners.
   def client_or_employee?(workspace)
     client_role?(workspace) || at_least_employee?(workspace)
   end
 
+  # Pricing (rates/revenue/costs) is visible to admins/owners and to
+  # workspace_clients — the latter get a full, priced view of the Workshop.
   def can_see_money?(workspace)
-    admin_or_owner?(workspace)
+    admin_or_owner?(workspace) || workspace_client_role?(workspace)
   end
 
   # ---- Product access (Time & HR / Workshop) ---------------------------
@@ -65,6 +73,7 @@ class User < ApplicationRecord
 
   def can_access_time_hr?(workspace)
     return false if client_role?(workspace)
+    return false if workspace_client_role?(workspace) # workspace clients are Workshop-only
     membership_for(workspace)&.time_hr_access || false
   end
 
@@ -75,6 +84,7 @@ class User < ApplicationRecord
   def can_access_workshop?(workspace)
     return false unless workspace
     return true if client_role?(workspace)
+    return true if workspace_client_role?(workspace) # full Workshop access
     membership_for(workspace)&.workshop_access || false
   end
 

@@ -17,7 +17,7 @@
       <div class="space-y-1">
         <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Role</label>
         <%= f.select :role,
-            [["Employee", "employee"], ["Admin", "admin"], ["Client", "client"]],
+            [["Employee", "employee"], ["Admin", "admin"], ["Client", "client"], ["Workspace Client", "workspace_client"]],
             { selected: @membership.role }, class: "m3-text-field w-full" %>
         <div class="text-xs space-y-1 mt-2" style="color: var(--color-outline)">
           <p><strong>Admin</strong> &mdash; Full access to everything including settings and user management</p>

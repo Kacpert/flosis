@@ -6,8 +6,13 @@
 # Users (9.3) render as placeholders for now.
 class Workshop::ConfigurationController < Workshop::BaseController
   TABS = %w[integrations ai briefing users].freeze
+  # The "users" tab is member management — admins/owners only. A
+  # workspace_client can manage everything else but never users.
+  ADMIN_ONLY_TABS = %w[users].freeze
 
-  before_action :require_admin!
+  before_action :require_workshop_config_access!
+  # User management (the "users" tab) is admin-only even for workspace_clients.
+  before_action :block_admin_only_tabs
 
   def show
     @tab = TABS.include?(params[:tab]) ? params[:tab] : "ai"
@@ -78,6 +83,16 @@ class Workshop::ConfigurationController < Workshop::BaseController
   end
 
   private
+
+  # Keep non-admins (workspace_clients) out of the "users" tab on both show and
+  # update — user management is admin/owner-only.
+  def block_admin_only_tabs
+    return if current_user&.admin_or_owner?(current_workspace)
+    return unless ADMIN_ONLY_TABS.include?(params[:tab].to_s)
+
+    redirect_to workshop_configuration_path(tab: "ai"),
+                alert: "You don't have permission to manage users."
+  end
 
   def update_integrations_settings
     attrs = integrations_settings_params

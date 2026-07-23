@@ -19,12 +19,13 @@
 
       <div class="space-y-1">
         <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Role</label>
-        <%= f.select :role, [["Employee", "employee"], ["Admin", "admin"], ["Client", "client"]],
+        <%= f.select :role, [["Employee", "employee"], ["Admin", "admin"], ["Client", "client"], ["Workspace Client", "workspace_client"]],
             {}, class: "m3-text-field w-full" %>
         <div class="text-xs space-y-1 mt-2" style="color: var(--color-outline)">
           <p><strong>Admin</strong> &mdash; Full access to everything including settings and user management</p>
           <p><strong>Employee</strong> &mdash; Time entries, timesheet, tags, and reports (no monetary values)</p>
           <p><strong>Client</strong> &mdash; Reports only</p>
+          <p><strong>Workspace Client</strong> &mdash; Full Workspace access (incl. pricing); manages everything but users; no Time &amp; HR</p>
         </div>
       </div>
     </div>

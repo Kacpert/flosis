@@ -3,7 +3,7 @@
 # The Discord reminder group-DM config (HR's discord_reminder_recipients)
 # is untouched — a completely separate feature living in HR Workspace Settings.
 class Workshop::DiscordWebhooksController < Workshop::BaseController
-  before_action :require_admin!
+  before_action :require_workshop_config_access! # admins/owners + workspace_clients
   before_action :set_discord_webhook, only: [ :destroy ]
 
   def create

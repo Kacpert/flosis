@@ -2,7 +2,7 @@ module Authorization
   extend ActiveSupport::Concern
 
   included do
-    helper_method :current_membership, :can_see_money?, :visible_jira_projects, :github_connection_problem?
+    helper_method :current_membership, :can_see_money?, :visible_jira_projects, :github_connection_problem?, :workshop_config_manager?
   end
 
   private
@@ -17,13 +17,16 @@ module Authorization
     @current_membership ||= current_user&.membership_for(current_workspace)
   end
 
-  # Jira projects the current user may see. Admins/owners see every Jira project
-  # in the workspace; everyone else (employee, client) sees only the Jira
-  # projects they have a ProjectMembership for. Used to scope the Jira Tasks
-  # views and the task lookups so a client can't reach another project's tasks.
+  # Jira projects the current user may see. Admins/owners and workspace_clients
+  # (full Workshop access) see every Jira project in the workspace; everyone else
+  # (employee, Jira-only client) sees only the Jira projects they have a
+  # ProjectMembership for. Used to scope the Jira Tasks views and task lookups so
+  # a restricted user can't reach another project's tasks.
   def visible_jira_projects
     scope = current_workspace.projects.active.where(external_type: "jira")
-    return scope.order(:name) if current_user&.admin_or_owner?(current_workspace)
+    if current_user&.admin_or_owner?(current_workspace) || current_user&.workspace_client_role?(current_workspace)
+      return scope.order(:name)
+    end
 
     scope.joins(:project_memberships)
          .where(project_memberships: { user_id: current_user&.id })
@@ -38,6 +41,23 @@ module Authorization
     unless current_user&.admin_or_owner?(current_workspace)
       redirect_to root_path, alert: "You don't have permission to access this page."
     end
+  end
+
+  # Gate for MANAGING the Workshop product (Configuration: integrations, AI,
+  # briefing; Discord webhooks). Admins/owners AND workspace_clients pass — a
+  # workspace_client can manage everything in the Workshop EXCEPT users. User
+  # management stays behind require_admin! (workspace_client fails that), and the
+  # Configuration "users" tab is hidden/blocked for them separately.
+  def require_workshop_config_access!
+    return if current_user&.admin_or_owner?(current_workspace)
+    return if current_user&.workspace_client_role?(current_workspace)
+
+    redirect_to root_path, alert: "You don't have permission to access this page."
+  end
+
+  def workshop_config_manager?
+    current_user&.admin_or_owner?(current_workspace) ||
+      current_user&.workspace_client_role?(current_workspace)
   end
 
   def require_employee!
@@ -55,13 +75,16 @@ module Authorization
 
   # Gate AI/workshop-tooling endpoints (e.g. brief chat) to real workshop
   # members. Deliberately does NOT reuse require_product!(:workshop) /
-  # User#can_access_workshop? — that predicate returns true for clients (they
-  # are Jira-Tasks-only, which lives in the Workshop product), and routes like
-  # /jira_tasks/* are client-allowed by redirect_clients_to_jira. Reusing it
-  # here would let a client spawn an AI chat session. This helper explicitly
-  # excludes clients and requires the workshop_access flag on the membership.
+  # User#can_access_workshop? — that predicate returns true for the Jira-only
+  # `client` role (they are Jira-Tasks-only, which lives in the Workshop
+  # product), and routes like /jira_tasks/* are client-allowed by
+  # redirect_clients_to_jira. Reusing it here would let a Jira-only client spawn
+  # an AI chat session. So this helper excludes the `client` role and requires
+  # the workshop_access flag — BUT a `workspace_client` (full Workshop access)
+  # is a real workshop member and always passes.
   def require_workshop_member!
     membership = current_user&.workspace_memberships&.find_by(workspace: current_workspace)
+    return if membership&.workspace_client?
     return if membership && !membership.client? && membership.workshop_access
 
     redirect_to root_path, alert: "Not authorized"
