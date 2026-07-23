@@ -69,9 +69,11 @@
     <% end %>
   </div>
 
-  <div data-controller="clar-trend-chart" class="h-[220px]">
-    <canvas data-clar-trend-chart-target="canvas"
-            data-clar-trend-chart-points-value="<%= trend.to_json %>"
-            data-clar-trend-chart-series-value="<%= bug_series.map { |s| s.except(:dot_class) }.to_json %>"></canvas>
+  <%# Value attributes must be on the CONTROLLER element (this div), not the
+      child <canvas> — Stimulus only reads values from the controller's own node. %>
+  <div data-controller="clar-trend-chart" class="h-[220px]"
+       data-clar-trend-chart-points-value="<%= trend.to_json %>"
+       data-clar-trend-chart-series-value="<%= bug_series.map { |s| s.except(:dot_class) }.to_json %>">
+    <canvas data-clar-trend-chart-target="canvas"></canvas>
   </div>
 </div>

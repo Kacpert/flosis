@@ -52,8 +52,11 @@
     </div>
   </div>
 
-  <div data-controller="clar-trend-chart" class="h-[220px]">
-    <canvas data-clar-trend-chart-target="canvas"
-            data-clar-trend-chart-points-value="<%= trend.to_json %>"></canvas>
+  <%# Stimulus reads value attributes from the CONTROLLER element only, not from
+      child nodes — so points-value must live on this div, not the <canvas>.
+      (Previously on the canvas → pointsValue was always [] → empty chart.) %>
+  <div data-controller="clar-trend-chart" class="h-[220px]"
+       data-clar-trend-chart-points-value="<%= trend.to_json %>">
+    <canvas data-clar-trend-chart-target="canvas"></canvas>
   </div>
 </div>

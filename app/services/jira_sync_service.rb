@@ -30,7 +30,11 @@ class JiraSyncService
       attrs = {
         title: issue[:title],
         issue_type: issue[:issue_type],
-        assignee_email: issue[:assignee_email],
+        # Jira often hides the assignee email (privacy) and only gives a display
+        # name. Reporting attributes work to developers BY EMAIL, so resolve the
+        # email from the name (User.name) when Jira didn't provide one — otherwise
+        # every delivered issue is "Unassigned" and per-dev SP is 0.
+        assignee_email: issue[:assignee_email].presence || email_for_name(issue[:assignee_name]),
         assignee_name: issue[:assignee_name],
         reporter_email: issue[:reporter_email],
         reporter_name: issue[:reporter_name],
@@ -138,6 +142,20 @@ class JiraSyncService
     id = @client.resolve_story_points_field
     workspace.update_column(:jira_story_points_field_id, id) if id.present?
     id
+  end
+
+  # Resolve a Jira display name to a workspace user's email (case-insensitive,
+  # exact-name match). Used to attribute delivered issues when Jira gives us only
+  # a name. Returns nil for names with no matching user (they stay unattributed).
+  def email_for_name(name)
+    return nil if name.blank?
+    name_to_email[name.to_s.strip.downcase]
+  end
+
+  def name_to_email
+    @name_to_email ||= @project.workspace.workspace_memberships.includes(:user).each_with_object({}) do |m, h|
+      h[m.user.name.to_s.strip.downcase] = m.user.email_address if m.user&.name.present?
+    end
   end
 
   # The Jira "AI estimation" custom field id (cached on the workspace). This is
