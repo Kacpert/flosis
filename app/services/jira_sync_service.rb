@@ -144,12 +144,21 @@ class JiraSyncService
     id
   end
 
+  # Known Jira-display-name → workspace-user-name aliases for people whose Jira
+  # name doesn't exactly match their user (typos/spelling). Extend as needed.
+  NAME_ALIASES = {
+    "mark marczak" => "marek marczak"
+  }.freeze
+
   # Resolve a Jira display name to a workspace user's email (case-insensitive,
-  # exact-name match). Used to attribute delivered issues when Jira gives us only
-  # a name. Returns nil for names with no matching user (they stay unattributed).
+  # exact-name match, with a small alias map). Used to attribute delivered issues
+  # when Jira gives us only a name. Returns nil for names with no matching user
+  # (they stay unattributed).
   def email_for_name(name)
     return nil if name.blank?
-    name_to_email[name.to_s.strip.downcase]
+    key = name.to_s.strip.downcase
+    key = NAME_ALIASES[key] || key
+    name_to_email[key]
   end
 
   def name_to_email
