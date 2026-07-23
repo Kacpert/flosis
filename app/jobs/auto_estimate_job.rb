@@ -115,22 +115,71 @@ class AutoEstimateJob < ApplicationJob
     end
 
     <<~PROMPT
-      You are a senior tech lead estimating the effort for a single ticket. The
-      repository is checked out in your current working directory — use it to
-      ground your estimate in the actual codebase, not just the ticket text.
+      You are a senior tech lead scoring the REALISTIC EFFORT of a single ticket
+      on a FIXED, CALIBRATED 1–100 scale. This score feeds a fair, cross-time
+      comparison of developer output, so CONSISTENCY matters more than anything:
+      the SAME ticket must get the SAME score whether scored today or in six
+      months. Apply the rubric MECHANICALLY. Do NOT go by gut feel, do NOT drift,
+      do NOT invent your own scale. Two tickets with the same rubric criteria MUST
+      get the same band.
+
+      The repository is checked out in your current working directory — use it to
+      ground your score in the ACTUAL codebase, not just the ticket text.
 
       #{context_parts.join("\n\n")}
 
-      Estimate the COMPLEXITY of THIS ticket only, as a single positive whole
-      number. There is NO fixed scale and NO upper limit — do NOT snap to
-      Fibonacci or any preset set. Pick the number that best reflects how much
-      effort/complexity this task carries relative to a trivial one-line change
-      (which would be a small number). Higher = more complex. Any whole number is
-      fine — 1, 4, 7, 9, 11, 16, 18, 40, 88, whatever fits. Do NOT break the
-      ticket into sub-tasks — this is a single whole-task estimate.
+      # What the score measures
+
+      REALISTIC delivery effort for a competent developer who USES AI ASSISTANCE
+      to implement (as our team does). This is NOT abstract intellectual
+      difficulty — a task that sounds complex but that AI can implement quickly
+      (boilerplate CRUD, a well-trodden pattern, a mechanical refactor) scores
+      LOW. Score is driven by the work AI can't shortcut: human judgement,
+      integration surface, edge cases, ambiguity/unknowns, testing burden, and
+      risk/blast-radius.
+
+      # The 1–100 rubric (fixed bands — map the ticket to ONE band, then pick a
+      # number inside it)
+
+      1–10  TRIVIAL — one file, no real logic, no edge cases. Copy/label change, a
+            constant, a tiny config tweak. AI does essentially all of it.
+      11–25 SMALL — 1–2 files, minor logic, obvious approach, few/no edge cases.
+            AI implements it fast; little human judgement needed.
+      26–45 MODERATE — a self-contained feature or fix: a handful of files, some
+            edge cases, a bit of integration, straightforward testing. AI does the
+            bulk; some human wiring/decisions.
+      46–65 SUBSTANTIAL — multi-file feature with real integration, several edge
+            cases, non-trivial testing, or touching a shared/used-in-many-places
+            area. Needs meaningful human judgement even with AI.
+      66–85 COMPLEX — cross-cutting change, tricky logic or state, notable risk or
+            blast-radius, meaningful unknowns to resolve, heavy testing. AI helps
+            but a lot of careful human work remains.
+      86–100 MAJOR — architectural / spanning many systems, high uncertainty or
+            research needed, high risk, large integration + testing burden. AI
+            provides limited leverage; mostly hard human work.
+
+      # Calibration anchors (use these to stay consistent)
+
+      - Rename a button label / fix a typo in copy → ~5
+      - Add a new field to an existing form + validation + save → ~20
+      - Add a filter/search to an existing list view → ~30
+      - New endpoint + UI that integrates with one existing service, with edge
+        cases → ~55
+      - Change that touches auth/permissions or a widely-used model, with real
+        risk and broad testing → ~75
+      - New subsystem or a migration spanning many models/screens with unknowns → ~92
+
+      # How to score
+
+      1. Read the ticket + brief + the relevant code. Judge the REAL work left
+         after AI assistance.
+      2. Pick the ONE band whose criteria the ticket best matches.
+      3. Choose a specific number inside that band (don't just pick the midpoint —
+         reflect where in the band it sits).
+      4. Score the WHOLE ticket as one unit. Do NOT break it into sub-tasks.
 
       Reply with exactly one block:
-      <estimate>{"points": <positive whole number>, "rationale": "<one or two sentences>"}</estimate>
+      <estimate>{"score": <integer 1-100>, "rationale": "<band + the 1-2 criteria that placed it there, one or two sentences>"}</estimate>
     PROMPT
   end
 end

@@ -5,32 +5,44 @@ class EstimateParserTest < ActiveSupport::TestCase
     "Here's my estimate:\n<estimate>\n#{json}\n</estimate>"
   end
 
-  test "extracts a valid estimate with an open-ended complexity number and rationale" do
-    json = { points: 8, rationale: "Touches export + aggregation service, moderate scope." }.to_json
+  test "extracts a 1-100 score, keeps it, and stores the halved value as points" do
+    json = { score: 63, rationale: "Substantial: multi-file + integration." }.to_json
 
     result = EstimateParser.extract(block(json))
 
-    assert_equal 8, result[:points]
-    assert_equal "Touches export + aggregation service, moderate scope.", result[:rationale]
+    assert_equal 63, result[:score]
+    assert_equal 32, result[:points], "63/2 rounds to 32"
+    assert_equal "Substantial: multi-file + integration.", result[:rationale]
   end
 
-  test "accepts any positive whole number (no Fibonacci scale, no upper limit)" do
-    [ 1, 4, 7, 9, 11, 16, 18, 40, 88, 137, 500, 9999 ].each do |pts|
-      json = { points: pts, rationale: "r" }.to_json
-      result = EstimateParser.extract(block(json))
-      assert_equal pts, result[:points], "expected #{pts} to be accepted"
+  test "halving is round(score/2) across the range" do
+    { 1 => 1, 5 => 3, 40 => 20, 63 => 32, 84 => 42, 90 => 45, 100 => 50 }.each do |score, points|
+      result = EstimateParser.extract(block({ score: score, rationale: "r" }.to_json))
+      assert_equal points, result[:points], "score #{score} should store #{points}"
     end
   end
 
-  test "accepts a numeric string (coerced to integer)" do
-    json = { points: "12", rationale: "r" }.to_json
-    assert_equal 12, EstimateParser.extract(block(json))[:points]
+  test "accepts every score in 1..100" do
+    [ 1, 7, 25, 45, 65, 85, 86, 100 ].each do |score|
+      result = EstimateParser.extract(block({ score: score, rationale: "r" }.to_json))
+      assert_equal score, result[:score], "expected #{score} to be accepted"
+    end
   end
 
-  test "rejects zero, negatives, non-numbers, and values too large to store" do
-    [ 0, -3, 10_000, "abc" ].each do |pts|
-      json = { points: pts, rationale: "r" }.to_json
-      assert_nil EstimateParser.extract(block(json)), "expected #{pts.inspect} to be rejected"
+  test "accepts a numeric-string score (coerced to integer)" do
+    assert_equal 12, EstimateParser.extract(block({ score: "12", rationale: "r" }.to_json))[:score]
+  end
+
+  test "falls back to a legacy 'points' key when 'score' is absent" do
+    result = EstimateParser.extract(block({ points: 40, rationale: "r" }.to_json))
+    assert_equal 40, result[:score]
+    assert_equal 20, result[:points]
+  end
+
+  test "rejects out-of-range scores (0, >100, negatives) and non-numbers" do
+    [ 0, -3, 101, 999, "abc" ].each do |score|
+      json = { score: score, rationale: "r" }.to_json
+      assert_nil EstimateParser.extract(block(json)), "expected score #{score.inspect} to be rejected"
     end
   end
 
@@ -47,25 +59,27 @@ class EstimateParserTest < ActiveSupport::TestCase
     assert_nil EstimateParser.extract(nil)
   end
 
-  test "returns nil when points is missing" do
+  test "returns nil when the score is missing" do
     json = { rationale: "r" }.to_json
     assert_nil EstimateParser.extract(block(json))
   end
 
   test "uses the last estimate block when multiple are present" do
-    first = { points: 3, rationale: "first" }.to_json
-    second = { points: 13, rationale: "second, revised" }.to_json
+    first = { score: 30, rationale: "first" }.to_json
+    second = { score: 84, rationale: "second, revised" }.to_json
     text = "<estimate>#{first}</estimate>\nMore thinking...\n<estimate>#{second}</estimate>"
 
     result = EstimateParser.extract(text)
-    assert_equal 13, result[:points]
+    assert_equal 84, result[:score]
+    assert_equal 42, result[:points]
     assert_equal "second, revised", result[:rationale]
   end
 
   test "rationale defaults to empty string when absent" do
-    json = { points: 5 }.to_json
+    json = { score: 50 }.to_json
     result = EstimateParser.extract(block(json))
-    assert_equal 5, result[:points]
+    assert_equal 50, result[:score]
+    assert_equal 25, result[:points]
     assert_equal "", result[:rationale]
   end
 end

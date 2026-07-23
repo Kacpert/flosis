@@ -43,27 +43,28 @@ class AutoEstimateJobTest < ActiveJob::TestCase
     JiraClient.define_singleton_method(:new, orig)
   end
 
-  def estimate_block(points: 8, rationale: "Moderate scope")
-    "<estimate>#{ { points: points, rationale: rationale }.to_json }</estimate>"
+  # The AI emits a 1–100 SCORE; the stored ai_estimate_points is score/2 rounded.
+  def estimate_block(score: 40, rationale: "Moderate scope")
+    "<estimate>#{ { score: score, rationale: rationale }.to_json }</estimate>"
   end
 
-  test "valid estimate saves points/timestamp and writes each configured field" do
+  test "valid estimate stores the HALVED score and writes each configured field" do
     fake = fake_jira_client
     with_jira_client(fake) do
-      with_ai(estimate_block(points: 8)) do
+      with_ai(estimate_block(score: 40)) do # 40/2 = 20
         AutoEstimateJob.perform_now(@task.id)
       end
     end
 
     @task.reload
-    assert_equal 8, @task.ai_estimate_points
+    assert_equal 20, @task.ai_estimate_points, "score 40 stores 20"
     assert_not_nil @task.ai_estimated_at
 
     assert_equal 1, fake.calls.size
     call = fake.calls.first
     assert_equal @task.external_reference, call[:issue_key]
     assert_equal "customfield_9001", call[:field_id]
-    assert_equal 8, call[:value]
+    assert_equal 20, call[:value], "Jira gets the halved stored value (40/2)"
   end
 
   test "writes to every configured field name, never one outside the config" do
@@ -75,7 +76,7 @@ class AutoEstimateJobTest < ActiveJob::TestCase
     })
 
     with_jira_client(fake) do
-      with_ai(estimate_block(points: 5)) do
+      with_ai(estimate_block(score: 30)) do
         AutoEstimateJob.perform_now(@task.id)
       end
     end
@@ -99,22 +100,23 @@ class AutoEstimateJobTest < ActiveJob::TestCase
     assert_empty fake.calls
   end
 
-  test "an arbitrary non-Fibonacci complexity number (e.g. 7) saves and writes" do
+  test "a 1-100 score saves the halved value and writes to Jira" do
     fake = fake_jira_client
     with_jira_client(fake) do
-      with_ai("<estimate>#{ { points: 7, rationale: 'x' }.to_json }</estimate>") do
+      with_ai(estimate_block(score: 63)) do # 63/2 -> 32
         AutoEstimateJob.perform_now(@task.id)
       end
     end
 
-    assert_equal 7, @task.reload.ai_estimate_points
+    assert_equal 32, @task.reload.ai_estimate_points
     assert_equal 1, fake.calls.size
+    assert_equal 32, fake.calls.first[:value], "Jira gets the halved stored value"
   end
 
-  test "an invalid points value (zero) does not save or write" do
+  test "an out-of-range score (0) does not save or write" do
     fake = fake_jira_client
     with_jira_client(fake) do
-      with_ai("<estimate>#{ { points: 0, rationale: 'x' }.to_json }</estimate>") do
+      with_ai(estimate_block(score: 0)) do
         AutoEstimateJob.perform_now(@task.id)
       end
     end
@@ -155,7 +157,7 @@ class AutoEstimateJobTest < ActiveJob::TestCase
 
     cli_called = false
     orig = ClaudeCliService.instance_method(:start_session)
-    ClaudeCliService.define_method(:start_session) { |**_kw| cli_called = true; { session_id: "s", response: estimate_block(points: 8) } }
+    ClaudeCliService.define_method(:start_session) { |**_kw| cli_called = true; { session_id: "s", response: estimate_block(score: 40) } }
 
     fake = fake_jira_client
     begin
@@ -179,7 +181,7 @@ class AutoEstimateJobTest < ActiveJob::TestCase
 
     fake = fake_jira_client
     with_jira_client(fake) do
-      with_ai(estimate_block(points: 13)) do
+      with_ai(estimate_block(score: 84)) do
         AutoEstimateJob.perform_now(@task.id)
       end
     end
@@ -194,13 +196,13 @@ class AutoEstimateJobTest < ActiveJob::TestCase
 
     fake = fake_jira_client
     with_jira_client(fake) do
-      with_ai(estimate_block(points: 13)) do
+      with_ai(estimate_block(score: 84)) do # 84/2 -> 42
         AutoEstimateJob.perform_now(@task.id, force: true)
       end
     end
 
     @task.reload
-    assert_equal 13, @task.ai_estimate_points, "force must bypass the estimate-once guard"
+    assert_equal 42, @task.ai_estimate_points, "force must bypass the estimate-once guard"
     assert_equal 1, fake.calls.size
   end
 
