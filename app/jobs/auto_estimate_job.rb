@@ -135,15 +135,33 @@ class AutoEstimateJob < ApplicationJob
 
       #{ticket_context}
 
+      # CRITICAL: estimate the effort it took to BUILD this, not to finish it
+
+      This ticket is very likely ALREADY DONE — its implementation is probably
+      already in the codebase. You are scoring how much effort it TOOK TO BUILD the
+      whole thing from scratch, NOT how much is left to do now.
+
+      The existing code is EVIDENCE OF THE SCOPE that was built — use it to see how
+      many files/models/screens/tests the feature actually spans, how much
+      integration and edge-case handling it required, how much it touched. Then
+      score the FULL build effort of all of that.
+
+      Do NOT discount for work you can see is already done. NEVER reason "most of
+      this already exists, so it's small / only completion work remains" — that is
+      exactly backwards. Finding the whole feature already implemented, spanning
+      many files with real integration and tests, is a signal it was a BIG task —
+      score it HIGH. If the code shows it was substantial to build, score it as
+      substantial to build.
+
       # What the score measures
 
-      REALISTIC delivery effort for a competent developer who USES AI ASSISTANCE
-      to implement (as our team does). This is NOT abstract intellectual
-      difficulty — a task that sounds complex but that AI can implement quickly
-      (boilerplate CRUD, a well-trodden pattern, a mechanical refactor) scores
-      LOW. Score is driven by the work AI can't shortcut: human judgement,
-      integration surface, edge cases, ambiguity/unknowns, testing burden, and
-      risk/blast-radius.
+      REALISTIC delivery effort — the total work it took to BUILD this — for a
+      competent developer who USES AI ASSISTANCE to implement (as our team does).
+      This is NOT abstract intellectual difficulty — something that sounds complex
+      but that AI can implement quickly (boilerplate CRUD, a well-trodden pattern,
+      a mechanical refactor) scores LOW. Score is driven by the work AI can't
+      shortcut: human judgement, integration surface, edge cases,
+      ambiguity/unknowns, testing burden, and risk/blast-radius.
 
       # The 1–100 rubric (fixed bands — map the ticket to ONE band, then pick a
       # number inside it)
@@ -178,9 +196,10 @@ class AutoEstimateJob < ApplicationJob
 
       # How to score
 
-      1. Read the ticket + brief + the relevant code. Judge the REAL work left
-         after AI assistance.
-      2. Pick the ONE band whose criteria the ticket best matches.
+      1. Read the ticket and inspect the code that implements it. Judge the TOTAL
+         real work it took to BUILD the whole thing (given AI assistance) — from
+         nothing to the finished feature you see in the code. Not the work "left".
+      2. Pick the ONE band whose criteria the built feature best matches.
       3. Choose a specific number inside that band (don't just pick the midpoint —
          reflect where in the band it sits).
       4. Score the WHOLE ticket as one unit. Do NOT break it into sub-tasks.
