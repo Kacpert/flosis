@@ -35,9 +35,13 @@ class WorkshopReport
 
   def metrics
     {
+      # "Features delivered" stays features-only (bugs aren't features), but
+      # "Completed (story points)" / SP DONE counts ALL delivered work by
+      # complexity — bugs included — so bug-heavy devs aren't shown as doing
+      # nothing. BUGS FIXED remains a separate count.
       features_delivered_count: features_delivered.count,
       features_delivered_points: sum_points(features_delivered),
-      completed_story_points: sum_points(features_delivered),
+      completed_story_points: sum_points(delivered_in_period),
       new_bugs: new_bugs_count,
       hours: hours_for(completed_time_entries),
       cost_cents: cost_cents_for(completed_time_entries)
@@ -222,12 +226,19 @@ class WorkshopReport
     {
       user: user,
       name: user.name,
-      sp: sum_points(features_delivered_for_email(email)),
+      # SP DONE = complexity of ALL this dev's delivered work (bugs included).
+      sp: sum_points(delivered_for_email(email)),
       bugs_fixed: delivered_bugs_for_email(email).count,
       bugs_created: bugs_created_for_email(email, user),
       hours: hours_for(entries),
       cost_cents: cost_cents_for(entries)
     }
+  end
+
+  # All delivered issues (any type, incl. bugs) resolved in-period for a dev.
+  def delivered_for_email(email)
+    @project.delivered_issues.where(resolved_at: @from..@to)
+            .where("LOWER(assignee_email) = ?", email)
   end
 
   def features_delivered_for_email(email)
@@ -351,12 +362,12 @@ class WorkshopReport
   end
 
   def build_point(label:, full:, rows:, bugs_created:)
-    non_bug = rows.reject { |(issue_type, _, _)| issue_type == BUG }
     bugs_fixed = rows.count { |(issue_type, _, _)| issue_type == BUG }
     {
       label: label,
       full: full,
-      sp: non_bug.sum { |(_, points, _)| points.to_f },
+      # SP trend counts ALL delivered work by complexity (bugs included).
+      sp: rows.sum { |(_, points, _)| points.to_f },
       bugs_created: bugs_created,
       bugs_fixed: bugs_fixed
     }

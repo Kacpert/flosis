@@ -58,12 +58,19 @@ class WorkshopReportTest < ActiveSupport::TestCase
     assert_equal 11, m[:features_delivered_points]
   end
 
-  test "metrics completed story points sums all non-Bug delivered points in period" do
+  test "metrics completed story points sums ALL delivered points in period, bugs included" do
     delivered(issue_type: "Story", story_points: 5, resolved_at: @now)
     delivered(issue_type: "Task", story_points: 2, resolved_at: @now)
-    delivered(issue_type: "Bug", story_points: 100, resolved_at: @now) # excluded
+    delivered(issue_type: "Bug", story_points: 10, resolved_at: @now) # NOW counted
 
-    assert_equal 7, report.metrics[:completed_story_points]
+    assert_equal 17, report.metrics[:completed_story_points]
+  end
+
+  test "features_delivered_count stays features-only (bugs are not features)" do
+    delivered(issue_type: "Story", story_points: 5, resolved_at: @now)
+    delivered(issue_type: "Bug", story_points: 10, resolved_at: @now)
+
+    assert_equal 1, report.metrics[:features_delivered_count]
   end
 
   test "metrics new_bugs unions open tasks Bugs and delivered_issues Bugs by jira_created_at in period" do
@@ -117,14 +124,14 @@ class WorkshopReportTest < ActiveSupport::TestCase
     assert_includes emails, @two.email_address
   end
 
-  test "developer sp is sum of non-Bug delivered story_points by assignee_email in period" do
+  test "developer sp is sum of ALL delivered points (bugs included) by assignee_email in period" do
     delivered(issue_type: "Story", story_points: 5, resolved_at: @now, assignee_email: @one.email_address)
     delivered(issue_type: "Task", story_points: 2, resolved_at: @now, assignee_email: @one.email_address)
-    delivered(issue_type: "Bug", story_points: 100, resolved_at: @now, assignee_email: @one.email_address) # excluded
+    delivered(issue_type: "Bug", story_points: 10, resolved_at: @now, assignee_email: @one.email_address) # NOW counted
     delivered(issue_type: "Story", story_points: 999, resolved_at: @now.prev_month, assignee_email: @one.email_address) # out of period
 
     dev = report.developers.find { |d| d[:user] == @one }
-    assert_equal 7, dev[:sp]
+    assert_equal 17, dev[:sp]
   end
 
   test "developer bugs_fixed is count of delivered Bugs by assignee in period" do

@@ -74,7 +74,7 @@ class JiraClient
 
     results = []
     next_page_token = nil
-    fields = ["summary", "issuetype", "status", "assignee", "reporter", "created", "updated", "resolutiondate"]
+    fields = ["summary", "description", "issuetype", "status", "assignee", "reporter", "created", "updated", "resolutiondate"]
     fields << story_points_field_id if story_points_field_id.present?
     fields << ai_estimate_field_id if ai_estimate_field_id.present?
 
@@ -458,6 +458,7 @@ class JiraClient
     {
       key: issue["key"],
       title: fields["summary"],
+      description: adf_to_text(fields["description"]),
       issue_type: fields.dig("issuetype", "name"),
       status_name: fields.dig("status", "name"),
       assignee_email: fields.dig("assignee", "emailAddress"),

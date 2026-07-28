@@ -29,6 +29,7 @@ class JiraSyncService
       delivered = @project.delivered_issues.find_or_initialize_by(jira_key: issue[:key])
       attrs = {
         title: issue[:title],
+        description: issue[:description],
         issue_type: issue[:issue_type],
         # Jira often hides the assignee email (privacy) and only gives a display
         # name. Reporting attributes work to developers BY EMAIL, so resolve the

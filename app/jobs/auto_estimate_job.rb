@@ -114,6 +114,13 @@ class AutoEstimateJob < ApplicationJob
       context_parts << "Codebase feature summary:\n#{task.project.features_summary}"
     end
 
+    self.class.rubric_prompt(context_parts.join("\n\n"))
+  end
+
+  # The estimation prompt, given a ticket-context string. Shared so a
+  # DeliveredIssue (title + Jira description only, no brief) can be scored on the
+  # exact same 1–100 rubric as a full Task — see BackfillDeliveredEstimatesJob.
+  def self.rubric_prompt(ticket_context)
     <<~PROMPT
       You are a senior tech lead scoring the REALISTIC EFFORT of a single ticket
       on a FIXED, CALIBRATED 1–100 scale. This score feeds a fair, cross-time
@@ -126,7 +133,7 @@ class AutoEstimateJob < ApplicationJob
       The repository is checked out in your current working directory — use it to
       ground your score in the ACTUAL codebase, not just the ticket text.
 
-      #{context_parts.join("\n\n")}
+      #{ticket_context}
 
       # What the score measures
 
