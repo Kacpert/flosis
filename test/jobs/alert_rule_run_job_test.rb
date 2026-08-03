@@ -49,15 +49,27 @@ class AlertRuleRunJobTest < ActiveJob::TestCase
 
       assert_equal 1, calls.size
       assert_equal @webhook.url, calls.first[:url]
-      assert_includes calls.first[:content], @rule.name
-      assert_includes calls.first[:content], "2 tasks flagged"
+      # Posts ONLY the natural message (detail), not a rule-name/summary header.
+      assert_equal "SP-1 in QA > 3 days", calls.first[:content]
+      refute_includes calls.first[:content], @rule.name
+      refute_includes calls.first[:content], "🔔"
     end
 
     run = @rule.alert_runs.last
     assert run.fired
     assert_equal "ok", run.status
+    # Summary is still stored on the run (for the history view), just not posted.
     assert_equal "2 tasks flagged", run.summary
     assert_not_nil @rule.reload.last_run_at
+  end
+
+  test "falls back to the summary when the AI gives no detail message" do
+    with_webhook_post do |calls|
+      with_ai(alert_block(fired: true, summary: "headline only", detail: "")) do
+        AlertRuleRunJob.perform_now(@rule.id)
+      end
+      assert_equal "headline only", calls.first[:content]
+    end
   end
 
   test "not-fired alert creates an ok AlertRun and does NOT post to discord" do

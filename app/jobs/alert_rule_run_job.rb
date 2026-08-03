@@ -73,7 +73,12 @@ class AlertRuleRunJob < ApplicationJob
   end
 
   def notify_discord(rule, parsed)
-    content = "🔔 **#{rule.name}** — #{parsed[:summary]}\n#{parsed[:detail]}"
+    # Post ONLY the AI's natural message — no 🔔/rule-name/summary header — so it
+    # reads like a real person wrote it, not a system notification. The
+    # summary/rule name are still kept on the AlertRun for the history view.
+    content = parsed[:detail].presence || parsed[:summary]
+    return if content.blank?
+
     DiscordWebhookClient.post(rule.discord_webhook.url, content: content)
   end
 
