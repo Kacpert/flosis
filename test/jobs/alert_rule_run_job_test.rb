@@ -259,4 +259,29 @@ class AlertRuleRunJobTest < ActiveJob::TestCase
     assert_includes captured, "mcp__github__pull_request_read"
     assert_includes captured, "mcp__jira__jira_post"
   end
+
+  test "run regenerates the project's mcp config and passes it to the CLI" do
+    captured = {}
+    orig_init = ClaudeCliService.instance_method(:initialize)
+    ClaudeCliService.define_method(:initialize) do |**kw|
+      captured[:codebase_path] = kw[:codebase_path]
+      captured[:mcp_config] = kw[:mcp_config]
+      orig_init.bind(self).call(**kw)
+    end
+    wrote = []
+    orig_write = ProjectMcpConfig.method(:write!)
+    ProjectMcpConfig.define_singleton_method(:write!) { |p| wrote << p.id; "#{p.workspace_dir}/.mcp.json" }
+
+    begin
+      @rule.project.update_column(:workspace_dir, Project::ELVIUM_LEGACY_DIR)
+      with_webhook_post { with_ai(block(alert: false, memory: "{}")) { AlertRuleRunJob.perform_now(@rule.id) } }
+    ensure
+      ClaudeCliService.define_method(:initialize, orig_init)
+      ProjectMcpConfig.define_singleton_method(:write!, orig_write)
+    end
+
+    assert_includes wrote, @rule.project.id, "must regenerate mcp config before running"
+    assert_equal Project::ELVIUM_LEGACY_DIR, captured[:codebase_path]
+    assert_equal ProjectMcpConfig.path_for(@rule.project), captured[:mcp_config]
+  end
 end
