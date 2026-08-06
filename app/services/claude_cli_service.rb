@@ -2,7 +2,7 @@ class ClaudeCliService
   CLAUDE_CMD = "claude".freeze
   DEFAULT_CODEBASE_PATH = File.expand_path("~/work/elvium").freeze
 
-  def initialize(codebase_path: nil, allowed_tools: nil, model: nil)
+  def initialize(codebase_path: nil, allowed_tools: nil, model: nil, mcp_config: nil)
     @codebase_path = codebase_path || ENV.fetch("CHAT_CODEBASE_PATH", DEFAULT_CODEBASE_PATH)
     # Per-chat override of the pre-approved tool list. The briefing chat passes a
     # code-free set (no Read/Glob/Grep) so it stays a product conversation and
@@ -11,6 +11,10 @@ class ClaudeCliService
     # Optional model override (e.g. a cheaper model for a big one-off batch).
     # nil = the CLI's default model.
     @model = model
+    # Optional path to a per-project .mcp.json. When set, the CLI loads ONLY
+    # those MCP servers (--strict-mcp-config), giving per-project github/jira
+    # tools with full isolation from the global config.
+    @mcp_config = mcp_config
   end
 
   # Start a new Claude session with an initial prompt.
@@ -125,6 +129,7 @@ class ClaudeCliService
 
     cmd += ["--resume", session_id] if session_id
     cmd += ["--model", @model] if @model.present?
+    cmd += ["--mcp-config", @mcp_config, "--strict-mcp-config"] if @mcp_config.present?
     # Pre-approve the tools we want the chat assistant to use without
     # prompting. -p (non-interactive) refuses any tool not on this list.
     @allowed_tools.each { |t| cmd += ["--allowedTools", t] }
