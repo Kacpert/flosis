@@ -28,6 +28,34 @@ class Project < ApplicationRecord
     external_type == "jira"
   end
 
+  ELVIUM_LEGACY_DIR = File.expand_path("~/work/elvium").freeze
+  CLIENTS_BASE_DIR = ENV.fetch("CLIENTS_BASE_DIR", File.expand_path("~/work/clients")).freeze
+
+  # The grandfathered project that keeps using the shared ~/work/elvium checkout.
+  def legacy_elvium?
+    workspace_dir.present? && File.expand_path(workspace_dir) == ELVIUM_LEGACY_DIR
+  end
+
+  # Absolute path to this project's isolated folder; assigns a default the first
+  # time (unless already set, e.g. legacy elvium).
+  def ensure_workspace_dir!
+    return workspace_dir if workspace_dir.present?
+    dir = File.join(CLIENTS_BASE_DIR, workspace_id.to_s, id.to_s)
+    update_column(:workspace_dir, dir)
+    dir
+  end
+
+  # Where Claude should chdir for automations: the repo checkout subfolder, or
+  # the legacy elvium dir itself. Falls back to the shared ~/work/elvium when no
+  # per-project dir is set (a project that never configured GitHub), so the
+  # chdir is always a real directory.
+  def repo_checkout_path
+    return ELVIUM_LEGACY_DIR if legacy_elvium? || workspace_dir.blank?
+    repo = ProjectCredentials.new(self).github_repo
+    name = repo.to_s.split("/").last.presence || "repo"
+    File.join(workspace_dir.to_s, name)
+  end
+
   # Tasks in a "design" sprint (sprint name contains "design") — the candidates
   # for the Idea → Brief pipeline.
   def design_sprint_tasks
