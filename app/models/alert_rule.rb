@@ -10,15 +10,23 @@
 class AlertRule < ApplicationRecord
   belongs_to :workspace
   belongs_to :project
-  belongs_to :discord_webhook
+  # Optional: notifications are opt-in (notify_enabled). A rule with notifications
+  # off has no webhook and simply posts nothing.
+  belongs_to :discord_webhook, optional: true
   has_many :alert_runs, dependent: :destroy
 
   FREQUENCIES = %w[daily weekdays mwf weekly hourly].freeze
+
+  # Hard cap on the AI-managed memory blob (backstop; the prompt also tells the
+  # AI to prune). 200KB of JSON text — far more than any sane automation needs.
+  MEMORY_MAX_BYTES = 200_000
 
   validates :name, presence: true
   validates :prompt, presence: true
   validates :frequency, presence: true, inclusion: { in: FREQUENCIES }
   validates :run_at_time, presence: true, unless: -> { frequency == "hourly" }
+  # If notifications are on, a channel must be chosen; off = no channel needed.
+  validates :discord_webhook, presence: true, if: :notify_enabled?
 
   scope :active, -> { where(active: true) }
 
@@ -93,7 +101,57 @@ class AlertRule < ApplicationRecord
     end
   end
 
+  # ---- AI-managed memory ------------------------------------------------
+  # The AI reads this at the start of each run (so it doesn't redo work) and
+  # returns a full replacement blob at the end. Stored as a JSON string in the
+  # :text column for MySQL/Postgres portability; the reader returns the raw
+  # string (the AI works with text — we don't force a shape on it).
+
+  # The raw memory text the AI last stored (or "" when never set).
+  def memory_text
+    memory.to_s
+  end
+
+  # Problems the AI last reported (missing permission, bad key, …), or "".
+  def ai_issues_text
+    ai_issues.to_s
+  end
+
+  # Persist a new memory blob returned by the AI. Enforces the hard size cap:
+  # an over-limit blob is REJECTED (not saved) and reported, so one runaway
+  # automation can't bloat the table. Returns true on save, false if rejected.
+  def store_memory(text)
+    store_blob(:memory, text)
+  end
+
+  # Persist the AI's reported issues (same size-cap contract as memory).
+  def store_ai_issues(text)
+    store_blob(:ai_issues, text)
+  end
+
+  # Memory is viewable/clearable but never editable — an operator can wipe it to
+  # force the automation to rebuild its state from scratch.
+  def clear_memory!
+    update_column(:memory, nil)
+  end
+
+  def clear_ai_issues!
+    update_column(:ai_issues, nil)
+  end
+
   private
+
+  # Persist an AI-managed text blob to `column`, enforcing the hard size cap so a
+  # runaway automation can't bloat the table. Returns true/false (saved?).
+  def store_blob(column, text)
+    text = text.to_s
+    if text.bytesize > MEMORY_MAX_BYTES
+      Rails.logger.warn("[AlertRule ##{id}] #{column} blob #{text.bytesize}B exceeds #{MEMORY_MAX_BYTES}B cap — not saved")
+      return false
+    end
+    update_column(column, text.presence)
+    true
+  end
 
   def hourly_due?(now)
     last_run_at.nil? || last_run_at <= now - HOURLY_THRESHOLD

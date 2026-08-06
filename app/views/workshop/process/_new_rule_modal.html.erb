@@ -34,27 +34,36 @@
         </div>
       </div>
 
-      <label class="clar-field-label">NOTIFY CHANNEL <span class="font-medium clar-text-faint">&middot; Discord</span></label>
-      <% if @discord_webhooks.present? %>
-        <div class="flex flex-wrap gap-1.5 mb-5.5">
-          <% @discord_webhooks.each_with_index do |webhook, i| %>
-            <label class="clar-chip <%= "clar-chip-active" if i.zero? %>" data-clar-alert-rule-form-target="channelChip" data-action="click->clar-alert-rule-form#selectChannel">
-              <input type="radio" name="alert_rule[discord_webhook_id]" value="<%= webhook.id %>" <%= "checked" if i.zero? %> class="hidden">
-              <%= webhook.channel_name %>
-            </label>
-          <% end %>
-        </div>
-      <% else %>
-        <div class="text-[12.5px] clar-text-muted mb-5.5">
-          No Discord webhooks configured yet.
-          <% if respond_to?(:workshop_configuration_path) %>
-            <%= link_to "Go to Configuration → Integrations → Discord", workshop_configuration_path, class: "font-semibold clar-text-primary no-underline" %>
+      <%# Notifications are opt-in: flip the switch ON to reveal the channel
+          picker. Off = the automation runs but posts nothing. %>
+      <div data-controller="clar-notify-toggle" class="mb-5.5">
+        <label class="flex items-center gap-2.5 cursor-pointer mb-2.5">
+          <input type="hidden" name="alert_rule[notify_enabled]" value="0">
+          <input type="checkbox" name="alert_rule[notify_enabled]" value="1"
+                 class="m3-checkbox" data-clar-notify-toggle-target="toggle"
+                 data-action="change->clar-notify-toggle#sync">
+          <span class="clar-field-label !mb-0">Send a Discord notification</span>
+        </label>
+
+        <div data-clar-notify-toggle-target="channels" class="hidden pl-1">
+          <label class="clar-field-label">NOTIFY CHANNEL <span class="font-medium clar-text-faint">&middot; Discord</span></label>
+          <% if @discord_webhooks.present? %>
+            <div class="flex flex-wrap gap-1.5">
+              <% @discord_webhooks.each_with_index do |webhook, i| %>
+                <label class="clar-chip <%= "clar-chip-active" if i.zero? %>" data-clar-alert-rule-form-target="channelChip" data-action="click->clar-alert-rule-form#selectChannel">
+                  <input type="radio" name="alert_rule[discord_webhook_id]" value="<%= webhook.id %>" <%= "checked" if i.zero? %> class="hidden">
+                  <%= webhook.channel_name %>
+                </label>
+              <% end %>
+            </div>
           <% else %>
-            <%# workshop_configuration_path doesn't exist yet (lands in Task 9.1). %>
-            <span class="font-semibold">Configuration &rarr; Integrations &rarr; Discord</span> (coming in a later step).
+            <div class="text-[12.5px] clar-text-muted">
+              No Discord webhooks configured yet.
+              <%= link_to "Go to Configuration → Integrations → Discord", workshop_configuration_path, class: "font-semibold clar-text-primary no-underline" %>
+            </div>
           <% end %>
         </div>
-      <% end %>
+      </div>
 
       <div class="flex gap-2.5 justify-end">
         <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>

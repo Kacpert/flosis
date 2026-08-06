@@ -43,10 +43,31 @@ class AlertRuleRunJob < ApplicationJob
       ran_at: Time.current
     )
 
-    notify_discord(rule, parsed) if parsed[:fired]
+    persist_ai_state(rule, response)
+
+    # Notifications are opt-in: post only when the rule has notifications ON and
+    # the AI decided the condition fired.
+    notify_discord(rule, parsed) if parsed[:fired] && rule.notify_enabled? && rule.discord_webhook
 
     rule.update!(last_run_at: Time.current)
     run
+  end
+
+  # Save the AI-managed blobs it returned: its updated memory and any problems it
+  # reported. Absent blocks leave the existing value untouched (the AI just
+  # didn't change it this run); an explicitly empty block clears it.
+  def persist_ai_state(rule, response)
+    mem = extract_block(response, "memory")
+    rule.store_memory(mem) unless mem.nil?
+
+    issues = extract_block(response, "issues")
+    rule.store_ai_issues(issues) unless issues.nil?
+  end
+
+  # Pull the inner text of <tag>…</tag> from the response, or nil if not present.
+  def extract_block(response, tag)
+    m = response.match(/<#{tag}>(.*?)<\/#{tag}>/m)
+    m && m[1].strip
   end
 
   private
@@ -60,7 +81,13 @@ class AlertRuleRunJob < ApplicationJob
 
   def run_ai(rule)
     prompt = build_prompt(rule)
-    ClaudeCliService.new(codebase_path: CODEBASE_PATH).start_session(prompt: prompt)[:response].to_s.tap do |response|
+    # Automations can act on GitHub + Jira (scan PRs, post comments) — give the
+    # CLI that tool set, not just the read-only default.
+    service = ClaudeCliService.new(
+      codebase_path: CODEBASE_PATH,
+      allowed_tools: ClaudeCliService::AUTOMATION_TOOLS
+    )
+    service.start_session(prompt: prompt)[:response].to_s.tap do |response|
       return nil if cli_failed?(response)
     end
   rescue ClaudeCliService::ClaudeCliError => e
@@ -84,16 +111,70 @@ class AlertRuleRunJob < ApplicationJob
 
   def build_prompt(rule)
     <<~PROMPT
-      You are a delivery-watchdog. Evaluate the condition below against the JSON
-      snapshot. Reply with exactly one
-      <alert>{"fired": bool, "summary": "…", "detail": "…"}</alert>. summary ≤ 90 chars.
+      You are an autonomous project automation. Carry out the INSTRUCTION below,
+      then report back in the blocks described.
 
-      Condition:
+      # Instruction (what to do)
+
       #{rule.prompt}
+
+      # Tools you can use
+
+      You have live tools: read the checked-out codebase (Read/Grep/Glob), the web
+      (WebFetch), and act on GitHub + Jira via MCP — list/read pull requests, read
+      files, read commits, and read/POST Jira issue comments. Use them to actually
+      do the work the instruction asks (e.g. scan a PR's diff, add a Jira comment).
+
+      # Your memory (you manage it)
+
+      This is YOUR persistent memory for this automation across runs — use it so
+      you DON'T redo work you already did (e.g. which PR you scanned at which
+      commit, which items you already reported/notified). Read it first, act only
+      on what's NEW since last time, then return your UPDATED full memory.
+
+      Only re-check things that actually changed (a new commit / force-push moves a
+      PR's updated-at — skip PRs whose recorded state is unchanged). The memory can
+      grow without bound, so PRUNE entries that are no longer relevant (closed PRs,
+      old runs) to keep it lean. It has a hard 200KB cap — stay well under it.
+
+      Current memory (JSON; empty on first run):
+      #{rule.memory_text.presence || "{}"}
+
+      # Notifications
+
+      #{notification_instruction(rule)}
+
       #{recent_runs_section(rule)}
-      Board snapshot (JSON):
+      # Board snapshot (read-only context; your tools give you the live details)
+
       #{board_snapshot(rule).to_json}
+
+      # How to reply — EXACTLY these blocks
+
+      1. <alert>{"fired": bool, "summary": "…", "detail": "…"}</alert>
+         - fired=true ONLY when you should notify this run (per the notification
+           rules above). summary ≤ 90 chars (internal history label). detail = the
+           EXACT natural message to post (no title/header — reads like a person).
+         - fired=false when there's nothing new to notify.
+      2. <memory>{…your full updated memory as JSON…}</memory> — ALWAYS include it.
+      3. <issues>…plain text…</issues> — ONLY if you hit a real problem doing the
+         work (no permission to comment, an expired/invalid key/token, an API
+         error, a missing config). Describe what failed and where, so an operator
+         can fix it. Omit this block entirely when everything worked.
     PROMPT
+  end
+
+  # Tell the AI whether/when to notify, based on the rule's opt-in switch.
+  def notification_instruction(rule)
+    if rule.notify_enabled? && rule.discord_webhook
+      "Notifications are ON (channel: #{rule.discord_webhook.channel_name}). Set " \
+      "fired=true and write the message in `detail` ONLY when the instruction's " \
+      "condition to notify is met (e.g. first time, or genuinely new items) — not " \
+      "on every run."
+    else
+      "Notifications are OFF for this automation. Do the work and update your " \
+      "memory/issues, but ALWAYS set fired=false — do not write a notification."
+    end
   end
 
   # The last ~20 runs of THIS rule, so the AI can write a message that fits the

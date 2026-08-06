@@ -189,4 +189,74 @@ class AlertRuleRunJobTest < ActiveJob::TestCase
     refute_includes prompt, "msg 4 "
     refute_includes prompt, "msg 0 "
   end
+
+  # ---- automation memory + issues + notify opt-in ----------------------
+
+  def block(alert:, memory: nil, issues: nil)
+    out = "<alert>#{ { fired: alert, summary: "s", detail: "hi" }.to_json }</alert>"
+    out += "\n<memory>#{memory}</memory>" if memory
+    out += "\n<issues>#{issues}</issues>" if issues
+    out
+  end
+
+  test "persists the AI's returned memory blob" do
+    with_webhook_post do
+      with_ai(block(alert: false, memory: %({"scanned":["DEV-1@abc"]}))) do
+        AlertRuleRunJob.perform_now(@rule.id)
+      end
+    end
+    assert_equal %({"scanned":["DEV-1@abc"]}), @rule.reload.memory_text
+  end
+
+  test "the prompt includes the rule's current memory so the AI doesn't redo work" do
+    @rule.update_column(:memory, %({"seen":42}))
+    prompt = capture_prompt { AlertRuleRunJob.perform_now(@rule.id) }
+    assert_includes prompt, %({"seen":42})
+    assert_includes prompt, "Your memory"
+  end
+
+  test "persists AI-reported issues when the <issues> block is present" do
+    with_webhook_post do
+      with_ai(block(alert: false, issues: "No permission to comment on DEV-9")) do
+        AlertRuleRunJob.perform_now(@rule.id)
+      end
+    end
+    assert_equal "No permission to comment on DEV-9", @rule.reload.ai_issues_text
+  end
+
+  test "rejects an over-cap memory blob (does not save)" do
+    huge = "x" * (AlertRule::MEMORY_MAX_BYTES + 1)
+    with_webhook_post do
+      with_ai(block(alert: false, memory: huge)) do
+        AlertRuleRunJob.perform_now(@rule.id)
+      end
+    end
+    assert_nil @rule.reload.memory
+  end
+
+  test "does NOT post to Discord when notifications are off, even if fired=true" do
+    @rule.update!(notify_enabled: false, discord_webhook: nil)
+    with_webhook_post do |calls|
+      with_ai(block(alert: true, memory: "{}")) do
+        AlertRuleRunJob.perform_now(@rule.id)
+      end
+      assert_empty calls, "notifications off → never post"
+    end
+  end
+
+  test "uses the automation tool set (GitHub + Jira) so it can act" do
+    captured = nil
+    orig = ClaudeCliService.instance_method(:initialize)
+    ClaudeCliService.define_method(:initialize) do |**kw|
+      captured = kw[:allowed_tools]
+      orig.bind(self).call(**kw)
+    end
+    begin
+      with_webhook_post { with_ai(block(alert: false, memory: "{}")) { AlertRuleRunJob.perform_now(@rule.id) } }
+    ensure
+      ClaudeCliService.define_method(:initialize, orig)
+    end
+    assert_includes captured, "mcp__github__pull_request_read"
+    assert_includes captured, "mcp__jira__jira_post"
+  end
 end

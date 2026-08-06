@@ -34,6 +34,12 @@
             </span>
             <span>Last run <%= clar_time_ago(rule.last_run_at) || "&mdash;".html_safe %></span>
             <span class="flex-1"></span>
+            <button type="button" title="View this automation's AI memory"
+                    class="clar-btn !py-[5px] !px-[10px] !text-[12px]<%= ' clar-text-danger' if rule.ai_issues_text.present? %>"
+                    data-action="click->clar-modal#open" data-clar-modal-id-param="alert-memory-<%= rule.id %>">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Memory<%= " ⚠" if rule.ai_issues_text.present? %>
+            </button>
             <button type="button" title="Edit this rule"
                     class="clar-btn !py-[5px] !px-[10px] !text-[12px]"
                     data-action="click->clar-modal#open" data-clar-modal-id-param="edit-alert-rule-<%= rule.id %>">
@@ -64,6 +70,17 @@
       <div class="clar-modal max-w-[560px] max-h-[86vh] overflow-hidden flex flex-col" data-action="click->clar-modal#stopPropagation">
         <turbo-frame id="clar-alert-history-<%= rule.id %>" src="<%= history_workshop_alert_rule_path(rule) %>" loading="lazy" class="overflow-auto flex-1 flex flex-col">
           <div class="p-8.5 text-center clar-text-faint text-[13px]">Loading history&hellip;</div>
+        </turbo-frame>
+      </div>
+    </div>
+  <% end %>
+
+  <% @alert_rules.each do |rule| %>
+    <div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="alert-memory-<%= rule.id %>"
+         data-action="click->clar-modal#close">
+      <div class="clar-modal max-w-[640px] max-h-[86vh] overflow-hidden flex flex-col" data-action="click->clar-modal#stopPropagation">
+        <turbo-frame id="clar-alert-memory-<%= rule.id %>" src="<%= memory_workshop_alert_rule_path(rule) %>" loading="lazy" class="overflow-auto flex-1 flex flex-col">
+          <div class="p-8.5 text-center clar-text-faint text-[13px]">Loading memory&hellip;</div>
         </turbo-frame>
       </div>
     </div>

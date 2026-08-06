@@ -3,16 +3,17 @@
 # current_workshop_project (find always via that association — a crafted
 # cross-project id 404s), same convention as DesignRequestsController.
 class Workshop::AlertRulesController < Workshop::BaseController
-  before_action :set_alert_rule, only: [ :update, :destroy, :history ]
+  before_action :set_alert_rule, only: [ :update, :destroy, :history, :memory, :clear_memory ]
 
   def create
     rule = current_workshop_project.alert_rules.new(create_params.except(:discord_webhook_id))
     rule.workspace = current_workspace
     # Scope the webhook to THIS workspace — a crafted discord_webhook_id from
     # another workspace must not attach (it would post alerts into that
-    # workspace's Discord channel). A miss leaves discord_webhook nil, which the
-    # belongs_to presence validation rejects as an invalid rule.
-    rule.discord_webhook = current_workspace.discord_webhooks.find_by(id: create_params[:discord_webhook_id])
+    # workspace's Discord channel). Only attach it when notifications are on.
+    if rule.notify_enabled?
+      rule.discord_webhook = current_workspace.discord_webhooks.find_by(id: create_params[:discord_webhook_id])
+    end
 
     if rule.save
       flash[:clar_toast] = %(Alert rule created · "#{rule.name}")
@@ -25,9 +26,11 @@ class Workshop::AlertRulesController < Workshop::BaseController
 
   def update
     attrs = create_params.except(:discord_webhook_id)
-    # Only reassign the webhook when a (workspace-scoped) one is provided; a
-    # blank/foreign id must not null out or hijack the existing channel.
-    if create_params[:discord_webhook_id].present?
+    # When notifications are turned OFF, drop the channel entirely. When ON,
+    # (re)assign a workspace-scoped webhook if one was chosen.
+    if create_params[:notify_enabled] == "0"
+      attrs = attrs.merge(discord_webhook: nil)
+    elsif create_params[:discord_webhook_id].present?
       wh = current_workspace.discord_webhooks.find_by(id: create_params[:discord_webhook_id])
       attrs = attrs.merge(discord_webhook: wh) if wh
     end
@@ -55,6 +58,20 @@ class Workshop::AlertRulesController < Workshop::BaseController
     render partial: "workshop/process/history_modal", layout: false
   end
 
+  # Read-only view of the automation's AI-managed memory + reported issues
+  # (turbo-frame content for the memory modal). Not editable — debugging only.
+  def memory
+    render partial: "workshop/process/memory_modal", locals: { rule: @alert_rule }, layout: false
+  end
+
+  # Wipe the memory (and reported issues) so the automation rebuilds from scratch.
+  def clear_memory
+    @alert_rule.clear_memory!
+    @alert_rule.clear_ai_issues!
+    flash[:clar_toast] = %(Memory cleared · "#{@alert_rule.name}")
+    redirect_to workshop_process_path(tab: "alerts")
+  end
+
   private
 
   def set_alert_rule
@@ -62,6 +79,6 @@ class Workshop::AlertRulesController < Workshop::BaseController
   end
 
   def create_params
-    params.require(:alert_rule).permit(:name, :prompt, :frequency, :run_at_time, :discord_webhook_id)
+    params.require(:alert_rule).permit(:name, :prompt, :frequency, :run_at_time, :discord_webhook_id, :notify_enabled)
   end
 end

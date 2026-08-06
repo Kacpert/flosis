@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_28_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_06_193000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -44,11 +44,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_28_130000) do
 
   create_table "alert_rules", force: :cascade do |t|
     t.boolean "active", default: true, null: false
+    t.text "ai_issues"
     t.datetime "created_at", null: false
-    t.bigint "discord_webhook_id", null: false
+    t.bigint "discord_webhook_id"
     t.string "frequency", default: "daily", null: false
     t.datetime "last_run_at"
+    t.text "memory"
     t.string "name", null: false
+    t.boolean "notify_enabled", default: true, null: false
     t.bigint "project_id", null: false
     t.text "prompt", null: false
     t.string "run_at_time"

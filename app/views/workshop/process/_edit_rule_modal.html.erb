@@ -35,20 +35,32 @@
         </div>
       </div>
 
-      <label class="clar-field-label">NOTIFY CHANNEL <span class="font-medium clar-text-faint">&middot; Discord</span></label>
-      <% if @discord_webhooks.present? %>
-        <div class="flex flex-wrap gap-1.5 mb-5.5">
-          <% @discord_webhooks.each do |webhook| %>
-            <% selected = webhook.id == rule.discord_webhook_id %>
-            <label class="clar-chip <%= "clar-chip-active" if selected %>" data-clar-alert-rule-form-target="channelChip" data-action="click->clar-alert-rule-form#selectChannel">
-              <input type="radio" name="alert_rule[discord_webhook_id]" value="<%= webhook.id %>" <%= "checked" if selected %> class="hidden">
-              <%= webhook.channel_name %>
-            </label>
+      <div data-controller="clar-notify-toggle" class="mb-5.5">
+        <label class="flex items-center gap-2.5 cursor-pointer mb-2.5">
+          <input type="hidden" name="alert_rule[notify_enabled]" value="0">
+          <input type="checkbox" name="alert_rule[notify_enabled]" value="1" <%= "checked" if rule.notify_enabled? %>
+                 class="m3-checkbox" data-clar-notify-toggle-target="toggle"
+                 data-action="change->clar-notify-toggle#sync">
+          <span class="clar-field-label !mb-0">Send a Discord notification</span>
+        </label>
+
+        <div data-clar-notify-toggle-target="channels" class="<%= "hidden" unless rule.notify_enabled? %> pl-1">
+          <label class="clar-field-label">NOTIFY CHANNEL <span class="font-medium clar-text-faint">&middot; Discord</span></label>
+          <% if @discord_webhooks.present? %>
+            <div class="flex flex-wrap gap-1.5">
+              <% @discord_webhooks.each do |webhook| %>
+                <% selected = webhook.id == rule.discord_webhook_id %>
+                <label class="clar-chip <%= "clar-chip-active" if selected %>" data-clar-alert-rule-form-target="channelChip" data-action="click->clar-alert-rule-form#selectChannel">
+                  <input type="radio" name="alert_rule[discord_webhook_id]" value="<%= webhook.id %>" <%= "checked" if selected %> class="hidden">
+                  <%= webhook.channel_name %>
+                </label>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-[12.5px] clar-text-muted">No Discord webhooks configured.</div>
           <% end %>
         </div>
-      <% else %>
-        <div class="text-[12.5px] clar-text-muted mb-5.5">No Discord webhooks configured.</div>
-      <% end %>
+      </div>
 
       <div class="flex gap-2.5 justify-end">
         <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
