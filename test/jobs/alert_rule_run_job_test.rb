@@ -256,8 +256,8 @@ class AlertRuleRunJobTest < ActiveJob::TestCase
     ensure
       ClaudeCliService.define_method(:initialize, orig)
     end
-    assert_includes captured, "mcp__github__pull_request_read"
-    assert_includes captured, "mcp__jira__jira_post"
+    assert_includes captured, "mcp__github__get_pull_request_files"
+    assert_includes captured, "mcp__jira__jira_add_comment"
   end
 
   test "run regenerates the project's mcp config and passes it to the CLI" do

@@ -98,24 +98,31 @@ class ClaudeCliService
   ].freeze
 
   # Tools for AI Alerts & Automations: read code, read the web, and act on
-  # GitHub + Jira via MCP (list/read PRs, read/add Jira comments) so an
-  # automation can e.g. scan PRs and post a Jira comment. Read + a NARROW set of
-  # writes (issue comments only) — no destructive GitHub/Jira actions.
+  # GitHub + Jira via MCP (list/read PRs, read issues, add/edit Jira comments) so
+  # an automation can e.g. scan PRs and post a Jira comment. Read + a NARROW set
+  # of writes (issue comments only) — no destructive GitHub/Jira actions
+  # (no delete/transition/move/assign).
+  #
+  # The Jira tool names are those exposed by mcp-atlassian (the server wired in
+  # each project's .mcp.json) — specific tools, not generic HTTP verbs.
   AUTOMATION_TOOLS = %w[
     Read
     Glob
     Grep
     WebFetch
     WebSearch
-    mcp__github__get_me
     mcp__github__list_pull_requests
-    mcp__github__pull_request_read
+    mcp__github__get_pull_request
+    mcp__github__get_pull_request_files
     mcp__github__get_file_contents
     mcp__github__search_code
     mcp__github__list_commits
-    mcp__github__get_commit
-    mcp__jira__jira_get
-    mcp__jira__jira_post
+    mcp__jira__jira_search
+    mcp__jira__jira_get_issue
+    mcp__jira__jira_get_project_issues
+    mcp__jira__jira_get_transitions
+    mcp__jira__jira_add_comment
+    mcp__jira__jira_edit_comment
   ].freeze
 
   def build_command(session_id: nil, streaming: false)
