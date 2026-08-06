@@ -95,9 +95,34 @@ class Workshop::ConfigurationController < Workshop::BaseController
   end
 
   def update_integrations_settings
+    return save_jira_integration if params[:integration] == "jira"
+
+    save_workspace_integration # existing github_repo/token/toggles path (legacy)
+  end
+
+  # Per-project Jira credentials (Task 9). Secrets are encrypted on the project;
+  # a blank token preserves the existing one. Regenerates the project's .mcp.json
+  # so automations pick up the new creds immediately. GitHub creds stay on the
+  # workspace (legacy PrReviewJob path); ProjectCredentials falls back to the
+  # workspace for github, so per-project automations still get a working token.
+  def save_jira_integration
+    project = current_workshop_project
+    return flash[:alert] = "No project selected." unless project
+    attrs = params.require(:project).permit(:jira_site, :jira_email, :jira_api_token)
+    attrs.delete(:jira_api_token) if attrs[:jira_api_token].blank?
+    if project.update(attrs)
+      ProjectMcpConfig.write!(project) if project.workspace_dir.present?
+      flash[:clar_toast] = "Jira settings saved"
+    else
+      flash[:alert] = project.errors.full_messages.to_sentence
+    end
+  end
+
+  # Legacy workspace-level integration save (unchanged behavior) — GitHub repo/
+  # token + PR-review toggle live on the workspace.
+  def save_workspace_integration
     attrs = integrations_settings_params
     attrs.delete(:github_token) if attrs[:github_token].blank?
-
     if current_workspace.update(attrs)
       flash[:clar_toast] = "Integration settings saved"
     else
@@ -129,7 +154,10 @@ class Workshop::ConfigurationController < Workshop::BaseController
 
   def load_integrations_tab
     @discord_webhooks = current_workspace.discord_webhooks.order(:channel_name)
-    @jira_configured = ENV["JIRA_DOMAIN"].present?
+    # "Connected" reflects the project's resolved Jira (per-project creds, with
+    # ENV fallback), not just the global ENV domain.
+    @jira_configured = current_workshop_project &&
+                       ProjectCredentials.new(current_workshop_project).jira_configured?
   end
 
   def load_users_tab

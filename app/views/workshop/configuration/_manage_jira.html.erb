@@ -16,9 +16,21 @@
       </button>
     </div>
 
+    <%= form_with url: workshop_configuration_path(tab: "integrations"), method: :patch, data: { turbo: false } do |f| %>
+    <%= hidden_field_tag :integration, "jira" %>
     <div class="p-5">
       <label class="clar-field-label">SITE URL</label>
-      <div class="clar-input clar-mono mb-4 flex items-center bg-[var(--surface-2)]"><%= ENV["JIRA_DOMAIN"].presence || "&mdash;".html_safe %></div>
+      <%= text_field_tag "project[jira_site]", current_workshop_project&.jira_site.presence || ENV["JIRA_DOMAIN"],
+            placeholder: "your-company.atlassian.net", class: "clar-input mb-4" %>
+
+      <label class="clar-field-label">EMAIL</label>
+      <%= text_field_tag "project[jira_email]", current_workshop_project&.jira_email.presence || ENV["JIRA_EMAIL"],
+            placeholder: "you@example.com", class: "clar-input mb-4", autocomplete: "off" %>
+
+      <label class="clar-field-label">API TOKEN</label>
+      <%= password_field_tag "project[jira_api_token]", nil,
+            placeholder: current_workshop_project&.jira_api_token.present? ? "•••••••••• (leave blank to keep)" : "Not set",
+            class: "clar-input mb-4", autocomplete: "off" %>
 
       <label class="clar-field-label">PROJECT KEY</label>
       <div class="clar-input clar-mono mb-4 flex items-center bg-[var(--surface-2)]"><%= current_workshop_project&.external_reference.presence || "&mdash;".html_safe %></div>
@@ -40,17 +52,18 @@
         <% end %>
       </div>
 
-      <%= button_to "Verify fields", workshop_verify_jira_fields_configuration_path, method: :post, class: "clar-btn mb-4", form: { data: { turbo: false } } %>
-
-      <div class="text-[11px] clar-text-faint">Credentials are configured on the server (.env).</div>
-    </div>
-
-    <div class="p-3.5 border-t border-[color:var(--border)] flex items-center justify-between gap-2.5">
-      <%= button_to "Test connection", workshop_verify_jira_fields_configuration_path, method: :post, class: "clar-btn", form: { data: { turbo: false } } %>
-      <div class="flex gap-2.5">
+      <div class="flex justify-end gap-2.5">
         <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
-        <button type="button" class="clar-btn clar-btn-primary" data-action="clar-modal#close">Save changes</button>
+        <%= f.submit "Save changes", class: "clar-btn clar-btn-primary" %>
       </div>
+    </div>
+    <% end %>
+
+    <%# Field verification / connection test are separate posts (outside the
+        credential form — HTML forbids nested forms). %>
+    <div class="p-3.5 border-t border-[color:var(--border)] flex items-center gap-2.5">
+      <%= button_to "Verify fields", workshop_verify_jira_fields_configuration_path, method: :post, class: "clar-btn", form: { data: { turbo: false } } %>
+      <%= button_to "Test connection", workshop_verify_jira_fields_configuration_path, method: :post, class: "clar-btn", form: { data: { turbo: false } } %>
     </div>
   </div>
 </div>
