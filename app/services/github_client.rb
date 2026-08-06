@@ -11,6 +11,13 @@ class GithubClient
     new(token: workspace&.github_token, repo: workspace&.github_repo)
   end
 
+  # Resolver-backed variant for per-project automations. Leaves the existing
+  # workspace-based `for` untouched (used by legacy PrReviewJob).
+  def self.for_project(project)
+    creds = ProjectCredentials.new(project)
+    new(token: creds.github_token, repo: creds.github_repo)
+  end
+
   def initialize(token: nil, repo: nil)
     @token = token
     @repo = repo
