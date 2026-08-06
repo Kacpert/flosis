@@ -8,6 +8,11 @@ require "fileutils"
 # "jira" so tool names match ClaudeCliService::AUTOMATION_TOOLS.
 class ProjectMcpConfig
   FILENAME = ".mcp.json".freeze
+  # MCP server binaries. Absolute paths avoid depending on the Solid Queue job's
+  # PATH (which may not include ~/.local/bin or the node bin). Override via ENV
+  # on the server; defaults are the bare commands for local/dev.
+  JIRA_MCP_COMMAND = ENV.fetch("JIRA_MCP_COMMAND", "mcp-atlassian").freeze
+  NPX_COMMAND = ENV.fetch("GITHUB_MCP_NPX", "npx").freeze
 
   def self.path_for(project)
     File.join(project.workspace_dir, FILENAME)
@@ -51,7 +56,7 @@ class ProjectMcpConfig
   def github_server
     {
       "type" => "stdio",
-      "command" => "npx",
+      "command" => NPX_COMMAND,
       "args" => ["-y", "@modelcontextprotocol/server-github"],
       "env" => { "GITHUB_PERSONAL_ACCESS_TOKEN" => @creds.github_token }
     }
@@ -60,7 +65,7 @@ class ProjectMcpConfig
   def jira_server
     {
       "type" => "stdio",
-      "command" => "mcp-atlassian",
+      "command" => JIRA_MCP_COMMAND,
       "env" => {
         "JIRA_URL" => "https://#{@creds.jira_site}",
         "JIRA_USERNAME" => @creds.jira_email,
