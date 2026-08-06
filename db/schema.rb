@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_06_193000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_06_230226) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -387,8 +387,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_193000) do
     t.string "external_type"
     t.text "features_summary"
     t.datetime "features_summary_updated_at"
+    t.string "github_repo"
+    t.text "github_token"
+    t.text "jira_api_token"
+    t.string "jira_email"
+    t.string "jira_site"
+    t.datetime "mcp_synced_at"
     t.string "name", null: false
+    t.string "repo_checkout_error"
+    t.string "repo_checkout_status"
     t.datetime "updated_at", null: false
+    t.string "workspace_dir"
     t.bigint "workspace_id", null: false
     t.index ["client_id"], name: "index_projects_on_client_id"
     t.index ["workspace_id", "client_id"], name: "index_projects_on_workspace_id_and_client_id"

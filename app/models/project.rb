@@ -12,6 +12,12 @@ class Project < ApplicationRecord
 
   enum :budget_type, { no_budget: 0, money: 1, hours: 2 }
 
+  # Per-project integration secrets are encrypted at rest (Task 2). Non-secret
+  # columns (repo, jira_site, jira_email, workspace_dir, checkout status) stay
+  # plain. Resolution/fallback lives in ProjectCredentials, not here.
+  encrypts :github_token
+  encrypts :jira_api_token
+
   validates :name, presence: true
   validates :color, presence: true, format: { with: /\A#[0-9A-Fa-f]{6}\z/ }
 
