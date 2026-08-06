@@ -2061,7 +2061,13 @@ span.flatpickr-weekday {
 .clar-input, .clar-select, .clar-textarea { font-family:inherit; font-size:13.5px; color:var(--text);
   background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:10px 13px;
   outline:none; width:100%; }
-.clar-input:focus, .clar-textarea:focus { border-color:var(--primary); }
+.clar-input:focus, .clar-select:focus, .clar-textarea:focus { border-color:var(--primary); }
+/* Drop the native OS dropdown control and paint a single subtle chevron. */
+.clar-select { appearance:none; -webkit-appearance:none; -moz-appearance:none; cursor:pointer;
+  padding-right:34px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 12px center; }
+.clar-select::-ms-expand { display:none; }
 .clar-field-label { display:block; font-size:11.5px; font-weight:700; color:var(--faint); margin-bottom:6px; }
 .clar-tabs { display:flex; gap:4px; background:var(--surface-2); border:1px solid var(--border);
   border-radius:11px; padding:4px; width:fit-content; }
