@@ -49,6 +49,43 @@ class Workshop::ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /#{Regexp.escape(Time.current.strftime("%B %Y"))}/
   end
 
+  test "developer report renders a modal frame with the two charts and stat cards" do
+    dev = users(:one)
+    # A delivered issue this month so the developer has data.
+    @project.delivered_issues.create!(jira_key: "ELV-D1", title: "Thing", issue_type: "Story",
+      story_points: 8, ai_estimate_points: 8, resolved_at: Time.current, assignee_email: dev.email_address)
+    # Give the dev a time entry so project_developers includes them.
+    @project.time_entries.create!(workspace: @workspace, user: dev,
+      started_at: Time.current.beginning_of_month + 1.day, stopped_at: Time.current.beginning_of_month + 1.day + 2.hours)
+
+    get workshop_developer_report_path(dev, range: 6)
+
+    assert_response :success
+    # The turbo-frame id must match the shell frame the modal opens.
+    assert_select "turbo-frame#clar-dev-report-#{dev.id}"
+    assert_select "body", /Developer report/
+    assert_select "body", /Points delivered/
+    assert_select "body", /Bugs created/
+    assert_select "body", /Bugs solved/
+    # Both charts present (points area + bugs two-line).
+    assert_select "[data-controller='clar-trend-chart']", 2
+  end
+
+  test "developer report 404s for a user outside the project" do
+    # A brand-new user with no membership and no time entry on this project.
+    outsider = User.create!(name: "Outsider", email_address: "outsider@example.com", password: "password123")
+    get workshop_developer_report_path(outsider, range: 6)
+    assert_response :not_found
+  end
+
+  test "developer report coerces an invalid range to the default" do
+    dev = users(:one)
+    @project.time_entries.create!(workspace: @workspace, user: dev,
+      started_at: Time.current.beginning_of_month + 1.day, stopped_at: Time.current.beginning_of_month + 1.day + 1.hour)
+    get workshop_developer_report_path(dev, range: 999)
+    assert_response :success
+  end
+
   test "cost column and project cost card are hidden from non-admins" do
     workspace_memberships(:two_employee).update!(time_hr_access: true, workshop_access: true)
     delete "/session" # sign out one

@@ -5,7 +5,7 @@
   team_hours = developers.sum { |d| d[:hours] }
   team_cost_cents = developers.sum { |d| d[:cost_cents] }
 %>
-<div class="clar-card overflow-hidden mb-6">
+<div class="clar-card overflow-hidden mb-6" data-controller="clar-modal">
   <div class="px-5 py-3.5 border-b clar-divider flex items-center justify-between">
     <span class="font-bold text-[14px] clar-text-text">Per-developer results</span>
     <span class="text-[11.5px] clar-text-faint">Hours &amp; cost from internal time-tracking</span>
@@ -23,7 +23,11 @@
   </div>
 
   <% developers.each do |dev| %>
-    <div class="flex items-center px-5 py-3.5 border-b clar-divider">
+    <%# Rows with a real User are clickable — open that developer's report modal
+        (a lazy turbo-frame). Rows without a user (shouldn't happen here) render
+        plain. %>
+    <div class="flex items-center px-5 py-3.5 border-b clar-divider<%= ' cursor-pointer clar-row-hover' if dev[:user] %>"
+         <% if dev[:user] %>data-action="click->clar-modal#open" data-clar-modal-id-param="dev-report-<%= dev[:user].id %>"<% end %>>
       <span class="flex-1 flex items-center gap-2.5">
         <span class="clar-avatar w-7 h-7 text-[11px] flex-none <%= clar_avatar_bg_class(dev[:name]) %>"><%= clar_initials(dev[:name]) %></span>
         <span class="font-semibold text-[13.5px] clar-text-text"><%= dev[:name] %></span>
@@ -48,6 +52,20 @@
       <% if can_see_money? %>
         <span class="w-[110px] text-right font-bold text-[13.5px] font-mono clar-text-text"><%= format_money(team_cost_cents, current_workshop_project&.currency) %></span>
       <% end %>
+    </div>
+  <% end %>
+
+  <%# One lazy turbo-frame modal per developer — loaded on first open. The
+      default range is 6m; the in-modal 1m..2y toggle refetches this frame. %>
+  <% developers.each do |dev| %>
+    <% next unless dev[:user] %>
+    <div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="dev-report-<%= dev[:user].id %>"
+         data-action="click->clar-modal#close">
+      <div class="clar-modal max-w-[760px] max-h-[88vh] overflow-hidden flex flex-col" data-action="click->clar-modal#stopPropagation">
+        <turbo-frame id="clar-dev-report-<%= dev[:user].id %>" src="<%= workshop_developer_report_path(dev[:user], range: 6) %>" loading="lazy" class="overflow-auto flex-1 flex flex-col">
+          <div class="p-8.5 text-center clar-text-faint text-[13px]">Loading developer report&hellip;</div>
+        </turbo-frame>
+      </div>
     </div>
   <% end %>
 </div>

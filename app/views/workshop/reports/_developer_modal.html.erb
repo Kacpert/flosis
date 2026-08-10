@@ -1,0 +1,80 @@
+<%# Developer report modal (lazy turbo-frame). @developer, @range, @trend,
+    @points_total, @bugs_created_total, @bugs_solved_total set by
+    Workshop::ReportsController#developer. The frame id MUST match the shell
+    frame the modal opens (clar-dev-report-<id>). %>
+<turbo-frame id="clar-dev-report-<%= @developer.id %>" class="flex flex-col overflow-hidden">
+  <%
+    range_label = @range >= 24 ? "last 2y" : @range >= 12 ? "last 1y" : "last #{@range}m"
+    range_opts = [ [ 1, "1m" ], [ 2, "2m" ], [ 3, "3m" ], [ 6, "6m" ], [ 12, "1y" ], [ 24, "2y" ] ]
+    frame_id = "clar-dev-report-#{@developer.id}"
+    bug_series = [
+      { key: "bugs_created", label: "Created", color: "#d97706", fill: true, dot_class: "bg-[color:var(--warn)]" },
+      { key: "bugs_fixed", label: "Solved", color: "#16a34a", fill: false, dot_class: "bg-[color:var(--success)]" }
+    ]
+  %>
+
+  <div class="p-5 border-b clar-divider flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <span class="clar-avatar w-10 h-10 text-[13px] flex-none <%= clar_avatar_bg_class(@developer.name) %>"><%= clar_initials(@developer.name) %></span>
+      <div>
+        <div class="font-bold text-[16px] clar-text-text"><%= @developer.name %></div>
+        <div class="text-[12px] clar-text-faint">Developer report &middot; <%= range_label %></div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2.5">
+      <div class="clar-tabs p-[3px] gap-[3px]">
+        <% range_opts.each do |value, label| %>
+          <%= link_to label, workshop_developer_report_path(@developer, range: value),
+                data: { turbo_frame: frame_id },
+                class: "clar-tab text-[12px] py-[5px] px-[10px] #{'clar-tab-active' if @range == value}" %>
+        <% end %>
+      </div>
+      <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="p-5 overflow-auto">
+    <div class="grid grid-cols-3 gap-3 mb-5">
+      <div class="clar-card p-4">
+        <div class="text-[12px] clar-text-muted mb-1">Points delivered</div>
+        <div class="text-[26px] font-bold clar-text-primary leading-none"><%= number_with_precision(@points_total, precision: 0) %></div>
+      </div>
+      <div class="clar-card p-4">
+        <div class="text-[12px] clar-text-muted mb-1">Bugs created</div>
+        <div class="text-[26px] font-bold clar-text-warn leading-none"><%= @bugs_created_total %></div>
+      </div>
+      <div class="clar-card p-4">
+        <div class="text-[12px] clar-text-muted mb-1">Bugs solved</div>
+        <div class="text-[26px] font-bold clar-text-success leading-none"><%= @bugs_solved_total %></div>
+      </div>
+    </div>
+
+    <div class="clar-card p-4.5 mb-4">
+      <div class="font-bold text-[14px] clar-text-text mb-3">Points delivered over time</div>
+      <div data-controller="clar-trend-chart" class="h-[200px]"
+           data-clar-trend-chart-points-value="<%= @trend.to_json %>">
+        <canvas data-clar-trend-chart-target="canvas"></canvas>
+      </div>
+    </div>
+
+    <div class="clar-card p-4.5">
+      <div class="flex items-center justify-between gap-4 mb-2.5">
+        <span class="font-bold text-[14px] clar-text-text">Bugs created vs solved</span>
+        <div class="flex items-center gap-4">
+          <% bug_series.each do |s| %>
+            <span class="flex items-center gap-1.5 text-[12px] clar-text-muted">
+              <span class="w-2.5 h-2.5 rounded-full <%= s[:dot_class] %>"></span><%= s[:label] %>
+            </span>
+          <% end %>
+        </div>
+      </div>
+      <div data-controller="clar-trend-chart" class="h-[200px]"
+           data-clar-trend-chart-points-value="<%= @trend.to_json %>"
+           data-clar-trend-chart-series-value="<%= bug_series.map { |s| s.except(:dot_class) }.to_json %>">
+        <canvas data-clar-trend-chart-target="canvas"></canvas>
+      </div>
+    </div>
+  </div>
+</turbo-frame>
