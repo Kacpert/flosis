@@ -9,7 +9,7 @@ class Workshop::ReportsController < Workshop::BaseController
 
   # The per-developer modal offers finer windows than the main trend card.
   DEV_MODAL_RANGES = [ 1, 2, 3, 6, 12, 24 ].freeze
-  DEFAULT_DEV_MODAL_RANGE = 6
+  DEFAULT_DEV_MODAL_RANGE = 3
 
   def show
     @period = params[:period] == "sprint" ? :sprint : :month
