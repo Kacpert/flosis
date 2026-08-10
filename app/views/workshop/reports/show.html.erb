@@ -25,10 +25,39 @@
       </div>
     <% end %>
 
+    <%
+      selected_month = @report.selected_month
+      prev_month = selected_month.prev_month
+      next_month = selected_month.next_month
+      # No reporting on the future: hide the next arrow once we're on the
+      # current month.
+      at_current_month = selected_month >= Time.current.beginning_of_month.to_date
+    %>
     <div class="clar-tabs">
-      <%= link_to period_label_for(:month),
-            request.query_parameters.merge(period: "month"),
-            class: "clar-tab #{'clar-tab-active' if @period == :month}" %>
+      <div class="clar-tab <%= 'clar-tab-active' if @period == :month %> !px-1.5 flex items-center gap-0.5">
+        <%# Prev month — always available. %>
+        <%= link_to request.query_parameters.merge(period: "month", month: prev_month.strftime("%Y-%m")),
+              class: "flex items-center px-1 clar-text-faint hover:clar-text-text", title: "Previous month",
+              aria: { label: "Previous month" } do %>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
+        <% end %>
+        <%# The label itself switches to the month period (from the Sprint tab). %>
+        <%= link_to period_label_for(:month, month: selected_month),
+              request.query_parameters.merge(period: "month", month: selected_month.strftime("%Y-%m")),
+              class: "font-semibold whitespace-nowrap px-1" %>
+        <%# Next month — hidden on the current month (no future reporting). %>
+        <% if at_current_month %>
+          <span class="flex items-center px-1 clar-text-faint opacity-30 cursor-not-allowed" title="No future months" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg>
+          </span>
+        <% else %>
+          <%= link_to request.query_parameters.merge(period: "month", month: next_month.strftime("%Y-%m")),
+                class: "flex items-center px-1 clar-text-faint hover:clar-text-text", title: "Next month",
+                aria: { label: "Next month" } do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg>
+          <% end %>
+        <% end %>
+      </div>
       <%= link_to period_label_for(:sprint, active_sprint: @report.current_active_sprint),
             request.query_parameters.merge(period: "sprint"),
             class: "clar-tab #{'clar-tab-active' if @period == :sprint}" %>

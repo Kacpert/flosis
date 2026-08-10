@@ -26,6 +26,29 @@ class Workshop::ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /ELV-42/
   end
 
+  test "the month param scopes the report to that month and labels it" do
+    # ai_estimate_points set so it appears in the delivered table.
+    @project.delivered_issues.create!(jira_key: "ELV-JUN", title: "June work", issue_type: "Story",
+      story_points: 5, ai_estimate_points: 5, resolved_at: Time.zone.local(2026, 6, 10),
+      assignee_email: users(:one).email_address)
+    @project.delivered_issues.create!(jira_key: "ELV-AUG", title: "Aug work", issue_type: "Story",
+      story_points: 5, ai_estimate_points: 5, resolved_at: Time.current,
+      assignee_email: users(:one).email_address)
+
+    get workshop_reporting_path(month: "2026-06")
+
+    assert_response :success
+    assert_select "body", /June 2026/
+    assert_select "body", /ELV-JUN/       # in June -> shown
+    assert_select "body", { count: 0, text: /ELV-AUG/ } # current month -> not in June report
+  end
+
+  test "an invalid month param falls back to the current month" do
+    get workshop_reporting_path(month: "not-a-month")
+    assert_response :success
+    assert_select "body", /#{Regexp.escape(Time.current.strftime("%B %Y"))}/
+  end
+
   test "cost column and project cost card are hidden from non-admins" do
     workspace_memberships(:two_employee).update!(time_hr_access: true, workshop_access: true)
     delete "/session" # sign out one

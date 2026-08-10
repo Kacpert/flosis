@@ -39,8 +39,48 @@ class WorkshopReportTest < ActiveSupport::TestCase
     )
   end
 
-  def report(period: :month, developer: nil)
-    WorkshopReport.new(project: @project, period: period, developer: developer)
+  def report(period: :month, developer: nil, month: nil)
+    WorkshopReport.new(project: @project, period: period, developer: developer, month: month)
+  end
+
+  # ---------------------------------------------------------------------
+  # month selection
+  # ---------------------------------------------------------------------
+
+  test "month period defaults to the current month" do
+    r = report
+    assert_equal @now.beginning_of_month.beginning_of_day, r.from
+    assert_equal @now.end_of_month.end_of_day, r.to
+  end
+
+  test "an explicit month scopes the period to that month" do
+    june = Date.new(2026, 6, 1)
+    r = report(month: june)
+    assert_equal june.beginning_of_month.beginning_of_day, r.from
+    assert_equal june.end_of_month.end_of_day, r.to
+  end
+
+  test "an explicit month changes which delivered work is counted" do
+    delivered(issue_type: "Story", story_points: 8, resolved_at: @now)                # July (current)
+    delivered(issue_type: "Story", story_points: 5, resolved_at: Time.zone.local(2026, 6, 10)) # June
+
+    assert_equal 8, report.metrics[:completed_story_points]
+    assert_equal 5, report(month: Date.new(2026, 6, 1)).metrics[:completed_story_points]
+  end
+
+  test "a future month is clamped to the current month" do
+    future = Date.new(2027, 1, 1)
+    r = report(month: future)
+    assert_equal @now.beginning_of_month.beginning_of_day, r.from
+    assert_equal @now.end_of_month.end_of_day, r.to
+  end
+
+  test "the sprint period ignores the month param" do
+    r = report(period: :sprint, month: Date.new(2026, 6, 1))
+    # The fixtures give jira_project an active sprint (starts 2026-03-01); the
+    # sprint period uses that window and ignores the June month param entirely.
+    assert_equal Date.new(2026, 3, 1).beginning_of_day, r.from
+    refute_equal Date.new(2026, 6, 1).beginning_of_day, r.from
   end
 
   # ---------------------------------------------------------------------

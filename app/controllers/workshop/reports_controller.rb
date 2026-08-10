@@ -11,10 +11,11 @@ class Workshop::ReportsController < Workshop::BaseController
     @period = params[:period] == "sprint" ? :sprint : :month
     @gran = params[:gran] == "sprints" ? "sprints" : "months"
     @range = coerce_range(@gran, params[:range])
+    @month = parse_month(params[:month])
 
     @developer = find_developer(params[:developer])
 
-    @report = WorkshopReport.new(project: current_workshop_project, period: @period, developer: @developer)
+    @report = WorkshopReport.new(project: current_workshop_project, period: @period, developer: @developer, month: @month)
 
     @metrics = @report.metrics
     @developers = @report.developers
@@ -25,6 +26,16 @@ class Workshop::ReportsController < Workshop::BaseController
   end
 
   private
+
+  # Parse a "YYYY-MM" month param into a Date at the 1st. Invalid/blank -> nil
+  # (WorkshopReport then defaults to the current month). WorkshopReport also
+  # clamps a future month, so no future-guard is needed here.
+  def parse_month(raw)
+    return nil if raw.blank?
+    Date.strptime(raw.to_s, "%Y-%m")
+  rescue ArgumentError, TypeError
+    nil
+  end
 
   def coerce_range(gran, raw_range)
     allowed = gran == "sprints" ? SPRINT_RANGES : MONTH_RANGES

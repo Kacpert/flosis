@@ -13,14 +13,21 @@
 class WorkshopReport
   BUG = "Bug".freeze
 
-  def initialize(project:, period: :month, developer: nil)
+  def initialize(project:, period: :month, developer: nil, month: nil)
     @project = project
     @period = period
     @developer = developer
+    @month = clamp_month(month)
     @from, @to, @active_sprint = resolve_period(period)
   end
 
   attr_reader :from, :to, :active_sprint
+
+  # The month this report covers (a Date at the 1st), for labelling/navigation.
+  # Always the current month when none was selected.
+  def selected_month
+    @month || Time.current.beginning_of_month.to_date
+  end
 
   # The project's currently active JiraSprint (regardless of which `period`
   # this report was built with) — used by the view to label the Sprint tab
@@ -138,8 +145,22 @@ class WorkshopReport
       end
     end
 
-    now = Time.current
-    [ now.beginning_of_month.beginning_of_day, now.end_of_month.end_of_day, nil ]
+    # Month period: the selected month (defaults to the current month).
+    month = @month || Time.current.beginning_of_month.to_date
+    from = month.beginning_of_month.in_time_zone.beginning_of_day
+    [ from, month.end_of_month.in_time_zone.end_of_day, nil ]
+  end
+
+  # Normalize the requested month to a Date at the 1st, and never allow a month
+  # past the current one (no reporting on the future). nil -> current month.
+  def clamp_month(month)
+    return nil if month.blank?
+
+    date = month.respond_to?(:to_date) ? month.to_date.beginning_of_month : Date.parse(month.to_s).beginning_of_month
+    current = Time.current.beginning_of_month.to_date
+    date > current ? current : date
+  rescue ArgumentError, TypeError
+    nil
   end
 
   def active_sprint_for(project)

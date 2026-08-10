@@ -82,9 +82,9 @@ module ClarHelper
   # Reporting period tab labels (Task 7.1): "{Month YYYY}" for :month, the
   # active sprint's name (or "Sprint" fallback when there's no active sprint)
   # for :sprint.
-  def period_label_for(kind, active_sprint: nil)
+  def period_label_for(kind, active_sprint: nil, month: nil)
     case kind
-    when :month then Time.current.strftime("%B %Y")
+    when :month then (month || Time.current).strftime("%B %Y")
     when :sprint then active_sprint&.name || "Sprint"
     end
   end
