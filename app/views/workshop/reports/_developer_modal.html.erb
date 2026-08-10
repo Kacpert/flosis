@@ -21,14 +21,16 @@
       </div>
     </div>
     <div class="flex items-center gap-2.5">
-      <div class="clar-tabs p-[3px] gap-[3px]">
-        <%# Plain links inside the turbo-frame navigate THIS frame implicitly.
-            Naming the frame explicitly (data-turbo-frame) promoted the click to
-            a full-page visit to the bare frame path, so we rely on the default
-            frame-internal navigation instead. %>
+      <%# Range tabs reload the frame by setting its src (via clar-frame-src) —
+          a plain in-frame link promotes to a full-page visit to the bare
+          partial, so we set src instead, which is always an in-place frame nav. %>
+      <div class="clar-tabs p-[3px] gap-[3px]"
+           data-controller="clar-frame-src" data-clar-frame-src-frame-value="clar-dev-report-<%= @developer.id %>">
         <% range_opts.each do |value, label| %>
-          <%= link_to label, workshop_developer_report_path(@developer, range: value),
-                class: "clar-tab text-[12px] py-[5px] px-[10px] #{'clar-tab-active' if @range == value}" %>
+          <a href="<%= workshop_developer_report_path(@developer, range: value) %>"
+             data-action="click->clar-frame-src#load"
+             data-clar-frame-src-url-param="<%= workshop_developer_report_path(@developer, range: value) %>"
+             class="clar-tab text-[12px] py-[5px] px-[10px] cursor-pointer <%= 'clar-tab-active' if @range == value %>"><%= label %></a>
         <% end %>
       </div>
       <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
