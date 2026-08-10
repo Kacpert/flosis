@@ -6,7 +6,6 @@
   <%
     range_label = @range >= 24 ? "last 2y" : @range >= 12 ? "last 1y" : "last #{@range}m"
     range_opts = [ [ 1, "1m" ], [ 2, "2m" ], [ 3, "3m" ], [ 6, "6m" ], [ 12, "1y" ], [ 24, "2y" ] ]
-    frame_id = "clar-dev-report-#{@developer.id}"
     bug_series = [
       { key: "bugs_created", label: "Created", color: "#d97706", fill: true, dot_class: "bg-[color:var(--warn)]" },
       { key: "bugs_fixed", label: "Solved", color: "#16a34a", fill: false, dot_class: "bg-[color:var(--success)]" }
@@ -23,9 +22,12 @@
     </div>
     <div class="flex items-center gap-2.5">
       <div class="clar-tabs p-[3px] gap-[3px]">
+        <%# Plain links inside the turbo-frame navigate THIS frame implicitly.
+            Naming the frame explicitly (data-turbo-frame) promoted the click to
+            a full-page visit to the bare frame path, so we rely on the default
+            frame-internal navigation instead. %>
         <% range_opts.each do |value, label| %>
           <%= link_to label, workshop_developer_report_path(@developer, range: value),
-                data: { turbo_frame: frame_id },
                 class: "clar-tab text-[12px] py-[5px] px-[10px] #{'clar-tab-active' if @range == value}" %>
         <% end %>
       </div>
