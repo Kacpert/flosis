@@ -1,4 +1,4 @@
-<div class="grid gap-4.5 items-start grid-cols-[300px_1fr]">
+<div class="grid gap-4.5 items-start grid-cols-[300px_minmax(0,1fr)]">
   <div class="clar-card p-4.5">
     <div class="text-[11px] font-bold tracking-[.4px] clar-text-faint mb-3.5">ESTIMATION TARGET</div>
 
@@ -64,7 +64,7 @@
                data-clar-filter-target="item" data-filter-text="<%= "#{task.external_reference} #{title}" %>">
             <span class="w-[74px] flex-none clar-mono text-[12px] clar-text-primary"><%= task.external_reference %></span>
             <span class="flex-1 min-w-0 flex items-baseline gap-2">
-              <span class="text-[13.5px] clar-text-text truncate"><%= title %></span>
+              <span class="text-[13.5px] clar-text-text truncate min-w-0"><%= title %></span>
               <% if task.ai_estimated_at.present? %>
                 <span class="text-[11px] clar-text-faint flex-none"><%= clar_time_ago(task.ai_estimated_at) %></span>
               <% end %>
