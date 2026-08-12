@@ -1,6 +1,6 @@
 <% total_pts = delivered.sum { |d| d[:pts] } %>
 <div class="clar-card overflow-hidden">
-  <div class="px-5 py-3.5 border-b clar-divider flex items-center justify-between">
+  <div class="px-5 py-[15px] border-b clar-divider flex items-center justify-between">
     <span class="font-bold text-[14px] clar-text-text flex items-center gap-2">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
       Delivered this period
@@ -21,7 +21,7 @@
     </div>
 
     <% delivered.each do |row| %>
-      <div class="flex items-center px-5 py-3.5 border-b clar-divider">
+      <div class="flex items-center px-5 py-[13px] border-b clar-divider">
         <span class="w-[74px] flex-none clar-mono text-[11.5px] font-semibold clar-text-primary"><%= row[:key] %></span>
         <span class="flex-1 font-semibold text-[13.5px] clar-text-text min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pr-3"><%= row[:title] %></span>
         <span class="w-[150px] flex items-center gap-2">

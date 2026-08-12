@@ -5,8 +5,8 @@
   team_hours = developers.sum { |d| d[:hours] }
   team_cost_cents = developers.sum { |d| d[:cost_cents] }
 %>
-<div class="clar-card overflow-hidden mb-6" data-controller="clar-modal">
-  <div class="px-5 py-3.5 border-b clar-divider flex items-center justify-between">
+<div class="clar-card overflow-hidden mb-[18px]" data-controller="clar-modal">
+  <div class="px-5 py-[15px] border-b clar-divider flex items-center justify-between">
     <span class="font-bold text-[14px] clar-text-text">Per-developer results</span>
     <span class="text-[11.5px] clar-text-faint">Hours &amp; cost from internal time-tracking</span>
   </div>
@@ -26,7 +26,7 @@
     <%# Rows with a real User are clickable — open that developer's report modal
         (a lazy turbo-frame). Rows without a user (shouldn't happen here) render
         plain. %>
-    <div class="flex items-center px-5 py-3.5 border-b clar-divider<%= ' cursor-pointer clar-row-hover' if dev[:user] %>"
+    <div class="flex items-center px-5 py-[13px] border-b clar-divider<%= ' cursor-pointer clar-row-hover' if dev[:user] %>"
          <% if dev[:user] %>data-action="click->clar-modal#open" data-clar-modal-id-param="dev-report-<%= dev[:user].id %>"<% end %>>
       <span class="flex-1 flex items-center gap-2.5">
         <span class="clar-avatar w-7 h-7 text-[11px] flex-none <%= clar_avatar_bg_class(dev[:name]) %>"><%= clar_initials(dev[:name]) %></span>
@@ -43,7 +43,7 @@
   <% end %>
 
   <% if developer.nil? %>
-    <div class="flex items-center px-5 py-3.5 bg-[color:var(--surface-2)]">
+    <div class="flex items-center px-5 py-[13px] bg-[color:var(--surface-2)]">
       <span class="flex-1 font-bold text-[13px] clar-text-text">Team total</span>
       <span class="w-[90px] text-right font-bold text-[14px] clar-text-text"><%= number_with_precision(team_sp, precision: 0) %></span>
       <span class="w-[90px] text-right font-semibold text-[13.5px] clar-text-success"><%= team_bugs_fixed %></span>

@@ -1,16 +1,16 @@
 <% top_creator = bug_stats[:top_creator] %>
 <% top_fixer = bug_stats[:top_fixer] %>
-<div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 mb-6">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 mb-[26px]">
   <div class="clar-card clar-metric">
     <div class="label">Bugs created &middot; <%= Time.current.strftime("%B") %></div>
-    <div class="value clar-text-warn"><%= bug_stats[:created_this_month] %></div>
+    <div class="value !text-[28px] clar-text-warn"><%= bug_stats[:created_this_month] %></div>
   </div>
 
   <div class="clar-card clar-metric">
     <div class="label">Created the most</div>
     <% if top_creator %>
       <div class="text-[18px] font-bold clar-text-text mt-[5px]"><%= top_creator[:name] %></div>
-      <div class="sub"><%= pluralize(top_creator[:count], "bug") %></div>
+      <div class="text-[12px] clar-text-faint mt-[3px]"><%= pluralize(top_creator[:count], "bug") %></div>
     <% else %>
       <div class="text-[18px] font-bold clar-text-faint mt-[5px]">&mdash;</div>
     <% end %>
@@ -20,7 +20,7 @@
     <div class="label">Fixed the most</div>
     <% if top_fixer %>
       <div class="text-[18px] font-bold clar-text-text mt-[5px]"><%= top_fixer[:name] %></div>
-      <div class="sub"><%= pluralize(top_fixer[:count], "bug") %></div>
+      <div class="text-[12px] clar-text-faint mt-[3px]"><%= pluralize(top_fixer[:count], "bug") %></div>
     <% else %>
       <div class="text-[18px] font-bold clar-text-faint mt-[5px]">&mdash;</div>
     <% end %>

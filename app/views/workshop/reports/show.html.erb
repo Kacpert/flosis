@@ -46,7 +46,8 @@
       arrow_class = "flex items-center justify-center w-7 h-7 rounded-[7px]"
     %>
     <div class="flex items-center gap-2">
-      <div class="flex items-center gap-0.5 clar-card p-[3px]">
+      <%# 10px radius here, not the 14px .clar-card default. %>
+      <div class="flex items-center gap-0.5 clar-card !rounded-[10px] p-[3px]">
         <% if prev_target %>
           <%= link_to request.query_parameters.merge(prev_target), title: prev_title,
                 class: "#{arrow_class} clar-text-faint hover:clar-text-text", aria: { label: prev_title } do %>
@@ -74,7 +75,7 @@
 
       <%# Switching period kind resets the position to "latest" — drop the
           other kind's cursor param so we don't carry a stale month/sprint. %>
-      <div class="clar-tabs">
+      <div class="clar-tabs !rounded-[10px]">
         <%= link_to "Months", request.query_parameters.except("month", "sprint").merge(period: "month"),
               class: "clar-tab #{'clar-tab-active' if @period == :month}" %>
         <%= link_to "Sprints", request.query_parameters.except("month", "sprint").merge(period: "sprint"),
