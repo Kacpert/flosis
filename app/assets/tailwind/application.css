@@ -2068,16 +2068,18 @@ span.flatpickr-weekday {
 
 /* Controls */
 .clar-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px;
-  font-family:inherit; font-weight:600; font-size:13px; border-radius:9px; padding:9px 16px;
+  font-family:inherit; font-weight:600; font-size:13px; border-radius:9px; padding:10px 16px;
   border:1px solid var(--border); background:var(--surface); color:var(--text); cursor:pointer; }
-.clar-btn-primary { background:var(--primary); border-color:transparent; color:#fff; font-weight:650; }
-.clar-btn-ai { background:var(--ai); border-color:transparent; color:#fff; font-weight:650; }
+/* Primary/AI submits sit a touch wider than a secondary button in the mock. */
+.clar-btn-primary { background:var(--primary); border-color:transparent; color:#fff; font-weight:650; padding:10px 18px; }
+.clar-btn-ai { background:var(--ai); border-color:transparent; color:#fff; font-weight:650; padding:10px 18px; }
 .clar-btn-danger { color:var(--danger); background:var(--danger-soft); }
 .clar-btn:disabled { background:var(--surface-2); color:var(--faint); cursor:not-allowed; border-color:transparent; }
 .clar-btn-block { width:100%; padding:12px; border-radius:10px; font-size:13.5px; }
 .clar-input, .clar-select, .clar-textarea { font-family:inherit; font-size:13.5px; color:var(--text);
-  background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:10px 13px;
+  background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:11px 13px;
   outline:none; width:100%; }
+.clar-textarea { line-height:1.55; resize:vertical; }
 .clar-input:focus, .clar-select:focus, .clar-textarea:focus { border-color:var(--primary); }
 /* Drop the native OS dropdown control and paint a single subtle chevron. */
 .clar-select { appearance:none; -webkit-appearance:none; -moz-appearance:none; cursor:pointer;
@@ -2150,13 +2152,16 @@ span.flatpickr-weekday {
 .clar-daychip-all { font-family:inherit; font-size:11px; font-weight:600; padding:5px 9px;
   border-radius:7px; cursor:pointer; border:1px dashed var(--border); background:none; color:var(--faint); }
 
-/* Small AI-purple toggle used inside the schedule builder ("Only between"). */
-.clar-toggle-sm { width:30px; height:18px; border-radius:20px; border:none; cursor:pointer;
-  position:relative; flex:0 0 30px; background:var(--border); }
-.clar-toggle-sm[aria-checked="true"] { background:var(--ai); }
+/* Small AI-purple toggle used inside the schedule builder ("Only between").
+   aria-checked lives on the wrapping <button> (the accessible control), so the
+   on-state is selected from the parent — not on .clar-toggle-sm itself, which
+   is only the painted track. */
+.clar-toggle-sm { width:30px; height:18px; border-radius:20px; border:none;
+  position:relative; flex:0 0 30px; background:var(--border); transition:background .15s; }
 .clar-toggle-sm .knob { position:absolute; top:2px; left:2px; width:14px; height:14px;
   border-radius:50%; background:#fff; transition:left .15s; }
-.clar-toggle-sm[aria-checked="true"] .knob { left:14px; }
+[aria-checked="true"] .clar-toggle-sm { background:var(--ai); }
+[aria-checked="true"] .clar-toggle-sm .knob { left:14px; }
 .clar-sub { margin:7px 0 22px; color:var(--muted); font-size:14px; line-height:1.5; }
 .clar-section-label { font-size:13px; font-weight:700; letter-spacing:.4px; color:var(--faint); }
 

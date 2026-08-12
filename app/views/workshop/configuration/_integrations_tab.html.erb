@@ -36,20 +36,20 @@
 
 <div class="flex flex-col gap-3" data-controller="clar-modal">
   <% cards.each do |card| %>
-    <div class="clar-card flex items-center gap-3.5 py-4 px-4.5">
+    <div class="clar-card !rounded-[13px] flex items-center gap-[15px] py-4 px-4.5">
       <span class="w-10 h-10 rounded-[10px] bg-[var(--surface-2)] flex items-center justify-center clar-text-text flex-none">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><%= card[:icon].html_safe %></svg>
       </span>
       <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2.5">
-          <span class="font-bold text-[14px] clar-text-text"><%= card[:name] %></span>
+        <div class="flex items-center gap-[9px]">
+          <span class="font-[650] text-[14px] clar-text-text"><%= card[:name] %></span>
           <span class="inline-flex items-center gap-1.5 text-[11px] font-bold <%= card[:on] ? 'text-[color:var(--success)]' : 'clar-text-faint' %>">
             <span class="w-1.5 h-1.5 rounded-full bg-current"></span><%= card[:status] %>
           </span>
         </div>
         <div class="text-[12px] clar-text-faint mt-1 truncate"><%= card[:detail] %></div>
       </div>
-      <button type="button" class="clar-btn" data-action="clar-modal#open" data-clar-modal-id-param="manage-<%= card[:key] %>">Manage</button>
+      <button type="button" class="clar-btn !text-[12.5px] !rounded-[8px] !py-2 !px-3.5" data-action="clar-modal#open" data-clar-modal-id-param="manage-<%= card[:key] %>">Manage</button>
     </div>
   <% end %>
 

@@ -1,6 +1,9 @@
 <% content_for :title, "Configuration · Flosis" %>
 <% is_admin = current_user&.admin_or_owner?(current_workspace) %>
 
+<% if is_admin %>
+  <div class="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[.4px] clar-text-warn bg-[color:var(--warn-soft)] py-[3px] px-[9px] rounded-[6px] mb-2.5">ADMINISTRATOR ONLY</div>
+<% end %>
 <h1 class="clar-h1">Configuration</h1>
 <p class="clar-sub">Per-project credentials, AI behaviour<%= " and access" if is_admin %>.</p>
 
