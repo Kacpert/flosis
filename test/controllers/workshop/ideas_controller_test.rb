@@ -23,6 +23,24 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to workshop_idea_path(task)
   end
 
+  # START AT picker (new-idea modal + Jira browser): "details" skips the brief
+  # entirely and drops the task straight into Details Gathering.
+  test "start_stage details creates the task at details and opens that stage" do
+    post workshop_ideas_path, params: { idea: { title: "Skip the brief", description: "", start_stage: "details" } }
+
+    task = Task.order(:id).last
+    assert_equal "details", task.workshop_stage
+    assert task.in_pipeline?
+    assert_redirected_to workshop_idea_path(task, stage: "details")
+    assert_match(/Details Gathering/, flash[:clar_toast])
+  end
+
+  test "an unknown start_stage falls back to briefing" do
+    post workshop_ideas_path, params: { idea: { title: "Bad stage", description: "", start_stage: "ready" } }
+
+    assert_equal "briefing", Task.order(:id).last.workshop_stage
+  end
+
   test "description present seeds a current v0 user draft brief" do
     post workshop_ideas_path, params: { idea: { title: "Idea with description", description: "A sentence or two." } }
 

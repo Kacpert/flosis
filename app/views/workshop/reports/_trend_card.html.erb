@@ -1,14 +1,6 @@
 <%
-  gran_label = gran == "sprints" ? "sprint" : "month"
-  range_label = if gran == "sprints"
-    "Last #{range} sprints"
-  elsif range >= 24
-    "Last 2 years"
-  elsif range >= 12
-    "Last 12 months"
-  else
-    "Last #{range} months"
-  end
+  gran_label = { "weeks" => "week", "fortnights" => "2 weeks", "sprints" => "sprint" }.fetch(gran, "month")
+  range_label = clar_trend_range_label(range)
   first_visible = trend.first
   last_visible = trend.last
   delta = (trend.size > 1) ? (last_visible[:sp] - first_visible[:sp]) : 0
@@ -35,27 +27,14 @@
       </div>
     </div>
 
-    <div class="flex gap-2 items-center">
-      <div class="clar-tabs p-[3px] gap-[3px]">
-        <%= link_to "Months", request.query_parameters.merge(gran: "months", range: 12),
-              class: "clar-tab text-[12px] py-[5px] px-[11px] #{'clar-tab-active' if gran == 'months'}" %>
-        <%= link_to "Sprints", request.query_parameters.merge(gran: "sprints", range: 13),
-              class: "clar-tab text-[12px] py-[5px] px-[11px] #{'clar-tab-active' if gran == 'sprints'}" %>
-      </div>
-      <div class="clar-tabs p-[3px] gap-[3px]">
-        <% range_opts = gran == "sprints" ? [ [ 8, "8" ], [ 13, "13" ], [ 26, "26" ] ] : [ [ 6, "6m" ], [ 12, "1y" ], [ 24, "2y" ] ] %>
-        <% range_opts.each do |value, label| %>
-          <%= link_to label, request.query_parameters.merge(range: value),
-                class: "clar-tab text-[12px] py-[5px] px-[10px] #{'clar-tab-active' if range == value}" %>
-        <% end %>
-      </div>
-    </div>
+    <%= render "workshop/shared/trend_controls", gran: gran, range: range, chart: chart %>
   </div>
 
   <%# Stimulus reads value attributes from the CONTROLLER element only, not from
       child nodes — so points-value must live on this div, not the <canvas>.
       (Previously on the canvas → pointsValue was always [] → empty chart.) %>
   <div data-controller="clar-trend-chart" class="h-[220px]"
+       data-clar-trend-chart-mode-value="<%= chart %>"
        data-clar-trend-chart-points-value="<%= trend.to_json %>">
     <canvas data-clar-trend-chart-target="canvas"></canvas>
   </div>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_06_230226) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_12_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -48,6 +48,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_230226) do
     t.datetime "created_at", null: false
     t.bigint "discord_webhook_id"
     t.string "frequency", default: "daily", null: false
+    t.integer "interval_hours", default: 4, null: false
     t.datetime "last_run_at"
     t.text "memory"
     t.string "name", null: false
@@ -55,7 +56,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_230226) do
     t.bigint "project_id", null: false
     t.text "prompt", null: false
     t.string "run_at_time"
+    t.string "schedule_days", default: "Mon,Tue,Wed,Thu,Fri,Sat,Sun", null: false
+    t.string "schedule_mode", default: "daily", null: false
     t.datetime "updated_at", null: false
+    t.boolean "window_enabled", default: false, null: false
+    t.string "window_from", default: "09:00", null: false
+    t.string "window_to", default: "18:00", null: false
     t.bigint "workspace_id", null: false
     t.index ["discord_webhook_id"], name: "index_alert_rules_on_discord_webhook_id"
     t.index ["project_id"], name: "index_alert_rules_on_project_id"

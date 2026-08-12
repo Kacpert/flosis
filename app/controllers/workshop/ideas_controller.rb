@@ -208,17 +208,18 @@ class Workshop::IdeasController < Workshop::BaseController
 
   def create_new_idea
     task = current_workshop_project.tasks.new(name: idea_params[:title], description: idea_params[:description])
+    stage = start_stage
 
     if task.save
-      task.enter_pipeline!(author: current_user, stage: "briefing")
+      task.enter_pipeline!(author: current_user, stage: stage)
 
       if idea_params[:description].present?
         task.briefs.create!(workspace: task.project.workspace, version: 0,
                             origin: "user", status: "draft", content: idea_params[:description]).make_current!
       end
 
-      flash[:clar_toast] = %(Idea saved · "#{idea_params[:title]}")
-      redirect_to workshop_idea_path(task)
+      flash[:clar_toast] = %(Idea saved · "#{idea_params[:title]}" · #{stage_label(stage)})
+      redirect_to workshop_idea_path(task, stage: explicit_stage(stage))
     else
       flash.now[:alert] = task.errors.full_messages.to_sentence
       load_pipeline
@@ -231,15 +232,35 @@ class Workshop::IdeasController < Workshop::BaseController
   # same as the new-idea path, so Briefing always starts from something.
   def import_from_jira
     task = current_workshop_project.tasks.find(params[:task_id])
-    task.enter_pipeline!(author: current_user, stage: "briefing")
+    stage = start_stage
+    task.enter_pipeline!(author: current_user, stage: stage)
 
     if task.description.present?
       task.briefs.create!(workspace: task.project.workspace, version: 0,
                           origin: "user", status: "draft", content: task.description).make_current!
     end
 
-    flash[:clar_toast] = "Imported #{task.external_reference} from Jira"
-    redirect_to workshop_idea_path(task)
+    flash[:clar_toast] = "Imported #{task.external_reference} · #{stage_label(stage)}"
+    redirect_to workshop_idea_path(task, stage: explicit_stage(stage))
+  end
+
+  # Briefing is #show's own default, so only "details" needs to be spelled out
+  # in the URL — keeps the common redirect clean.
+  def explicit_stage(stage)
+    stage == "details" ? "details" : nil
+  end
+
+  # Where a new/imported task enters the pipeline. "briefing" is the default;
+  # "details" is the explicit skip-the-brief option (the START AT picker in the
+  # new-idea modal and the Jira browser). Anything else falls back to briefing —
+  # the stage list is a whitelist, never trusted straight from params.
+  def start_stage
+    raw = params[:start_stage].presence || params.dig(:idea, :start_stage).presence
+    raw.to_s.presence_in(%w[briefing details]) || "briefing"
+  end
+
+  def stage_label(stage)
+    stage == "details" ? "Details Gathering" : "Briefing"
   end
 
   # On first entering the details stage, seed a v0 "user description" AI

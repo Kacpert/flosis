@@ -79,6 +79,17 @@ module ClarHelper
     end
   end
 
+  # Trend-card window label. `range` is always a count of MONTHS regardless of
+  # the bucket size (weeks/fortnights/months/sprints) — see
+  # Workshop::TrendControls.
+  def clar_trend_range_label(range)
+    case range
+    when 1 then "Last month"
+    when 12 then "Last 12 months"
+    else range >= 24 ? "Last 2 years" : "Last #{range} months"
+    end
+  end
+
   # Reporting period tab labels (Task 7.1): "{Month YYYY}" for :month, the
   # active sprint's name (or "Sprint" fallback when there's no active sprint)
   # for :sprint.

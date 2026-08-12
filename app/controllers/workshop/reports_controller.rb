@@ -2,28 +2,32 @@
 # WorkshopReport (pure read model) from request params and hands it to the
 # view. See app/services/workshop_report.rb + .superpowers/sdd/task-7.1-brief.md.
 class Workshop::ReportsController < Workshop::BaseController
-  MONTH_RANGES = [ 6, 12, 24 ].freeze
-  SPRINT_RANGES = [ 8, 13, 26 ].freeze
-  DEFAULT_MONTH_RANGE = 12
-  DEFAULT_SPRINT_RANGE = 13
+  include Workshop::TrendControls
 
   # The per-developer modal offers finer windows than the main trend card.
   DEV_MODAL_RANGES = [ 1, 2, 3, 6, 12, 24 ].freeze
-  DEFAULT_DEV_MODAL_RANGE = 3
+  DEFAULT_DEV_MODAL_RANGE = 6
 
   def show
     @period = params[:period] == "sprint" ? :sprint : :month
-    @gran = params[:gran] == "sprints" ? "sprints" : "months"
-    @range = coerce_range(@gran, params[:range])
+    @gran = coerce_gran(params[:gran])
+    @range = coerce_range(params[:range])
+    @chart = coerce_chart(params[:chart])
     @month = parse_month(params[:month])
 
     @developer = find_developer(params[:developer])
 
-    @report = WorkshopReport.new(project: current_workshop_project, period: @period, developer: @developer, month: @month)
+    # Sprint-period navigation: the ‹ › arrows walk this ordered list. nil
+    # selection = the most recent sprint (the list's last entry).
+    @sprints = period_sprints
+    @selected_sprint = find_sprint(params[:sprint]) || @sprints.last
+
+    @report = WorkshopReport.new(project: current_workshop_project, period: @period,
+                                 developer: @developer, month: @month, sprint: @selected_sprint)
 
     @metrics = @report.metrics
     @developers = @report.developers
-    @trend = @report.trend(granularity: @gran, range: @range)
+    @trend = @report.trend(granularity: @gran, range: bucket_count(@gran, @range))
     @delivered = @report.delivered
 
     @all_developers = current_workshop_project ? project_developers : User.none
@@ -37,6 +41,7 @@ class Workshop::ReportsController < Workshop::BaseController
     @developer = project_developers.find(params[:id])
     @range = DEV_MODAL_RANGES.include?(params[:range].to_i) ? params[:range].to_i : DEFAULT_DEV_MODAL_RANGE
 
+    @chart = coerce_chart(params[:chart])
     report = WorkshopReport.new(project: current_workshop_project, developer: @developer)
     @trend = report.trend(granularity: "months", range: @range)
     @points_total = @trend.sum { |p| p[:sp] }
@@ -58,11 +63,23 @@ class Workshop::ReportsController < Workshop::BaseController
     nil
   end
 
-  def coerce_range(gran, raw_range)
-    allowed = gran == "sprints" ? SPRINT_RANGES : MONTH_RANGES
-    default = gran == "sprints" ? DEFAULT_SPRINT_RANGE : DEFAULT_MONTH_RANGE
-    value = raw_range.to_i
-    allowed.include?(value) ? value : default
+  # Sprints the ‹ › arrows can navigate, oldest first — the same universe
+  # WorkshopReport#trend_sprints uses (started + finished sprints with real
+  # dates), so the period label always matches a real reporting window.
+  def period_sprints
+    return [] unless current_workshop_project
+
+    JiraSprint.joins(:jira_board)
+              .where(jira_boards: { project_id: current_workshop_project.id })
+              .where(state: %w[active closed])
+              .where.not(start_date: nil).where.not(end_date: nil)
+              .order(start_date: :asc)
+              .to_a
+  end
+
+  def find_sprint(id)
+    return nil if id.blank?
+    @sprints.find { |sprint| sprint.id.to_s == id.to_s }
   end
 
   def find_developer(id)

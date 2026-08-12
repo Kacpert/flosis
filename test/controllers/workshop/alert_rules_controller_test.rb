@@ -61,15 +61,22 @@ class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
     rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
       name: "Old name", prompt: "old prompt", frequency: "daily", run_at_time: "09:00")
 
+    # The schedule builder posts schedule_mode/schedule_days, not frequency —
+    # AlertRule derives the legacy frequency column from them.
     patch workshop_alert_rule_path(rule), params: {
-      alert_rule: { name: "New name", prompt: "new prompt", frequency: "weekly",
+      alert_rule: { name: "New name", prompt: "new prompt",
+                    schedule_mode: "days", schedule_days: "Mon",
                     run_at_time: "15:30", discord_webhook_id: @webhook.id }
     }
 
     rule.reload
     assert_equal "New name", rule.name
     assert_equal "new prompt", rule.prompt
-    assert_equal "weekly", rule.frequency
+    assert_equal "days", rule.schedule_mode
+    assert_equal [ "Mon" ], rule.days
+    assert_equal "15:30", rule.run_at_time
+    assert_equal "Mon · 15:30", rule.schedule_label
+    assert_equal "weekly", rule.frequency, "legacy frequency mirror stays in sync"
     assert_redirected_to workshop_process_path(tab: "alerts")
     assert_match(/updated/, flash[:clar_toast])
   end

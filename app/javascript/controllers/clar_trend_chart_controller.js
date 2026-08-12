@@ -15,32 +15,43 @@ Chart.register(...registerables)
 // plot bugs_created/bugs_fixed as two lines instead (created filled, per the
 // brief); this is a data-driven extension, not a fork, so both pages share
 // one controller/chart config.
+//
+// `mode` ("line" | "bar") switches the same data between the area/line
+// rendering and grouped bars — the chart-type toggle in the card header.
 const DEFAULT_SERIES = [
   { key: "sp", label: "Story points", color: "#4f46e5", fill: true },
 ]
 
 export default class extends Controller {
   static targets = ["canvas"]
-  static values = { points: Array, series: Array }
+  static values = { points: Array, series: Array, mode: String }
 
   connect() {
     const points = this.pointsValue || []
     const series = this.seriesValue?.length ? this.seriesValue : DEFAULT_SERIES
+    const bar = this.modeValue === "bar"
     const ctx = this.canvasTarget.getContext("2d")
 
     const step = Math.max(1, Math.ceil(points.length / 12))
+    // Grid/tick colours come from the live theme (the .clar-app custom
+    // properties) — <canvas> can't resolve CSS vars itself, so read them once
+    // at connect and hand Chart.js the concrete values.
+    const grid = this.cssVar("--border", "#e6e8ec")
+    const faint = this.cssVar("--faint", "#9aa3af")
 
     this.chart = new Chart(ctx, {
-      type: "line",
+      type: bar ? "bar" : "line",
       data: {
         labels: points.map((p) => p.label),
         datasets: series.map((s) => ({
           label: s.label,
           data: points.map((p) => p[s.key]),
           borderColor: s.color,
-          backgroundColor: this.withAlpha(s.color, 0.08),
-          borderWidth: 2.5,
-          fill: !!s.fill,
+          backgroundColor: bar ? s.color : this.withAlpha(s.color, 0.08),
+          borderWidth: bar ? 0 : 2.5,
+          borderRadius: bar ? 2 : 0,
+          maxBarThickness: 26,
+          fill: bar ? true : !!s.fill,
           tension: 0.35,
           pointRadius: 0,
           pointHoverRadius: 4,
@@ -69,14 +80,14 @@ export default class extends Controller {
               autoSkip: false,
               callback: (_value, index) => (index % step === 0 || index === points.length - 1 ? points[index].label : ""),
               maxRotation: 0,
-              color: "#9aa3af",
+              color: faint,
               font: { size: 10 },
             },
           },
           y: {
             beginAtZero: true,
-            grid: { color: "#e6e8ec" },
-            ticks: { color: "#9aa3af", font: { size: 10 } },
+            grid: { color: grid },
+            ticks: { color: faint, font: { size: 10 } },
           },
         },
       },
@@ -85,6 +96,11 @@ export default class extends Controller {
 
   disconnect() {
     if (this.chart) this.chart.destroy()
+  }
+
+  cssVar(name, fallback) {
+    const value = getComputedStyle(this.element).getPropertyValue(name).trim()
+    return value || fallback
   }
 
   withAlpha(hex, alpha) {

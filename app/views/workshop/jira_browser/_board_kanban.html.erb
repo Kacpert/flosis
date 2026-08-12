@@ -9,7 +9,7 @@
 
       <% if column_tasks.any? %>
         <% column_tasks.each do |task| %>
-          <%= button_to workshop_ideas_path, params: { task_id: task.id }, method: :post,
+          <%= button_to workshop_ideas_path, params: { task_id: task.id, start_stage: @start_stage }, method: :post,
                 class: "clar-card clar-card-hover text-left cursor-pointer flex flex-col gap-2.5 p-3 w-full [font-family:inherit]",
                 form: { data: { turbo_frame: "_top", clar_board_filter_target: "card", clar_board_filter_text: "#{task.external_reference} #{task.name} #{task.assignee_name} #{task.reporter_name}".downcase } } do %>
             <span class="font-semibold text-[13px] leading-snug clar-text-text line-clamp-2"><%= task.name %></span>

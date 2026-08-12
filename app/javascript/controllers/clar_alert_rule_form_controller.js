@@ -1,22 +1,10 @@
 import { Controller } from "@hotwired/stimulus"
 
-// New alert rule modal (Task 6.4): disables the TIME input while FREQUENCY is
-// "hourly" (an hourly rule has no fixed time-of-day), and lets a row of
-// channel "chips" act like a radio group without a native <select> — clicking
-// a chip checks its underlying radio input and restyles the row.
+// Alert rule modal: lets a row of channel "chips" act like a radio group
+// without a native <select> — clicking a chip checks its underlying radio input
+// and restyles the row. (Scheduling lives in clar_schedule_builder_controller.)
 export default class extends Controller {
-  static targets = ["frequency", "time", "channelRadio", "channelChip"]
-
-  connect() {
-    this.syncTimeDisabled()
-  }
-
-  syncTimeDisabled() {
-    if (!this.hasFrequencyTarget || !this.hasTimeTarget) return
-    const hourly = this.frequencyTarget.value === "hourly"
-    this.timeTarget.disabled = hourly
-    this.timeTarget.classList.toggle("opacity-50", hourly)
-  }
+  static targets = ["channelRadio", "channelChip"]
 
   selectChannel(event) {
     const chip = event.currentTarget

@@ -64,7 +64,8 @@ class Workshop::JiraBrowserControllerTest < ActionDispatch::IntegrationTest
     assert_equal users(:one), @task.pipeline_author
 
     assert_redirected_to workshop_idea_path(@task)
-    assert_equal "Imported ELV-1 from Jira", flash[:clar_toast]
+    # The toast now names the stage the ticket landed on (START AT picker).
+    assert_equal "Imported ELV-1 · Briefing", flash[:clar_toast]
   end
 
   test "POST import seeds a current v0 user brief from the task description" do

@@ -79,6 +79,12 @@ class Workshop::AlertRulesController < Workshop::BaseController
   end
 
   def create_params
-    params.require(:alert_rule).permit(:name, :prompt, :frequency, :run_at_time, :discord_webhook_id, :notify_enabled)
+    params.require(:alert_rule).permit(
+      :name, :prompt, :run_at_time, :discord_webhook_id, :notify_enabled,
+      # Schedule builder (replaces the old :frequency select — AlertRule keeps
+      # the legacy frequency column in sync itself).
+      :schedule_mode, :schedule_days, :interval_hours,
+      :window_enabled, :window_from, :window_to
+    )
   end
 end

@@ -153,10 +153,67 @@ class AlertRuleTest < ActiveSupport::TestCase
 
   # --- validations ---
 
-  test "frequency must be one of the allowed values" do
+  # `frequency` is no longer user input — the schedule builder writes
+  # schedule_mode/schedule_days/interval_hours, and AlertRule derives frequency
+  # from them as a legacy mirror. An unknown frequency is therefore normalized
+  # away rather than rejected; schedule_mode is what's validated now.
+  test "an unrecognised frequency is normalized to a derived one" do
     rule = build_rule(frequency: "monthly")
+    assert rule.valid?, rule.errors.full_messages.to_sentence
+    assert_equal "daily", rule.frequency
+    assert_equal "daily", rule.schedule_mode
+  end
+
+  test "schedule_mode must be one of the allowed values" do
+    rule = build_rule(frequency: "daily", run_at_time: "09:00")
+    rule.schedule_mode = "fortnightly"
+    # normalize_schedule falls back to "daily" rather than leaving a bad value.
+    assert rule.valid?
+    assert_equal "daily", rule.schedule_mode
+  end
+
+  test "days mode requires at least one selected day" do
+    rule = build_rule(frequency: "daily", run_at_time: "09:00")
+    rule.schedule_mode = "days"
+    rule.schedule_days = ""
     assert_not rule.valid?
-    assert_includes rule.errors[:frequency], "is not included in the list"
+    assert_includes rule.errors[:schedule_days], "must include at least one day"
+  end
+
+  test "interval mode clamps interval_hours into 1..24" do
+    rule = build_rule(frequency: "daily")
+    rule.schedule_mode = "interval"
+    rule.interval_hours = 99
+    assert rule.valid?, rule.errors.full_messages.to_sentence
+    assert_equal 24, rule.interval_hours
+  end
+
+  test "interval mode only fires inside its window when one is set" do
+    rule = build_rule(frequency: "daily")
+    rule.schedule_mode = "interval"
+    rule.interval_hours = 4
+    rule.window_enabled = true
+    rule.window_from = "09:00"
+    rule.window_to = "18:00"
+    rule.save!
+
+    assert rule.due?(Time.zone.local(2026, 7, 6, 10, 0)), "inside the window with no previous run"
+    assert_not rule.due?(Time.zone.local(2026, 7, 6, 20, 0)), "outside the window"
+  end
+
+  test "schedule_label reads the way the card renders it" do
+    weekdays = build_rule(frequency: "weekdays", run_at_time: "09:00")
+    assert_equal "Weekdays · 09:00", weekdays.schedule_label
+
+    interval = build_rule(frequency: "daily")
+    interval.schedule_mode = "interval"
+    interval.schedule_days = "Mon,Tue,Wed,Thu,Fri"
+    interval.interval_hours = 4
+    interval.window_enabled = true
+    interval.window_from = "09:00"
+    interval.window_to = "18:00"
+    interval.valid?
+    assert_equal "Weekdays · Every 4h · 09:00–18:00", interval.schedule_label
   end
 
   test "active AlertRule is due? false when active is false is enforced at the dispatch layer, not due?" do

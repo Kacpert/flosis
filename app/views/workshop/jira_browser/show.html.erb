@@ -6,22 +6,36 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
     </div>
-    <p class="text-[13px] leading-normal clar-text-muted mb-3.5">Pick a ticket from any board to refine &mdash; it opens in Briefing. Click a card to pull it in.</p>
+    <p class="text-[13px] leading-normal clar-text-muted mb-3">Pick a ticket from any board to refine. Click a card to pull it in.</p>
 
-    <div data-controller="clar-board-filter">
-      <div class="flex items-center gap-2.5 flex-wrap mb-3.5">
-        <div class="clar-tabs">
-          <% @boards.each do |board| %>
-            <%= link_to board.name, workshop_jira_browser_path(board: board.id),
-                  class: "clar-tab #{'clar-tab-active' if @selected_board_id == board.id.to_s}",
-                  data: { turbo_frame: "clar-jira-browser" } %>
+    <%# START AT lives on the modal, not the ticket: pick it once, then any
+        ticket you click is imported at that stage. The picker rewrites every
+        card/row's hidden start_stage field (see clar_start_stage_controller). %>
+    <div data-controller="clar-board-filter clar-start-stage" data-clar-start-stage-selected-value="<%= @start_stage %>">
+      <div class="flex items-center gap-2.5 flex-nowrap mb-3.5">
+        <span class="text-[11.5px] font-bold clar-text-faint whitespace-nowrap">START AT</span>
+        <div class="clar-seg flex-none">
+          <% [["briefing", "Briefing"], ["details", "Details Gathering"]].each do |value, label| %>
+            <button type="button" data-stage="<%= value %>"
+                    data-clar-start-stage-target="segment" data-action="click->clar-start-stage#select"
+                    class="clar-seg-item"><%= label %></button>
           <% end %>
-          <%= link_to "Backlog", workshop_jira_browser_path(board: "backlog"),
-                class: "clar-tab #{'clar-tab-active' if backlog_selected?}",
-                data: { turbo_frame: "clar-jira-browser" } %>
         </div>
 
-        <span class="text-[11.5px] clar-text-faint">
+        <span class="w-px h-[22px] bg-[color:var(--border)] flex-none"></span>
+
+        <div class="clar-tabs flex-none">
+          <% @boards.each do |board| %>
+            <%= link_to board.name, workshop_jira_browser_path(board: board.id, start_stage: @start_stage),
+                  class: "clar-tab whitespace-nowrap #{'clar-tab-active' if @selected_board_id == board.id.to_s}",
+                  data: { turbo_frame: "clar-jira-browser", start_stage_link: true } %>
+          <% end %>
+          <%= link_to "Backlog", workshop_jira_browser_path(board: "backlog", start_stage: @start_stage),
+                class: "clar-tab whitespace-nowrap #{'clar-tab-active' if backlog_selected?}",
+                data: { turbo_frame: "clar-jira-browser", start_stage_link: true } %>
+        </div>
+
+        <span class="text-[11.5px] clar-text-faint whitespace-nowrap">
           <% if !backlog_selected? && @sprint %>
             <%= @sprint.name %>
           <% else %>
@@ -31,15 +45,14 @@
 
         <div class="flex-1"></div>
 
-        <% unless backlog_selected? %>
-          <div class="relative flex items-center">
-            <span class="absolute left-2.5 clar-text-faint pointer-events-none flex">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-            </span>
-            <input type="text" placeholder="Filter this board&hellip;" class="clar-input pl-[30px] py-2 w-[220px] text-[12.5px]"
-                   data-clar-board-filter-target="input" data-action="input->clar-board-filter#filter">
-          </div>
-        <% end %>
+        <%# The filter box now covers the backlog table too, not just boards. %>
+        <div class="relative flex items-center">
+          <span class="absolute left-2.5 clar-text-faint pointer-events-none flex">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          </span>
+          <input type="text" placeholder="Filter this board&hellip;" class="clar-input pl-[30px] py-2 w-[220px] text-[12.5px]"
+                 data-clar-board-filter-target="input" data-action="input->clar-board-filter#filter">
+        </div>
       </div>
 
       <div class="rounded-xl p-1 bg-[color:var(--bg)]">

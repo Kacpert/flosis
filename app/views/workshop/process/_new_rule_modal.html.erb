@@ -1,6 +1,9 @@
 <div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="new-alert-rule"
      data-action="click->clar-modal#close">
-  <div class="clar-modal p-5.5 max-w-[520px] max-h-[88vh] overflow-y-auto" data-action="click->clar-modal#stopPropagation">
+  <%# Grows with its content (the Send-notification switch reveals the channel
+      picker) and only scrolls once it genuinely can't fit the viewport — the
+      overlay's own 24px padding is what the calc() subtracts. %>
+  <div class="clar-modal p-5.5 max-w-[520px] max-h-[calc(100vh-48px)] overflow-y-auto" data-action="click->clar-modal#stopPropagation">
     <div class="flex items-center justify-between mb-1">
       <h2 class="text-lg font-bold clar-text-text m-0">New alert rule</h2>
       <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
@@ -21,18 +24,7 @@
             class: "clar-textarea mb-1.5" %>
       <div class="text-[11px] clar-text-faint mb-4">Write it as a condition &mdash; natural language is fine.</div>
 
-      <div class="grid grid-cols-2 gap-3 mb-4">
-        <div>
-          <label class="clar-field-label">FREQUENCY</label>
-          <%= f.select :frequency, AlertRule::FREQUENCY_LABELS.map { |value, label| [label, value] },
-                { selected: "daily" }, class: "clar-select", data: { clar_alert_rule_form_target: "frequency", action: "change->clar-alert-rule-form#syncTimeDisabled" } %>
-        </div>
-        <div>
-          <label class="clar-field-label">TIME</label>
-          <%= f.time_field :run_at_time, value: "09:00", include_seconds: false,
-                class: "clar-input", data: { clar_alert_rule_form_target: "time" } %>
-        </div>
-      </div>
+      <%= render "workshop/process/schedule_builder", rule: AlertRule.new %>
 
       <%# Notifications are opt-in: flip the switch ON to reveal the channel
           picker. Off = the automation runs but posts nothing. %>

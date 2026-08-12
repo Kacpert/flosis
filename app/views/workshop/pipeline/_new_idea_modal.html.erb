@@ -8,7 +8,8 @@
     </div>
     <p class="text-[13px] leading-normal clar-text-muted mb-4.5">Give it a title so it&rsquo;s saved to the pipeline &mdash; you can come back to the conversation anytime.</p>
 
-    <%= form_with url: workshop_ideas_path, method: :post, class: "space-y-0", data: { controller: "clar-required", turbo: false } do |f| %>
+    <%= form_with url: workshop_ideas_path, method: :post, class: "space-y-0",
+          data: { controller: "clar-required clar-start-stage", clar_start_stage_selected_value: "briefing", turbo: false } do |f| %>
       <label class="clar-field-label">TITLE <span class="clar-text-danger">*</span></label>
       <%= f.text_field "idea[title]", value: nil, autofocus: true, placeholder: "e.g. Aggregated CSV export for analysts",
             class: "clar-input mb-4", data: { clar_required_target: "input", action: "input->clar-required#toggle" } %>
@@ -17,10 +18,28 @@
       <%= f.text_area "idea[description]", value: nil, rows: 3, placeholder: "A sentence or two on what you're thinking…",
             class: "clar-textarea mb-5" %>
 
+      <%# START AT — Briefing (default) or skip the brief and open straight in
+          Details Gathering. Carried on the POST as idea[start_stage]. %>
+      <label class="clar-field-label !mb-[7px]">START AT</label>
+      <div class="flex gap-2.5 mb-5">
+        <% [["briefing", "Briefing", "Shape the why first, then detail it."],
+            ["details", "Details Gathering", "Skip the brief &mdash; go straight to the spec."]].each do |value, label, hint| %>
+          <button type="button" data-stage="<%= value %>"
+                  data-clar-start-stage-target="card" data-action="click->clar-start-stage#select"
+                  class="flex-1 text-left cursor-pointer py-2.5 px-3 rounded-[10px] border bg-[color:var(--surface)] clar-divider">
+            <span data-start-stage-title class="block text-[13px] font-bold clar-text-text"><%= label %></span>
+            <span class="block text-[11.5px] clar-text-muted mt-[3px] leading-[1.4]"><%= hint.html_safe %></span>
+          </button>
+        <% end %>
+      </div>
+      <%= hidden_field_tag "idea[start_stage]", "briefing", id: nil, data: { clar_start_stage_target: "field" } %>
+
       <div class="flex gap-2.5 justify-end">
         <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
-        <%= f.submit "Save & start briefing", class: "clar-btn clar-btn-primary", disabled: true,
-              data: { clar_required_target: "submit" } %>
+        <button type="submit" class="clar-btn clar-btn-primary" disabled data-clar-required-target="submit">
+          <span data-clar-start-stage-target="submitLabel">Save &amp; start briefing</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
       </div>
     <% end %>
   </div>

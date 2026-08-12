@@ -13,11 +13,14 @@
 class WorkshopReport
   BUG = "Bug".freeze
 
-  def initialize(project:, period: :month, developer: nil, month: nil)
+  def initialize(project:, period: :month, developer: nil, month: nil, sprint: nil)
     @project = project
     @period = period
     @developer = developer
     @month = clamp_month(month)
+    # An explicitly navigated-to sprint (Reporting's ‹ › arrows). nil = the
+    # project's currently active sprint, the previous behaviour.
+    @sprint = sprint
     @from, @to, @active_sprint = resolve_period(period)
   end
 
@@ -68,9 +71,14 @@ class WorkshopReport
   # trend
   # ---------------------------------------------------------------------
 
+  # `range` is a bucket COUNT, not a month count — the caller (Workshop::
+  # ReportsController#bucket_count) converts the user-facing "last N months"
+  # window into however many weeks/fortnights/months/sprints that spans.
   def trend(granularity:, range:)
     case granularity.to_s
-    when "sprints" then trend_sprints(range)
+    when "sprints"    then trend_sprints(range)
+    when "weeks"      then trend_weeks(range, 1)
+    when "fortnights" then trend_weeks(range, 2)
     else trend_months(range)
     end
   end
@@ -139,8 +147,8 @@ class WorkshopReport
 
   def resolve_period(period)
     if period.to_s == "sprint"
-      sprint = active_sprint_for(@project)
-      if sprint
+      sprint = @sprint || active_sprint_for(@project)
+      if sprint&.start_date && sprint.end_date
         return [ sprint.start_date.beginning_of_day, sprint.end_date.end_of_day, sprint ]
       end
     end
@@ -341,6 +349,33 @@ class WorkshopReport
         full: month_start.strftime("%B %Y"),
         rows: in_month,
         bugs_created: created.count { |ts| ts.between?(month_start, month_end) }
+      )
+    end
+  end
+
+  # Week / fortnight buckets, anchored on the Monday of the current week and
+  # walking backwards `count` buckets of `weeks_per_bucket` weeks each. Same
+  # shape as trend_months — one point per bucket, oldest first.
+  def trend_weeks(count, weeks_per_bucket)
+    count = [ count.to_i, 1 ].max
+    this_week = Time.current.beginning_of_week
+    starts = (0...count).map { |i| this_week - (i * weeks_per_bucket).weeks }.reverse
+    window_end = (this_week + weeks_per_bucket.weeks - 1.second)
+
+    rows = trend_base_scope.where.not(resolved_at: nil)
+                            .where(resolved_at: starts.first..window_end)
+                            .pluck(:issue_type, :ai_estimate_points, :resolved_at)
+    created = bug_created_timestamps(starts.first, window_end)
+
+    starts.map do |bucket_start|
+      bucket_end = bucket_start + weeks_per_bucket.weeks - 1.second
+      in_bucket = rows.select { |(_, _, resolved_at)| resolved_at.between?(bucket_start, bucket_end) }
+      prefix = weeks_per_bucket > 1 ? "Fortnight of" : "Week of"
+      build_point(
+        label: bucket_start.strftime("%b %-d"),
+        full: "#{prefix} #{bucket_start.strftime('%b %-d, %Y')}",
+        rows: in_bucket,
+        bugs_created: created.count { |ts| ts.between?(bucket_start, bucket_end) }
       )
     end
   end

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title><%= content_for(:title) || "Clar" %></title>
+    <title><%= content_for(:title) || "Flosis" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="application-name" content="Clar">
+    <meta name="application-name" content="Flosis">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
     <%= yield :head %>
@@ -13,7 +13,7 @@
     <link rel="apple-touch-icon" href="/icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
     <script>
       (function(){
@@ -55,7 +55,7 @@
             <%= render "layouts/clar_flash" %>
             <%= yield %>
           <% else %>
-            <div class="max-w-[1120px] mx-auto px-8 py-7">
+            <div class="max-w-[1560px] mx-auto px-[30px] pt-[26px] pb-[60px]">
               <%= render "layouts/clar_flash" %>
               <%= yield %>
             </div>

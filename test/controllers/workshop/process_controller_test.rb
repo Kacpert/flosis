@@ -135,8 +135,15 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     # The double-nesting made every create fail with "… can't be blank".
     assert_select "form input[name='alert_rule[name]']"
     assert_select "form textarea[name='alert_rule[prompt]']"
-    assert_select "form select[name='alert_rule[frequency]']"
     assert_select "form input[name='alert_rule[run_at_time]']"
+    # Schedule builder (replaced the old frequency <select>): mode, day set,
+    # interval and window all post as plain alert_rule[<attr>] fields.
+    assert_select "form input[name='alert_rule[schedule_mode]']"
+    assert_select "form input[name='alert_rule[schedule_days]']"
+    assert_select "form input[name='alert_rule[interval_hours]']"
+    assert_select "form input[name='alert_rule[window_enabled]']"
+    assert_select "form input[name='alert_rule[window_from]']"
+    assert_select "form input[name='alert_rule[window_to]']"
     assert_select "form input[name='alert_rule[alert_rule[name]]']", false,
       "alert_rule form fields must not be double-nested"
   end

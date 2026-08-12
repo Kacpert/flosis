@@ -6,22 +6,20 @@
 # .superpowers/sdd/task-8.2-brief.md). Same gran/range coercion rules as
 # Workshop::ReportsController so the trend card's controls behave identically.
 class Workshop::BugsController < Workshop::BaseController
-  MONTH_RANGES = [ 6, 12, 24 ].freeze
-  SPRINT_RANGES = [ 8, 13, 26 ].freeze
-  DEFAULT_MONTH_RANGE = 12
-  DEFAULT_SPRINT_RANGE = 13
+  include Workshop::TrendControls
 
   BUG = "Bug".freeze
   LIST_LIMIT = 30
 
   def show
-    @gran = params[:gran] == "sprints" ? "sprints" : "months"
-    @range = coerce_range(@gran, params[:range])
+    @gran = coerce_gran(params[:gran])
+    @range = coerce_range(params[:range])
+    @chart = coerce_chart(params[:chart])
 
     @report = WorkshopReport.new(project: current_workshop_project, period: :month)
 
     @bug_stats = @report.bug_stats
-    @trend = @report.trend(granularity: @gran, range: @range)
+    @trend = @report.trend(granularity: @gran, range: bucket_count(@gran, @range))
     @bugs = bug_analysis_list
   end
 
@@ -35,13 +33,6 @@ class Workshop::BugsController < Workshop::BaseController
   end
 
   private
-
-  def coerce_range(gran, raw_range)
-    allowed = gran == "sprints" ? SPRINT_RANGES : MONTH_RANGES
-    default = gran == "sprints" ? DEFAULT_SPRINT_RANGE : DEFAULT_MONTH_RANGE
-    value = raw_range.to_i
-    allowed.include?(value) ? value : default
-  end
 
   # Merges OPEN Bugs (tasks) and FIXED Bugs (delivered_issues) by recency
   # (jira_created_at for open, resolved_at for fixed — whichever is more

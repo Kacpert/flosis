@@ -1987,9 +1987,10 @@ span.flatpickr-weekday {
   --warn:#d97706; --warn-soft:#fffbeb;
   --danger:#dc2626; --danger-soft:#fef2f2;
   --ai:#7c3aed; --ai-soft:#f5f3ff;
+  --mk1:#4F46E5; --mk2:#7B72F1; --mk3:#CBD2F9;
   --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.04);
   --shadow-lg:0 8px 28px rgba(16,24,40,.12);
-  font-family:Figtree,system-ui,sans-serif;
+  font-family:'Instrument Sans',system-ui,sans-serif;
   background:var(--bg); color:var(--text);
 }
 .clar-app[data-clar-theme="dark"] {
@@ -2000,6 +2001,7 @@ span.flatpickr-weekday {
   --warn:#f59e0b; --warn-soft:#2a210f;
   --danger:#ef4444; --danger-soft:#2a1414;
   --ai:#a78bfa; --ai-soft:#1c1830;
+  --mk1:#6366f1; --mk2:#8E88F6; --mk3:#454A73;
   --shadow:0 1px 2px rgba(0,0,0,.4);
   --shadow-lg:0 12px 36px rgba(0,0,0,.5);
 }
@@ -2105,11 +2107,41 @@ span.flatpickr-weekday {
 .clar-dot { width:7px; height:7px; border-radius:50%; display:inline-block; }
 .clar-metric { padding:18px; }
 .clar-metric .label { font-size:12px; color:var(--faint); margin-bottom:8px; }
-.clar-metric .value { font-size:28px; font-weight:700; letter-spacing:-.5px; }
+.clar-metric .value { font-size:26px; font-weight:700; letter-spacing:-.5px; }
 .clar-metric .sub { font-size:11.5px; color:var(--faint); margin-top:5px; }
 .clar-table-head { display:flex; padding:11px 20px; font-size:11px; font-weight:700;
   letter-spacing:.3px; color:var(--faint); border-bottom:1px solid var(--border); }
-.clar-h1 { margin:0; font-size:25px; font-weight:700; letter-spacing:-.5px; color:var(--text); }
+.clar-h1 { margin:0; font-size:23px; font-weight:700; letter-spacing:-.5px; color:var(--text); }
+
+/* Wordmark: "Flosıs" — the dotless ı carries a coloured dot from the logo mark. */
+.clar-wordmark { font-size:16.5px; font-weight:700; letter-spacing:-.4px; color:var(--text); }
+.clar-wordmark .dotless { position:relative; display:inline-block; }
+.clar-wordmark .dotless::after { content:""; position:absolute; left:50%; top:.148em;
+  width:.19em; height:.19em; margin-left:-.095em; border-radius:50%; background:var(--mk1); }
+
+/* Segmented control with an AI-purple active pill — START AT, schedule mode. */
+.clar-seg { display:flex; gap:3px; background:var(--surface-2); border:1px solid var(--border);
+  border-radius:9px; padding:3px; width:fit-content; }
+.clar-seg-item { font-family:inherit; font-size:12px; font-weight:700; padding:6px 13px;
+  border-radius:7px; border:none; cursor:pointer; white-space:nowrap;
+  background:transparent; color:var(--muted); text-decoration:none; }
+.clar-seg-item-active { background:var(--ai); color:#fff; }
+
+/* Weekday chips in the schedule builder. */
+.clar-daychip { font-family:inherit; font-size:11px; font-weight:700; width:38px; padding:5px 0;
+  border-radius:7px; cursor:pointer; border:1px solid var(--border);
+  background:var(--surface); color:var(--muted); }
+.clar-daychip-active { border-color:var(--ai); background:var(--ai); color:#fff; }
+.clar-daychip-all { font-family:inherit; font-size:11px; font-weight:600; padding:5px 9px;
+  border-radius:7px; cursor:pointer; border:1px dashed var(--border); background:none; color:var(--faint); }
+
+/* Small AI-purple toggle used inside the schedule builder ("Only between"). */
+.clar-toggle-sm { width:30px; height:18px; border-radius:20px; border:none; cursor:pointer;
+  position:relative; flex:0 0 30px; background:var(--border); }
+.clar-toggle-sm[aria-checked="true"] { background:var(--ai); }
+.clar-toggle-sm .knob { position:absolute; top:2px; left:2px; width:14px; height:14px;
+  border-radius:50%; background:#fff; transition:left .15s; }
+.clar-toggle-sm[aria-checked="true"] .knob { left:14px; }
 .clar-sub { margin:7px 0 22px; color:var(--muted); font-size:14px; line-height:1.5; }
 .clar-section-label { font-size:13px; font-weight:700; letter-spacing:.4px; color:var(--faint); }
 

@@ -15,6 +15,9 @@ class Workshop::JiraBrowserController < Workshop::BaseController
   def show
     @boards = current_workshop_project ? current_workshop_project.jira_boards.order(:name) : JiraBoard.none
     @selected_board_id = params[:board].presence || @boards.first&.id&.to_s || BACKLOG_BOARD_ID
+    # Which pipeline stage an imported ticket lands on. Carried across board
+    # tabs (each is a turbo-frame reload) so the START AT choice sticks.
+    @start_stage = params[:start_stage].to_s.presence_in(%w[briefing details]) || "briefing"
 
     if backlog_selected?
       @backlog_tasks = filtered_backlog_tasks

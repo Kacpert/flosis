@@ -16,7 +16,12 @@
       </span>
       <span class="inline-flex items-center gap-1.5 text-[12px] clar-text-faint">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        <%= @alert_rule.discord_webhook.channel_name %> &middot; Discord
+        <%# Notifications are opt-in — a rule with them off has no webhook. %>
+        <% if @alert_rule.notify_enabled? && @alert_rule.discord_webhook %>
+          <%= @alert_rule.discord_webhook.channel_name %> &middot; Discord
+        <% else %>
+          Notifications off
+        <% end %>
       </span>
       <span class="text-[12px] clar-text-faint">Fired <%= @fired_count %> of <%= @runs.size %> runs</span>
     </div>

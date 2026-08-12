@@ -1,24 +1,36 @@
 <%# Clar workshop top bar: logo, project switcher, integration chips,
     theme toggle, user chip. Structure/icons ported from redesign.html. %>
 <header class="clar-topbar">
-  <div class="flex items-center gap-2 pr-1.5">
-    <div class="clar-logo">C</div>
-    <span class="font-bold text-base tracking-tight">Clar</span>
+  <%# Flosis mark: three stacked rules (the "backlog") with the top one clearing
+      into three shrinking dots, plus the wordmark whose dotless ı carries the
+      mark's primary dot. Ported 1:1 from ClearBacklog.html. %>
+  <div class="flex items-center gap-1.5 pr-1.5">
+    <svg width="28" height="22" viewBox="0 0 56 44" class="flex-none">
+      <g stroke-linecap="round">
+        <line x1="6" y1="10" x2="22" y2="10" stroke="var(--ai)" stroke-width="5"/>
+        <circle cx="28.4" cy="9.6" r="2.7" fill="var(--mk1)"/>
+        <circle cx="34.39" cy="8" r="2.2" fill="var(--mk2)"/>
+        <circle cx="38.12" cy="2.68" r="1.7" fill="var(--mk3)"/>
+        <line x1="6" y1="21" x2="40" y2="21" stroke="var(--text)" stroke-width="5" opacity=".85"/>
+        <line x1="6" y1="32" x2="30" y2="32" stroke="var(--text)" stroke-width="5" opacity=".5"/>
+      </g>
+    </svg>
+    <span class="clar-wordmark">Flos<span class="dotless">&#305;</span>s</span>
   </div>
 
   <div class="relative" data-controller="clar-dropdown">
     <button type="button" data-action="click->clar-dropdown#toggle"
-            class="flex items-center gap-2.5 h-[38px] px-3 rounded-lg border clar-btn"
+            class="flex items-center gap-2 h-8 px-2.5 rounded-lg border clar-btn"
             style="border-color: var(--border); background: var(--surface-2);">
-      <span class="clar-dot" style="background: var(--success);"></span>
-      <span class="font-semibold text-[13.5px]"><%= current_workshop_project&.name || "No project selected" %></span>
+      <span class="clar-dot !w-1.5 !h-1.5" style="background: var(--success);"></span>
+      <span class="font-semibold text-[12.5px]"><%= current_workshop_project&.name || "No project selected" %></span>
       <% if current_workshop_project&.client %>
-        <span class="text-[11px] clar-text-faint"><%= current_workshop_project.client.name %></span>
+        <span class="text-[10.5px] clar-text-faint"><%= current_workshop_project.client.name %></span>
       <% end %>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
     </button>
 
-    <div data-clar-dropdown-target="panel" class="hidden absolute top-[46px] left-0 w-[300px] clar-card clar-fade" style="box-shadow: var(--shadow-lg); padding: 6px; z-index: 50;">
+    <div data-clar-dropdown-target="panel" class="hidden absolute top-10 left-0 w-[300px] clar-card clar-fade" style="box-shadow: var(--shadow-lg); padding: 6px; z-index: 50;">
       <div class="text-[10.5px] font-bold tracking-wide px-2.5 pt-2 pb-1 clar-text-faint" style="letter-spacing: .6px;">SWITCH PROJECT &middot; SWAPS EVERYTHING</div>
       <% workshop_projects.each do |project| %>
         <%= button_to switch_workshop_project_path, params: { project_id: project.id }, method: :post,

@@ -1,0 +1,78 @@
+<%# Schedule builder for an alert rule — shared by the New and Edit modals.
+    `rule` is the AlertRule being built/edited (a fresh AlertRule.new for New).
+    Everything posts as plain alert_rule[...] fields; the Stimulus controller
+    only mirrors state into the hidden inputs and renders the live preview. %>
+<label class="clar-field-label">SCHEDULE</label>
+<div class="border clar-divider rounded-[11px] py-2.5 px-[11px] mb-3.5 bg-[color:var(--bg)]"
+     data-controller="clar-schedule-builder"
+     data-clar-schedule-builder-mode-value="<%= rule.schedule_mode %>"
+     data-clar-schedule-builder-days-value="<%= rule.days.join(',') %>"
+     data-clar-schedule-builder-window-value="<%= rule.window_enabled? %>">
+
+  <div class="flex items-center gap-2.5 flex-wrap mb-2.5">
+    <div class="clar-seg !rounded-lg !p-[2px]">
+      <% [["daily", "Daily"], ["days", "Days"], ["interval", "Every X h"]].each do |value, label| %>
+        <button type="button" data-mode="<%= value %>"
+                data-clar-schedule-builder-target="modeButton"
+                data-action="click->clar-schedule-builder#selectMode"
+                class="clar-seg-item !font-semibold !px-[11px] !py-[5px] !rounded-md"><%= label %></button>
+      <% end %>
+    </div>
+
+    <span class="flex-1"></span>
+
+    <div class="flex items-center gap-[7px]" data-clar-schedule-builder-target="timeRow">
+      <span class="text-[12.5px] clar-text-muted">at</span>
+      <%= time_field_tag "alert_rule[run_at_time]", rule.run_at_time.presence || "09:00", include_seconds: false, id: nil,
+            class: "clar-input !w-auto !py-1.5 !px-2 !text-[13px] !bg-[color:var(--surface)]",
+            data: { clar_schedule_builder_target: "timeField", action: "input->clar-schedule-builder#refresh" } %>
+    </div>
+
+    <div class="flex items-center gap-[7px] hidden" data-clar-schedule-builder-target="intervalRow">
+      <span class="text-[12.5px] clar-text-muted">every</span>
+      <%= number_field_tag "alert_rule[interval_hours]", rule.interval_hours || 4, min: 1, max: 24, id: nil,
+            class: "clar-input !w-[52px] !py-1.5 !px-2 !text-[13px] !bg-[color:var(--surface)]",
+            data: { clar_schedule_builder_target: "intervalField", action: "input->clar-schedule-builder#refresh" } %>
+      <span class="text-[12.5px] clar-text-muted">h</span>
+    </div>
+  </div>
+
+  <div class="flex gap-1 flex-wrap mb-2.5 hidden" data-clar-schedule-builder-target="daysRow">
+    <% AlertRule::DAY_NAMES.each do |day| %>
+      <button type="button" data-day="<%= day %>"
+              data-clar-schedule-builder-target="dayButton"
+              data-action="click->clar-schedule-builder#toggleDay"
+              class="clar-daychip"><%= day %></button>
+    <% end %>
+    <button type="button" data-action="click->clar-schedule-builder#toggleAllDays" class="clar-daychip-all">All</button>
+  </div>
+
+  <div class="flex items-center gap-2 mb-2.5 flex-wrap hidden" data-clar-schedule-builder-target="windowRow">
+    <button type="button" class="inline-flex items-center gap-1.5 text-[12px] font-semibold clar-text-muted bg-transparent border-0 cursor-pointer p-0"
+            data-clar-schedule-builder-target="windowToggle"
+            data-action="click->clar-schedule-builder#toggleWindow"
+            aria-checked="<%= rule.window_enabled? %>" aria-label="Only run between these hours">
+      <span class="clar-toggle-sm" aria-hidden="true"><span class="knob"></span></span>
+      Only between
+    </button>
+    <div class="flex items-center gap-2 hidden" data-clar-schedule-builder-target="windowInputs">
+      <%= time_field_tag "alert_rule[window_from]", rule.window_from.presence || "09:00", include_seconds: false, id: nil,
+            class: "clar-input !w-auto !py-1 !px-2 !text-[12.5px] !bg-[color:var(--surface)]",
+            data: { action: "input->clar-schedule-builder#refresh" } %>
+      <span class="text-[12px] clar-text-faint">to</span>
+      <%= time_field_tag "alert_rule[window_to]", rule.window_to.presence || "18:00", include_seconds: false, id: nil,
+            class: "clar-input !w-auto !py-1 !px-2 !text-[12.5px] !bg-[color:var(--surface)]",
+            data: { action: "input->clar-schedule-builder#refresh" } %>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-1.5 pt-2.5 border-t clar-divider text-[12px] clar-text-muted">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+    Runs <b class="font-semibold clar-text-text" data-clar-schedule-builder-target="preview"><%= rule.schedule_label %></b>
+  </div>
+
+  <%# Non-input state (mode, day set, window on/off) posts through these. %>
+  <%= hidden_field_tag "alert_rule[schedule_mode]", rule.schedule_mode, id: nil, data: { clar_schedule_builder_target: "modeField" } %>
+  <%= hidden_field_tag "alert_rule[schedule_days]", rule.days.join(","), id: nil, data: { clar_schedule_builder_target: "daysField" } %>
+  <%= hidden_field_tag "alert_rule[window_enabled]", rule.window_enabled? ? "1" : "0", id: nil, data: { clar_schedule_builder_target: "windowField" } %>
+</div>

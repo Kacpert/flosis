@@ -3,7 +3,8 @@
     Edit button (data-clar-modal-id-param="edit-alert-rule-<id>"). %>
 <div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="edit-alert-rule-<%= rule.id %>"
      data-action="click->clar-modal#close">
-  <div class="clar-modal p-5.5 max-w-[520px] max-h-[88vh] overflow-y-auto" data-action="click->clar-modal#stopPropagation">
+  <%# Same growth rule as the New modal — see _new_rule_modal.html.erb. %>
+  <div class="clar-modal p-5.5 max-w-[520px] max-h-[calc(100vh-48px)] overflow-y-auto" data-action="click->clar-modal#stopPropagation">
     <div class="flex items-center justify-between mb-1">
       <h2 class="text-lg font-bold clar-text-text m-0">Edit alert rule</h2>
       <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
@@ -21,19 +22,7 @@
       <%= f.text_area :prompt, rows: 3, class: "clar-textarea mb-1.5" %>
       <div class="text-[11px] clar-text-faint mb-4">Write it as a condition &mdash; natural language is fine.</div>
 
-      <div class="grid grid-cols-2 gap-3 mb-4">
-        <div>
-          <label class="clar-field-label">FREQUENCY</label>
-          <%= f.select :frequency, AlertRule::FREQUENCY_LABELS.map { |value, label| [label, value] },
-                {}, class: "clar-select", data: { clar_alert_rule_form_target: "frequency", action: "change->clar-alert-rule-form#syncTimeDisabled" } %>
-        </div>
-        <div>
-          <label class="clar-field-label">TIME</label>
-          <%# run_at_time is a string column ("HH:MM") — pass it straight through. %>
-          <%= f.time_field :run_at_time, value: rule.run_at_time, include_seconds: false,
-                class: "clar-input", data: { clar_alert_rule_form_target: "time" } %>
-        </div>
-      </div>
+      <%= render "workshop/process/schedule_builder", rule: rule %>
 
       <div data-controller="clar-notify-toggle" class="mb-5.5">
         <div class="flex items-start justify-between gap-4">
@@ -69,10 +58,19 @@
         </div>
       </div>
 
-      <div class="flex gap-2.5 justify-end">
-        <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
-        <%= f.submit "Save changes", class: "clar-btn clar-btn-primary" %>
+      <div class="flex gap-2.5 justify-between items-center">
+        <%# Delete lives on the left of the footer, away from Save. The destroy
+            form can't nest inside this one — rendered as a sibling below and
+            submitted by this button via its form attribute. %>
+        <button type="submit" form="delete-alert-rule-<%= rule.id %>" class="clar-btn clar-btn-danger">Delete</button>
+        <div class="flex gap-2.5">
+          <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+          <%= f.submit "Save changes", class: "clar-btn clar-btn-primary" %>
+        </div>
       </div>
     <% end %>
+
+    <%= form_with url: workshop_alert_rule_path(rule), method: :delete, id: "delete-alert-rule-#{rule.id}",
+          class: "hidden", data: { turbo_confirm: %(Delete "#{rule.name}"? Its run history and AI memory go with it.) } do %><% end %>
   </div>
 </div>

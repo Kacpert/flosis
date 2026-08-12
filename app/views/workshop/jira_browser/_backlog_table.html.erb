@@ -36,9 +36,10 @@
     <tbody>
       <% if tasks.any? %>
         <% tasks.each do |task| %>
-          <tr data-clar-board-filter-target="row">
+          <tr data-clar-board-filter-target="row"
+              data-clar-board-filter-text="<%= "#{task.external_reference} #{task.name} #{task.reporter_name}".downcase %>">
             <td class="p-0">
-              <%= button_to workshop_ideas_path, params: { task_id: task.id }, method: :post,
+              <%= button_to workshop_ideas_path, params: { task_id: task.id, start_stage: @start_stage }, method: :post,
                     class: "w-full text-left cursor-pointer bg-[color:var(--surface)] border-0 border-b clar-divider py-3 px-4 flex items-center [font-family:inherit]",
                     form: { class: "block", data: { turbo_frame: "_top" } } do %>
                 <span class="clar-key w-[74px] flex-none"><%= task.external_reference %></span>

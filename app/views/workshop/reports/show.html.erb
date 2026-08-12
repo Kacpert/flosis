@@ -1,4 +1,4 @@
-<% content_for :title, "Reporting · Clar" %>
+<% content_for :title, "Reporting · Flosis" %>
 
 <div class="flex items-start justify-between gap-5 mb-6 flex-wrap">
   <div>
@@ -8,7 +8,7 @@
 
   <div class="flex items-center gap-2.5 flex-wrap">
     <%= form_with url: workshop_reporting_path, method: :get, data: { controller: "clar-pipeline-filter" }, class: "flex items-center gap-2.5 flex-wrap" do |f| %>
-      <% %i[period gran range].each do |kept| %>
+      <% %i[period gran range chart month sprint].each do |kept| %>
         <%= hidden_field_tag kept, params[kept], id: nil if params[kept].present? %>
       <% end %>
       <div class="flex items-center gap-2 clar-card px-3 py-1.5">
@@ -26,48 +26,67 @@
     <% end %>
 
     <%
-      selected_month = @report.selected_month
-      prev_month = selected_month.prev_month
-      next_month = selected_month.next_month
-      # No reporting on the future: hide the next arrow once we're on the
-      # current month.
-      at_current_month = selected_month >= Time.current.beginning_of_month.to_date
+      # ‹ Period › + Months/Sprints toggle. The arrows step whichever period
+      # kind is active: month-by-month (never into the future) or
+      # sprint-by-sprint through @sprints (oldest → newest).
+      if @period == :sprint
+        sprint_idx = @sprints.index(@selected_sprint)
+        prev_target = sprint_idx && sprint_idx > 0 ? { sprint: @sprints[sprint_idx - 1].id } : nil
+        next_target = sprint_idx && sprint_idx < @sprints.size - 1 ? { sprint: @sprints[sprint_idx + 1].id } : nil
+        period_label = @selected_sprint&.name || "No sprints"
+        prev_title, next_title = "Previous sprint", "Next sprint"
+      else
+        selected_month = @report.selected_month
+        at_current_month = selected_month >= Time.current.beginning_of_month.to_date
+        prev_target = { month: selected_month.prev_month.strftime("%Y-%m") }
+        next_target = at_current_month ? nil : { month: selected_month.next_month.strftime("%Y-%m") }
+        period_label = period_label_for(:month, month: selected_month)
+        prev_title, next_title = "Previous month", "Next month"
+      end
+      arrow_class = "flex items-center justify-center w-7 h-7 rounded-[7px]"
     %>
-    <div class="clar-tabs">
-      <div class="clar-tab <%= 'clar-tab-active' if @period == :month %> !px-1.5 flex items-center gap-0.5">
-        <%# Prev month — always available. %>
-        <%= link_to request.query_parameters.merge(period: "month", month: prev_month.strftime("%Y-%m")),
-              class: "flex items-center px-1 clar-text-faint hover:clar-text-text", title: "Previous month",
-              aria: { label: "Previous month" } do %>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
-        <% end %>
-        <%# The label itself switches to the month period (from the Sprint tab). %>
-        <%= link_to period_label_for(:month, month: selected_month),
-              request.query_parameters.merge(period: "month", month: selected_month.strftime("%Y-%m")),
-              class: "font-semibold whitespace-nowrap px-1" %>
-        <%# Next month — hidden on the current month (no future reporting). %>
-        <% if at_current_month %>
-          <span class="flex items-center px-1 clar-text-faint opacity-30 cursor-not-allowed" title="No future months" aria-hidden="true">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg>
-          </span>
-        <% else %>
-          <%= link_to request.query_parameters.merge(period: "month", month: next_month.strftime("%Y-%m")),
-                class: "flex items-center px-1 clar-text-faint hover:clar-text-text", title: "Next month",
-                aria: { label: "Next month" } do %>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg>
+    <div class="flex items-center gap-2">
+      <div class="flex items-center gap-0.5 clar-card p-[3px]">
+        <% if prev_target %>
+          <%= link_to request.query_parameters.merge(prev_target), title: prev_title,
+                class: "#{arrow_class} clar-text-faint hover:clar-text-text", aria: { label: prev_title } do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
           <% end %>
+        <% else %>
+          <span class="<%= arrow_class %> text-[color:var(--border)] cursor-default" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+          </span>
+        <% end %>
+
+        <span class="text-[13.5px] font-semibold clar-text-text min-w-[120px] text-center px-1 whitespace-nowrap"><%= period_label %></span>
+
+        <% if next_target %>
+          <%= link_to request.query_parameters.merge(next_target), title: next_title,
+                class: "#{arrow_class} clar-text-faint hover:clar-text-text", aria: { label: next_title } do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+          <% end %>
+        <% else %>
+          <span class="<%= arrow_class %> text-[color:var(--border)] cursor-default" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+          </span>
         <% end %>
       </div>
-      <%= link_to period_label_for(:sprint, active_sprint: @report.current_active_sprint),
-            request.query_parameters.merge(period: "sprint"),
-            class: "clar-tab #{'clar-tab-active' if @period == :sprint}" %>
+
+      <%# Switching period kind resets the position to "latest" — drop the
+          other kind's cursor param so we don't carry a stale month/sprint. %>
+      <div class="clar-tabs">
+        <%= link_to "Months", request.query_parameters.except("month", "sprint").merge(period: "month"),
+              class: "clar-tab #{'clar-tab-active' if @period == :month}" %>
+        <%= link_to "Sprints", request.query_parameters.except("month", "sprint").merge(period: "sprint"),
+              class: "clar-tab #{'clar-tab-active' if @period == :sprint}" %>
+      </div>
     </div>
   </div>
 </div>
 
 <%= render "metrics", metrics: @metrics, developer: @developer, developers_count: @developers.size %>
 
-<%= render "trend_card", trend: @trend, gran: @gran, range: @range, developer: @developer %>
+<%= render "trend_card", trend: @trend, gran: @gran, range: @range, chart: @chart, developer: @developer %>
 
 <%= render "dev_table", developers: @developers, developer: @developer %>
 
