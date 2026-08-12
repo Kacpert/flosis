@@ -2,10 +2,12 @@
     NAV/CONFIG_ICON consts. Client gating: clients only ever see Jira Tasks. %>
 <% is_client = current_user.client_role?(Current.workspace) %>
 <nav class="clar-sidebar" data-controller="clar-sidebar" data-collapsed="false">
-  <div class="flex items-center justify-between px-2.5 pb-2">
-    <span class="clar-nav-label" data-clar-sidebar-hide-label>WORKSPACE</span>
+  <%# Padding lives on this row (6px 6px 8px 10px per the design), not on the
+      label — .clar-nav-label carries its own for the standalone ADMIN heading. %>
+  <div class="flex items-center justify-between pt-1.5 pr-1.5 pb-2 pl-2.5">
+    <span class="clar-nav-label !p-0" data-clar-sidebar-hide-label>WORKSPACE</span>
     <button type="button" data-action="click->clar-sidebar#toggle" title="Collapse menu"
-            class="border-0 bg-transparent cursor-pointer p-1 rounded-md clar-text-faint">
+            class="border-0 bg-transparent cursor-pointer p-1 rounded-[6px] clar-text-faint flex">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
     </button>
   </div>
@@ -79,10 +81,10 @@
       refreshed = clar_time_ago(current_workshop_project&.features_summary_updated_at) || "not yet scanned"
     %>
     <div class="clar-status-card" data-clar-sidebar-collapsed-only-hide title="Claude Opus &middot; master refreshed <%= refreshed %>">
-      <div class="flex items-center gap-1.5 text-[11.5px] font-bold clar-text-ai">
+      <div class="flex items-center gap-[7px] text-[11.5px] font-bold clar-text-ai">
         <span class="clar-dot" style="background: var(--ai);"></span>Claude Opus
       </div>
-      <div class="text-[11px] mt-1 leading-snug clar-text-muted">
+      <div class="text-[11px] mt-[5px] leading-[1.45] clar-text-muted">
         Repo checked out &middot; <b class="clar-text-text">master</b> refreshed <%= refreshed %>
       </div>
     </div>

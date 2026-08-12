@@ -11,14 +11,18 @@
     it sits beside it — flex keeps it reliably right-aligned (no fragile absolute
     positioning). The link keeps its own chevron; delete appears to its right on
     row hover. %>
-<div class="group flex items-stretch clar-row clar-row-hover" data-controller="clar-modal">
-<%= link_to workshop_idea_path(idea), class: "flex-1 min-w-0 flex items-center gap-4 p-4 no-underline" do %>
+<%# Row padding sits here (15px 16px per the design); the link inside carries no
+    padding of its own so the delete button and chevron align with it. %>
+<div class="group flex items-center gap-3 py-[15px] px-4 clar-row clar-row-hover" data-controller="clar-modal">
+<%= link_to workshop_idea_path(idea), class: "flex-1 min-w-0 flex items-center gap-4 p-0 no-underline" do %>
   <div class="flex-1 min-w-0">
     <div class="flex items-center gap-2.5">
       <% if idea.external_type.present? %>
         <span class="clar-key"><%= idea.external_reference %></span>
       <% else %>
-        <span class="clar-badge clar-badge-muted">LOCAL</span>
+        <%# Smaller and tighter than .clar-badge — the design draws LOCAL at
+            10px/700 with .3px tracking in a 5px-radius outline. %>
+        <span class="inline-flex items-center text-[10px] font-bold tracking-[.3px] clar-text-muted bg-[color:var(--surface-2)] border clar-divider px-1.5 py-px rounded-[5px]">LOCAL</span>
       <% end %>
       <span class="font-semibold text-[14px] clar-text-text"><%= idea.name %></span>
     </div>
@@ -39,23 +43,25 @@
     </span>
   <% end %>
 
-  <span class="clar-badge <%= stage_badge[0] %> whitespace-nowrap"><%= stage_badge[1] %></span>
-
-  <span class="clar-text-faint flex">
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
-  </span>
+  <%# The stage badge is a touch wider than the shared badge (4px 11px). %>
+  <span class="clar-badge <%= stage_badge[0] %> !px-[11px] whitespace-nowrap"><%= stage_badge[1] %></span>
 <% end %>
 
 <%# Delete button — flex sibling of the link, revealed on row hover. It opens
     the confirm modal below rather than a browser dialog. %>
 <% jira = idea.external_reference.present? %>
-<div class="flex items-center pr-4 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+<div class="flex items-center flex-none opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
   <button type="button" data-action="click->clar-modal#open"
-          class="flex items-center justify-center w-[30px] h-[30px] rounded-lg border clar-divider clar-text-faint bg-[color:var(--surface)] hover:text-[color:var(--danger)] hover:border-[color:var(--danger)]"
+          class="flex items-center justify-center w-[30px] h-[30px] rounded-[8px] border clar-divider clar-text-faint bg-[color:var(--surface)] cursor-pointer hover:text-[color:var(--danger)] hover:border-[color:var(--danger)]"
           title="<%= jira ? "Remove from Create Tasks (keeps the Jira ticket)" : "Delete this task" %>">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
   </button>
 </div>
+
+<%# Always-visible chevron, to the right of the hover-revealed delete button. %>
+<span class="clar-text-faint flex flex-none">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+</span>
 
 <%# Confirm modal. For a Jira-linked task the second line makes clear the Jira
     issue itself is untouched — we only take it out of Create Tasks. %>

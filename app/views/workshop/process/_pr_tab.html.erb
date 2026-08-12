@@ -1,6 +1,6 @@
 <% if current_workspace.pr_review_enabled? %>
-  <div class="flex items-center justify-between mb-4">
-    <div class="flex gap-5">
+  <div class="flex items-center justify-between mb-3.5">
+    <div class="flex gap-[18px]">
       <div>
         <div class="text-[22px] font-bold clar-text-text"><%= @reviewed_today_count %></div>
         <div class="text-[11.5px] clar-text-faint">reviewed today</div>
@@ -14,8 +14,9 @@
         <div class="text-[11.5px] clar-text-faint">looks good</div>
       </div>
     </div>
-    <div class="clar-chip">
-      <span class="clar-dot bg-[var(--success)]"></span>
+    <%# Status pill — a bordered surface chip, not the interactive .clar-chip. %>
+    <div class="inline-flex items-center gap-[7px] text-[12px] clar-text-muted border clar-divider rounded-[8px] px-[11px] py-[7px] bg-[color:var(--surface)]">
+      <span class="w-1.5 h-1.5 rounded-full bg-[var(--success)]"></span>
       Polling every <%= @poll_minutes %> min &middot; last <%= clar_time_ago(current_workspace.pr_polled_at) || "never" %>
     </div>
   </div>
@@ -29,20 +30,23 @@
           <span class="clar-mono text-[12px] clar-text-faint w-[46px] flex-none">#<%= review.pr_number %></span>
           <div class="flex-1 min-w-0">
             <div class="font-semibold text-[13.5px] clar-text-text truncate"><%= review.pr_title %></div>
-            <div class="text-[11.5px] clar-text-faint mt-0.5">
+            <div class="text-[11.5px] clar-text-faint mt-[3px]">
               <%= review.pr_author %> &middot; <span class="clar-mono"><%= review.pr_branch %></span> &middot; <%= clar_time_ago(review.reviewed_at) %>
             </div>
           </div>
+          <%# Outcome pill — the design gives this one its own metrics
+              (11.5px/700, 3px 10px, fully rounded), not the shared .clar-badge. %>
+          <% outcome_pill = "text-[11.5px] font-bold px-2.5 py-[3px] rounded-[20px] whitespace-nowrap" %>
           <% if review.outcome == "looks_good" %>
-            <span class="clar-badge clar-badge-success">Looks good!</span>
+            <span class="<%= outcome_pill %> clar-badge-success">Looks good!</span>
           <% elsif review.outcome == "comments" %>
-            <span class="clar-badge clar-badge-warn"><%= review.comment_count %> comments</span>
+            <span class="<%= outcome_pill %> clar-badge-warn"><%= review.comment_count %> comments</span>
           <% else %>
-            <span class="clar-badge clar-badge-muted">Pending</span>
+            <span class="<%= outcome_pill %> clar-badge-muted">Pending</span>
           <% end %>
           <% if review.pr_url.present? %>
             <%= link_to review.pr_url, target: "_blank", rel: "noopener",
-                  class: "inline-flex items-center gap-1 text-[12px] font-semibold clar-text-muted no-underline" do %>
+                  class: "inline-flex items-center gap-[5px] text-[12px] font-semibold clar-text-muted no-underline" do %>
               GitHub
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M7 7h10v10"/></svg>
             <% end %>

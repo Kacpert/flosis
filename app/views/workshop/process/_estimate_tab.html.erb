@@ -13,15 +13,17 @@
     </div>
 
     <div class="mb-4">
-      <div class="text-[11.5px] clar-text-faint mb-1.5">Writes to field(s)</div>
+      <div class="text-[11.5px] clar-text-faint mb-[5px]">Writes to field(s)</div>
       <div class="flex flex-wrap gap-1.5">
         <% @estimation_field_names.each do |field_name| %>
-          <span class="clar-badge clar-badge-primary"><%= field_name %></span>
+          <%# Field pills are larger/lighter than the shared .clar-badge
+              (12.5px/600, 4px 10px), so they get explicit values. %>
+          <span class="inline-flex items-center gap-1.5 font-semibold text-[12.5px] clar-text-primary bg-[color:var(--primary-soft)] px-2.5 py-1 rounded-[7px] whitespace-nowrap"><%= field_name %></span>
         <% end %>
       </div>
     </div>
 
-    <div class="text-[11.5px] clar-text-muted leading-relaxed pt-3.5 border-t border-[color:var(--border)]">
+    <div class="text-[11.5px] clar-text-muted leading-[1.5] pt-3.5 border-t border-[color:var(--border)]">
       Manual estimate fields are never touched. Configure in <b class="clar-text-text">Configuration → AI</b>.
       <% if respond_to?(:workshop_configuration_path) %>
         <%= link_to "Go to Configuration", workshop_configuration_path, class: "block mt-2 font-semibold clar-text-primary no-underline" %>
@@ -30,56 +32,58 @@
   </div>
 
   <div data-controller="clar-filter">
-    <%# Fuzzy search over the estimated-tasks list (client-side substring filter
-        on the task key + title). %>
-    <div class="relative mb-3">
-      <svg class="absolute left-3 top-1/2 -translate-y-1/2 clar-text-faint" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-      <input type="text" placeholder="Search tasks…" class="clar-input !pl-9"
-             data-clar-filter-target="query" data-action="input->clar-filter#filter">
-    </div>
-
     <div class="clar-card overflow-hidden">
-      <%# Card header — count of estimated tasks. %>
-      <div class="px-4.5 py-3 text-[12px] font-semibold clar-text-muted border-b border-[color:var(--border)]">
-        <%= pluralize(@estimated_tasks.size, "task") %> estimated
+      <%# Card header — count of estimated tasks + fuzzy search over the list
+          (client-side substring filter on the task key + title). %>
+      <div class="flex items-center gap-3 flex-wrap px-4.5 py-2.5 border-b border-[color:var(--border)]">
+        <span class="text-[12px] font-semibold clar-text-muted"><%= pluralize(@estimated_tasks.size, "task") %> estimated</span>
+        <span class="flex-1"></span>
+        <div class="relative w-[260px] max-w-full">
+          <span class="absolute left-[10px] top-1/2 -translate-y-1/2 flex clar-text-faint pointer-events-none">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          </span>
+          <input type="text" placeholder="Search tasks…"
+                 class="clar-input !text-[12.5px] !rounded-[8px] !py-[7px] !pl-[30px] !pr-[26px]"
+                 data-clar-filter-target="query" data-action="input->clar-filter#filter">
+        </div>
       </div>
 
-      <div class="flex px-4.5 py-2.5 text-[11px] font-bold tracking-[.3px] clar-text-faint border-b border-[color:var(--border)]">
+      <div class="flex items-center px-4.5 py-[11px] text-[11px] font-bold tracking-[.3px] clar-text-faint border-b border-[color:var(--border)]">
         <span class="w-[74px] flex-none">TASK</span>
         <span class="flex-1">TITLE</span>
-        <span class="w-[110px] text-right">AI ESTIMATION</span>
-        <span class="w-[120px] text-right">ACTION</span>
+        <span class="w-[96px] text-right">AI ESTIMATION</span>
+        <span class="w-[130px] text-right">ACTION</span>
       </div>
 
       <% if @estimated_tasks.empty? %>
-        <div class="p-8 text-center clar-text-muted text-[13.5px]" data-empty>No tasks estimated yet.</div>
+        <div class="p-[28px] text-center clar-text-faint text-[13px]" data-empty>No tasks estimated yet.</div>
       <% else %>
         <% @estimated_tasks.each do |task| %>
           <% title = task.name.sub(/\A#{Regexp.escape(task.external_reference.to_s)}\s*/, "") %>
-          <div class="flex items-center px-4.5 py-3.5 border-b border-[color:var(--border)] last:border-b-0"
+          <div class="flex items-center px-4.5 py-[13px] border-b border-[color:var(--border)] last:border-b-0"
                data-clar-filter-target="item" data-filter-text="<%= "#{task.external_reference} #{title}" %>">
             <span class="w-[74px] flex-none clar-mono text-[12px] clar-text-primary"><%= task.external_reference %></span>
             <span class="flex-1 min-w-0 flex items-baseline gap-2">
               <span class="text-[13.5px] clar-text-text truncate"><%= title %></span>
               <% if task.ai_estimated_at.present? %>
-                <span class="text-[11.5px] clar-text-faint flex-none"><%= clar_time_ago(task.ai_estimated_at) %></span>
+                <span class="text-[11px] clar-text-faint flex-none"><%= clar_time_ago(task.ai_estimated_at) %></span>
               <% end %>
             </span>
-            <span class="w-[110px] text-right font-bold text-[14px] clar-text-ai"><%= number_with_precision(task.ai_estimate_points, strip_insignificant_zeros: true) %></span>
-            <span class="w-[120px] flex justify-end">
+            <span class="w-[96px] text-right font-bold text-[15px] clar-text-ai"><%= number_with_precision(task.ai_estimate_points, strip_insignificant_zeros: true) %></span>
+            <span class="w-[130px] flex justify-end">
               <%# Manual re-estimate — forces a fresh estimate for this one task
                   (the estimate-once auto guard is bypassed). Redirects back. %>
               <%= button_to estimate_workshop_idea_path(task),
                     form: { data: { turbo_confirm: "Re-estimate #{task.external_reference}? The AI value may change." } },
-                    class: "clar-btn !py-[5px] !px-[10px] !text-[12px]",
+                    class: "clar-btn !gap-[5px] !py-[5px] !px-[10px] !text-[11.5px] !rounded-[7px] clar-text-muted",
                     title: "Re-estimate this task now" do %>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
                 Re-estimate
               <% end %>
             </span>
           </div>
         <% end %>
-        <div class="hidden p-8 text-center clar-text-muted text-[13.5px]" data-clar-filter-target="empty">No tasks match your search.</div>
+        <div class="hidden p-[28px] text-center clar-text-faint text-[13px]" data-clar-filter-target="empty">No tasks match your search.</div>
       <% end %>
     </div>
   </div>

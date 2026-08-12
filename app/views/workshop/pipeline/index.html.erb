@@ -44,7 +44,7 @@
   <%= render "workshop/pipeline/jira_browser_modal" %>
 </div>
 
-<div class="flex items-center justify-between gap-4 mb-3.5 flex-wrap">
+<div class="flex items-center justify-between gap-3.5 mb-3 flex-wrap">
   <h2 class="clar-section-label">IN THE PIPELINE</h2>
 
   <%= form_with url: workshop_pipeline_path, method: :get, data: { controller: "clar-pipeline-filter" }, class: "flex items-center gap-2 flex-wrap" do |f| %>
@@ -52,11 +52,14 @@
     <% %i[stage source].each do |kept| %>
       <%= hidden_field_tag kept, params[kept], id: nil if params[kept].present? %>
     <% end %>
+    <%# Both controls sit on --surface here (not the --bg the modal inputs use),
+        at 12.5px with a 9px radius. %>
     <div class="relative flex items-center">
-      <span class="absolute left-2.5 clar-text-faint pointer-events-none flex">
+      <span class="absolute left-[9px] clar-text-faint pointer-events-none flex">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       </span>
-      <%= f.text_field :q, value: params[:q], placeholder: "Search tickets…", class: "clar-input pl-[30px] py-2 w-[200px]",
+      <%= f.text_field :q, value: params[:q], placeholder: "Search tickets…",
+            class: "clar-input !text-[12.5px] !rounded-[9px] !py-2 !pl-[30px] !pr-[11px] !w-[200px] !bg-[color:var(--surface)]",
             data: { clar_pipeline_filter_target: "search", action: "input->clar-pipeline-filter#debouncedSubmit" } %>
     </div>
     <%= f.select :sort, [
@@ -64,7 +67,10 @@
           ["Oldest first", "oldest"],
           ["Pipeline stage", "stage"],
           ["Title A–Z", "title"],
-        ], { selected: params[:sort] }, class: "clar-select", data: { action: "change->clar-pipeline-filter#submit" } %>
+        ], { selected: params[:sort] },
+        class: "clar-select !w-auto !text-[12.5px] !font-medium !rounded-[9px]",
+        style: "padding: 8px 28px 8px 10px; background-color: var(--surface); background-position: right 9px center;",
+        data: { action: "change->clar-pipeline-filter#submit" } %>
   <% end %>
 </div>
 
@@ -85,14 +91,14 @@
     <% count = @source_counts.fetch(value.to_sym, 0) %>
     <%= link_to request.query_parameters.except(:source).merge(value == "all" ? {} : { source: value }),
           class: "clar-chip #{active ? 'clar-chip-dark-active' : ''}" do %>
-      <%= label %><span class="ml-1 opacity-70 font-bold"><%= count %></span>
+      <%= label %><span class="ml-[3px] opacity-70 font-bold"><%= count %></span>
     <% end %>
   <% end %>
 </div>
 
 <div class="flex flex-col gap-2.5">
   <% if @ideas.empty? %>
-    <div data-empty class="text-center clar-text-faint text-[13px] p-8.5 clar-dashed rounded-xl">
+    <div data-empty class="text-center clar-text-faint text-[13px] p-[34px] clar-dashed rounded-[12px]">
       No tickets match your search or filter.
     </div>
   <% else %>
