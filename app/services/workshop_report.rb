@@ -332,14 +332,25 @@ class WorkshopReport
     scope
   end
 
-  def trend_months(range)
+  # Where the trend window ENDS. Stepping back to April must redraw the chart up
+  # to 30 April, not up to today — so the series is anchored on the selected
+  # period's end rather than on Time.current. The current period is clamped to
+  # now, otherwise the current month/sprint would trail empty future buckets.
+  def trend_anchor
     now = Time.current
-    months = (0...range).map { |i| (now.beginning_of_month - i.months) }.reverse
+    return now if @to.nil?
+    @to > now ? now : @to
+  end
+
+  def trend_months(range)
+    anchor = trend_anchor
+    months = (0...range).map { |i| (anchor.beginning_of_month - i.months) }.reverse
+    window_end = anchor.end_of_month.end_of_day
 
     rows = trend_base_scope.where.not(resolved_at: nil)
-                            .where(resolved_at: months.first..now.end_of_month.end_of_day)
+                            .where(resolved_at: months.first..window_end)
                             .pluck(:issue_type, :ai_estimate_points, :resolved_at)
-    created = bug_created_timestamps(months.first, now.end_of_month.end_of_day)
+    created = bug_created_timestamps(months.first, window_end)
 
     months.map do |month_start|
       month_end = month_start.end_of_month.end_of_day
@@ -358,7 +369,7 @@ class WorkshopReport
   # shape as trend_months — one point per bucket, oldest first.
   def trend_weeks(count, weeks_per_bucket)
     count = [ count.to_i, 1 ].max
-    this_week = Time.current.beginning_of_week
+    this_week = trend_anchor.beginning_of_week
     starts = (0...count).map { |i| this_week - (i * weeks_per_bucket).weeks }.reverse
     window_end = (this_week + weeks_per_bucket.weeks - 1.second)
 
@@ -385,6 +396,7 @@ class WorkshopReport
                          .where(jira_boards: { project_id: @project.id })
                          .where(state: %w[active closed])
                          .where.not(start_date: nil).where.not(end_date: nil)
+                         .where("start_date <= ?", trend_anchor.to_date)
                          .order(start_date: :asc)
                          .to_a
                          .last(range)

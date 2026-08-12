@@ -291,6 +291,23 @@ class WorkshopReportTest < ActiveSupport::TestCase
     assert current_point.key?(:bugs_fixed)
   end
 
+  # The trend window follows the SELECTED period, not "now" — stepping the
+  # Reporting arrows back to April must redraw the chart up to 30 April.
+  test "trend is anchored on the selected month, not the current one" do
+    april = WorkshopReport.new(project: @project, period: :month, month: Date.new(2026, 4, 1))
+
+    assert_equal "April 2026", april.trend(granularity: "months", range: 3).last[:full]
+    assert_equal "Week of Apr 27, 2026", april.trend(granularity: "weeks", range: 4).last[:full]
+  end
+
+  test "the current month's trend stops at today rather than trailing empty future buckets" do
+    # @now is 3 July 2026, so the last week bucket is the week of Mon 29 June.
+    current = WorkshopReport.new(project: @project, period: :month)
+
+    assert_equal "July 2026", current.trend(granularity: "months", range: 3).last[:full]
+    assert_equal "Week of Jun 29, 2026", current.trend(granularity: "weeks", range: 4).last[:full]
+  end
+
   test "trend months excludes Bug issue_type from sp but counts bugs_fixed/bugs_created series" do
     delivered(issue_type: "Bug", story_points: 100, resolved_at: @now, assignee_email: @one.email_address)
     delivered(issue_type: "Story", story_points: 5, resolved_at: @now)
