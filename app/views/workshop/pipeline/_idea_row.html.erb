@@ -11,7 +11,7 @@
     it sits beside it — flex keeps it reliably right-aligned (no fragile absolute
     positioning). The link keeps its own chevron; delete appears to its right on
     row hover. %>
-<div class="group flex items-stretch clar-row clar-row-hover">
+<div class="group flex items-stretch clar-row clar-row-hover" data-controller="clar-modal">
 <%= link_to workshop_idea_path(idea), class: "flex-1 min-w-0 flex items-center gap-4 p-4 no-underline" do %>
   <div class="flex-1 min-w-0">
     <div class="flex items-center gap-2.5">
@@ -46,20 +46,43 @@
   </span>
 <% end %>
 
-<%# Delete button — flex sibling of the link, revealed on row hover. For a Jira
-    task the confirm makes clear the Jira ticket is NOT deleted (only removed from
-    Create Tasks); a local idea is deleted outright. %>
+<%# Delete button — flex sibling of the link, revealed on row hover. It opens
+    the confirm modal below rather than a browser dialog. %>
 <% jira = idea.external_reference.present? %>
-<% confirm = jira ?
-     "Remove #{idea.external_reference} from Create Tasks?\n\nThis does NOT delete the Jira ticket — it stays in Jira#{idea.external_url.present? ? " (#{idea.external_url})" : ''}. Delete it there yourself if you want it gone." :
-     "Delete \"#{idea.name}\"? This can't be undone." %>
 <div class="flex items-center pr-4 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-  <%= button_to workshop_idea_path(idea), method: :delete,
-        form: { class: "flex" },
-        data: { turbo_confirm: confirm },
-        class: "flex items-center justify-center w-8 h-8 rounded-lg border border-[color:var(--danger)] text-[color:var(--danger)] bg-[var(--surface)] hover:bg-[color:var(--danger-soft)]",
-        title: jira ? "Remove from Create Tasks (keeps the Jira ticket)" : "Delete this idea" do %>
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 5v6m4-6v6"/></svg>
-  <% end %>
+  <button type="button" data-action="click->clar-modal#open"
+          class="flex items-center justify-center w-[30px] h-[30px] rounded-lg border clar-divider clar-text-faint bg-[color:var(--surface)] hover:text-[color:var(--danger)] hover:border-[color:var(--danger)]"
+          title="<%= jira ? "Remove from Create Tasks (keeps the Jira ticket)" : "Delete this task" %>">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+  </button>
+</div>
+
+<%# Confirm modal. For a Jira-linked task the second line makes clear the Jira
+    issue itself is untouched — we only take it out of Create Tasks. %>
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-action="click->clar-modal#close">
+  <div class="clar-modal max-w-[420px] p-5.5" data-action="click->clar-modal#stopPropagation">
+    <div class="flex items-center gap-3 mb-3">
+      <span class="w-9 h-9 rounded-[9px] flex items-center justify-center flex-none clar-badge-danger">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      </span>
+      <h2 class="m-0 text-[17px] font-bold clar-text-text"><%= jira ? "Remove task?" : "Delete task?" %></h2>
+    </div>
+    <p class="m-0 mb-2 text-[13px] leading-normal clar-text-muted">
+      &ldquo;<b class="clar-text-text"><%= idea.name %></b>&rdquo; and its saved brief/description versions will be removed from Flosis.
+    </p>
+    <p class="m-0 mb-5 text-[12px] leading-normal clar-text-faint">
+      <% if jira %>
+        The Jira issue <%= idea.external_reference %> is not affected.
+      <% else %>
+        This local idea has not been pushed to Jira.
+      <% end %>
+    </p>
+    <div class="flex gap-2.5 justify-end">
+      <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+      <%= button_to (jira ? "Remove task" : "Delete task"), workshop_idea_path(idea), method: :delete,
+            form: { class: "flex" },
+            class: "clar-btn !bg-[color:var(--danger)] !text-white !border-transparent font-[650]" %>
+    </div>
+  </div>
 </div>
 </div>
