@@ -1,6 +1,27 @@
-<p>
-  You can reset your password on
-  <%= link_to "this password reset page", edit_password_url(@user.password_reset_token) %>.
+<%# A bare one-line link is a spam signal in its own right (Gmail flags
+    link-only mail). Real transactional shape: what it is, one clear action,
+    the URL in full for clients that strip the button, and an explicit
+    "ignore this" line. %>
+<h1 style="margin:0 0 12px; font-size:19px; font-weight:700; color:#1a1d24;">Reset your password</h1>
 
-  This link will expire in <%= distance_of_time_in_words(0, @user.password_reset_token_expires_in) %>.
+<p style="margin:0 0 20px; font-size:14px; line-height:1.55; color:#6b7280;">
+  We received a request to reset the password for <strong style="color:#1a1d24;"><%= @user.email_address %></strong>.
+  Choose a new one using the button below.
+</p>
+
+<p style="margin:0 0 20px;">
+  <a href="<%= edit_password_url(@user.password_reset_token) %>"
+     style="display:inline-block; background:#4F46E5; color:#ffffff; font-size:14px; font-weight:600; text-decoration:none; padding:12px 22px; border-radius:9px;">
+    Choose a new password
+  </a>
+</p>
+
+<p style="margin:0 0 20px; font-size:13px; line-height:1.55; color:#6b7280;">
+  This link expires in <%= distance_of_time_in_words(0, @user.password_reset_token_expires_in) %>.
+  If the button doesn&rsquo;t work, paste this into your browser:<br>
+  <a href="<%= edit_password_url(@user.password_reset_token) %>" style="color:#4F46E5; word-break:break-all;"><%= edit_password_url(@user.password_reset_token) %></a>
+</p>
+
+<p style="margin:0; padding-top:18px; border-top:1px solid #e6e8ec; font-size:13px; line-height:1.55; color:#9aa3af;">
+  Didn&rsquo;t request this? You can ignore this email &mdash; your password stays as it is.
 </p>

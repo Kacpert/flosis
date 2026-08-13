@@ -2,12 +2,21 @@
 <html>
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <style>
-      /* Email styles need to be inline */
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
   </head>
 
-  <body>
-    <%= yield %>
+  <%# A neutral shell shared by every mailer — deliberately carries no product
+      wordmark, because these templates serve both Flosis and Time & HR. Styles
+      are inline: mail clients strip <style> blocks. %>
+  <body style="margin:0; padding:0; background:#f6f7f9;">
+    <div style="max-width:520px; margin:0 auto; padding:32px 20px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; color:#1a1d24;">
+      <div style="background:#ffffff; border:1px solid #e6e8ec; border-radius:14px; padding:28px 28px 24px;">
+        <%= yield %>
+      </div>
+      <p style="margin:18px 0 0; font-size:12px; line-height:1.5; color:#9aa3af; text-align:center;">
+        Sent by rubyonsaas.com
+      </p>
+    </div>
   </body>
 </html>
