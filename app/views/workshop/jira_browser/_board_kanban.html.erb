@@ -1,4 +1,10 @@
-<div class="grid grid-cols-4 gap-3 min-w-[920px]" data-clar-board-filter-target="board">
+<%# One track per board column — the mock hardcodes 4 because its sample board
+    has 4, but a real Jira board can have any number and the extras were being
+    dropped off the grid. Tracks never shrink below 230px, so a wide board
+    scrolls horizontally inside the modal instead of squashing. %>
+<div class="grid gap-3 <%= 'min-w-[920px]' if columns.size < 4 %>" data-clar-board-filter-target="board"
+     style="grid-template-columns: repeat(<%= columns.size %>, minmax(230px, 1fr));">
+
   <% columns.each do |column| %>
     <% column_tasks = tasks_by_column.fetch(column.id, Task.none) %>
     <div class="flex flex-col gap-2.5">

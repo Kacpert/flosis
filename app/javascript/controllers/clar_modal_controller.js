@@ -36,14 +36,25 @@ export default class extends Controller {
     document.body.style.overflow = "hidden"
   }
 
-  close() {
+  close(event) {
+    // A click that came from inside the panel isn't a backdrop click — see
+    // stopPropagation below. Close buttons still work: their own action fires
+    // earlier in the bubble, before the panel marks the event.
+    if (event && event.clarInsidePanel) return
+
     this.panelTargets.forEach((panel) => panel.classList.add("hidden"))
     document.removeEventListener("keydown", this.boundKeydown)
     document.body.style.overflow = ""
   }
 
+  // Marks the click as "inside the panel" instead of calling
+  // event.stopPropagation(). Stopping propagation here also stopped the click
+  // reaching Turbo's document-level listener, which quietly turned every link
+  // inside a modal into a native full-page navigation — that's why the Jira
+  // browser's board tabs escaped the modal, and why the developer-report modal
+  // needed clar-frame-src to work around it.
   stopPropagation(event) {
-    event.stopPropagation()
+    event.clarInsidePanel = true
   }
 
   handleKeydown(event) {

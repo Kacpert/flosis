@@ -55,7 +55,8 @@
         </div>
       </div>
 
-      <div class="rounded-xl p-1 bg-[color:var(--bg)]">
+      <%# Boards wider than the modal scroll here rather than overflowing it. %>
+      <div class="rounded-xl p-1 bg-[color:var(--bg)] overflow-x-auto">
         <% if backlog_selected? %>
           <%= render "backlog_table", tasks: @backlog_tasks %>
         <% elsif @board %>
