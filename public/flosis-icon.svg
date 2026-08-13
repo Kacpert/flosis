@@ -1,0 +1,19 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <title>Flosis</title>
+  <!-- The Flosis mark: three descending rules (the backlog) whose top rule
+       clears into three shrinking dots. Geometry is the topbar mark from the
+       design, scaled 10x and centred in the tile, so the two stay identical.
+       Painted on a white tile because the two lower rules use the near-black
+       text colour, which would vanish on a dark browser tab bar. -->
+  <rect width="512" height="512" rx="112" fill="#ffffff"/>
+  <g transform="translate(26.5, 68) scale(10.6)">
+    <g stroke-linecap="round" stroke-width="5" fill="none">
+      <line x1="6" y1="10" x2="22" y2="10" stroke="#7c3aed"/>
+      <line x1="6" y1="21" x2="40" y2="21" stroke="#1a1d24" opacity=".85"/>
+      <line x1="6" y1="32" x2="30" y2="32" stroke="#1a1d24" opacity=".5"/>
+    </g>
+    <circle cx="28.4" cy="9.6" r="2.7" fill="#4F46E5"/>
+    <circle cx="34.39" cy="8" r="2.2" fill="#7B72F1"/>
+    <circle cx="38.12" cy="2.68" r="1.7" fill="#CBD2F9"/>
+  </g>
+</svg>
