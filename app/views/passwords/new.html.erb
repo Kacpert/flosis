@@ -1,19 +1,17 @@
-<div class="m3-card-elevated p-6">
-  <h2 class="text-xl font-bold text-center mb-4" style="color: var(--color-on-surface)">Reset Password</h2>
+<% content_for :title, "Reset password · Flosis" %>
 
-  <%= form_with url: passwords_path, class: "space-y-4" do |f| %>
-    <div class="space-y-1">
-      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Email</label>
-      <%= f.email_field :email_address, required: true, autofocus: true, autocomplete: "email",
-          class: "m3-text-field w-full", placeholder: "you@example.com" %>
-    </div>
+<h1 class="m-0 text-[27px] font-bold tracking-[-.7px] clar-text-text">Reset password</h1>
+<p class="mt-2 mb-[26px] text-[14px] clar-text-muted leading-[1.5]">We&rsquo;ll email you a link to choose a new one.</p>
 
-    <div class="mt-6">
-      <%= f.submit "Send Reset Instructions", class: "m3-btn m3-btn-filled w-full" %>
-    </div>
-  <% end %>
+<%= form_with url: passwords_path do |f| %>
+  <label class="clar-field-label tracking-[.04em]">EMAIL</label>
+  <%= f.email_field :email_address, required: true, autofocus: true, autocomplete: "email",
+        placeholder: "you@company.com",
+        class: "clar-input !text-[14px] !bg-[color:var(--surface)] mb-5" %>
 
-  <p class="text-center text-sm mt-4">
-    <%= link_to "Back to sign in", new_session_path, style: "color: var(--color-primary); text-decoration: none;", onmouseover: "this.style.textDecoration='underline'", onmouseout: "this.style.textDecoration='none'" %>
-  </p>
-</div>
+  <%= f.submit "Send reset instructions", class: "clar-btn clar-btn-primary w-full !text-[14px] !rounded-[10px] !py-3" %>
+<% end %>
+
+<p class="mt-[22px] mb-0 text-[12.5px] clar-text-faint text-center">
+  <%= link_to "Back to sign in", new_session_path, class: "clar-text-primary font-semibold no-underline" %>
+</p>

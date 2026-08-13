@@ -1,10 +1,14 @@
-<h2 class="text-xl font-bold text-center tracking-tight" style="color: var(--color-on-surface)">Create your account</h2>
-<p class="text-center text-sm mb-6" style="color: var(--color-on-surface-variant)">Start tracking time in seconds</p>
+<% content_for :title, "Create your account · Flosis" %>
 
-<%= form_with model: @user, url: registration_path, class: "space-y-4" do |f| %>
+<h1 class="m-0 text-[27px] font-bold tracking-[-.7px] clar-text-text">Create your account</h1>
+<p class="mt-2 mb-[26px] text-[14px] clar-text-muted leading-[1.5]">Sets up a new workspace you own.</p>
+
+<%= form_with model: @user, url: registration_path do |f| %>
   <% if @user.errors.any? %>
-    <div class="m3-alert m3-alert-error">
-      <ul class="text-sm">
+    <div class="flex items-start gap-[7px] text-[12.5px] rounded-[9px] border clar-divider py-[9px] px-[11px] mb-3.5"
+         style="color: var(--danger); background: var(--danger-soft);">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="flex-none mt-px"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      <ul class="m-0 p-0 list-none">
         <% @user.errors.full_messages.each do |msg| %>
           <li><%= msg %></li>
         <% end %>
@@ -12,25 +16,25 @@
     </div>
   <% end %>
 
-  <div class="space-y-1">
-    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Name</label>
-    <%= f.text_field :name, class: "m3-text-field w-full", required: true, autofocus: true, placeholder: "Your name" %>
-  </div>
-  <div class="space-y-1">
-    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Email</label>
-    <%= f.email_field :email_address, class: "m3-text-field w-full", required: true, autocomplete: "email", placeholder: "you@company.com" %>
-  </div>
-  <div class="space-y-1">
-    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Password</label>
-    <%= f.password_field :password, class: "m3-text-field w-full", required: true, autocomplete: "new-password", placeholder: "Min. 8 characters" %>
-  </div>
-  <div class="space-y-1">
-    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Confirm Password</label>
-    <%= f.password_field :password_confirmation, class: "m3-text-field w-full", required: true, autocomplete: "new-password" %>
-  </div>
-  <%= f.submit "Get Started", class: "m3-btn m3-btn-filled w-full" %>
+  <label class="clar-field-label tracking-[.04em]">NAME</label>
+  <%= f.text_field :name, required: true, autofocus: true, placeholder: "Your name",
+        class: "clar-input !text-[14px] !bg-[color:var(--surface)] mb-4" %>
+
+  <label class="clar-field-label tracking-[.04em]">EMAIL</label>
+  <%= f.email_field :email_address, required: true, autocomplete: "email", placeholder: "you@company.com",
+        class: "clar-input !text-[14px] !bg-[color:var(--surface)] mb-4" %>
+
+  <label class="clar-field-label tracking-[.04em]">PASSWORD</label>
+  <%= f.password_field :password, required: true, autocomplete: "new-password", placeholder: "Min. 8 characters",
+        class: "clar-input !text-[14px] !bg-[color:var(--surface)] mb-4" %>
+
+  <label class="clar-field-label tracking-[.04em]">CONFIRM PASSWORD</label>
+  <%= f.password_field :password_confirmation, required: true, autocomplete: "new-password", placeholder: "••••••••",
+        class: "clar-input !text-[14px] !bg-[color:var(--surface)] mb-5" %>
+
+  <%= f.submit "Get started", class: "clar-btn clar-btn-primary w-full !text-[14px] !rounded-[10px] !py-3" %>
 <% end %>
 
-<p class="text-center text-sm mt-5" style="color: var(--color-on-surface-variant)">
-  Already have an account? <%= link_to "Sign in", new_session_path, style: "color: var(--color-primary); font-weight: 500; text-decoration: none;", onmouseover: "this.style.textDecoration='underline'", onmouseout: "this.style.textDecoration='none'" %>
+<p class="mt-[22px] mb-0 text-[12.5px] clar-text-faint text-center">
+  Already have an account? <%= link_to "Sign in", new_session_path, class: "clar-text-primary font-semibold no-underline" %>
 </p>

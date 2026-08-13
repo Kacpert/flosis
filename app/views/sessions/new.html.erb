@@ -1,26 +1,46 @@
-<h2 class="text-xl font-bold text-center tracking-tight" style="color: var(--color-on-surface)">Welcome back</h2>
-<p class="text-center text-sm mb-6" style="color: var(--color-on-surface-variant)">Sign in to continue tracking</p>
+<% content_for :title, "Sign in · Flosis" %>
 
-<%= form_with url: session_path, class: "space-y-4" do |f| %>
-  <div class="space-y-1">
-    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Email</label>
-    <%= f.email_field :email_address, class: "m3-text-field w-full", required: true, autofocus: true, autocomplete: "email", placeholder: "you@company.com" %>
+<h1 class="m-0 text-[27px] font-bold tracking-[-.7px] clar-text-text">Sign in</h1>
+<p class="mt-2 mb-[26px] text-[14px] clar-text-muted leading-[1.5]">Your projects, briefs and reports are waiting.</p>
+
+<%= form_with url: session_path do |f| %>
+  <label class="clar-field-label tracking-[.04em]">EMAIL</label>
+  <%= f.email_field :email_address, required: true, autofocus: true, autocomplete: "email",
+        placeholder: "you@company.com",
+        class: "clar-input !text-[14px] !bg-[color:var(--surface)] mb-4" %>
+
+  <div class="flex items-center justify-between mb-1.5">
+    <label class="clar-field-label !mb-0 tracking-[.04em]">PASSWORD</label>
+    <%= link_to "Forgot?", new_password_path, class: "text-[11.5px] font-semibold clar-text-primary no-underline" %>
   </div>
-  <div class="space-y-1">
-    <div class="flex items-center justify-between">
-      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Password</label>
-      <%= link_to "Forgot?", new_password_path, class: "text-xs", style: "color: var(--color-primary); text-decoration: none;", onmouseover: "this.style.textDecoration='underline'", onmouseout: "this.style.textDecoration='none'" %>
-    </div>
-    <%= f.password_field :password, class: "m3-text-field w-full", required: true, autocomplete: "current-password", placeholder: "••••••••" %>
+
+  <%# Reveal toggle sits inside the field, so the input gets extra right padding. %>
+  <div class="relative mb-4" data-controller="clar-password-visibility">
+    <%= f.password_field :password, required: true, autocomplete: "current-password",
+          placeholder: "••••••••",
+          class: "clar-input !text-[14px] !bg-[color:var(--surface)] !pr-[42px]",
+          data: { clar_password_visibility_target: "input" } %>
+    <button type="button" data-action="click->clar-password-visibility#toggle"
+            data-clar-password-visibility-target="button"
+            title="Show password" aria-label="Show password"
+            class="absolute right-1.5 top-1/2 -translate-y-1/2 w-[30px] h-[30px] rounded-[7px] border-0 bg-transparent cursor-pointer clar-text-faint flex items-center justify-center">
+      <svg data-clar-password-visibility-target="shownIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <svg data-clar-password-visibility-target="hiddenIcon" class="hidden" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.1 10.1 0 0 1 12 20C5 20 1 12 1 12a18.4 18.4 0 0 1 5.06-5.94M9.9 4.24A9.1 9.1 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg>
+    </button>
   </div>
-  <%= f.submit "Sign In", class: "m3-btn m3-btn-filled w-full" %>
+
+  <%# Checked by default, matching the design. Unchecking gives a browser-session
+      cookie instead of a permanent one — see Authentication#start_new_session_for. %>
+  <label class="flex items-center gap-2 cursor-pointer mb-5" data-controller="clar-checkbox">
+    <%= check_box_tag :remember_me, "1", true, class: "sr-only", data: { clar_checkbox_target: "input" } %>
+    <span data-clar-checkbox-target="box" aria-hidden="true"
+          class="w-[17px] h-[17px] flex-none rounded-[5px] border-[1.5px] flex items-center justify-center text-white"></span>
+    <span class="text-[13px] clar-text-muted">Keep me signed in</span>
+  </label>
+
+  <%= f.submit "Sign in", class: "clar-btn clar-btn-primary w-full !text-[14px] !rounded-[10px] !py-3" %>
 <% end %>
 
-<div class="flex items-center gap-3 my-5">
-  <div class="flex-1 h-px" style="background: var(--color-outline-variant)"></div>
-  <span class="text-xs" style="color: var(--color-outline)">OR</span>
-  <div class="flex-1 h-px" style="background: var(--color-outline-variant)"></div>
-</div>
-<p class="text-center text-sm" style="color: var(--color-on-surface-variant)">
-  Don't have an account? <%= link_to "Create one", new_registration_path, style: "color: var(--color-primary); font-weight: 500; text-decoration: none;", onmouseover: "this.style.textDecoration='underline'", onmouseout: "this.style.textDecoration='none'" %>
+<p class="mt-[22px] mb-0 text-[12.5px] clar-text-faint text-center">
+  No account? <%= link_to "Create one", new_registration_path, class: "clar-text-primary font-semibold no-underline" %>
 </p>

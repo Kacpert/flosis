@@ -38,10 +38,19 @@ module Authentication
       session.delete(:return_to_after_authenticating) || root_url
     end
 
-    def start_new_session_for(user)
+    # `remember` false issues a browser-session cookie instead of a permanent
+    # one, so the login page's "Keep me signed in" switch actually does
+    # something. Defaults to true — every other caller (registration, password
+    # reset) wants the previous permanent behaviour.
+    def start_new_session_for(user, remember: true)
       user.sessions.create!(user_agent: request.user_agent, ip_address: request.remote_ip).tap do |session|
         Current.session = session
-        cookies.signed.permanent[:session_id] = { value: session.id, httponly: true, same_site: :lax }
+        options = { value: session.id, httponly: true, same_site: :lax }
+        if remember
+          cookies.signed.permanent[:session_id] = options
+        else
+          cookies.signed[:session_id] = options
+        end
       end
     end
 
