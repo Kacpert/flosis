@@ -22,9 +22,10 @@
     <%= link_to "Users", workshop_configuration_path(tab: "users"),
           class: "clar-tab #{'clar-tab-active' if @tab == 'users'}" %>
   <% else %>
-    <span class="clar-tab inline-flex items-center gap-1.5 cursor-not-allowed opacity-60"
-          title="Missing permission &mdash; only administrators can manage users"
-          aria-disabled="true">
+    <span class="clar-tab clar-tip inline-flex items-center gap-1.5 cursor-not-allowed opacity-60"
+          data-tip="Missing permission &mdash; only administrators can manage users"
+          aria-label="Missing permission — only administrators can manage users"
+          tabindex="0" aria-disabled="true">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
       Users
     </span>

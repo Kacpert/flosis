@@ -131,7 +131,10 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     # block below is what actually enforces it.
     assert_select "a.clar-tab", text: /Users/, count: 0
     assert_select "span.clar-tab[aria-disabled='true']", text: /Users/ do |tab|
-      assert_match(/Missing permission/, tab.first["title"], "locked tab must say why")
+      # data-tip drives the .clar-tip bubble; the native title attribute waited
+      # ~1-2s before appearing, which read as nothing happening.
+      assert_match(/Missing permission/, tab.first["data-tip"], "locked tab must say why")
+      assert_match(/Missing permission/, tab.first["aria-label"], "and say it to screen readers")
     end
 
     # Can manage settings — a real management action (AI tab) persists.

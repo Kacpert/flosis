@@ -2066,6 +2066,29 @@ span.flatpickr-weekday {
     display:flex; align-items:center; justify-content:center; padding:24px; animation:clar-fade .12s ease; }
   .clar-modal { width:100%; background:var(--surface); border:1px solid var(--border);
     border-radius:16px; box-shadow:var(--shadow-lg); }
+  /* Tooltip. The native title attribute waits ~1-2s before showing and can't
+     be styled, which reads as "nothing happened" on a disabled control — this
+     appears straight away and matches the toast's inverted surface. Put
+     .clar-tip on the element and the copy in data-tip. */
+  .clar-tip { position:relative; }
+  .clar-tip::after {
+    content:attr(data-tip); position:absolute; left:50%; bottom:calc(100% + 9px);
+    transform:translateX(-50%); z-index:60;
+    background:var(--text); color:var(--bg); border-radius:8px; padding:7px 10px;
+    font-size:11.5px; font-weight:600; line-height:1.4; text-align:center;
+    width:max-content; max-width:220px; white-space:normal;
+    box-shadow:var(--shadow-lg); opacity:0; visibility:hidden;
+    transition:opacity .12s ease, visibility .12s; pointer-events:none; }
+  /* The arrow, sharing the bubble's colour. */
+  .clar-tip::before {
+    content:""; position:absolute; left:50%; bottom:calc(100% + 4px);
+    transform:translateX(-50%); z-index:60;
+    border:5px solid transparent; border-top-color:var(--text);
+    opacity:0; visibility:hidden; transition:opacity .12s ease, visibility .12s;
+    pointer-events:none; }
+  .clar-tip:hover::after, .clar-tip:hover::before,
+  .clar-tip:focus-visible::after, .clar-tip:focus-visible::before { opacity:1; visibility:visible; }
+
   .clar-toast { position:fixed; bottom:26px; left:50%; transform:translateX(-50%); z-index:60;
     background:var(--text); color:var(--bg); padding:12px 18px; border-radius:11px;
     box-shadow:var(--shadow-lg); display:flex; align-items:center; gap:10px;
