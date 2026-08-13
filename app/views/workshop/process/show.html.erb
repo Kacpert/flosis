@@ -1,6 +1,6 @@
-<% content_for :title, "Processes Automation · Flosis" %>
+<% content_for :title, "Agents & Automations · Flosis" %>
 
-<h1 class="clar-h1">Processes Automation</h1>
+<h1 class="clar-h1">Agents &amp; Automations</h1>
 <p class="clar-sub">Three AI automations watching this project. They comment and propose — humans decide.</p>
 
 <div class="clar-tabs mb-6">
@@ -8,7 +8,7 @@
         class: "clar-tab #{'clar-tab-active' if @tab == 'pr'}" %>
   <%= link_to "AI Estimate", workshop_process_path(tab: "estimate"),
         class: "clar-tab #{'clar-tab-active' if @tab == 'estimate'}" %>
-  <%= link_to "AI Alerts & Automations", workshop_process_path(tab: "alerts"),
+  <%= link_to "AI Agents & Alerts", workshop_process_path(tab: "alerts"),
         class: "clar-tab #{'clar-tab-active' if @tab == 'alerts'}" %>
 </div>
 

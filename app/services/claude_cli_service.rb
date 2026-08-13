@@ -97,7 +97,7 @@ class ClaudeCliService
     mcp__figma__download_figma_images
   ].freeze
 
-  # Tools for AI Alerts & Automations: read code, read the web, and act on
+  # Tools for AI Agents & Alerts: read code, read the web, and act on
   # GitHub + Jira via MCP (list/read PRs, read issues, add/edit Jira comments) so
   # an automation can e.g. scan PRs and post a Jira comment. Read + a NARROW set
   # of writes (issue comments only) — no destructive GitHub/Jira actions

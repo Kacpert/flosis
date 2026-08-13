@@ -25,7 +25,7 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select ".clar-tab", /AI PR Reviews/
     assert_select ".clar-tab", /AI Estimate/
-    assert_select ".clar-tab", /AI Alerts/
+    assert_select ".clar-tab", /AI Agents & Alerts/
 
     # stats trio
     assert_select "body", /reviewed today/
@@ -118,7 +118,7 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     get workshop_process_path(tab: "alerts")
 
     assert_response :success
-    assert_select ".clar-tab.clar-tab-active", /AI Alerts/
+    assert_select ".clar-tab.clar-tab-active", /AI Agents & Alerts/
     assert_select "body", /QA backlog watch/
     assert_select "body", /Sent · 2 tasks flagged/
     assert_select "body", /Daily · 13:00/

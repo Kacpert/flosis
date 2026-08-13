@@ -28,7 +28,7 @@
       # (guarded by respond_to?) so Phase 3+ only needs to add their real routes.
       fallback_path = workshop_path
       nav_items = [
-        { key: "process", label: "Processes Automation", real: respond_to?(:workshop_process_path),
+        { key: "process", label: "Agents & Automations", real: respond_to?(:workshop_process_path),
           path: respond_to?(:workshop_process_path) ? workshop_process_path : fallback_path,
           icon: '<path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="M21 4v5h-5"/>' },
         { key: "tasks", label: "Create Tasks", real: respond_to?(:workshop_pipeline_path),

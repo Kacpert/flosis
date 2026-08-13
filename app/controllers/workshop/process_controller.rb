@@ -1,4 +1,4 @@
-# Process Optimization: three AI automations (PR reviews, estimate, alerts)
+# Agents & Automations: three AI automations (PR reviews, estimate, agents)
 # that comment/propose but never decide for the team.
 class Workshop::ProcessController < Workshop::BaseController
   TABS = %w[pr estimate alerts].freeze
