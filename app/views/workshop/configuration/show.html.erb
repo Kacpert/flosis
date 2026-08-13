@@ -14,10 +14,20 @@
         class: "clar-tab #{'clar-tab-active' if @tab == 'ai'}" %>
   <%= link_to "Briefing", workshop_configuration_path(tab: "briefing"),
         class: "clar-tab #{'clar-tab-active' if @tab == 'briefing'}" %>
-  <%# Users tab (member management) is admin/owner-only; hidden from workspace_clients. %>
+  <%# Users tab is admin/owner-only. It still renders for a workspace client,
+      but locked — showing that it exists and why they can't open it is clearer
+      than silently hiding it. The controller blocks the tab server-side too
+      (block_admin_only_tabs), so this is presentation, not the gate. %>
   <% if is_admin %>
     <%= link_to "Users", workshop_configuration_path(tab: "users"),
           class: "clar-tab #{'clar-tab-active' if @tab == 'users'}" %>
+  <% else %>
+    <span class="clar-tab inline-flex items-center gap-1.5 cursor-not-allowed opacity-60"
+          title="Missing permission &mdash; only administrators can manage users"
+          aria-disabled="true">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      Users
+    </span>
   <% end %>
 </div>
 

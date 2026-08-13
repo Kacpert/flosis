@@ -68,7 +68,10 @@
   <% if !is_client && workshop_reachable %>
     <div class="flex-1"></div>
 
-    <% if current_user.admin_or_owner?(Current.workspace) %>
+    <%# Workspace clients manage Configuration too (everything bar the Users
+        tab), so the link follows the controller's own rule rather than
+        admin-only — otherwise they could reach the page but never find it. %>
+    <% if workshop_config_manager? %>
       <span class="clar-nav-label" data-clar-sidebar-hide-label>ADMIN</span>
       <%
         configuration_real = respond_to?(:workshop_configuration_path)

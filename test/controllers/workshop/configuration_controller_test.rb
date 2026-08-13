@@ -126,8 +126,13 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     get workshop_configuration_path
     assert_response :success
     assert_select ".clar-tab", /AI/
-    # The Users tab link is hidden for a workspace_client.
-    assert_select ".clar-tab", text: /Users/, count: 0
+    # The Users tab is SHOWN but locked for a workspace_client — visible with a
+    # reason beats silently missing. It must not be a link, and the server-side
+    # block below is what actually enforces it.
+    assert_select "a.clar-tab", text: /Users/, count: 0
+    assert_select "span.clar-tab[aria-disabled='true']", text: /Users/ do |tab|
+      assert_match(/Missing permission/, tab.first["title"], "locked tab must say why")
+    end
 
     # Can manage settings — a real management action (AI tab) persists.
     before = workspaces(:one).reload.pr_poll_minutes

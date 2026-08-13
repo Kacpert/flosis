@@ -53,7 +53,7 @@
       jira_on = current_workshop_project&.jira_connected?
       github_on = Current.workspace.github_repo.present? && Current.workspace.github_status_ok
       discord_on = Current.workspace.discord_channel_id.present?
-      figma_on = false # Phase 9 (figma_read_enabled) not implemented yet — render gray.
+      figma_on = Current.workspace.figma_read_enabled
       chips = { "Jira" => jira_on, "GitHub" => github_on, "Discord" => discord_on, "Figma" => figma_on }
     %>
     <% chips.each do |label, on| %>
