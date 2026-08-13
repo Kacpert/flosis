@@ -10,7 +10,7 @@
 </p>
 
 <p style="margin:0 0 20px;">
-  <a href="<%= edit_password_url(@user.password_reset_token) %>"
+  <a href="<%= @reset_url %>"
      style="display:inline-block; background:#4F46E5; color:#ffffff; font-size:14px; font-weight:600; text-decoration:none; padding:12px 22px; border-radius:9px;">
     Choose a new password
   </a>
@@ -19,7 +19,7 @@
 <p style="margin:0 0 20px; font-size:13px; line-height:1.55; color:#6b7280;">
   This link expires in <%= distance_of_time_in_words(0, @user.password_reset_token_expires_in) %>.
   If the button doesn&rsquo;t work, paste this into your browser:<br>
-  <a href="<%= edit_password_url(@user.password_reset_token) %>" style="color:#4F46E5; word-break:break-all;"><%= edit_password_url(@user.password_reset_token) %></a>
+  <a href="<%= @reset_url %>" style="color:#4F46E5; word-break:break-all;"><%= @reset_url %></a>
 </p>
 
 <p style="margin:0; padding-top:18px; border-top:1px solid #e6e8ec; font-size:13px; line-height:1.55; color:#9aa3af;">

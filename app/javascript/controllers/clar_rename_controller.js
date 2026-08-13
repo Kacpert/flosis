@@ -5,7 +5,7 @@ import { Controller } from "@hotwired/stimulus"
 // reverts. On success, updates the H1 text optimistically and dispatches a
 // window "clar:toast" event (picked up by clar_toast_controller.js).
 export default class extends Controller {
-  static targets = ["display", "input", "pencil", "hint"]
+  static targets = ["display", "input", "pencil"]
   static values = { url: String, name: String }
 
   edit() {

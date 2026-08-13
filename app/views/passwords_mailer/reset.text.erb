@@ -3,7 +3,7 @@ Reset your password
 We received a request to reset the password for <%= @user.email_address %>.
 Choose a new one here:
 
-<%= edit_password_url(@user.password_reset_token) %>
+<%= @reset_url %>
 
 This link expires in <%= distance_of_time_in_words(0, @user.password_reset_token_expires_in) %>.
 

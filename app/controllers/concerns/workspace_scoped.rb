@@ -28,14 +28,33 @@ module WorkspaceScoped
     return @current_product = nil unless current_workspace && current_user
 
     chosen = session[:product]&.to_sym
+    host_default = product_for_host
+
     resolved = if chosen && current_user.can_access_product?(current_workspace, chosen)
       chosen
+    elsif host_default && current_user.can_access_product?(current_workspace, host_default)
+      host_default
     else
       current_user.default_product(current_workspace)
     end
 
     session[:product] = resolved&.to_s
     @current_product = resolved
+  end
+
+  # flosis.com and clar.rubyonsaas.com are the same app behind two names, so the
+  # hostname picks which product you LAND on: Flosis its own, anything else
+  # (clar.rubyonsaas.com) keeps whatever the user's default was. It's only a
+  # default — the product switcher still wins, and because the session cookie is
+  # per-host the two domains never fight over the choice.
+  def product_for_host
+    :workshop if flosis_host?
+  end
+
+  def flosis_host?
+    root = ENV.fetch("FLOSIS_HOST", "flosis.com").downcase
+    host = request&.host.to_s.downcase
+    host == root || host.end_with?(".#{root}")
   end
 
   # Landing path for a product (or the current one when nil given). Clients are

@@ -10,7 +10,9 @@ class PasswordsControllerTest < ActionDispatch::IntegrationTest
 
   test "create" do
     post passwords_path, params: { email_address: @user.email_address }
-    assert_enqueued_email_with PasswordsMailer, :reset, args: [ @user ]
+    # The requesting host rides along so the link comes back to the domain the
+    # user actually used — flosis.com and clar.rubyonsaas.com are one app.
+    assert_enqueued_email_with PasswordsMailer, :reset, args: [ @user, { host: "www.example.com" } ]
     assert_redirected_to new_session_path
 
     follow_redirect!
