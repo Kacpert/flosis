@@ -24,11 +24,27 @@
 
 SIGN_IN_URL = "https://app.flosis.com/session/new".freeze
 
+# The localStorage key the switch writes and the redirect reads. Owned here,
+# not taken from the export: one export renamed it (flosisLandingTheme ->
+# flosisTheme) and, because only the writer changed, the switch kept working
+# while persistence silently stopped. Normalising both ends to this constant
+# makes that class of drift impossible.
+# Both themes are the same page, so they must not compete in search results.
+CANONICAL_URL = "https://flosis.com/".freeze
+
+THEME_KEY = "flosisTheme".freeze
+LEGACY_THEME_KEYS = %w[flosisLandingTheme].freeze
+
 # Fires before the stylesheet or fonts are requested, so nothing has painted
 # yet. Only on the light page: reaching dark.html is always deliberate.
-DARK_REDIRECT = <<~HTML.freeze
-  <script>try{if(localStorage.getItem('flosisLandingTheme')==='dark')location.replace('/dark.html');}catch(e){}</script>
-HTML
+# Reads the legacy keys too, so a rename doesn't silently reset the theme for
+# people who already chose one.
+DARK_REDIRECT = begin
+  reads = ([ THEME_KEY ] + LEGACY_THEME_KEYS).map { |k| "localStorage.getItem('#{k}')" }.join("||")
+  <<~HTML
+    <script>try{if((#{reads})==='dark')location.replace('/dark.html');}catch(e){}</script>
+  HTML
+end.freeze
 
 def sub!(html, pattern, replacement, expected, what)
   count = html.scan(pattern).size
@@ -49,6 +65,18 @@ def build(source, theme_switch_target, insert_redirect:)
   # Exports link the themes by their on-disk filenames ("Flosis Landing.html").
   html = sub!(html, /(<a\b[^>]*class="themesw"[^>]*?)href\s*=\s*"[^"]*"/i,
               "\\1href=\"#{theme_switch_target}\"", 1, "theme switch link")
+
+  # Force the storage key the switch writes to match what DARK_REDIRECT reads.
+  html = sub!(html, /(localStorage\.setItem\()'[^']*'/,
+              "\\1'#{THEME_KEY}'", 1, "theme localStorage.setItem calls")
+
+  # Design labels the dark export's title "... (dark)". That is a working note,
+  # not a page title — it would show in the browser tab and in search results.
+  html = html.sub(/(<title>.*?)\s*\((?:dark|light)\)(<\/title>)/i, '\\1\\2')
+
+  # Without this, / and /dark.html are two URLs with the same content.
+  html = sub!(html, /(<\/title>\n)/,
+              "\\1<link rel=\"canonical\" href=\"#{CANONICAL_URL}\">\n", 1, "</title> tags")
 
   if insert_redirect
     html = sub!(html, /<head>\n/, "<head>\n#{DARK_REDIRECT}", 1, "<head> tags")

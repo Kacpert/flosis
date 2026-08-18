@@ -7,6 +7,7 @@ require "test_helper"
 # into the app. These tests fail the build rather than let that ship.
 class LandingPageTest < ActiveSupport::TestCase
   SIGN_IN_URL = "https://app.flosis.com/session/new".freeze
+  THEME_KEY   = "flosisTheme".freeze
 
   LIGHT = "marketing/index.html".freeze   # the default, served at /
   DARK  = "marketing/dark.html".freeze
@@ -55,10 +56,29 @@ class LandingPageTest < ActiveSupport::TestCase
     html = read(LIGHT)
     head = html[/<head>(.*?)<link/mi, 1].to_s
 
-    assert_match(/localStorage\.getItem\('flosisLandingTheme'\)==='dark'/, head,
+    assert_match(/localStorage\.getItem\('#{THEME_KEY}'\)/, head,
       "the dark-preference redirect is missing from the light page's <head>")
     assert_match(/location\.replace\('\/dark\.html'\)/, head,
       "the dark-preference redirect does not send visitors to /dark.html")
+  end
+
+  # / and /dark.html serve the same page in two themes. Without a canonical they
+  # compete as duplicate content.
+  test "both themes canonicalise to the light page" do
+    [ LIGHT, DARK ].each do |page|
+      assert_match(/<link rel="canonical" href="https:\/\/flosis\.com\/">/, read(page),
+        "#{page} has no canonical URL")
+    end
+  end
+
+  # Design labels the dark export's title "... (dark)" as a working note. It
+  # would otherwise show in the browser tab and in search results.
+  test "no page title carries a theme label" do
+    [ LIGHT, DARK ].each do |page|
+      title = read(page)[/<title>(.*?)<\/title>/mi, 1]
+      refute_match(/\((?:dark|light)\)/i, title,
+        "#{page} ships a theme label in its title: #{title.inspect}")
+    end
   end
 
   test "the dark page does not redirect, so it stays reachable directly" do
@@ -67,10 +87,15 @@ class LandingPageTest < ActiveSupport::TestCase
   end
 
   # Both pages have to record the choice, or the switch is a one-way trip.
-  test "both pages persist the theme choice on switch" do
+  test "both pages persist the theme choice under the key the redirect reads" do
     [ LIGHT, DARK ].each do |page|
-      assert_match(/localStorage\.setItem\('flosisLandingTheme'/, read(page),
-        "#{page} does not record the visitor's theme choice")
+      html = read(page)
+      assert_match(/localStorage\.setItem\('#{THEME_KEY}'/, html,
+        "#{page} does not record the visitor's theme choice under #{THEME_KEY}")
+
+      written = html.scan(/localStorage\.setItem\('([^']+)'/).flatten.uniq
+      assert_equal [ THEME_KEY ], written,
+        "#{page} writes the theme under #{written.inspect}, which the redirect does not read"
     end
   end
 end

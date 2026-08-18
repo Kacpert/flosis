@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>try{if(localStorage.getItem('flosisLandingTheme')==='dark')location.replace('/dark.html');}catch(e){}</script>
+<script>try{if((localStorage.getItem('flosisTheme')||localStorage.getItem('flosisLandingTheme'))==='dark')location.replace('/dark.html');}catch(e){}</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Flosis — Your developers shouldn't have to guess what you meant</title>
-<meta name="description" content="Flosis reads your repository, interviews you like a senior product partner, and turns vague tickets into implementation-ready Jira specs with real file paths, an estimate, and a branch already waiting. €200 per project. Built by Ruby on SaaS.">
-<meta property="og:title" content="Flosis — from rough ideas to ready tickets">
-<meta property="og:description" content="The ticket is the bottleneck. Flosis reads your code, asks the right questions, and hands your team work they can actually start.">
+<title>Flosis — Know exactly what to build. Automate everything else.</title>
+<link rel="canonical" href="https://flosis.com/">
+<meta name="description" content="Implementation-ready specs from your real repo, pre-coded branches, agents with memory, PR review, balanced estimates and bug root-cause analysis — on top of the Jira and GitHub you already use. €200 per project, unlimited seats. Built by Ruby on SaaS.">
+<meta property="og:title" content="Flosis — know exactly what to build, automate everything else">
+<meta property="og:description" content="Agents that remember, reviews that land, estimates you can plan on, metrics you can show the board, and bug analysis that finds the pattern. One price per project.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -17,6 +18,7 @@
   html{scroll-behavior:smooth}
   section[id]{scroll-margin-top:100px}
   :root{
+    --okInk:#146c33;--annoInk:#8a5a12;--warnInk:#9a4a08;
     --bg:#fbfbfd;--surface:#fff;--surface2:#f4f5f8;--border:#eaebf0;
     --soft:#f5f4fe;--soft2:#f7f8fd;
     --ink:#1a1d24;--muted:#5f6675;--faint:#666e7d;
@@ -54,7 +56,7 @@
   .btn-p:hover{color:#fff;transform:translateY(-1px);box-shadow:0 1px 0 rgba(255,255,255,.22) inset,0 16px 34px -12px rgba(79,70,229,.95)}
   .btn-s{background:var(--surface);color:var(--ink);border-color:var(--border)}
   .btn-s:hover{border-color:var(--primary);color:var(--primary)}
-  .chip{--okInk:#146c33;--warnInk:#9a4a08;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:7px;white-space:nowrap;line-height:1.35}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:7px;white-space:nowrap;line-height:1.35}
   .grid{display:grid;gap:16px}
   .g2{grid-template-columns:repeat(2,1fr)}
   .g3{grid-template-columns:repeat(3,1fr)}
@@ -62,30 +64,30 @@
   .sechead{max-width:680px;margin-bottom:42px}
   .sechead h2{margin:12px 0 14px}
   /* dark bands */
-  .dark{position:relative;background:linear-gradient(180deg,var(--soft),#fff 78%);color:var(--ink);overflow:hidden;isolation:isolate}
-  .dark::before{content:'';position:absolute;inset:0;z-index:-2;
+  .band{position:relative;background:linear-gradient(180deg,var(--soft),#fff 78%);color:var(--ink);overflow:hidden;isolation:isolate}
+  .band::before{content:'';position:absolute;inset:0;z-index:-2;
     background:radial-gradient(900px 460px at 14% -10%,rgba(99,102,241,.16),transparent 64%),
       radial-gradient(760px 400px at 88% 2%,rgba(124,58,237,.13),transparent 66%),
-      radial-gradient(620px 340px at 64% 106%,rgba(56,189,248,.10),transparent 68%)}
-  .dark::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;
-    background-image:linear-gradient(rgba(79,70,229,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(79,70,229,.05) 1px,transparent 1px);
-    background-size:56px 56px;
-    mask-image:radial-gradient(1100px 620px at 50% 0%,#000 35%,transparent 78%);
-    -webkit-mask-image:radial-gradient(1100px 620px at 50% 0%,#000 35%,transparent 78%)}
+      radial-gradient(620px 340px at 64% 106%,rgba(56,189,248,.10),transparent 68%),
+      radial-gradient(700px 420px at 14% 62%,rgba(99,102,241,.10),transparent 70%),
+      radial-gradient(640px 380px at 90% 88%,rgba(124,58,237,.09),transparent 70%)}
+  .band::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;
+    background-image:linear-gradient(rgba(79,70,229,.085) 1px,transparent 1px),linear-gradient(90deg,rgba(79,70,229,.085) 1px,transparent 1px);
+    background-size:60px 60px;
+    mask-image:linear-gradient(180deg,#000 0%,#000 62%,rgba(0,0,0,.55) 82%,transparent 100%);
+    -webkit-mask-image:linear-gradient(180deg,#000 0%,#000 62%,rgba(0,0,0,.55) 82%,transparent 100%)}
   .grain{position:absolute;inset:0;z-index:-1;background-image:var(--grain);opacity:.03;pointer-events:none}
-  .dark h1,.dark h2,.dark h3{color:var(--ink)}
-  .dark .lead{color:var(--muted)}
-  .dark .card{background:rgba(255,255,255,.78);border-color:rgba(20,20,43,.07);backdrop-filter:blur(10px);box-shadow:0 12px 34px -20px rgba(30,27,75,.20)}
-  .dark .card h3{color:var(--ink)}.dark .card p{color:var(--muted)}
-  .dark .btn-s{background:#fff;color:var(--ink);border-color:var(--border)}
-  .dark .btn-s:hover{border-color:var(--primary);color:var(--primary)}
+  .band h1,.band h2,.band h3{color:var(--ink)}
+  .band .lead{color:var(--muted)}
+  .band .card{background:rgba(255,255,255,.78);border-color:rgba(20,20,43,.07);backdrop-filter:blur(10px);box-shadow:0 12px 34px -20px rgba(30,27,75,.20)}
+  .band .card h3{color:var(--ink)}.band .card p{color:var(--muted)}
+  .band .btn-s{background:#fff;color:var(--ink);border-color:var(--border)}
+  .band .btn-s:hover{border-color:var(--primary);color:var(--primary)}
 
 
   .gt{background:linear-gradient(103deg,#4f46e5 0%,#7c3aed 54%,#0284c7 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
   .gtd{background:linear-gradient(103deg,#4f46e5,#7c3aed 62%,#0ea5e9);-webkit-background-clip:text;background-clip:text;color:transparent}
   .glow{position:relative;z-index:0}
-  .glow::before{content:'';position:absolute;inset:-46px -34px -58px;z-index:-1;border-radius:48px;pointer-events:none;
-    background:radial-gradient(60% 55% at 50% 48%,rgba(139,92,246,.50),rgba(79,70,229,.26) 55%,rgba(79,70,229,0) 78%)}
   section{border-top:1px solid transparent}
   /* alternating band tones so neighbours read as distinct */
   .wash.tx-a{background:#ffffff}
@@ -111,17 +113,17 @@
     background-size:22px 22px;background-position:0 0;
     mask-image:linear-gradient(340deg,#000 0%,rgba(0,0,0,.5) 36%,transparent 72%);
     -webkit-mask-image:linear-gradient(340deg,#000 0%,rgba(0,0,0,.5) 36%,transparent 72%)}
-  .dark::before{}
-  .dark .rules{display:none}
-  .dark .rules--off{position:absolute;inset:0;z-index:-1;pointer-events:none;
+  .band::before{}
+  .band .rules{display:none}
+  .band .rules--off{position:absolute;inset:0;z-index:-1;pointer-events:none;
     background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.05) 0 1.5px,transparent 1.5px 15px);
     mask-image:linear-gradient(200deg,#000 0%,rgba(0,0,0,.5) 30%,transparent 64%);
     -webkit-mask-image:linear-gradient(200deg,#000 0%,rgba(0,0,0,.5) 30%,transparent 64%)}
   /* --- annotation accent: the human note in the margin --- */
   .anno{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;color:#a35b06;white-space:nowrap}
   .anno::before{content:'';width:5px;height:5px;border-radius:50%;background:#e08c12;flex:0 0 5px}
-  .dark .anno{color:#f5bf5c}
-  .ui .anno,.dark .ui .anno{color:#a35b06}
+  .band .anno{color:#8a5a12}
+  .ui .anno,.band .ui .anno{color:#a35b06}
   /* nav */
   nav.top{position:fixed;top:16px;left:0;right:0;z-index:60}
   nav.top .inner{display:flex;align-items:center;gap:26px;height:60px;padding:0 14px 0 22px;
@@ -163,7 +165,7 @@
   .feat::after{content:'';position:absolute;top:-1px;left:22px;width:28px;height:3px;border-radius:0 0 3px 3px;background:linear-gradient(90deg,var(--ai),var(--primary));opacity:0;transition:opacity .16s}
   .feat:hover::after{opacity:1}
   .feat:hover{transform:translateY(-2px);box-shadow:0 18px 44px -20px rgba(30,27,75,.3);border-color:#d9dcf5}
-  .dark .feat:hover{border-color:#d9dcf5;box-shadow:0 18px 44px -20px rgba(30,27,75,.3)}
+  .band .feat:hover{border-color:#d9dcf5;box-shadow:0 18px 44px -20px rgba(30,27,75,.3)}
   .feat .ic{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
   .feat h3{margin-bottom:7px}
   .feat p{font-size:13.5px;color:var(--muted);line-height:1.6}
@@ -187,7 +189,7 @@
     table.cmp tr.us td:not(.t)::before{background:var(--primary)}
   }
   .ui{border:1px solid var(--border);border-radius:15px;overflow:hidden;background:var(--surface);color:var(--ink);box-shadow:0 40px 90px -30px rgba(4,6,20,.62),0 0 0 1px rgba(255,255,255,.06)}
-  .dark .ui{color:var(--ink)}
+  .band .ui{color:var(--ink)}
   .uibar{display:flex;align-items:center;gap:8px;padding:10px 13px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#fafbfc,var(--surface2))}
   .uidot{width:9px;height:9px;border-radius:50%}
   .msg{border-radius:12px;padding:10px 13px;font-size:12.5px;line-height:1.55}
@@ -215,6 +217,35 @@
     nav.top a.nl.signin{display:inline-flex}
     section{padding:58px 0}
   }
+  /* --- pillar index --- */
+  .pill{position:relative;display:flex;flex-direction:column;gap:10px;padding:22px 20px;text-decoration:none;color:inherit;
+    transition:transform .14s,box-shadow .14s,border-color .14s}
+  .pill:hover{transform:translateY(-3px);border-color:#d5cdf8;box-shadow:0 22px 50px -22px rgba(30,27,75,.3);color:inherit}
+  .pill .no{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;color:var(--faint);letter-spacing:.04em}
+  .pill .ic{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center}
+  .pill h3{font-size:16px;line-height:1.3}
+  .pill p{font-size:13px;color:var(--muted);line-height:1.55;flex:1}
+  .pill .go{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--primary)}
+  /* --- capability header --- */
+  .caphd{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .caphd .num{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:#fff;background:var(--ai);
+    width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex:0 0 26px}
+  /* --- memory strip --- */
+  .mem{display:flex;flex-direction:column;gap:0;border-radius:14px;border:1px solid var(--border);background:var(--surface);overflow:hidden}
+  .mem .row{display:flex;gap:12px;padding:13px 15px;border-bottom:1px solid var(--border);align-items:flex-start}
+  .mem .row:last-child{border-bottom:none}
+  .mem .row .d{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--faint);flex:0 0 62px;padding-top:2px}
+  .mem .row .tx{font-size:13px;line-height:1.55;color:var(--ink)}
+  .mem .row.now{background:linear-gradient(90deg,rgba(124,58,237,.07),transparent)}
+  .srcgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  @media (max-width:960px){.srcgrid{grid-template-columns:repeat(2,1fr)}}
+  .src{display:flex;align-items:center;gap:9px;padding:11px 13px;border-radius:11px;border:1px solid var(--border);background:var(--surface);font-size:13px;font-weight:500}
+  .src.soon{border-style:dashed;color:var(--faint);background:transparent}
+  .kpi{display:flex;flex-direction:column;gap:3px}
+  .kpi .v{font-size:27px;font-weight:700;letter-spacing:-1px;line-height:1.1}
+  .kpi .l{font-size:12px;color:var(--faint)}
+  .bar{height:7px;border-radius:4px;background:var(--surface2);overflow:hidden}
+  .bar>span{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--ai),var(--primary))}
 </style>
 </head>
 <body>
@@ -225,10 +256,10 @@
     <svg width="32" height="27" viewBox="3.5 1 39 33.5" style="flex:0 0 32px;display:block" aria-hidden="true"><g stroke-linecap="round"><line x1="6" y1="10" x2="22" y2="10" stroke="var(--ai)" stroke-width="5"/><circle cx="28.4" cy="9.6" r="2.7" fill="var(--mk1)"/><circle cx="34.39" cy="8" r="2.2" fill="var(--mk2)"/><circle cx="38.12" cy="2.68" r="1.7" fill="var(--mk3)"/><line class="mkline" x1="6" y1="21" x2="40" y2="21" stroke="var(--ink)" stroke-width="5" opacity=".85"/><line class="mkline" x1="6" y1="32" x2="30" y2="32" stroke="var(--ink)" stroke-width="5" opacity=".5"/></g></svg>
     <span class="wm">Flos<span class="dotless">ı<i></i></span>s</span>
   </a>
-  <a class="nl" href="#compare">The problem</a>
-  <a class="nl" href="#how">How it works</a>
+  <a class="nl" href="#specs">Specs</a>
   <a class="nl" href="#agents">Agents</a>
-  <a class="nl" href="#math">The math</a>
+  <a class="nl" href="#review">Reviews</a>
+  <a class="nl" href="#bugs">Bug analysis</a>
   <a class="nl" href="#pricing">Pricing</a>
   <span style="flex:1"></span>
   <a class="nl signin" href="https://app.flosis.com/session/new" style="font-weight:600;color:var(--ink)">Sign in</a>
@@ -237,36 +268,35 @@
 </div></nav>
 
 <!-- ============ HERO ============ -->
-<section id="top" class="dark" style="padding:132px 0 96px">
-  <span class="rules"></span><span class="grain"></span>
+<section id="top" class="band" style="padding:150px 0 84px;margin-top:0">
+  <span class="grain"></span>
   <div class="wrap">
     <div class="grid heroGrid" style="grid-template-columns:1.06fr .94fr;gap:52px;align-items:center">
       <div>
         <div style="display:flex;align-items:center;gap:9px;margin-bottom:22px;flex-wrap:wrap">
-          <span class="chip" style="color:var(--ai);background:#f2ecff;border:1px solid #e2d6fb"><span style="width:6px;height:6px;border-radius:50%;background:var(--ai)"></span>Built on Claude Opus</span>
+          <span class="chip" style="color:#5b21b6;background:#f0e9ff;border:1px solid #ddd0fb"><span style="width:6px;height:6px;border-radius:50%;background:var(--ai)"></span>Built on Claude Opus</span>
           <span style="font-size:12.5px;color:var(--faint)">For Product Owners and CTOs who ship on Jira &amp; GitHub</span>
         </div>
-        <h1>Your developers shouldn't<br>have to guess <span class="gt">what you meant.</span></h1>
-        <p class="lead" style="margin-top:22px">Flosis reads your repository first, then interviews you like a senior product partner — one question at a time, grounded in your actual files. What comes out is a Jira ticket with real paths, acceptance criteria, an estimate, and a branch already waiting for the developer.</p>
+        <h1>Know exactly what to build.<br><span class="gt">Automate everything else.</span></h1>
+        <p class="lead" style="margin-top:22px">Specs written from your real repository, pre-coded onto a branch. Reviews, estimates and bug root-cause handled the moment they're needed. Agents that remember what they found last week. Everything that can be automated is — so your developers spend their time on the part that genuinely needs a person.</p>
         <div style="display:flex;gap:11px;margin-top:30px;flex-wrap:wrap">
           <a class="btn btn-p" href="#pricing">See it on your repo — €200<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
-          <a class="btn btn-s" href="#compare">Show me the difference</a>
+          <a class="btn btn-s" href="#pillars">What's included</a>
         </div>
         <div style="display:flex;gap:20px;margin-top:30px;flex-wrap:wrap;font-size:12.5px;color:var(--faint)">
-          <span>No migration — Jira &amp; GitHub stay</span><span>·</span><span>Unlimited seats</span><span>·</span><span>Never merges without you</span>
+          <span>No migration</span><span>·</span><span>Unlimited seats</span><span>·</span><span>Never merges without you</span>
         </div>
       </div>
 
-      <div class="glow">
-      <div class="ui">
+      <div class="ui glow">
         <div class="uibar">
           <span class="uidot" style="background:#e2e5ea"></span><span class="uidot" style="background:#e2e5ea"></span><span class="uidot" style="background:#e2e5ea"></span>
           <span class="mono" style="font-size:10.5px;color:var(--faint);margin-left:6px">flosis.com · Survey Platform</span>
         </div>
         <div style="padding:16px">
           <div style="display:flex;align-items:center;gap:7px;margin-bottom:13px">
-            <span class="chip" style="color:var(--ai);background:var(--aiSoft)">Details Gathering</span>
-            <span style="font-size:11px;color:var(--muted)">reads the repo before it speaks</span>
+            <span class="chip" style="color:#5b21b6;background:var(--aiSoft)">Details Gathering</span>
+            <span style="font-size:11px;color:var(--faint)">reads the repo before it speaks</span>
           </div>
           <div style="display:flex;flex-direction:column;gap:9px">
             <div style="display:flex;gap:8px;align-items:flex-start">
@@ -282,45 +312,110 @@
           <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:13px">
             <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:10px">
               <span class="mono" style="font-size:11px;font-weight:600;color:var(--primary);background:var(--primarySoft);padding:2px 7px;border-radius:5px">SP-1042</span>
-              <span class="chip" style="color:var(--okDeep);background:var(--okSoft)">✓ CURRENT</span>
+              <span class="chip" style="color:var(--okInk,#146c33);background:var(--okSoft)">✓ CURRENT</span>
               <span class="chip" style="color:var(--primary);background:var(--primarySoft)">IN JIRA</span>
-              <span class="chip" style="color:#565d6b;background:var(--surface2)">AI estimation · 8</span>
+              <span class="chip" style="color:var(--muted);background:var(--surface2)">AI estimation · 8</span>
             </div>
-            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
               <div class="sec">Technical notes</div>
               <span class="anno">real paths, not guesses</span>
             </div>
             <div class="mono" style="font-size:11.5px;color:var(--muted);line-height:1.75">services/survey/export.rb<br>lib/aggregation/aggregator.rb<br>app/views/surveys/results.html.erb</div>
-            <div style="margin-top:12px;display:flex;align-items:center;gap:8px;background:var(--okSoft);border:1px solid #d6ead9;border-radius:9px;padding:9px 11px;flex-wrap:wrap">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>
-              <span style="font-size:12px;color:var(--muted)">Branch <span class="mono" style="font-size:11.5px;color:var(--ink)">flosis/sp-1042-aggregated-export</span> pushed — scaffold ready</span>
-              <span style="flex:1"></span><span class="anno" style="flex:0 0 auto">you still merge it</span>
+            <div style="margin-top:12px;background:var(--okSoft);border:1px solid var(--border);border-radius:9px;padding:9px 11px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.4" style="flex:0 0 14px"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size:12px;color:var(--muted)">Branch <span class="mono" style="font-size:11.5px;color:var(--ink)">flosis/sp-1042-aggregated-export</span> pushed — scaffold ready</span>
+              </div>
+              <div style="display:flex;justify-content:flex-end;margin-top:6px"><span class="anno">you still merge it</span></div>
             </div>
           </div>
         </div>
-      </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============ THE MONEY SHOT ============ -->
-<section id="compare" class="wash tx-a" style="background:var(--surface);border-bottom:1px solid var(--border)">
+<!-- ============ FIVE PILLARS ============ -->
+<section id="pillars" class="wash tx-a">
   <div class="wrap">
     <div class="sechead reveal" style="max-width:720px">
-      <div class="kicker">The same ticket, twice</div>
-      <h2>This is the entire product, in one picture.</h2>
-      <p class="lead">On the left, the ticket most teams actually ship. On the right, the same request after Flosis has read the codebase and asked four questions. Only one of these can be started on a Monday morning without a meeting.</p>
+      <span class="kicker">What you actually get</span>
+      <h2>Six things stop being manual.</h2>
+      <p class="lead">They ship together and share an advantage no point tool has: they read your codebase and keep the project's memory. Buy them separately elsewhere and you're wiring up four vendors that can't see each other's context.</p>
+    </div>
+    <div class="grid g3 reveal" style="gap:14px">
+
+      <a href="#specs" class="card pill">
+        <span class="no">01 · where it starts</span>
+        <div class="ic" style="background:var(--aiSoft);color:var(--ai)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h4"/></svg></div>
+        <h3>Specs your team can start on Monday</h3>
+        <p>The AI interviews you about the product, checks the technical answers itself, and writes the ticket with real file paths — then pre-codes a branch for it.</p>
+        <span class="go">See a real before/after<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
+
+      <a href="#agents" class="card pill" style="background:linear-gradient(135deg,#f7f4ff,#fff 62%);border-color:#ddd6fa;box-shadow:0 14px 40px -22px rgba(79,70,229,.5)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <span class="no">02 · the one nobody else has</span>
+          <span class="chip" style="color:#5b21b6;background:#efe7ff;border:1px solid #ddd0fb;white-space:nowrap">Most requested</span>
+        </div>
+        <div class="ic" style="background:var(--aiSoft);color:var(--ai)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a5 5 0 0 0-5 5v1a4 4 0 0 0 0 8v1a5 5 0 0 0 10 0v-1a4 4 0 0 0 0-8V7a5 5 0 0 0-5-5zM12 2v20"/></svg></div>
+        <h3>Agents with their own memory</h3>
+        <p>They watch on a schedule, remember what they've already seen, pick up support tickets, investigate against the repo, and report anywhere — plug in any other data source you rely on.</p>
+        <span class="go">See what they do<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
+
+      <a href="#review" class="card pill">
+        <span class="no">03</span>
+        <div class="ic" style="background:var(--primarySoft);color:var(--primary)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6v6a3 3 0 0 1-3 3H7m0 0l3-3m-3 3l3 3"/><circle cx="6" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/></svg></div>
+        <h3>AI pull-request review, out of the box</h3>
+        <p>Every new or updated PR reviewed within minutes, commented directly on GitHub. No prompt engineering to get started, and it never approves or merges.</p>
+        <span class="go">How it reviews<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
+
+      <a href="#estimates" class="card pill">
+        <span class="no">04</span>
+        <div class="ic" style="background:var(--primarySoft);color:var(--primary)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h12M3 18h7"/></svg></div>
+        <h3>Estimates balanced across the whole board</h3>
+        <p>Every task sized against the same yardstick, written to its own Jira field. Consistent numbers are what make developer and team performance comparable at all.</p>
+        <span class="go">Why consistency matters<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
+
+      <a href="#bugs" class="card pill">
+        <span class="no">05</span>
+        <div class="ic" style="background:var(--warnSoft);color:#9a4a08"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="6" width="8" height="14" rx="4"/><path d="M19 7l-3 2M5 7l3 2M19 13h2M3 13h2M19 19l-3-2M5 19l3-2M12 2v4"/></svg></div>
+        <h3>Bug analysis that finds the pattern</h3>
+        <p>Not just who touched the line. Whether the cause is one person, a whole area of the code, or shipping faster than review can keep up.</p>
+        <span class="go">How attribution works<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
+
+      <a href="#metrics" class="card pill">
+        <span class="no">06</span>
+        <div class="ic" style="background:var(--primarySoft);color:var(--primary)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="13" y="7" width="3" height="10"/></svg></div>
+        <h3>Features delivered, not just velocity</h3>
+        <p>What actually shipped last sprint or month, in plain language, next to the points it was worth. The answer when someone asks what the last sprint produced.</p>
+        <span class="go">See the dashboard<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 01 SPECS & PRE-CODING ============ -->
+<section id="specs" class="wash tx-b">
+  <div class="wrap">
+    <div class="sechead reveal" style="max-width:720px">
+      <div class="caphd"><span class="num">01</span><span class="kicker" style="margin:0">Specs &amp; pre-coding</span></div>
+      <h2>It starts with a ticket worth developer time.</h2>
+      <p class="lead">The same ticket, twice. On the left, what most teams actually ship. On the right, the same request after Flosis has read the codebase and asked four questions. Only one of these can be started on a Monday morning without a meeting.</p>
     </div>
     <div class="grid g2 reveal" style="gap:20px;align-items:stretch">
       <div class="tk bad">
         <div class="hd">
           <span class="mono" style="font-size:11px;font-weight:600;color:#9a5b34;background:#fdefe2;padding:2px 7px;border-radius:5px">SP-1042</span>
           <span style="font-weight:600;font-size:13.5px;flex:1">Aggregated export for survey results</span>
-          <span class="chip" style="color:var(--warnDeep);background:var(--warnSoft)">Before</span>
+          <span class="chip" style="color:#9a4a08;background:var(--warnSoft)">Before</span>
         </div>
         <div class="bd">
-          <div class="sec" style="color:#8f5a26">Description</div>
+          <div class="sec" style="color:var(--warnInk)">Description</div>
           <p style="font-size:13.5px;line-height:1.65;color:var(--ink)">Analysts need a better export. Should aggregate by cohort instead of raw rows. Same as the dashboard basically. Nice to have for this sprint.</p>
           <div class="cons">
             <div><span>→</span><span><b>Estimate:</b> guessed at 3 in planning, took 11.</span></div>
@@ -331,7 +426,6 @@
           </div>
         </div>
       </div>
-
       <div class="tk good">
         <div class="hd">
           <span class="mono" style="font-size:11px;font-weight:600;color:var(--primary);background:var(--primarySoft);padding:2px 7px;border-radius:5px">SP-1042</span>
@@ -344,189 +438,295 @@
           <div class="sec">Acceptance criteria</div>
           <div style="font-size:13px;line-height:1.75;margin-bottom:12px">• Aggregated file downloads from any completed survey.<br>• Cohorts below threshold render as masked rows, never raw counts.<br>• Surveys without a threshold use the default of 5.<br>• Existing raw export output is byte-for-byte unchanged.</div>
           <div class="sec">Technical notes</div>
-          <div class="mono" style="font-size:11.5px;color:var(--muted);line-height:1.8;margin-bottom:12px">services/survey/export.rb <span style="color:var(--muted)">— add :aggregated mode</span><br>lib/aggregation/aggregator.rb <span style="color:var(--muted)">— reuse</span><br>app/models/survey.rb <span style="color:var(--muted)">— threshold default 5</span></div>
-          <div class="sec">Out of scope</div>
-          <p style="font-size:13px;line-height:1.6;color:var(--muted)">Scheduled exports, XLSX styling, per-question selection.</p>
+          <div class="mono" style="font-size:11.5px;color:var(--muted);line-height:1.8;margin-bottom:6px">services/survey/export.rb <span style="color:var(--faint)">— add :aggregated mode</span><br>lib/aggregation/aggregator.rb <span style="color:var(--faint)">— reuse</span><br>app/models/survey.rb <span style="color:var(--faint)">— threshold default 5</span></div>
+          <div style="margin-bottom:12px"><span class="anno">real paths, not guesses</span></div>
           <div class="wins">
             <div><span>✓</span><span><b>AI estimate: 8</b> — written to your own Jira field, re-runnable.</span></div>
             <div><span>✓</span><span><b>Branch pushed</b> with the spec committed and the three files stubbed.</span></div>
-            <div><span>✓</span><span><b>Zero clarifying questions</b> — the AI already checked the code for the ones it could answer itself.</span></div>
+            <div><span>✓</span><span><b>Zero clarifying questions</b> — the AI checked the code for the ones it could answer itself.</span></div>
           </div>
         </div>
       </div>
     </div>
-    <p style="font-size:12.5px;color:var(--muted);margin-top:18px;max-width:760px">Illustrative example from a real product surface, not a customer quote. The point isn't the wording — it's that one side is a request and the other is a specification.</p>
+    <p style="font-size:12px;color:var(--faint);margin-top:18px;max-width:760px">Illustrative example from a real product surface, not a customer quote. The point isn't the wording — it's that one side is a request and the other is a specification.</p>
+
+    <div class="flowrow reveal" style="margin-top:34px">
+      <div class="flowstep"><div class="n">1</div><h3>Capture</h3><p>A new idea, or an existing Jira ticket from any board. Ideas are saved and titled so nothing gets lost.</p></div>
+      <div class="flowstep ai"><div class="n">2</div><h3>Briefing</h3><p>The AI probes for user value and proposes the best fit for the existing app — challenging requirements only when it matters.</p></div>
+      <div class="flowstep"><div class="n">3</div><h3>Designs</h3><p>Optional. Request Figma work from the designer, or skip it entirely.</p></div>
+      <div class="flowstep ai"><div class="n">4</div><h3>Details</h3><p>Product questions only, one at a time, grounded in the code and designs. It looks up the technical answers itself.</p></div>
+      <div class="flowstep ai"><div class="n">5</div><h3>Estimate &amp; pre-code</h3><p>Points into your Jira field, then a branch with the spec and scaffold already on it.</p></div>
+    </div>
+    <div class="grid g3 reveal" style="margin-top:16px">
+      <div class="card feat"><h3 style="margin-bottom:8px">Every version is kept</h3><p>Your own description is <span class="mono" style="font-size:12px">v0</span>. Each draft and edit adds a version, and you choose which is current — that's the one Jira receives.</p></div>
+      <div class="card feat"><h3 style="margin-bottom:8px">Local until you say so</h3><p>Run the whole process on an idea that isn't in Jira yet. Push it when it's ready and the ticket is created complete.</p></div>
+      <div class="card feat"><h3 style="margin-bottom:8px">A branch, already waiting</h3><p>The spec committed next to the code, the files it touches stubbed, and pending tests named after the acceptance criteria.</p></div>
+    </div>
   </div>
 </section>
 
-<!-- ============ COST OF VAGUENESS ============ -->
-<section class="wash tx-b">
+<!-- ============ 02 AGENTS ============ -->
+<section id="agents" class="band band-alt" style="padding:92px 0">
+  <span class="grain"></span>
   <div class="wrap">
     <div class="sechead reveal">
-      <div class="kicker">Why this is expensive</div>
-      <h2>A vague ticket doesn't stay a ticket problem for long.</h2>
-      <p class="lead">It becomes a code problem, then a review problem, then a bug with no clear owner. Every tool you've bought sits downstream of the moment the damage was done.</p>
+      <div class="caphd"><span class="num">02</span><span class="kicker" style="margin:0">Agents</span></div>
+      <h2>Agents that remember, investigate, and report back.</h2>
+      <p class="lead">Most "AI alerts" are a cron job with a prompt attached — they fire, they forget, and by Thursday you're muting the channel. A Flosis agent keeps its own memory of what it has already seen, so the third time a symptom appears it says so, and tells you what the first two turned out to be.</p>
     </div>
-    <div class="grid g4 reveal">
-      <div class="card feat">
-        <div class="ic" style="background:var(--warnSoft);color:var(--warn)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg></div>
-        <h3>It starts upstream</h3>
-        <p>GitLab's DevSecOps survey puts unclear requirements ahead of technical complexity and resource constraints as the top cause of delays.</p>
-      </div>
-      <div class="card feat">
-        <div class="ic" style="background:var(--dangerSoft);color:var(--danger)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
-        <h3>Your agents inherit it</h3>
-        <p>Autonomous coding agents need precise acceptance criteria — vague tickets produce vague pull requests. Spec quality caps everything downstream.</p>
-      </div>
-      <div class="card feat">
-        <div class="ic" style="background:var(--aiSoft);color:var(--ai)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-        <h3>Generators made it faster, not clearer</h3>
-        <p>A well-formatted ticket with no context is a conversation starter, not a specification. The back-and-forth just moves to the pull request.</p>
-      </div>
-      <div class="card feat">
-        <div class="ic" style="background:var(--primarySoft);color:var(--primary)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 4-5"/></svg></div>
-        <h3>And you can't see the cost</h3>
-        <p>Re-work rarely gets logged as re-work. It shows up as a slower sprint, a mystery bug, and a number nobody can explain to finance.</p>
-      </div>
-    </div>
-  </div>
-</section>
 
-<!-- ============ HOW IT WORKS ============ -->
-<section id="how" class="wash tx-a" style="background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
-  <div class="wrap">
-    <div class="sechead reveal">
-      <div class="kicker">The pipeline</div>
-      <h2>From "we should probably…" to a branch a developer can open.</h2>
-      <p class="lead">Five stages, every state mirrored in Jira, and a human approving each handoff. Nothing here is a black box — you decide when a brief is good, when a spec ships, and when code merges.</p>
-    </div>
-    <div class="flowrow reveal">
-      <div class="flowstep"><div class="n">1</div><h3>Capture</h3><p>A new idea, or an existing Jira ticket from any board. Ideas are saved and titled so nothing gets lost between refinements.</p></div>
-      <div class="flowstep ai"><div class="n">2</div><h3>Briefing</h3><p>The AI acts like a Product Owner — probing for user value, proposing the best fit for the existing app, challenging requirements only when it genuinely matters.</p></div>
-      <div class="flowstep"><div class="n">3</div><h3>Designs</h3><p>Optional. Request Figma work from the designer, or skip it — the flow never stalls on tasks that don't need visuals.</p></div>
-      <div class="flowstep ai"><div class="n">4</div><h3>Details Gathering</h3><p>Grounded in the code and the designs. Product questions only, one at a time — it looks up the technical answers itself.</p></div>
-      <div class="flowstep ai"><div class="n">5</div><h3>Estimate &amp; pre-code</h3><p>Story points into your own Jira field, then a branch with the spec and scaffold already on it.</p></div>
-    </div>
-    <div class="grid g3 reveal" style="margin-top:32px">
-      <div class="card feat"><h3 style="margin-bottom:8px">Every version is kept</h3><p>Your own description is <span class="mono" style="font-size:12px">v0</span>. Each AI draft and manual edit becomes a new version, and you choose which is current — that's the one written back to Jira.</p></div>
-      <div class="card feat"><h3 style="margin-bottom:8px">Local until you say so</h3><p>Run the whole process on an idea that isn't in Jira yet. Push it when it's ready and the ticket is created with the final description in place.</p></div>
-      <div class="card feat"><h3 style="margin-bottom:8px">Skip what you don't need</h3><p>Already know the why? Start at Details Gathering. Need designs after the spec instead of before? Also fine. The pipeline bends to the task.</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ PRE-CODING ============ -->
-<section id="branches" class="wash tx-b" style="border-bottom:1px solid var(--border)">
-  <div class="wrap">
-    <div class="grid splitGrid reveal" style="grid-template-columns:.95fr 1.05fr;gap:48px;align-items:center">
-      <div class="ui" style="background:var(--ink1);border-color:rgba(255,255,255,.10)">
-        <div class="uibar" style="background:rgba(255,255,255,.05);border-bottom-color:rgba(255,255,255,.08)">
-          <span class="uidot" style="background:#ff5f57"></span><span class="uidot" style="background:#febc2e"></span><span class="uidot" style="background:#28c840"></span>
-          <span class="mono" style="font-size:10.5px;color:var(--dfaint);margin-left:6px">git · acme/survey-platform</span>
+    <div class="grid splitGrid reveal" style="grid-template-columns:1.05fr .95fr;gap:34px;align-items:start;margin-bottom:38px">
+      <div>
+        <h3 style="font-size:19px;margin-bottom:14px">What memory actually changes</h3>
+        <div class="mem">
+          <div class="row"><span class="d">Jun 12</span><span class="tx">Flagged wrong totals in the CSV export. Root cause: aggregation threshold unset.</span></div>
+          <div class="row"><span class="d">Jun 28</span><span class="tx">Same symptom on the PDF path. Noted that the guard was moved during a refactor.</span></div>
+          <div class="row now"><span class="d">Today</span><span class="tx"><b>Third report from support.</b> "This is the same threshold issue, third time in six weeks — the guard keeps getting bypassed when new export paths are added. Suggest a shared check rather than a third fix."</span></div>
         </div>
-        <div class="mono" style="padding:18px;font-size:12px;line-height:2;color:#9aa3b8">
-          <div><span style="color:#4ade80">$</span> git fetch &amp;&amp; git switch <span style="color:#a5b4fc">flosis/sp-1042-aggregated-export</span></div>
-          <div style="color:var(--dfaint)">Switched to branch 'flosis/sp-1042-aggregated-export'</div>
-          <div style="margin-top:10px;color:#fff">On this branch:</div>
-          <div><span style="color:#4ade80">A</span> SPEC.md <span style="color:var(--dfaint)">— background, acceptance criteria, out of scope</span></div>
-          <div><span style="color:#4ade80">M</span> services/survey/export.rb <span style="color:var(--dfaint)">— :aggregated mode stub</span></div>
-          <div><span style="color:#4ade80">M</span> app/models/survey.rb <span style="color:var(--dfaint)">— threshold default</span></div>
-          <div><span style="color:#4ade80">A</span> spec/services/survey/export_spec.rb <span style="color:var(--dfaint)">— pending examples</span></div>
-          <div style="margin-top:10px;color:var(--dfaint)">Linked to SP-1042 · AI estimation 8</div>
-        </div>
+        <p style="font-size:13.5px;color:var(--muted);line-height:1.65;margin-top:16px">A stateless alert would have raised three unrelated bugs. This one raised a design problem — which is the difference between noise and something worth reading.</p>
       </div>
       <div>
-        <div class="kicker">Pre-coding</div>
-        <h2 style="margin:12px 0 14px">The ticket arrives with a branch already waiting.</h2>
-        <p class="lead">Once a task is detailed and estimated, Flosis opens a dedicated branch and does the groundwork: the spec committed next to the code, the files the change actually touches stubbed out, and pending tests named after the acceptance criteria.</p>
-        <div style="display:flex;flex-direction:column;gap:12px;margin-top:24px">
-          <div style="display:flex;gap:11px;align-items:flex-start"><span style="width:22px;height:22px;flex:0 0 22px;border-radius:6px;background:var(--okSoft);color:var(--ok);display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg></span><span style="font-size:14px;color:var(--muted)"><b style="color:var(--ink)">No blank-page start.</b> The developer opens the branch and the shape of the change is already there.</span></div>
-          <div style="display:flex;gap:11px;align-items:flex-start"><span style="width:22px;height:22px;flex:0 0 22px;border-radius:6px;background:var(--okSoft);color:var(--ok);display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg></span><span style="font-size:14px;color:var(--muted)"><b style="color:var(--ink)">The spec travels with the code.</b> No tab-switching to remember what "done" means.</span></div>
-          <div style="display:flex;gap:11px;align-items:flex-start"><span style="width:22px;height:22px;flex:0 0 22px;border-radius:6px;background:var(--okSoft);color:var(--ok);display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg></span><span style="font-size:14px;color:var(--muted)"><b style="color:var(--ink)">Nothing merges for you.</b> Flosis pushes branches and comments on PRs. It never approves and never merges — a human always does.</span></div>
+        <h3 style="font-size:19px;margin-bottom:14px">What you can put an agent on</h3>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <div class="card" style="padding:15px 16px"><b style="font-size:14px">Support ticket triage</b><p style="font-size:13px;color:var(--muted);line-height:1.55;margin-top:5px">Pick up an incoming ticket, reproduce the reasoning against the repo, find the likely commit, and report to the channel with a draft bug for approval.</p></div>
+          <div class="card" style="padding:15px 16px"><b style="font-size:14px">Feature-request sorting</b><p style="font-size:13px;color:var(--muted);line-height:1.55;margin-top:5px">Read what came in this week, group the duplicates, match each against what already exists in the code, and hand back a ranked list instead of a pile.</p></div>
+          <div class="card" style="padding:15px 16px"><b style="font-size:14px">Delivery watchdogs</b><p style="font-size:13px;color:var(--muted);line-height:1.55;margin-top:5px">QA queues that stopped moving, sprint scope creeping mid-flight, pull requests going quiet, tickets entering a sprint with no acceptance criteria.</p></div>
+          <div class="card" style="padding:15px 16px"><b style="font-size:14px">Anything you can describe</b><p style="font-size:13px;color:var(--muted);line-height:1.55;margin-top:5px">Rules are plain sentences, not query syntax. If you can explain it to a new hire, you can hand it to an agent.</p></div>
         </div>
       </div>
     </div>
-  </div>
-</section>
 
-<!-- ============ AGENTS ============ -->
-<section id="agents" class="dark" style="padding:94px 0">
-  <span class="rules"></span><span class="grain"></span>
-  <div class="wrap">
-    <div class="sechead reveal">
-      <div class="kicker">Agents</div>
-      <h2>Agents that don't just watch. They do the work.</h2>
-      <p class="lead">Describe the job in plain language, set when it runs, and pick whether it posts to a channel or just keeps a log. Because an agent sees Jira, GitHub and your delivery data at once, it can catch things no single-purpose tool can — and when it produces something, that output lands on the ticket for a human to approve.</p>
+    <div class="reveal" style="margin-bottom:16px">
+      <h3 style="font-size:19px;margin-bottom:6px">Connected by default — extend with your own sources</h3>
+      <p style="font-size:14px;color:var(--muted);line-height:1.6;max-width:680px;margin-bottom:16px">Every agent starts with access to your repository, Jira, GitHub and your chat. Data sources are pluggable, so the tools your team actually lives in can join the same reasoning.</p>
+      <div class="srcgrid">
+        <span class="src"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ai)" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-1-2.6c3-.3 6.2-1.5 6.2-7A5.4 5.4 0 0 0 20 4.8 5 5 0 0 0 19.9 1S18.7.6 16 2.5a13.4 13.4 0 0 0-7 0C6.3.6 5.1 1 5.1 1A5 5 0 0 0 5 4.8 5.4 5.4 0 0 0 3.6 8.5c0 5.5 3.2 6.7 6.2 7a3.4 3.4 0 0 0-1 2.6V22"/></svg>GitHub + your repo</span>
+        <span class="src"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>Jira Cloud</span>
+        <span class="src"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Discord webhooks</span>
+        <span class="src"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>Figma</span>
+        <span class="src soon">Slack &amp; Teams channels</span>
+        <span class="src soon">Support desks — Zendesk &amp; similar</span>
+        <span class="src soon">Error monitoring</span>
+        <span class="src soon">Product analytics</span>
+        <span class="src soon">Your own data source</span>
+      </div>
+      <p style="font-size:12px;color:var(--faint);margin-top:14px">Solid borders ship today. Dashed are the pluggable slots — tell us which one you need and it moves up the queue.</p>
     </div>
-    <div class="grid g2 reveal">
+
+    <div class="grid g2 reveal" style="margin-top:34px">
       <div class="card agent">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px">
-          <h3>String auto-translation</h3><span class="chip" style="color:var(--ai);background:var(--aiSoft);border:1px solid #e2d6fb">● 34 strings awaiting approval</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
+          <h3>Support triage</h3><span class="chip" style="color:var(--okInk,#146c33);background:var(--okSoft)">● Reported · 3rd occurrence</span>
         </div>
-        <p class="q">"Find user-facing strings added since the last run, translate them into our supported locales, and attach the results to the ticket for review."</p>
-        <div class="meta"><span>On merge to master</span><span>Attached to SP-1071</span><span style="color:var(--faint)">Nothing ships unapproved</span></div>
+        <p class="q">"When a support ticket mentions wrong numbers, investigate against the repo, check whether we've seen it before, and post findings to #support."</p>
+        <div class="meta"><span>On new ticket</span><span>#support</span><span>Memory on</span></div>
       </div>
       <div class="card agent">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px">
-          <h3>Sprint capacity check</h3><span class="chip" style="color:var(--warnInk);background:var(--warnSoft);border:1px solid #f5e3c0">● 11 points short</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
+          <h3>Feature request sorting</h3><span class="chip" style="color:#5b21b6;background:var(--aiSoft)">● 14 grouped into 6</span>
         </div>
-        <p class="q">"Two days before the sprint starts, compare planned story points against the team's recent average and tell me if we're short or overloaded."</p>
-        <div class="meta"><span>2 days before sprint start</span><span>#product</span></div>
+        <p class="q">"Every Friday, group this week's feature requests, drop the duplicates, and note which ones the code already half-supports."</p>
+        <div class="meta"><span>Fridays · 16:00</span><span>#product</span><span>Memory on</span></div>
       </div>
       <div class="card agent">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px">
-          <h3>QA backlog watch</h3><span class="chip" style="color:var(--okInk);background:var(--okSoft);border:1px solid #cdeed8">● Sent · 2 flagged</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
+          <h3>QA backlog watch</h3><span class="chip" style="color:var(--okInk,#146c33);background:var(--okSoft)">● Sent · 2 flagged</span>
         </div>
         <p class="q">"If more than 4 tasks have been in QA for longer than 3 days, send a notification."</p>
         <div class="meta"><span>Weekdays · 13:00</span><span>#dev-alerts</span><span>Full run history</span></div>
       </div>
       <div class="card agent">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px">
-          <h3>Spec-readiness gate</h3><span class="chip" style="color:var(--warnInk);background:var(--warnSoft);border:1px solid #f5e3c0">● 3 tickets thin</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
+          <h3>Spec-readiness gate</h3><span class="chip" style="color:#9a4a08;background:var(--warnSoft)">● 3 tickets thin</span>
         </div>
         <p class="q">"Before sprint planning, list any ticket in the next sprint with no acceptance criteria or no estimate."</p>
         <div class="meta"><span>Fridays · 15:00</span><span>#product</span><span>Notifications on</span></div>
       </div>
-      <div class="card agent">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px">
-          <h3>Scope creep sentinel</h3><span class="chip" style="color:var(--muted);background:var(--surface2);border:1px solid var(--border)">● No condition met</span>
-        </div>
-        <p class="q">"If sprint scope grows more than 20% after the sprint started, tell product which tickets were added and by whom."</p>
-        <div class="meta"><span>Mon, Wed, Fri · 09:00</span><span>#product</span></div>
-      </div>
-      <div class="card agent">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px">
-          <h3>Stale PR nudge</h3><span class="chip" style="color:var(--okInk);background:var(--okSoft);border:1px solid #cdeed8">● Sent · 1 PR</span>
-        </div>
-        <p class="q">"If a pull request has had no activity for 2 days, remind the author in the channel."</p>
-        <div class="meta"><span>Daily · 17:30</span><span>#dev-alerts</span></div>
-      </div>
     </div>
-    <div class="reveal" style="margin-top:22px;display:flex;align-items:flex-start;gap:11px;padding:15px 18px;border-radius:12px;background:#f2ecfd;border:1px solid #dcccfa">
-      <span style="flex:0 0 18px;color:var(--ai);display:flex;margin-top:1px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg></span>
-      <span style="font-size:13.5px;color:#41355e;font-weight:500;line-height:1.6">Agents replace the standing meetings and manual sweeps nobody enjoys — the translation pass, the capacity sanity-check, the "who's sitting on that PR" chase. They run on schedule, and anything they produce waits for your approval on the ticket.</span>
+
+    <div class="card reveal" style="margin-top:16px;padding:16px 18px;background:#f2ecfd;border-color:#ddd0fb;display:flex;gap:11px;align-items:flex-start">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--ai)" stroke-width="2" style="flex:0 0 17px;margin-top:2px"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
+      <span style="font-size:13.5px;color:#41355e;font-weight:500;line-height:1.6">Agents replace the standing meetings and manual sweeps nobody enjoys — the translation pass, the capacity sanity-check, the "who's sitting on that PR" chase. Every run is logged, including the quiet ones, and anything an agent produces waits for your approval on the ticket.</span>
     </div>
-    <div class="grid g3 reveal" style="margin-top:22px">
-      <div class="card feat">
-        <div class="ic" style="background:var(--aiSoft);color:var(--ai)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
-        <h3>Precise schedules</h3><p>Pick weekdays, a specific time, or an interval within a window. Skip weekends without writing a cron expression.</p>
+  </div>
+</section>
+
+<!-- ============ 03 PR REVIEW ============ -->
+<section id="review" class="wash tx-a">
+  <div class="wrap">
+    <div class="grid splitGrid reveal" style="grid-template-columns:1.02fr .98fr;gap:44px;align-items:center">
+      <div>
+        <div class="caphd"><span class="num">03</span><span class="kicker" style="margin:0">Pull-request review</span></div>
+        <h2 style="margin:0 0 14px">Review on every PR, from the first hour.</h2>
+        <p class="lead">Connect the repository and it starts working — no prompt library to assemble, no per-seat maths as the team grows. Flosis polls for new and updated pull requests, reads them against the codebase it already knows, and comments directly on GitHub.</p>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:24px">
+          <div style="display:flex;gap:11px;align-items:flex-start"><span style="width:22px;height:22px;flex:0 0 22px;border-radius:6px;background:var(--okSoft);color:var(--ok);display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg></span><span style="font-size:14px;color:var(--muted)"><b style="color:var(--ink)">It knows the ticket too.</b> The same system that wrote the spec reviews the code against it — so "does this do what we asked" is a question it can actually answer.</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start"><span style="width:22px;height:22px;flex:0 0 22px;border-radius:6px;background:var(--okSoft);color:var(--ok);display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg></span><span style="font-size:14px;color:var(--muted)"><b style="color:var(--ink)">Tune the prompt when you're ready.</b> Defaults work on day one; administrators can rewrite the review instructions per project.</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start"><span style="width:22px;height:22px;flex:0 0 22px;border-radius:6px;background:var(--okSoft);color:var(--ok);display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg></span><span style="font-size:14px;color:var(--muted)"><b style="color:var(--ink)">It never approves and never merges.</b> A human still signs off, every time.</span></div>
+        </div>
       </div>
-      <div class="card feat">
-        <div class="ic" style="background:var(--primarySoft);color:var(--primary)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 2M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/></svg></div>
-        <h3>Run history, not just alerts</h3><p>Every run is logged with what the agent checked and what it found — including the quiet runs where nothing fired. Notifications are opt-in per rule.</p>
-      </div>
-      <div class="card feat">
-        <div class="ic" style="background:var(--primarySoft);color:var(--primary)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div>
-        <h3>Pluggable channels</h3><p>Discord webhooks today, with Slack and Teams designed in from the start. One agent can watch a board and post anywhere.</p>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border);background:var(--surface2)">
+          <span style="font-size:12.5px;font-weight:600">Reviewed today</span>
+          <span style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--faint)"><span style="width:6px;height:6px;border-radius:50%;background:var(--ok)"></span>polling every 6 min</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border)">
+          <span class="mono" style="font-size:11.5px;color:var(--faint);flex:0 0 38px">#482</span>
+          <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">Aggregated CSV export for survey results</span><span style="display:block;font-size:11.5px;color:var(--faint);margin-top:2px">Mara Okafor</span></span>
+          <span class="chip" style="color:#9a4a08;background:var(--warnSoft)">3 comments</span>
+        </div><div style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border)">
+          <span class="mono" style="font-size:11.5px;color:var(--faint);flex:0 0 38px">#479</span>
+          <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">Fix threshold off-by-one in cohort suppression</span><span style="display:block;font-size:11.5px;color:var(--faint);margin-top:2px">Tomás Reyes</span></span>
+          <span class="chip" style="color:var(--okInk,#146c33);background:var(--okSoft)">Looks good!</span>
+        </div><div style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border)">
+          <span class="mono" style="font-size:11.5px;color:var(--faint);flex:0 0 38px">#476</span>
+          <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">Refactor export service into modules</span><span style="display:block;font-size:11.5px;color:var(--faint);margin-top:2px">Lena Vogt</span></span>
+          <span class="chip" style="color:#9a4a08;background:var(--warnSoft)">6 comments</span>
+        </div><div style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border)">
+          <span class="mono" style="font-size:11.5px;color:var(--faint);flex:0 0 38px">#471</span>
+          <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">Add rate limit to results API</span><span style="display:block;font-size:11.5px;color:var(--faint);margin-top:2px">Priya Nair</span></span>
+          <span class="chip" style="color:var(--okInk,#146c33);background:var(--okSoft)">Looks good!</span>
+        </div>
+        <div style="padding:13px 16px;display:flex;align-items:center;gap:8px">
+          <span class="anno">a human still issues the approval</span>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============ WHO IT'S FOR ============ -->
-<section class="wash tx-a" style="background:var(--surface);border-bottom:1px solid var(--border)">
+<!-- ============ 04 ESTIMATES ============ -->
+<section id="estimates" class="wash tx-b">
   <div class="wrap">
-    <div class="sechead reveal"><div class="kicker">Two people, two reasons</div><h2>You'll care about different halves of this.</h2></div>
+    <div class="sechead reveal">
+      <div class="caphd"><span class="num">04</span><span class="kicker" style="margin:0">Estimation</span></div>
+      <h2>One yardstick across the whole board.</h2>
+      <p class="lead">Human estimates drift — by who's in the room, by how the week is going, by who wants the task. That drift is why comparing two developers' output usually starts an argument. Flosis sizes every task the same way, so the numbers underneath your performance view mean something.</p>
+    </div>
+    <div class="grid splitGrid reveal" style="grid-template-columns:1fr 1fr;gap:34px;align-items:start">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:13px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:12.5px;font-weight:600">Sprint 24 · AI estimation</span>
+          <span style="font-size:11.5px;color:var(--faint)">re-runnable per task</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)">
+          <span class="mono" style="font-size:11.5px;color:var(--primary);flex:0 0 66px">SP-1042</span>
+          <span style="flex:1;font-size:13px">Aggregated CSV export</span>
+          <span style="font-size:15px;font-weight:700;color:var(--ai)">8</span>
+        </div><div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)">
+          <span class="mono" style="font-size:11.5px;color:var(--primary);flex:0 0 66px">SP-1038</span>
+          <span style="flex:1;font-size:13px">Cohort suppression masking</span>
+          <span style="font-size:15px;font-weight:700;color:var(--ai)">3</span>
+        </div><div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)">
+          <span class="mono" style="font-size:11.5px;color:var(--primary);flex:0 0 66px">SP-1031</span>
+          <span style="flex:1;font-size:13px">Results API rate limit</span>
+          <span style="font-size:15px;font-weight:700;color:var(--ai)">5</span>
+        </div><div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)">
+          <span class="mono" style="font-size:11.5px;color:var(--primary);flex:0 0 66px">SP-1029</span>
+          <span style="flex:1;font-size:13px">Export module refactor</span>
+          <span style="font-size:15px;font-weight:700;color:var(--ai)">13</span>
+        </div>
+        <div style="padding:12px 16px;font-size:12px;color:var(--faint)">Written to a dedicated field. Your team's own estimates are never touched.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="card feat"><h3 style="margin-bottom:7px">Consistent numbers make performance legible</h3><p>Once every task is sized on the same scale, "23 points this sprint" is comparable to last sprint and across the team — not an artefact of who estimated it.</p></div>
+        <div class="card feat"><h3 style="margin-bottom:7px">Configure when it runs</h3><p>Estimate on entering a sprint, on reaching a status, or on demand. Re-estimate a single task or the whole board when scope changes.</p></div>
+        <div class="card feat"><h3 style="margin-bottom:7px">It's an input, not a verdict</h3><p>The estimate lands in its own field beside your team's. Where they disagree is usually the most useful conversation in planning.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 05 BUG ANALYSIS ============ -->
+<section id="bugs" class="band band-alt" style="padding:92px 0">
+  <span class="grain"></span>
+  <div class="wrap">
+    <div class="sechead reveal">
+      <div class="caphd"><span class="num">05</span><span class="kicker" style="margin:0">Bug analysis</span></div>
+      <h2>When bugs pile up, the useful question is <span class="gt">why.</span></h2>
+      <p class="lead">Is it one developer who needs support? An area of the code that fights everyone who touches it? Or are features going out faster than review can keep up? Flosis reads the bug, the fix, the blame history and the change that caused it — then looks for the pattern across all of them.</p>
+    </div>
+
+    <div class="grid splitGrid reveal" style="grid-template-columns:.95fr 1.05fr;gap:34px;align-items:start;margin-bottom:34px">
+      <div>
+        <h3 style="font-size:18px;margin-bottom:14px">Patterns it surfaces</h3>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="card" style="padding:15px 16px"><b style="font-size:13.5px">A place, not a person</b><p style="font-size:13px;color:var(--muted);line-height:1.55;margin-top:5px">"Nine of the last fourteen bugs touch the export pipeline. Four different authors. This is the code, not the team."</p></div>
+          <div class="card" style="padding:15px 16px"><b style="font-size:13.5px">Pace outrunning review</b><p style="font-size:13px;color:var(--muted);line-height:1.55;margin-top:5px">"Bugs cluster in changes merged within two hours of opening. The reviews were thin, not absent."</p></div>
+          <div class="card" style="padding:15px 16px"><b style="font-size:13.5px">New feature vs. real regression</b><p style="font-size:13px;color:var(--muted);line-height:1.55;margin-top:5px">The AI judges whether each "bug" was ever built in the first place — a surprising share are missing features filed as defects.</p></div>
+          <div class="card" style="padding:15px 16px"><b style="font-size:13.5px">Someone who needs help</b><p style="font-size:13px;color:var(--muted);line-height:1.55;margin-top:5px">And when it really is one person, you find out from a trend across weeks — not from one bad week.</p></div>
+        </div>
+      </div>
+      <div>
+        <h3 style="font-size:18px;margin-bottom:14px">Attribution, with the confidence shown</h3>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:8px">
+              <span class="mono" style="font-size:11.5px;color:var(--primary)">SP-1101</span>
+              <span style="flex:1;min-width:150px;font-size:13px;font-weight:600">Export crashes on empty survey</span>
+              <span class="chip" style="color:var(--okInk,#146c33);background:var(--okSoft)">Sam Whitfield · High confidence</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start;background:var(--surface2);border-radius:9px;padding:9px 11px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ai)" stroke-width="2" style="flex:0 0 13px;margin-top:2px"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg><span style="font-size:12.5px;color:var(--muted);line-height:1.55">git blame on export.rb:88 points to commit a3f1 introducing the unchecked nil. The fixing diff guards that exact line.</span></div>
+          </div><div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:8px">
+              <span class="mono" style="font-size:11.5px;color:var(--primary)">SP-1098</span>
+              <span style="flex:1;min-width:150px;font-size:13px;font-weight:600">Threshold not applied to PDF export</span>
+              <span class="chip" style="color:#9a4a08;background:var(--warnSoft)">Lena Vogt · Medium</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start;background:var(--surface2);border-radius:9px;padding:9px 11px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ai)" stroke-width="2" style="flex:0 0 13px;margin-top:2px"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg><span style="font-size:12.5px;color:var(--muted);line-height:1.55">Spans two changes — most likely the PDF path being added, though a later refactor reshuffled the guard.</span></div>
+          </div><div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:8px">
+              <span class="mono" style="font-size:11.5px;color:var(--primary)">SP-1090</span>
+              <span style="flex:1;min-width:150px;font-size:13px;font-weight:600">Slow load on 10k+ responses</span>
+              <span class="chip" style="color:var(--muted);background:var(--surface2)">Likely: Lena Vogt · Likely</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start;background:var(--surface2);border-radius:9px;padding:9px 11px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ai)" stroke-width="2" style="flex:0 0 13px;margin-top:2px"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg><span style="font-size:12.5px;color:var(--muted);line-height:1.55">A performance regression with no single origin commit; probably cumulative. Best guess from blame on the hot path.</span></div>
+          </div>
+          <div style="padding:13px 16px;display:flex;align-items:center;gap:8px"><span class="anno">low certainty says "likely", never a verdict</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="grid g3 reveal">
+      <div class="card feat"><h3 style="margin-bottom:7px">Created and fixed, per person</h3><p>Both sides of the ledger, per sprint or month, so the developer clearing everyone's bugs is as visible as the one filing them.</p></div>
+      <div class="card feat"><h3 style="margin-bottom:7px">Trend over two years</h3><p>Bugs created against bugs fixed over time. A rising gap is the earliest warning you'll get that quality is slipping.</p></div>
+      <div class="card feat"><h3 style="margin-bottom:7px">Reasoning you can inspect</h3><p>Every attribution opens up to show the evidence chain. If you disagree, you can see exactly where it went wrong.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 06 REPORTING ============ -->
+<section id="metrics" class="wash tx-a">
+  <div class="wrap">
+    <div class="sechead reveal">
+      <div class="caphd"><span class="num">06</span><span class="kicker" style="margin:0">Delivery metrics</span></div>
+      <h2>What shipped last sprint, in words and in numbers.</h2>
+      <p class="lead">Velocity charts tell you a number went up. They don't answer the question you actually get asked — what did we get for this month? Flosis puts the delivered features next to the points and the hours, per sprint or per month, for the team or one person.</p>
+    </div>
+    <div class="card reveal" style="padding:0;overflow:hidden;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--border);background:var(--surface2);flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:600">June 2026 · Insights team</span>
+        <span style="display:flex;gap:7px"><span class="chip" style="color:var(--primary);background:var(--primarySoft)">Sprint / month</span><span class="chip" style="color:var(--muted);background:#fff;border:1px solid var(--border)">Per developer</span></span>
+      </div>
+      <div class="grid g3" style="gap:0">
+        <div style="padding:18px;border-right:1px solid var(--border)"><div class="kpi"><span class="v" style="color:var(--ok)">5</span><span class="l">features delivered</span></div></div><div style="padding:18px;border-right:1px solid var(--border)"><div class="kpi"><span class="v" style="color:var(--ink)">87</span><span class="l">story points</span></div></div><div style="padding:18px"><div class="kpi"><span class="v" style="color:var(--ink)">642</span><span class="l">hours worked</span></div></div>
+      </div>
+      <div style="padding:16px 18px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:12px">Delivered this period</div>
+        <div style="display:flex;align-items:center;gap:12px;padding:7px 0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 14px"><path d="M20 6L9 17l-5-5"/></svg><span style="flex:1;font-size:13px">Aggregated CSV export</span><span style="font-size:12px;color:var(--faint)">Mara Okafor</span><span style="font-size:12.5px;font-weight:600;color:var(--ai);flex:0 0 42px;text-align:right">8 pts</span></div><div style="display:flex;align-items:center;gap:12px;padding:7px 0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 14px"><path d="M20 6L9 17l-5-5"/></svg><span style="flex:1;font-size:13px">Cohort suppression masking</span><span style="font-size:12px;color:var(--faint)">Lena Vogt</span><span style="font-size:12.5px;font-weight:600;color:var(--ai);flex:0 0 42px;text-align:right">3 pts</span></div><div style="display:flex;align-items:center;gap:12px;padding:7px 0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 14px"><path d="M20 6L9 17l-5-5"/></svg><span style="flex:1;font-size:13px">Results API rate limiting</span><span style="font-size:12px;color:var(--faint)">Priya Nair</span><span style="font-size:12.5px;font-weight:600;color:var(--ai);flex:0 0 42px;text-align:right">5 pts</span></div><div style="display:flex;align-items:center;gap:12px;padding:7px 0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 14px"><path d="M20 6L9 17l-5-5"/></svg><span style="flex:1;font-size:13px">Per-question export selection</span><span style="font-size:12px;color:var(--faint)">Tomás Reyes</span><span style="font-size:12.5px;font-weight:600;color:var(--ai);flex:0 0 42px;text-align:right">5 pts</span></div><div style="display:flex;align-items:center;gap:12px;padding:7px 0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 14px"><path d="M20 6L9 17l-5-5"/></svg><span style="flex:1;font-size:13px">Bulk archive for surveys</span><span style="font-size:12px;color:var(--faint)">Mara Okafor</span><span style="font-size:12.5px;font-weight:600;color:var(--ai);flex:0 0 42px;text-align:right">8 pts</span></div>
+      </div>
+    </div>
+    <div class="grid g3 reveal">
+      <div class="card feat"><h3 style="margin-bottom:7px">Sprint or month, up to two years</h3><p>Switch the period and the whole view follows. Weekly resolution when you need detail, two-year ranges when you're looking for a trend.</p></div>
+      <div class="card feat"><h3 style="margin-bottom:7px">Team or one developer</h3><p>Filter to a person or a selection of them; every number, chart and list re-scopes. Useful for reviews, and for spotting who is carrying too much.</p></div>
+      <div class="card feat"><h3 style="margin-bottom:7px">Features, not just points</h3><p>A plain list of what actually reached master this period, who shipped it and what it was worth. The answer to "what did we get for this month?"</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WHO IT'S FOR ============ -->
+<section id="audience" class="wash tx-b">
+  <div class="wrap">
+    <div class="sechead reveal"><span class="kicker">Two people, two reasons</span><h2>You'll care about different halves of this.</h2></div>
     <div class="grid g2 reveal" style="gap:20px">
       <div class="card ring" style="padding:26px;border-color:#c8ccf6">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
@@ -534,10 +734,10 @@
           <h3 style="font-size:19px">If you're the Product Owner</h3>
         </div>
         <div style="display:flex;flex-direction:column;gap:11px;font-size:14px;color:var(--muted);line-height:1.6">
-          <div>You stop writing specs alone at 9pm — the AI interviews you and drafts it.</div>
-          <div>You stop being the lookup service for questions the code already answers.</div>
-          <div>Nothing you refine is lost: every brief version is saved, and you pick which one is current.</div>
-          <div>Sprint planning starts with tickets that already have criteria and an estimate.</div>
+          <div>Agents do the Friday sweep — feature requests grouped, thin tickets flagged before planning.</div>
+          <div>You stop writing specs alone at 9pm, and stop being the lookup service for questions the code answers.</div>
+          <div>Sprint planning starts with tickets that already have criteria and a consistent estimate.</div>
+          <div>You can say what shipped last month in features, not just points.</div>
         </div>
       </div>
       <div class="card ring" style="padding:26px;border-color:#c8ccf6">
@@ -546,99 +746,64 @@
           <h3 style="font-size:19px">If you're the CTO</h3>
         </div>
         <div style="display:flex;flex-direction:column;gap:11px;font-size:14px;color:var(--muted);line-height:1.6">
-          <div>Your developers start from a branch and a spec, not a paragraph and a guess.</div>
-          <div>Every PR gets reviewed the moment it opens — and nothing merges without a human.</div>
-          <div>Delivery, hours and real project cost in one dashboard, filtered per developer.</div>
-          <div>Bug origin worked out from <span class="mono" style="font-size:12.5px">git blame</span> plus the fixing diff — with honest confidence, not a blamed name.</div>
+          <div>Every PR reviewed the moment it opens — and nothing merges without a human.</div>
+          <div>When bugs spike, you get the pattern behind them instead of a name to blame.</div>
+          <div>Delivered features, story points and hours in one dashboard, filtered per developer.</div>
+          <div>One line item instead of four vendors, and it doesn't scale with headcount.</div>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============ REPORTING ============ -->
-<section id="reporting" class="wash tx-b">
-  <div class="wrap">
-    <div class="sechead reveal">
-      <div class="kicker">Reporting &amp; bug analytics</div>
-      <h2>What shipped, what it cost, and where the bugs actually came from.</h2>
-      <p class="lead">The answers a CTO needs before a board meeting and a PO needs before planning — without asking anyone to run a query.</p>
-    </div>
-    <div class="grid g2 reveal">
-      <div class="card feat">
-        <div class="ic" style="background:var(--primarySoft);color:var(--primary)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="13" y="7" width="3" height="10"/></svg></div>
-        <h3>Delivery over time</h3>
-        <p>Story points, bugs, hours and project cost per month or sprint — weekly resolution, ranges up to two years. Filter to one developer or a handful, and every number, chart and table follows the selection.</p>
-      </div>
-      <div class="card feat">
-        <div class="ic" style="background:var(--okSoft);color:var(--ok)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg></div>
-        <h3>Features delivered, not just points</h3>
-        <p>A plain list of what actually reached master this period, who shipped it, and how many pull requests it took. The answer to "what did we get for this month?"</p>
-      </div>
-      <div class="card feat">
-        <div class="ic" style="background:var(--warnSoft);color:var(--warn)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="6" width="8" height="14" rx="4"/><path d="M19 7l-3 2M5 7l3 2M19 13h2M3 13h2M19 19l-3-2M5 19l3-2M12 2v4"/></svg></div>
-        <h3>Bug origin with honest confidence</h3>
-        <p>Flosis combines <span class="mono" style="font-size:12px">git blame</span>, the bug itself, the fixing diff and earlier changes to work out who introduced it — and whether it was a bug at all or a missing feature. Low certainty shows as "Likely: <i>name</i>" with the reasoning one click away.</p>
-      </div>
-      <div class="card feat">
-        <div class="ic" style="background:var(--aiSoft);color:var(--ai)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-        <h3>Cost that reflects reality</h3>
-        <p>Hours and rates come from your existing time-tracking, so project cost is measured rather than estimated. Read-only — Flosis consumes that data, it doesn't replace the tool.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
 <!-- ============ COMPARISON ============ -->
-<section class="wash tx-a" style="background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+<section id="compare" class="wash tx-a">
   <div class="wrap">
     <div class="sechead reveal">
-      <div class="kicker">Where it fits</div>
-      <h2>Most tools own one step. Flosis owns the handoffs between them.</h2>
-      <p class="lead">Nothing here needs replacing. Keep Jira, keep GitHub, keep your coding agent — Flosis makes the work arriving at each of them worth acting on.</p>
+      <span class="kicker">Where it fits</span>
+      <h2>Matching this takes four tools that can't see each other.</h2>
+      <p class="lead">Nothing here needs replacing — keep Jira, keep GitHub, keep your coding agent. The difference is that in Flosis the reviewer, the estimator, the agents and the reporting all read the same repository and share the same project memory.</p>
     </div>
-    <div class="card reveal">
-      <div class="cmpwrap">
+    <div class="card reveal cmpwrap">
       <table class="cmp">
         <thead><tr><th>Category</th><th>What it does well</th><th>What it leaves to you</th></tr></thead>
         <tbody>
-          <tr><td class="t">AI code review<br><span style="font-weight:400;color:var(--muted);font-size:12px">CodeRabbit, Copilot review</span></td><td data-l="Does well">Comments on pull requests at scale, catches edge cases before merge.</td><td data-l="Leaves to you">Starts at the PR. Whatever was unclear in the ticket is already in the diff.</td></tr>
-          <tr><td class="t">Modern trackers<br><span style="font-weight:400;color:var(--muted);font-size:12px">Linear and similar</span></td><td data-l="Does well">Fast, opinionated issue tracking with agents built into the seat price.</td><td data-l="Leaves to you">Asks you to migrate off Jira, and still expects a human to write the spec.</td></tr>
-          <tr><td class="t">Autonomous coding agents<br><span style="font-weight:400;color:var(--muted);font-size:12px">Devin, background agents</span></td><td data-l="Does well">Take a well-scoped ticket end to end and open a pull request.</td><td data-l="Leaves to you">Need precise acceptance criteria. Vague tickets in, vague pull requests out.</td></tr>
-          <tr><td class="t">Engineering analytics<br><span style="font-weight:400;color:var(--muted);font-size:12px">Jellyfish, LinearB</span></td><td data-l="Does well">Throughput, cycle time and AI-adoption reporting for leadership.</td><td data-l="Leaves to you">Measures the output. Doesn't improve the specs that produced it.</td></tr>
-          <tr><td class="t">Native Jira AI<br><span style="font-weight:400;color:var(--muted);font-size:12px">Atlassian Intelligence</span></td><td data-l="Does well">Summaries, field suggestions and drafting with zero setup.</td><td data-l="Leaves to you">Doesn't read your repository, so it can't ground a spec in real files.</td></tr>
-          <tr class="us"><td class="t">Flosis</td><td data-l="Does well">Reads the repo, interviews you, writes the spec with real paths, estimates it, pre-codes the branch, then watches the flow with agents and reports on it.</td><td data-l="Leaves to you">The decisions. You approve every brief, spec, push and merge.</td></tr>
+          <tr><td class="t">AI code review<br><span style="font-weight:400;color:var(--faint);font-size:12px">CodeRabbit, Copilot review</span></td><td data-l="Does well">Comments on pull requests at scale, catches edge cases before merge.</td><td data-l="Leaves to you">Starts at the PR, and charges per seat. Nothing upstream, nothing after the merge.</td></tr>
+          <tr><td class="t">Modern trackers<br><span style="font-weight:400;color:var(--faint);font-size:12px">Linear and similar</span></td><td data-l="Does well">Fast, opinionated issue tracking with agents built into the seat price.</td><td data-l="Leaves to you">Asks you to migrate off Jira, and still expects a human to write the spec.</td></tr>
+          <tr><td class="t">Autonomous coding agents<br><span style="font-weight:400;color:var(--faint);font-size:12px">Devin, background agents</span></td><td data-l="Does well">Take a well-scoped ticket end to end and open a pull request.</td><td data-l="Leaves to you">Need precise acceptance criteria. Vague tickets in, vague pull requests out.</td></tr>
+          <tr><td class="t">Engineering analytics<br><span style="font-weight:400;color:var(--faint);font-size:12px">Jellyfish, LinearB</span></td><td data-l="Does well">Throughput, cycle time and AI-adoption reporting for leadership.</td><td data-l="Leaves to you">Measures the output. Doesn't improve the specs that produced it, and can't tell you why bugs cluster.</td></tr>
+          <tr><td class="t">Native Jira AI<br><span style="font-weight:400;color:var(--faint);font-size:12px">Atlassian Intelligence</span></td><td data-l="Does well">Summaries, field suggestions and drafting with zero setup.</td><td data-l="Leaves to you">Doesn't read your repository, so it can't ground a spec — or an investigation — in real files.</td></tr>
+          <tr class="us"><td class="t">Flosis</td><td data-l="Does well">Agents with memory, PR review, balanced estimates, delivery metrics, bug root-cause analysis and implementation-ready specs — all reading the same repo.</td><td data-l="Leaves to you">The decisions. You approve every brief, spec, push and merge.</td></tr>
         </tbody>
       </table>
-      </div>
     </div>
   </div>
 </section>
 
 <!-- ============ THE MATH ============ -->
-<section id="math" class="dark" style="padding:94px 0">
-  <span class="rules"></span><span class="grain"></span>
+<section id="math" class="band band-alt" style="padding:92px 0">
+  <span class="grain"></span>
   <div class="wrap">
     <div class="sechead reveal">
-      <div class="kicker">The math</div>
-      <h2>One prevented mis-build pays for the month.</h2>
-      <p class="lead">We're not going to pretend we can measure your re-work for you. But the arithmetic is worth doing out loud, because it's the reason per-project pricing works at all.</p>
+      <span class="kicker">The math</span>
+      <h2>Six capabilities, one line item.</h2>
+      <p class="lead">We won't pretend to measure your re-work for you. But the arithmetic is worth doing out loud, because it's the reason per-project pricing works at all.</p>
     </div>
     <div class="grid g3 reveal" style="gap:16px">
       <div class="card" style="padding:24px">
         <div style="font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--faint);text-transform:uppercase;margin-bottom:12px">One bad ticket</div>
-        <div style="font-size:34px;font-weight:700;letter-spacing:-1.2px;color:var(--danger)">~€560</div>
+        <div style="font-size:34px;font-weight:700;letter-spacing:-1.2px;color:#b91c1c">~€560</div>
         <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-top:10px">A day of re-work across a developer and a reviewer, at a blended €70/hour. One ticket. One time.</p>
       </div>
       <div class="card" style="padding:24px">
         <div style="font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--faint);text-transform:uppercase;margin-bottom:12px">Per-seat stack, 10 devs</div>
-        <div style="font-size:34px;font-weight:700;letter-spacing:-1.2px;color:var(--warn)">~€340+<span style="font-size:15px;font-weight:500;color:var(--faint)"> /mo</span></div>
-        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-top:10px">PR review seats plus tracker AI seats, on public list prices — before any analytics tool. Grows every time you hire.</p>
+        <div style="font-size:34px;font-weight:700;letter-spacing:-1.2px;color:#9a4a08">~€340+<span style="font-size:15px;font-weight:500;color:var(--faint)"> /mo</span></div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-top:10px">PR review seats plus tracker AI seats on public list prices — before any analytics tool. Grows every time you hire.</p>
       </div>
-      <div class="card" style="padding:24px;border-color:#d5cdf8;background:linear-gradient(180deg,#f4f0ff,#fff)">
-        <div style="font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--ai);text-transform:uppercase;margin-bottom:12px">Flosis</div>
-        <div style="font-size:34px;font-weight:700;letter-spacing:-1.2px;color:var(--ink)">€200<span style="font-size:15px;font-weight:500;color:var(--muted)"> /mo</span></div>
-        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-top:10px">The whole flow — briefing, specs, review, estimates, pre-coding, agents, reporting. Per project. Unlimited people.</p>
+      <div class="card" style="padding:24px;border-color:#d5c9f8;background:linear-gradient(180deg,#f4eeff,#fff)">
+        <div style="font-size:11.5px;font-weight:700;letter-spacing:.08em;color:#5b21b6;text-transform:uppercase;margin-bottom:12px">Flosis</div>
+        <div style="font-size:34px;font-weight:700;letter-spacing:-1.2px" class="gtd">€200<span style="font-size:15px;font-weight:500;color:var(--muted);-webkit-text-fill-color:var(--muted)"> /mo</span></div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-top:10px">All six capabilities. Per project. Unlimited people.</p>
       </div>
     </div>
     <p style="font-size:12px;color:var(--faint);margin-top:20px;max-width:780px">Competitor figures are public list prices converted for comparison, not quotes — check current vendor pricing before deciding. The re-work figure is illustrative arithmetic, not a measured claim about your team.</p>
@@ -646,13 +811,13 @@
 </section>
 
 <!-- ============ FIRST WEEK ============ -->
-<section class="wash tx-b" style="background:var(--surface);border-bottom:1px solid var(--border)">
+<section class="wash tx-b">
   <div class="wrap">
     <div class="grid splitGrid reveal" style="grid-template-columns:1fr 1fr;gap:48px;align-items:start">
       <div>
-        <div class="kicker">Getting started</div>
+        <span class="kicker">Getting started</span>
         <h2 style="margin:12px 0 14px">Live on your repo the same afternoon.</h2>
-        <p class="lead">There's no migration, no data import, and nothing for your team to learn before it starts helping. The heaviest task on your side is writing a short architecture note, once.</p>
+        <p class="lead">No migration, no data import, nothing for your team to learn before it starts helping. The heaviest task on your side is writing a short architecture note, once.</p>
         <div style="margin-top:24px;display:flex;flex-direction:column;gap:12px">
           <div style="display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px"><path d="M20 6L9 17l-5-5"/></svg>Your existing Jira boards, sprints and fields stay as they are</div>
           <div style="display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px"><path d="M20 6L9 17l-5-5"/></svg>Estimates go to a dedicated field, never over your team's numbers</div>
@@ -662,8 +827,8 @@
       <div style="display:flex;flex-direction:column;gap:18px">
         <div class="step"><span class="b">1</span><div><h3 style="font-size:15px">Connect GitHub and Jira Cloud</h3><p style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-top:4px">Token-based, per project. Pick the repository and the boards that matter.</p></div></div>
         <div class="step"><span class="b">2</span><div><h3 style="font-size:15px">Write the architecture note</h3><p style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-top:4px">A few paragraphs on how your app is put together. Flosis scans the repo daily to keep the rest current.</p></div></div>
-        <div class="step"><span class="b">3</span><div><h3 style="font-size:15px">Point it at your worst ticket</h3><p style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-top:4px">The vaguest thing in the backlog. That's the honest test — and it takes about half an hour.</p></div></div>
-        <div class="step"><span class="b">4</span><div><h3 style="font-size:15px">Turn on what you want</h3><p style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-top:4px">PR review, estimation, agents — each independent. Start with one, add the rest when it's earned trust.</p></div></div>
+        <div class="step"><span class="b">3</span><div><h3 style="font-size:15px">Turn on PR review</h3><p style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-top:4px">The fastest thing to judge — it starts commenting on the next pull request that opens.</p></div></div>
+        <div class="step"><span class="b">4</span><div><h3 style="font-size:15px">Add one agent, then more</h3><p style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-top:4px">Start with the sweep you most resent doing by hand. Each capability is independent — add the rest once they've earned trust.</p></div></div>
       </div>
     </div>
   </div>
@@ -672,28 +837,28 @@
 <!-- ============ TRUST ============ -->
 <section class="wash tx-a">
   <div class="wrap">
-    <div class="sechead reveal"><div class="kicker">Before your CTO asks</div><h2>The boring guarantees, in writing.</h2></div>
+    <div class="sechead reveal"><span class="kicker">Before your CTO asks</span><h2>The boring guarantees, in writing.</h2></div>
     <div class="grid g3 reveal">
       <div class="card feat"><h3 style="margin-bottom:7px">It never merges</h3><p>Flosis comments on pull requests and pushes branches. Approving and merging are human actions, always.</p></div>
-      <div class="card feat"><h3 style="margin-bottom:7px">Scoped per project</h3><p>Each project holds its own repository, boards, credentials, agents and data. Switching projects swaps all of it at once — there's no cross-project blending.</p></div>
+      <div class="card feat"><h3 style="margin-bottom:7px">Agents ask before they act</h3><p>An agent can investigate and report freely. Anything it wants to create — a bug ticket, a description — waits for your approval.</p></div>
+      <div class="card feat"><h3 style="margin-bottom:7px">Scoped per project</h3><p>Each project holds its own repository, boards, credentials, agents and memory. Switching projects swaps all of it — no cross-project blending.</p></div>
+      <div class="card feat"><h3 style="margin-bottom:7px">Least privilege by role</h3><p>Administrators configure integrations, credentials, prompts and estimation targets. Product Owners use everything else and see none of the secrets.</p></div>
       <div class="card feat"><h3 style="margin-bottom:7px">Your history stays yours</h3><p>Brief and spec versions live in the application database with full history. Jira only ever receives the version you mark as current.</p></div>
-      <div class="card feat"><h3 style="margin-bottom:7px">Least privilege by role</h3><p>Administrators configure integrations, credentials, prompts and estimation targets. Product Owners can use everything else and see none of the secrets.</p></div>
       <div class="card feat"><h3 style="margin-bottom:7px">The model is a dependency</h3><p>Claude Opus today, treated as swappable by design. You're not buying a bet on one vendor's roadmap.</p></div>
-      <div class="card feat"><h3 style="margin-bottom:7px">Built by people who ship</h3><p>Ruby on SaaS runs client software on this stack. Flosis exists because we needed it — it isn't a side experiment.</p></div>
     </div>
   </div>
 </section>
 
 <!-- ============ FOUNDER NOTE ============ -->
-<section class="wash tx-b" style="background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+<section class="wash tx-b">
   <div class="wrap">
     <div class="card ring reveal" style="padding:40px;max-width:820px;margin:0 auto;border-color:#c8ccf6;background:linear-gradient(180deg,#fbfbff,var(--surface))">
-      <div class="kicker">From the team</div>
+      <span class="kicker">From the team</span>
       <h2 style="font-size:26px;margin:12px 0 16px">We built this for ourselves first.</h2>
       <div style="font-size:15px;line-height:1.72;color:var(--muted);display:flex;flex-direction:column;gap:14px">
-        <p>Ruby on SaaS is a software house. We spend our days inside other people's codebases, and the pattern never changed: the ticket said one thing, the code said another, and somebody lost two days finding out which.</p>
-        <p>We tried the obvious fixes. Better templates didn't help — people filled them in. Faster ticket generators didn't help either; they just produced tidier guesses. What actually worked was making the AI <b style="color:var(--ink)">read the repository before it opened its mouth</b>, so the questions it asked were the ones only a human could answer, and the spec it wrote pointed at real files.</p>
-        <p>That's Flosis. We use it on our own client work every week, which is also why it refuses to approve or merge anything — we wouldn't trust a tool that did, and neither should you.</p>
+        <p>Ruby on SaaS is a software house. We spend our days inside other people's codebases, and the pattern never changed: the ticket said one thing, the code said another, and somebody lost two days finding out which. Then the bug arrived and nobody could say where it came from.</p>
+        <p>We tried the obvious fixes. Better templates didn't help — people filled them in. Faster ticket generators just produced tidier guesses. Alerting tools became noise inside a week, because they couldn't remember what they'd already told us. What actually worked was making the AI <b style="color:var(--ink)">read the repository before it opened its mouth</b>, and letting it keep what it learned.</p>
+        <p>That's Flosis. We run it on our own client work every week, which is also why it refuses to approve or merge anything — we wouldn't trust a tool that did, and neither should you.</p>
       </div>
       <div style="display:flex;align-items:center;gap:12px;margin-top:24px;padding-top:22px;border-top:1px solid var(--border)">
         <span style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--ai));color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">RS</span>
@@ -703,40 +868,18 @@
   </div>
 </section>
 
-<!-- ============ ROADMAP ============ -->
-<section class="wash tx-a" style="border-bottom:1px solid var(--border)">
-  <div class="wrap">
-    <div class="grid splitGrid reveal" style="grid-template-columns:1fr 1fr;gap:48px;align-items:center">
-      <div>
-        <div class="kicker">On the roadmap</div>
-        <h2 style="margin:12px 0 14px">More sources in, better questions out.</h2>
-        <p class="lead">Today Flosis reasons over your repository, Jira, designs and delivery data. Next we open that context up: connect more of the places your product knowledge already lives, and the AI has more to ground its questions and specs in.</p>
-        <p style="font-size:13.5px;color:var(--muted);margin-top:16px">A direction, not a dated promise — we'd rather ship connectors customers ask for than a long list nobody uses.</p>
-      </div>
-      <div class="grid g2" style="gap:12px">
-        <div class="card" style="padding:15px"><div style="font-size:13.5px;font-weight:600">Product docs &amp; wikis</div><div style="font-size:12.5px;color:var(--muted);margin-top:4px">Confluence, Notion</div></div>
-        <div class="card" style="padding:15px"><div style="font-size:13.5px;font-weight:600">Customer feedback</div><div style="font-size:12.5px;color:var(--muted);margin-top:4px">Support tickets, interviews</div></div>
-        <div class="card" style="padding:15px"><div style="font-size:13.5px;font-weight:600">Product analytics</div><div style="font-size:12.5px;color:var(--muted);margin-top:4px">The usage behind the request</div></div>
-        <div class="card" style="padding:15px"><div style="font-size:13.5px;font-weight:600">Error monitoring</div><div style="font-size:12.5px;color:var(--muted);margin-top:4px">Sentry-style signals</div></div>
-        <div class="card" style="padding:15px"><div style="font-size:13.5px;font-weight:600">Databases &amp; schemas</div><div style="font-size:12.5px;color:var(--muted);margin-top:4px">Real shapes, real fields</div></div>
-        <div class="card" style="padding:15px"><div style="font-size:13.5px;font-weight:600">More channels</div><div style="font-size:12.5px;color:var(--muted);margin-top:4px">Slack, Microsoft Teams</div></div>
-      </div>
-    </div>
-  </div>
-</section>
-
 <!-- ============ PRICING ============ -->
-<section id="pricing" class="wash tx-b">
+<section id="pricing" class="wash tx-a">
   <div class="wrap">
     <div class="sechead reveal" style="margin-bottom:34px">
-      <div class="kicker">Pricing</div>
+      <span class="kicker">Pricing</span>
       <h2>One price per project. Add the whole team.</h2>
       <p class="lead">Per-seat pricing punishes you for involving people — the designer, the QA lead, the second PO. Flosis charges for the project and lets everyone in.</p>
     </div>
     <div class="grid splitGrid reveal" style="grid-template-columns:.85fr 1.15fr;gap:22px;align-items:start">
       <div class="card ring" style="padding:28px;border-color:#c7cbf5;background:linear-gradient(180deg,#fbfbff,var(--surface))">
-        <div class="chip" style="color:var(--primary);background:var(--primarySoft);margin-bottom:14px">Introductory price</div>
-        <div style="display:flex;align-items:baseline;gap:7px">
+        <span class="chip" style="color:var(--primary);background:var(--primarySoft);margin-bottom:14px">Introductory price</span>
+        <div style="display:flex;align-items:baseline;gap:7px;margin-top:12px">
           <span class="gtd" style="font-size:46px;font-weight:700;letter-spacing:-1.9px">€200</span>
           <span style="font-size:14px;color:var(--muted)">/ project / month</span>
         </div>
@@ -744,13 +887,7 @@
         <a class="btn btn-p" href="mailto:hello@rubyonsaas.com?subject=Flosis%20—%20project%20setup" style="width:100%;justify-content:center">Book a walkthrough</a>
         <div style="height:1px;background:var(--border);margin:22px 0"></div>
         <div style="display:flex;flex-direction:column;gap:10px">
-          <div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>Briefing &amp; Details Gathering, unlimited versions</div>
-          <div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>AI review on every pull request</div>
-          <div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>Story-point estimation into your own Jira fields</div>
-          <div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>Pre-coded branches with the spec committed</div>
-          <div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>Unlimited scheduled agents and channels</div>
-          <div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>Reporting, developer reports and bug attribution</div>
-          <div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>Jira Cloud, GitHub, Figma and Discord included</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>Agents with memory — unlimited rules and channels</div><div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>AI review on every pull request</div><div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>Balanced story-point estimation into your Jira fields</div><div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>Delivery metrics, features shipped and story points</div><div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>Bug root-cause analysis and attribution</div><div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>Briefing &amp; Details Gathering, unlimited versions</div><div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>Pre-coded branches with the spec committed</div><div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" style="flex:0 0 15px;margin-top:3px"><path d="M20 6L9 17l-5-5"/></svg>Jira Cloud, GitHub, Figma and Discord included</div>
         </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:16px">
@@ -760,14 +897,15 @@
         </div>
         <div class="card" style="padding:24px">
           <h3 style="margin-bottom:14px">Compared with paying per seat</h3>
-          <table class="cmp" style="font-size:13px">
+          <div class="cmpwrap"><table class="cmp" style="font-size:13px">
             <tbody>
-              <tr><td>Ten developers, PR review only <span style="color:var(--muted)">(typical seat pricing)</span></td><td style="text-align:right;white-space:nowrap">~€240 / mo</td></tr>
-              <tr><td>Ten developers, tracker seats <span style="color:var(--muted)">(typical)</span></td><td style="text-align:right;white-space:nowrap">~€100–160 / mo</td></tr>
-              <tr class="us"><td>Flosis — the whole flow, unlimited members</td><td style="text-align:right;white-space:nowrap">€200 / mo</td></tr>
+              <tr><td>Ten developers, PR review only <span style="color:var(--faint)">(typical seat pricing)</span></td><td style="text-align:right;white-space:nowrap">~€240 / mo</td></tr>
+              <tr><td>Ten developers, tracker seats <span style="color:var(--faint)">(typical)</span></td><td style="text-align:right;white-space:nowrap">~€100–160 / mo</td></tr>
+              <tr><td>Engineering analytics <span style="color:var(--faint)">(typically quoted, per dev)</span></td><td style="text-align:right;white-space:nowrap">on request</td></tr>
+              <tr class="us"><td>Flosis — all six capabilities, unlimited members</td><td style="text-align:right;white-space:nowrap">€200 / mo</td></tr>
             </tbody>
-          </table>
-          <p style="font-size:12.5px;color:var(--muted);margin-top:12px">Competitor figures are public list prices converted for comparison, not quotes.</p>
+          </table></div>
+          <p style="font-size:12px;color:var(--faint);margin-top:12px">Competitor figures are public list prices converted for comparison, not quotes.</p>
         </div>
       </div>
     </div>
@@ -775,27 +913,27 @@
 </section>
 
 <!-- ============ FAQ ============ -->
-<section class="wash tx-a" style="background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+<section class="wash tx-b">
   <div class="wrap">
-    <div class="sechead reveal"><div class="kicker">Questions</div><h2 style="margin-top:12px">Before you get in touch</h2></div>
+    <div class="sechead reveal"><span class="kicker">Questions</span><h2 style="margin-top:12px">Before you get in touch</h2></div>
     <div class="grid g2 reveal">
+      <div class="card faq"><h3>What makes your agents different from scheduled alerts?</h3><p>Memory. An agent remembers what it has already reported, so it can tell you this is the third time a symptom has appeared and what the first two turned out to be. It can also act — pick up a support ticket, investigate against the repo, and report findings rather than just raising a flag.</p></div>
       <div class="card faq"><h3>Do we have to leave Jira?</h3><p>No. Flosis sits on top of Jira Cloud and GitHub, reading boards and writing to fields you control — including its own <span class="mono" style="font-size:12px">AI estimation</span> and <span class="mono" style="font-size:12px">AI actions</span> fields. Your team keeps working where it already works.</p></div>
-      <div class="card faq"><h3>Will it merge something we didn't review?</h3><p>Never. Flosis comments on pull requests and pushes branches. Approving and merging are human actions, always — the same applies to briefs, specs and anything written back to Jira.</p></div>
-      <div class="card faq"><h3>How does it know our codebase?</h3><p>Your repository is checked out server-side with a token you provide, and <span class="mono" style="font-size:12px">master</span> is refreshed daily. The AI reads whatever files it needs before asking a question, alongside a short architecture description you write once.</p></div>
-      <div class="card faq"><h3>What if the AI writes something wrong?</h3><p>You edit it. Every brief and spec is versioned — your own text is <span class="mono" style="font-size:12px">v0</span>, each draft or edit adds a version, and only the one you mark current reaches Jira. You can reset the conversation and keep every version.</p></div>
-      <div class="card faq"><h3>Does every ticket need designs?</h3><p>No. Designs are an optional step you can request from your designer, skip entirely, or add after the spec instead of before it. Requested and ready states show on the ticket so nobody has to chase.</p></div>
-      <div class="card faq"><h3>Can we run more than one project?</h3><p>Yes — each project has its own repository, boards, credentials, agents and reporting, and switching projects swaps all of it at once. Pricing is per project, so you add them as you need them.</p></div>
+      <div class="card faq"><h3>Can we connect our own data sources?</h3><p>That's the direction the product is built for. Repository, Jira, GitHub, Figma and chat are connected today; support desks, error monitoring and product analytics are the next slots. Tell us which one matters to you and it moves up the queue.</p></div>
+      <div class="card faq"><h3>Will it merge something we didn't review?</h3><p>Never. Flosis comments on pull requests and pushes branches; approving and merging are human actions. Agents investigate and report freely, but anything they want to create waits for your approval.</p></div>
+      <div class="card faq"><h3>How does it know our codebase?</h3><p>Your repository is checked out server-side with a token you provide, and <span class="mono" style="font-size:12px">master</span> is refreshed daily. The AI reads whatever files it needs, alongside a short architecture description you write once.</p></div>
+      <div class="card faq"><h3>Can we run more than one project?</h3><p>Yes — each project has its own repository, boards, credentials, agents, memory and reporting, and switching projects swaps all of it at once. Pricing is per project, so you add them as you need them.</p></div>
     </div>
   </div>
 </section>
 
 <!-- ============ FINAL CTA ============ -->
-<section class="dark" style="padding:100px 0">
-  <span class="rules"></span><span class="grain"></span>
+<section class="band band-alt" style="padding:100px 0">
+  <span class="grain"></span>
   <div class="wrap">
     <div style="text-align:center;max-width:720px;margin:0 auto" class="reveal">
-      <h2 style="font-size:40px;margin-bottom:16px">Bring us your <span class="gt">vaguest ticket.</span></h2>
-      <p class="lead" style="margin:0 auto 30px;text-align:center">Half an hour on your own repository, on the worst-written thing in your backlog. You'll know by the end whether the questions it asks are the ones your team keeps having — and that's a fair way to judge it.</p>
+      <h2 style="font-size:40px;margin-bottom:16px">Pick the job you most resent <span class="gt">doing by hand.</span></h2>
+      <p class="lead" style="margin:0 auto 30px;text-align:center">Half an hour on your own repository. Bring your vaguest ticket, your noisiest bug pattern, or the Friday sweep you keep putting off — whichever you'd most like to stop doing. That's a fair way to judge it.</p>
       <div style="display:flex;gap:11px;justify-content:center;flex-wrap:wrap">
         <a class="btn btn-p" href="mailto:hello@rubyonsaas.com?subject=Flosis%20walkthrough" style="padding:15px 26px;font-size:15.5px">Book a walkthrough — €200/project</a>
         <a class="btn btn-s" href="mailto:hello@rubyonsaas.com?subject=Flosis%20questions" style="padding:15px 24px;font-size:15.5px">Ask a question first</a>
@@ -815,29 +953,31 @@
           <svg width="32" height="27" viewBox="3.5 1 39 33.5" style="flex:0 0 32px;display:block" aria-hidden="true"><g stroke-linecap="round"><line x1="6" y1="10" x2="22" y2="10" stroke="var(--ai)" stroke-width="5"/><circle cx="28.4" cy="9.6" r="2.7" fill="var(--mk1)"/><circle cx="34.39" cy="8" r="2.2" fill="var(--mk2)"/><circle cx="38.12" cy="2.68" r="1.7" fill="var(--mk3)"/><line class="mkline" x1="6" y1="21" x2="40" y2="21" stroke="var(--ink)" stroke-width="5" opacity=".85"/><line class="mkline" x1="6" y1="32" x2="30" y2="32" stroke="var(--ink)" stroke-width="5" opacity=".5"/></g></svg>
           <span class="wm">Flos<span class="dotless">ı<i></i></span>s</span>
         </div>
-        <p style="font-size:13px;color:var(--muted);line-height:1.6">From rough ideas to ready tickets. Built and run by <b style="color:var(--ink)">Ruby on SaaS</b>, a software house that got tired of building from unclear tickets.</p>
+        <p style="font-size:13px;color:var(--muted);line-height:1.6">Know exactly what to build; automate everything else. Built and run by <b style="color:var(--ink)">Ruby on SaaS</b>, a software house that got tired of building from unclear tickets.</p>
       </div>
       <div style="display:flex;gap:56px;flex-wrap:wrap">
         <div style="display:flex;flex-direction:column;gap:9px">
-          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--faint);text-transform:uppercase">Product</div>
-          <a href="#compare" style="font-size:13.5px;color:var(--muted)">The problem</a>
-          <a href="#how" style="font-size:13.5px;color:var(--muted)">How it works</a>
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--faint);text-transform:uppercase">Capabilities</div>
           <a href="#agents" style="font-size:13.5px;color:var(--muted)">Agents</a>
-          <a href="#reporting" style="font-size:13.5px;color:var(--muted)">Reporting</a>
-          <a href="#pricing" style="font-size:13.5px;color:var(--muted)">Pricing</a>
+          <a href="#review" style="font-size:13.5px;color:var(--muted)">PR review</a>
+          <a href="#estimates" style="font-size:13.5px;color:var(--muted)">Estimation</a>
+          <a href="#metrics" style="font-size:13.5px;color:var(--muted)">Delivery metrics</a>
+          <a href="#bugs" style="font-size:13.5px;color:var(--muted)">Bug analysis</a>
+          <a href="#specs" style="font-size:13.5px;color:var(--muted)">Specs &amp; pre-coding</a>
         </div>
         <div style="display:flex;flex-direction:column;gap:9px">
           <div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--faint);text-transform:uppercase">Integrations</div>
           <span style="font-size:13.5px;color:var(--muted)">Jira Cloud</span>
           <span style="font-size:13.5px;color:var(--muted)">GitHub</span>
-          <span style="font-size:13.5px;color:var(--muted)">Figma</span>
           <span style="font-size:13.5px;color:var(--muted)">Discord</span>
+          <span style="font-size:13.5px;color:var(--muted)">Figma</span>
           <span style="font-size:13.5px;color:var(--faint)">Slack, Teams — soon</span>
+          <span style="font-size:13.5px;color:var(--faint)">Support desks — soon</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:9px">
           <div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--faint);text-transform:uppercase">Contact</div>
-          <a href="https://app.flosis.com/session/new" style="font-size:13.5px;color:var(--primary)">Sign in</a>
-          <a href="mailto:hello@rubyonsaas.com" style="font-size:13.5px;color:var(--primary)">hello@rubyonsaas.com</a>
+          <a href="https://app.flosis.com/session/new" style="font-size:13.5px">Sign in</a>
+          <a href="mailto:hello@rubyonsaas.com" style="font-size:13.5px">hello@rubyonsaas.com</a>
           <span style="font-size:13.5px;color:var(--muted)">Ruby on SaaS</span>
         </div>
       </div>
@@ -855,11 +995,8 @@
     es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
   },{rootMargin:'0px 0px -8% 0px',threshold:.08});
   document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
-
   var sw=document.querySelector('.themesw');
-  if(sw) sw.addEventListener('click',function(){
-    try{ localStorage.setItem('flosisLandingTheme', sw.getAttribute('data-theme-to')); }catch(e){}
-  });
+  if(sw)sw.addEventListener('click',function(){try{localStorage.setItem('flosisTheme',sw.getAttribute('data-theme-to'));}catch(e){}});
 })();
 </script>
 
