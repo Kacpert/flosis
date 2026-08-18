@@ -7,6 +7,18 @@ set :branch, "production"
 
 set :deploy_to, "/home/host420646/domains/clar.rubyonsaas.com/app"
 
+# Document roots for the three hostnames this account serves. The Rails app
+# itself stays put — `deploy_to` above is now just a directory name, not the
+# domain it answers on.
+#
+#   flosis.com      → static marketing landing (no Rails)
+#   app.flosis.com  → .htaccess reverse proxy to Puma  (the application)
+#   clar.rubyonsaas.com → 301 to app.flosis.com        (legacy)
+#
+set :app_document_root, "/home/host420646/domains/app.flosis.com/public_html"
+set :landing_document_root, "/home/host420646/domains/flosis.com/public_html"
+set :legacy_document_root, "/home/host420646/domains/clar.rubyonsaas.com/public_html"
+
 # rbenv
 set :rbenv_type, :user
 set :rbenv_ruby, File.read(".ruby-version").strip

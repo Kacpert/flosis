@@ -42,11 +42,11 @@ module WorkspaceScoped
     @current_product = resolved
   end
 
-  # flosis.com and clar.rubyonsaas.com are the same app behind two names, so the
-  # hostname picks which product you LAND on: Flosis its own, anything else
-  # (clar.rubyonsaas.com) keeps whatever the user's default was. It's only a
-  # default — the product switcher still wins, and because the session cookie is
-  # per-host the two domains never fight over the choice.
+  # The hostname picks which product you LAND on. The app now answers on
+  # app.flosis.com (which matches FLOSIS_HOST's `*.flosis.com`), so in practice
+  # this resolves to Flosis; the fallback branch survives for local and staging
+  # hostnames, where the user's own default applies. It's only a default — the
+  # product switcher still wins.
   def product_for_host
     :workshop if flosis_host?
   end

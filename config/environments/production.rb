@@ -60,7 +60,7 @@ Rails.application.configure do
   config.action_mailer.delivery_method = :smtp
 
   # Set host to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "clar.rubyonsaas.com", protocol: "https" }
+  config.action_mailer.default_url_options = { host: "app.flosis.com", protocol: "https" }
 
   # Brevo (Sendinblue) SMTP
   config.action_mailer.smtp_settings = {

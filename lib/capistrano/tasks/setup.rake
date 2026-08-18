@@ -26,9 +26,14 @@ namespace :setup do
     end
   end
 
-  desc "Setup .htaccess reverse proxy"
-  task :htaccess do
+  desc "Install the Puma reverse-proxy .htaccess in app.flosis.com's document root"
+  task :app_htaccess do
     on roles(:web) do
+      # Static assets are NOT served from this document root — it holds nothing
+      # but this file. The `-f` condition never matches, so /assets/* falls
+      # through to Puma, which serves it via public_file_server. That avoids
+      # needing a symlink to current/public, which shared hosting may refuse to
+      # follow.
       htaccess_content = <<~HTACCESS
         RewriteEngine On
 
@@ -40,7 +45,32 @@ namespace :setup do
         RewriteRule ^(.*)$ http://127.0.0.1:3001/$1 [P,L]
       HTACCESS
 
-      upload! StringIO.new(htaccess_content), "/home/host420646/domains/clar.rubyonsaas.com/public_html/.htaccess"
+      execute :mkdir, "-p", fetch(:app_document_root)
+      upload! StringIO.new(htaccess_content), "#{fetch(:app_document_root)}/.htaccess"
+
+      # Hostido drops a placeholder index.html into every new document root.
+      # Leave it and it competes with the proxy for `/`.
+      execute :mv, "-n", "#{fetch(:app_document_root)}/index.html",
+              "#{fetch(:app_document_root)}/index.html.hostido-placeholder",
+              "2>/dev/null || true"
+    end
+  end
+
+  desc "Retire clar.rubyonsaas.com with a 301 to app.flosis.com. RUN LAST."
+  task :legacy_redirect do
+    # Deliberately manual and deliberately last: run this only once
+    # app.flosis.com is confirmed serving the app. Run it early and you have
+    # redirected away the one hostname that still works.
+    on roles(:web) do
+      htaccess_content = <<~HTACCESS
+        RewriteEngine On
+
+        # The application moved to app.flosis.com. Permanent redirect so old
+        # bookmarks and links in already-sent email still arrive somewhere real.
+        RewriteRule ^(.*)$ https://app.flosis.com/$1 [R=301,L]
+      HTACCESS
+
+      upload! StringIO.new(htaccess_content), "#{fetch(:legacy_document_root)}/.htaccess"
     end
   end
 end

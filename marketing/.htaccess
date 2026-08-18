@@ -1,0 +1,11 @@
+RewriteEngine On
+
+# Force HTTPS. The document root this replaces had the same rule — dropping it
+# would quietly downgrade the marketing site to plaintext.
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Canonical marketing host. `www` is served by Hostido as an alias of the apex,
+# so without this the landing page would answer on two URLs.
+RewriteCond %{HTTP_HOST} ^www\.flosis\.com$ [NC]
+RewriteRule ^(.*)$ https://flosis.com/$1 [R=301,L]
