@@ -37,6 +37,11 @@ namespace :setup do
       htaccess_content = <<~HTACCESS
         RewriteEngine On
 
+        # Force HTTPS here, not in Rails: `assume_ssl = true` makes Rails treat
+        # every proxied request as already-secure, so force_ssl never fires.
+        RewriteCond %{HTTPS} off
+        RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
         # Serve static assets directly
         RewriteCond %{DOCUMENT_ROOT}/%{REQUEST_FILENAME} -f
         RewriteRule ^(.*)$ $1 [L]
@@ -47,6 +52,9 @@ namespace :setup do
 
       execute :mkdir, "-p", fetch(:app_document_root)
       upload! StringIO.new(htaccess_content), "#{fetch(:app_document_root)}/.htaccess"
+      # upload! lands the file 0640, which Apache cannot read — it then ignores
+      # the rewrite rules entirely and serves a bare 403 from the document root.
+      execute :chmod, "644", "#{fetch(:app_document_root)}/.htaccess"
 
       # Hostido drops a placeholder index.html into every new document root.
       # Leave it and it competes with the proxy for `/`.
@@ -71,6 +79,7 @@ namespace :setup do
       HTACCESS
 
       upload! StringIO.new(htaccess_content), "#{fetch(:legacy_document_root)}/.htaccess"
+      execute :chmod, "644", "#{fetch(:legacy_document_root)}/.htaccess"
     end
   end
 end
