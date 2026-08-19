@@ -5,9 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Flosis — Know exactly what to build. Automate everything else.</title>
 <link rel="canonical" href="https://flosis.com/">
-<meta name="description" content="Implementation-ready specs from your real repo, pre-coded branches, agents with memory, PR review, balanced estimates and bug root-cause analysis — on top of the Jira and GitHub you already use. €200 per project, unlimited seats. Built by Ruby on SaaS.">
+<meta name="description" content="Implementation-ready specs from your real repo, pre-coded branches, agents with memory, PR review, balanced estimates and bug root-cause analysis. €200 per project.">
+<link rel="canonical" href="https://flosis.com/">
+<meta name="robots" content="noindex, follow">
+<meta name="author" content="Ruby on SaaS">
+<meta name="theme-color" content="#080a12">
+<meta name="format-detection" content="telephone=no">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Flosis">
+<meta property="og:locale" content="en">
+<meta property="og:url" content="https://flosis.com/">
 <meta property="og:title" content="Flosis — know exactly what to build, automate everything else">
-<meta property="og:description" content="Agents that remember, reviews that land, estimates you can plan on, metrics you can show the board, and bug analysis that finds the pattern. One price per project.">
+<meta property="og:description" content="Six capabilities that share one codebase-aware memory: specs, pre-coded branches, agents, PR review, estimates and bug analysis. One price per project, unlimited seats.">
+<meta property="og:image" content="https://flosis.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Flosis — six capabilities on top of Jira and GitHub, €200 per project">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Flosis — know exactly what to build, automate everything else">
+<meta name="twitter:description" content="Six capabilities that share one codebase-aware memory: specs, pre-coded branches, agents, PR review, estimates and bug analysis. One price per project, unlimited seats.">
+<meta name="twitter:image" content="https://flosis.com/og-image.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -32,7 +50,7 @@
     --max:1140px;
     --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
   }
-  body{font-family:'Instrument Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.5}
+  body{font-family:'Instrument Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
   .mono{font-family:'JetBrains Mono',monospace}
   .wrap{max-width:var(--max);margin:0 auto;padding:0 32px}
   a{color:var(--primary);text-decoration:none}
@@ -175,6 +193,11 @@
   table.cmp tr.us{background:linear-gradient(90deg,rgba(139,131,255,.16),rgba(182,156,255,.10))}
   table.cmp tr.us td{color:var(--ink);font-weight:600;border-bottom-color:#3a3470}
   .cmpwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  @media (max-width:420px){
+    nav.top a.nl.signin{display:none}
+    nav.top .btn-p{padding:8px 12px!important}
+    nav.top .logo .wm{font-size:17px}
+  }
   @media (max-width:700px){
     .cmpwrap{overflow-x:visible}
     table.cmp thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -214,6 +237,15 @@
     .flowrow{flex-direction:column}.flowstep{border-right:none;border-bottom:1px solid var(--border)}
     nav.top a.nl,.hidem{display:none}
     nav.top a.nl.signin{display:inline-flex}
+    nav.top{top:10px}
+    nav.top .wrap{padding:0 14px}
+    nav.top .inner{gap:10px;height:54px;padding:0 10px 0 14px;border-radius:15px}
+    nav.top .logo{flex:0 0 auto}
+    nav.top .logo .wm{font-size:18px;white-space:nowrap}
+    nav.top .logo svg{width:27px;height:23px}
+    nav.top a.nl.signin{font-size:13px;white-space:nowrap}
+    nav.top .btn-p{padding:8px 13px!important;font-size:13px!important;white-space:nowrap}
+    nav.top .themesw{width:32px;height:32px;flex:0 0 32px}
     section{padding:58px 0}
   }
   /* --- pillar index --- */
@@ -246,6 +278,117 @@
   .bar{height:7px;border-radius:4px;background:var(--surface2);overflow:hidden}
   .bar>span{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--ai),var(--primary))}
 </style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Flosis",
+  "applicationCategory": "DeveloperApplication",
+  "applicationSubCategory": "Project management and AI coding assistant",
+  "operatingSystem": "Web-based",
+  "url": "https://flosis.com/",
+  "description": "Flosis turns vague tickets into implementation-ready specs written from your real repository, then pre-codes them onto a branch. Agents with memory, PR review, balanced estimates, bug root-cause analysis and delivery metrics — on top of the Jira and GitHub you already use. €200 per project, unlimited seats.",
+  "featureList": [
+    "Implementation-ready specs written from your repository",
+    "Pre-coded branches with the spec committed",
+    "Agents with persistent project memory",
+    "AI pull-request review",
+    "Balanced story-point estimation",
+    "Bug root-cause analysis and attribution",
+    "Delivery metrics and features-shipped reporting"
+  ],
+  "offers": {
+    "@type": "Offer",
+    "price": "200",
+    "priceCurrency": "EUR",
+    "description": "Per project per month, unlimited team members",
+    "availability": "https://schema.org/InStock",
+    "url": "https://flosis.com/#pricing"
+  },
+  "provider": {
+    "@type": "Organization",
+    "name": "Ruby on SaaS",
+    "url": "https://rubyonsaas.com/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ruby on SaaS"
+  }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Ruby on SaaS",
+  "url": "https://rubyonsaas.com/",
+  "description": "Software house and maker of Flosis.",
+  "email": "hello@rubyonsaas.com",
+  "makesOffer": {
+    "@type": "Offer",
+    "itemOffered": {
+      "@type": "SoftwareApplication",
+      "name": "Flosis"
+    }
+  }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What makes your agents different from scheduled alerts?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Memory. An agent remembers what it has already reported, so it can tell you this is the third time a symptom has appeared and what the first two turned out to be. It can also act — pick up a support ticket, investigate against the repo, and report findings rather than just raising a flag."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do we have to leave Jira?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. Flosis sits on top of Jira Cloud and GitHub, reading boards and writing to fields you control — including its own AI estimation and AI actions fields. Your team keeps working where it already works."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can we connect our own data sources?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "That's the direction the product is built for. Repository, Jira, GitHub, Figma and chat are connected today; support desks, error monitoring and product analytics are the next slots. Tell us which one matters to you and it moves up the queue."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Will it merge something we didn't review?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Never. Flosis comments on pull requests and pushes branches; approving and merging are human actions. Agents investigate and report freely, but anything they want to create waits for your approval."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does it know our codebase?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Your repository is checked out server-side with a token you provide, and master is refreshed daily. The AI reads whatever files it needs, alongside a short architecture description you write once."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can we run more than one project?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes — each project has its own repository, boards, credentials, agents, memory and reporting, and switching projects swaps all of it at once. Pricing is per project, so you add them as you need them."
+      }
+    }
+  ]
+}
+</script>
 </head>
 <body>
 <script>if('IntersectionObserver' in window)document.documentElement.className+=' js';</script>
@@ -267,6 +410,7 @@
 </div></nav>
 
 <!-- ============ HERO ============ -->
+<main>
 <section id="top" class="band" style="padding:150px 0 84px;margin-top:0">
   <span class="grain"></span>
   <div class="wrap">
@@ -943,6 +1087,8 @@
     </div>
   </div>
 </section>
+
+</main>
 
 <footer>
   <div class="wrap">

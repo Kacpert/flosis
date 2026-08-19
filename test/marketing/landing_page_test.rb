@@ -62,6 +62,18 @@ class LandingPageTest < ActiveSupport::TestCase
       "the dark-preference redirect does not send visitors to /dark.html")
   end
 
+  # An export changed the favicon it links to (flosis-icon.svg -> favicon.svg),
+  # which 404s unless the file is shipped under the name the page asks for.
+  test "every local asset the pages link to is shipped" do
+    [ LIGHT, DARK ].each do |page|
+      refs = read(page).scan(/(?:href|src)\s*=\s*"(\/[^"]+\.(?:svg|png|ico|css|js|webp|jpg))"/i).flatten.uniq
+      refs.each do |ref|
+        asset = Rails.root.join("marketing#{ref}")
+        assert File.exist?(asset), "#{page} links #{ref}, but marketing#{ref} does not exist"
+      end
+    end
+  end
+
   # / and /dark.html serve the same page in two themes. Without a canonical they
   # compete as duplicate content.
   test "both themes canonicalise to the light page" do
