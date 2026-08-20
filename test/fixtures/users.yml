@@ -14,3 +14,8 @@ client_user:
   name: Client Person
   email_address: client-fixture@example.com
   password_digest: <%= password_digest %>
+
+workspace_client_user:
+  name: Jesper Andersen
+  email_address: workspace-client-fixture@example.com
+  password_digest: <%= password_digest %>

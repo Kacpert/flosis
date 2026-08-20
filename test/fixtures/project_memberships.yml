@@ -19,3 +19,9 @@ client_elvium:
   project: jira_project
   user: client_user
   hourly_rate_cents: 0
+
+# The workspace_client logs time against jira_project only.
+workspace_client_elvium:
+  project: jira_project
+  user: workspace_client_user
+  hourly_rate_cents: 0

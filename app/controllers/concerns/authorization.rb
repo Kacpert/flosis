@@ -60,8 +60,11 @@ module Authorization
       current_user&.workspace_client_role?(current_workspace)
   end
 
+  # Gate for the Time & HR working surfaces (time entries, timesheet, timer,
+  # tags, holidays). Employees and up always pass; a workspace_client passes
+  # only when an admin has switched their Time & HR product access on.
   def require_employee!
-    unless current_user&.at_least_employee?(current_workspace)
+    unless current_user&.time_hr_member?(current_workspace)
       redirect_to root_path, alert: "You don't have permission to access this page."
     end
   end

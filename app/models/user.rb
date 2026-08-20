@@ -71,10 +71,24 @@ class User < ApplicationRecord
   # per-workspace, stored on the membership. Clients are a special case: they
   # are Jira-Tasks-only, which lives in the Workshop product.
 
+  # The Jira-Tasks-only `client` role is never a Time & HR user. A
+  # `workspace_client` is Workshop-first, but an admin can additionally switch
+  # Time & HR on for them — some clients want to log their own hours — in which
+  # case the per-membership flag governs, exactly as it does for an employee.
   def can_access_time_hr?(workspace)
     return false if client_role?(workspace)
-    return false if workspace_client_role?(workspace) # workspace clients are Workshop-only
     membership_for(workspace)&.time_hr_access || false
+  end
+
+  # "May use Time & HR the way an employee does" — log time, run a timer, tag
+  # entries, file holidays. Deliberately separate from at_least_employee?, which
+  # is a pure ROLE question used outside this product too; widening that would
+  # hand workspace_clients employee powers in places this feature never meant to
+  # touch.
+  def time_hr_member?(workspace)
+    return true if at_least_employee?(workspace)
+
+    workspace_client_role?(workspace) && can_access_time_hr?(workspace)
   end
 
   # Access to the Workshop PRODUCT (Jira Tasks + conceptual tooling). This is the
@@ -89,10 +103,14 @@ class User < ApplicationRecord
   end
 
   # Ordered list of products the user can access in this workspace.
+  # Order matters: the first entry is the default landing product. A
+  # workspace_client holds an account for the Workshop, so that stays their
+  # default even once Time & HR is switched on for them.
   def accessible_products(workspace)
     products = []
     products << :time_hr if can_access_time_hr?(workspace)
     products << :workshop if can_access_workshop?(workspace)
+    products.reverse! if workspace_client_role?(workspace)
     products
   end
 

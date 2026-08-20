@@ -22,13 +22,14 @@
         <div class="text-xs space-y-1 mt-2" style="color: var(--color-outline)">
           <p><strong>Admin</strong> &mdash; Full access to everything including settings and user management</p>
           <p><strong>Employee</strong> &mdash; Time entries, timesheet, tags, and reports (no monetary values)</p>
-          <p><strong>Client</strong> &mdash; Reports only</p>
+          <p><strong>Client</strong> &mdash; Jira Tasks only, limited to their assigned projects</p>
+          <p><strong>Workspace Client</strong> &mdash; Full Workshop access with pricing, but no user management. Time &amp; HR is off unless you switch it on.</p>
         </div>
       </div>
 
       <div class="space-y-2 pt-4" style="border-top: 1px solid var(--color-outline-variant)">
         <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Product access</label>
-        <p class="text-xs" style="color: var(--color-outline)">Which products this member can open. Clients are always Jira-Tasks-only (Workshop).</p>
+        <p class="text-xs" style="color: var(--color-outline)">Which products this member can open. Clients are always Jira-Tasks-only (Workshop). Tick Time &amp; HR for a Workspace Client who should also log their own hours.</p>
         <input type="hidden" name="time_hr_access" value="0">
         <label class="flex items-center justify-between gap-4 cursor-pointer">
           <span class="text-sm" style="color: var(--color-on-surface)">Time &amp; HR</span>

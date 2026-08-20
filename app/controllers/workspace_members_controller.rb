@@ -45,7 +45,15 @@ class WorkspaceMembersController < ApplicationController
       return render :new, status: :unprocessable_entity
     end
 
-    @membership = current_workspace.workspace_memberships.build(user: user, role: params[:role])
+    # The add form has no product checkboxes, so the schema defaults apply:
+    # time_hr_access true, workshop_access false. That suits employees, but a
+    # client role is Workshop-first — Time & HR has to be switched on
+    # deliberately from the edit screen, never handed out by default.
+    @membership = current_workspace.workspace_memberships.build(
+      user: user,
+      role: params[:role],
+      time_hr_access: !%w[client workspace_client].include?(params[:role])
+    )
 
     if @membership.save
       if new_user

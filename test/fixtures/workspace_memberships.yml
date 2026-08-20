@@ -18,3 +18,12 @@ client_membership:
   role: 3
   time_hr_access: false
   workshop_access: false
+
+# A workspace_client whose Time & HR product access is switched ON: full
+# Workshop access AND the ability to log their own hours like an employee.
+workspace_client_membership:
+  user: workspace_client_user
+  workspace: one
+  role: 4
+  time_hr_access: true
+  workshop_access: true
