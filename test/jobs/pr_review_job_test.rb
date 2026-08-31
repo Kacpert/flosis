@@ -199,8 +199,19 @@ class PrReviewJobTest < ActiveJob::TestCase
         PrReviewJob.perform_now(@workspace.id, 7, "initial")
       end
     end
-    assert_nil PrReview.find_by(workspace: @workspace, pr_number: 7), "CLI failure should not post or advance"
+    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    assert_nil review.reviewed_at, "CLI failure must not mark the PR reviewed"
+    assert_nil review.last_reviewed_sha
     assert_empty fake.captured
+    # The failure is recorded rather than erased: it costs one retry from the
+    # budget and schedules the next attempt, so the next poll doesn't spend a
+    # whole AI review again.
+    assert_equal 1, review.attempts
+    assert_equal "abc", review.attempt_sha
+    assert_equal "error", review.outcome
+    assert_nil review.enqueued_sha, "the claim is released so the retry can re-claim"
+    assert review.last_error.present?
+    assert review.next_attempt_at > Time.current
   end
 
   test "an auth-error response is NOT treated as no-issues (retries, posts nothing)" do
@@ -212,8 +223,27 @@ class PrReviewJobTest < ActiveJob::TestCase
         PrReviewJob.perform_now(@workspace.id, 7, "initial")
       end
     end
-    assert_nil PrReview.find_by(workspace: @workspace, pr_number: 7), "auth failure must not mark reviewed"
+    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    assert_nil review.reviewed_at, "auth failure must not mark reviewed"
     assert_empty fake.captured, "auth failure must not post a review"
+    assert_equal 1, review.attempts
+    assert_match(/authenticate/i, review.last_error)
+  end
+
+  test "a successful review clears the retry state left by earlier failures" do
+    record = PrReview.create!(workspace: @workspace, pr_number: 7)
+    record.record_failure!("abc", "Claude CLI not found")
+
+    with_github(fake_github(pr: pr_payload(sha: "abc"))) do
+      with_ai("[]") { PrReviewJob.perform_now(@workspace.id, 7, "initial") }
+    end
+
+    record.reload
+    assert_equal "looks_good", record.outcome
+    assert_equal 0, record.attempts
+    assert_nil record.attempt_sha
+    assert_nil record.last_error
+    assert_nil record.next_attempt_at
   end
 
   test "build_prompt with blank pr_review_prompt preserves the original ticket/diff/instructions ORDER" do

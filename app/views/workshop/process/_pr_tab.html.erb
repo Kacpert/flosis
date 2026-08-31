@@ -33,6 +33,22 @@
             <div class="text-[11.5px] clar-text-faint mt-[3px]">
               <%= review.pr_author %> &middot; <span class="clar-mono"><%= review.pr_branch %></span> &middot; <%= clar_time_ago(review.reviewed_at) %>
             </div>
+            <%# A failed review used to be invisible — the row was deleted and the
+                PR silently re-reviewed every poll. Now say what broke and when
+                (or whether) we'll try again, so a broken CLI or token is obvious. %>
+            <% if review.last_error.present? %>
+              <div class="text-[11.5px] clar-text-danger mt-[3px] truncate" title="<%= review.last_error %>">
+                <%= review.last_error %>
+                <span class="clar-text-faint">
+                  &middot;
+                  <% if review.retries_exhausted? %>
+                    gave up after <%= review.attempts %> tries &mdash; waiting for new commits
+                  <% else %>
+                    retry <%= review.next_attempt_at ? "at #{l(review.next_attempt_at, format: :short)}" : "queued" %> (attempt <%= review.attempts + 1 %> of <%= PrReview::MAX_ATTEMPTS %>)
+                  <% end %>
+                </span>
+              </div>
+            <% end %>
           </div>
           <%# Outcome pill — the design gives this one its own metrics
               (11.5px/700, 3px 10px, fully rounded), not the shared .clar-badge. %>
@@ -41,6 +57,8 @@
             <span class="<%= outcome_pill %> clar-badge-success">Looks good!</span>
           <% elsif review.outcome == "comments" %>
             <span class="<%= outcome_pill %> clar-badge-warn"><%= review.comment_count %> comments</span>
+          <% elsif review.outcome == "error" %>
+            <span class="<%= outcome_pill %> clar-badge-danger">Failed</span>
           <% else %>
             <span class="<%= outcome_pill %> clar-badge-muted">Pending</span>
           <% end %>

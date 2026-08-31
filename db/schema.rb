@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_12_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_31_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -349,11 +349,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_12_180000) do
   end
 
   create_table "pr_reviews", force: :cascade do |t|
+    t.string "attempt_sha"
+    t.integer "attempts", default: 0, null: false
     t.integer "comment_count"
     t.datetime "created_at", null: false
     t.string "enqueued_sha"
     t.boolean "initial_done", default: false, null: false
+    t.string "last_error"
     t.string "last_reviewed_sha"
+    t.datetime "next_attempt_at"
     t.string "outcome", default: "pending", null: false
     t.string "pr_author"
     t.string "pr_branch"

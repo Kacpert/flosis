@@ -137,6 +137,90 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
     end
   end
 
+  # ---- retry budget ------------------------------------------------------
+  # Regression: a failed review used to release its claim, so the very next poll
+  # ran a full (token-burning) AI review again — production hit 212 reviews on
+  # one PR. A failure now costs a bounded number of retries per head SHA.
+
+  test "does not re-enqueue a failed review while its backoff is still running" do
+    record = PrReview.create!(workspace: @workspace, pr_number: 7)
+    travel_to(Time.zone.local(2026, 6, 15, 10, 0)) { record.record_failure!("abc", "Claude CLI not found") }
+
+    travel_to Time.zone.local(2026, 6, 15, 10, 10) do
+      with_github(fake_github(prs: [ pr(7, "abc") ])) do
+        assert_no_enqueued_jobs(only: PrReviewJob) { PrReviewCheckJob.perform_now }
+      end
+    end
+  end
+
+  test "retries a failed review once its backoff has elapsed" do
+    record = PrReview.create!(workspace: @workspace, pr_number: 7)
+    travel_to(Time.zone.local(2026, 6, 15, 10, 0)) { record.record_failure!("abc", "Claude CLI not found") }
+
+    travel_to Time.zone.local(2026, 6, 15, 10, 20) do
+      with_github(fake_github(prs: [ pr(7, "abc") ])) do
+        assert_enqueued_with(job: PrReviewJob, args: [ @workspace.id, 7, "initial" ]) do
+          PrReviewCheckJob.perform_now
+        end
+      end
+    end
+    assert_equal "abc", record.reload.enqueued_sha, "the retry re-claims the SHA"
+  end
+
+  test "stops retrying the same SHA after the attempt budget is spent" do
+    record = PrReview.create!(workspace: @workspace, pr_number: 7)
+    PrReview::MAX_ATTEMPTS.times { record.record_failure!("abc", "boom") }
+
+    travel_to Time.zone.local(2026, 6, 20, 10, 0) do # far past every backoff
+      with_github(fake_github(prs: [ pr(7, "abc") ])) do
+        assert_no_enqueued_jobs(only: PrReviewJob) { PrReviewCheckJob.perform_now }
+      end
+    end
+  end
+
+  test "new commits revive a PR that had exhausted its retries" do
+    record = PrReview.create!(workspace: @workspace, pr_number: 7)
+    PrReview::MAX_ATTEMPTS.times { record.record_failure!("abc", "boom") }
+
+    travel_to Time.zone.local(2026, 6, 20, 10, 0) do
+      with_github(fake_github(prs: [ pr(7, "def") ])) do
+        assert_enqueued_with(job: PrReviewJob, args: [ @workspace.id, 7, "initial" ]) do
+          PrReviewCheckJob.perform_now
+        end
+      end
+    end
+  end
+
+  test "a failed followup keeps the earlier review and retries as a followup" do
+    record = PrReview.create!(workspace: @workspace, pr_number: 7, last_reviewed_sha: "old",
+                              initial_done: true, reviewed_at: Time.current, outcome: "comments")
+    travel_to(Time.zone.local(2026, 6, 15, 10, 0)) { record.record_failure!("new", "boom") }
+
+    assert_equal "comments", record.reload.outcome, "a completed review is not overwritten by a later failure"
+
+    travel_to Time.zone.local(2026, 6, 15, 10, 20) do
+      with_github(fake_github(prs: [ pr(7, "new") ])) do
+        assert_enqueued_with(job: PrReviewJob, args: [ @workspace.id, 7, "followup" ]) do
+          PrReviewCheckJob.perform_now
+        end
+      end
+    end
+  end
+
+  test "re-claims a PR whose review job died mid-flight (stale claim)" do
+    travel_to(Time.zone.local(2026, 6, 15, 7, 0)) do
+      PrReview.create!(workspace: @workspace, pr_number: 7, enqueued_sha: "abc")
+    end
+
+    travel_to Time.zone.local(2026, 6, 15, 10, 0) do
+      with_github(fake_github(prs: [ pr(7, "abc") ])) do
+        assert_enqueued_with(job: PrReviewJob, args: [ @workspace.id, 7, "initial" ]) do
+          PrReviewCheckJob.perform_now
+        end
+      end
+    end
+  end
+
   test "no-op outside working hours" do
     travel_to Time.zone.local(2026, 6, 15, 21, 0) do
       with_github(fake_github(prs: [ pr(7, "abc") ])) do

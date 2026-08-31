@@ -89,9 +89,11 @@ class PrReviewJob < ApplicationJob
     )
 
     issues = ai_issues(workspace, pr, files, mode)
-    # parse failure → release the claim so the next cycle retries (don't post,
-    # don't mark reviewed).
-    return release_claim(workspace, pr_number, mode) if issues.nil?
+    # The AI step failed to run (CLI/auth/transport). Record the failure against
+    # this SHA so PrReviewCheckJob retries it a bounded number of times with a
+    # backoff, instead of spending a full review every poll — don't post, don't
+    # mark reviewed.
+    return record.record_failure!(head_sha, @last_ai_error || "AI review failed") if issues.nil?
 
     # Since a followup re-reviews the whole cumulative diff, the AI re-flags issues
     # it already commented on. Drop any that duplicate an existing inline comment so
@@ -101,13 +103,13 @@ class PrReviewJob < ApplicationJob
     issues = issues.first(CAPS.fetch(mode, 4))
     post_review(github, pr_number, issues)
 
-    record.update!(
+    record.update!(record.failure_cleared_attributes.merge(
       last_reviewed_sha: head_sha,
       initial_done: true,
       reviewed_at: Time.current,
       outcome: issues.any? ? "comments" : "looks_good",
       comment_count: issues.size
-    )
+    ))
   end
 
   private
@@ -142,10 +144,12 @@ class PrReviewJob < ApplicationJob
     [path.to_s, normalized]
   end
 
-  # Undo the claim made by PrReviewCheckJob when a review can't complete, so the
-  # PR is retried next cycle. An initial claim (no prior review) is deleted
-  # entirely; a followup claim keeps the existing review but clears the
-  # in-flight SHA so the new commits are re-detected.
+  # Undo the claim made by PrReviewCheckJob when there is NOTHING to review —
+  # the PR vanished, went draft, or was closed. Not a failure, so it costs no
+  # retry budget: an initial claim (no prior review) is deleted entirely, a
+  # followup claim keeps the existing review but clears the in-flight SHA. A PR
+  # in any of these states is no longer listed by open_pull_requests (or is
+  # skipped as a draft), so this does not re-trigger an AI review.
   def release_claim(workspace, pr_number, mode)
     record = PrReview.find_by(workspace_id: workspace.id, pr_number: pr_number)
     return unless record
@@ -180,7 +184,10 @@ class PrReviewJob < ApplicationJob
       # No JSON array. Distinguish a genuine "looks fine" verdict from a CLI
       # failure: a real review is substantive prose; an auth/quota error is a
       # short error string. Treat failures as nil (retry, do not post/mark).
-      return nil if cli_failed?(response)
+      if cli_failed?(response)
+        @last_ai_error = "AI returned no review: #{response.strip.truncate(120).presence || 'empty response'}"
+        return nil
+      end
       return [] # CLI ran and found nothing worth flagging
     end
 
@@ -192,6 +199,7 @@ class PrReviewJob < ApplicationJob
     end
   rescue ClaudeCliService::ClaudeCliError => e
     Rails.logger.error("[PrReviewJob] claude error: #{e.message}")
+    @last_ai_error = e.message
     nil
   rescue JSON::ParserError
     []

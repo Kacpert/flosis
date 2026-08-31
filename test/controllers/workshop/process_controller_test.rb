@@ -148,6 +148,33 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
       "alert_rule form fields must not be double-nested"
   end
 
+  test "a failed review shows why it failed and when it retries, instead of silently looping" do
+    record = PrReview.create!(
+      workspace: @workspace, pr_number: 9, pr_title: "DEV-958 deletion dates", pr_author: "octocat",
+      pr_branch: "dev-958", pr_url: "https://github.com/acme/widgets/pull/9"
+    )
+    record.record_failure!("abc", "Claude CLI not found")
+
+    get workshop_process_path
+
+    assert_response :success
+    assert_select "body", /Failed/
+    assert_select "body", /Claude CLI not found/
+    assert_select "body", /attempt 2 of #{PrReview::MAX_ATTEMPTS}/
+  end
+
+  test "a review that used up its retry budget says so rather than showing a next attempt" do
+    record = PrReview.create!(workspace: @workspace, pr_number: 9, pr_title: "DEV-958 deletion dates",
+                              pr_author: "octocat", pr_branch: "dev-958")
+    PrReview::MAX_ATTEMPTS.times { record.record_failure!("abc", "Claude CLI not found") }
+
+    get workshop_process_path
+
+    assert_response :success
+    assert_select "body", /gave up after #{PrReview::MAX_ATTEMPTS} tries/
+    assert_select "body", /waiting for new commits/
+  end
+
   test "each alert rule card renders a pause switch, and a paused rule reads as paused" do
     project = tasks(:jira_task).project
     post switch_workshop_project_path, params: { project_id: project.id }
