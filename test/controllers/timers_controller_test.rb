@@ -18,6 +18,31 @@ class TimersControllerTest < ActionDispatch::IntegrationTest
     )
   end
 
+  # --- the timer bar's task field -------------------------------------------
+  # There is no task <select> any more: you pick the ticket straight from the
+  # description input's typeahead. The old select was worse than redundant — it
+  # was shown by default and only hidden once an async fetch came back, so it
+  # flashed back into the bar on every Turbo navigation.
+
+  test "the timer bar renders no task select, running or idle" do
+    get time_entries_path
+    assert_response :success
+    assert_select "select[name*=?]", "task_id", count: 0
+
+    start_timer
+    get time_entries_path
+    assert_response :success
+    assert_select "select[name*=?]", "task_id", count: 0
+  end
+
+  test "the timer bar keeps the hidden task_id field the typeahead writes into" do
+    get time_entries_path
+
+    assert_response :success
+    assert_select "input[type=hidden][data-jira-task-search-target=?]", "taskId"
+    assert_select "input[data-jira-task-search-target=?]", "input"
+  end
+
   # --- moving the start time ------------------------------------------------
 
   test "moves the start time to an earlier point today" do

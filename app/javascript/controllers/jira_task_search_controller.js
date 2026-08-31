@@ -1,8 +1,30 @@
 import { Controller } from "@hotwired/stimulus"
 
+// One in-flight request per project, shared by every instance of this
+// controller on the page (the bar renders a start form AND a manual-entry
+// form, and both want the same list). The short TTL keeps a newly created
+// Jira ticket from being invisible for a whole browsing session, since Turbo
+// keeps this module alive across navigations.
+const TASK_CACHE_TTL = 60_000
+const taskCache = new Map() // projectId -> { at, promise }
+
+function fetchTasks(projectId) {
+  const hit = taskCache.get(projectId)
+  if (hit && Date.now() - hit.at < TASK_CACHE_TTL) return hit.promise
+
+  const promise = fetch(`/projects/${projectId}/jira_tasks`, {
+    headers: { "Accept": "application/json" }
+  })
+    .then(response => (response.ok ? response.json() : []))
+    .catch(() => [])
+
+  taskCache.set(projectId, { at: Date.now(), promise })
+  return promise
+}
+
 export default class extends Controller {
   static targets = ["input", "dropdown", "list", "taskId"]
-  static values = { tasks: Array, jiraConnected: Boolean }
+  static values = { tasks: Array }
 
   connect() {
     this.clickOutside = this.clickOutside.bind(this)
@@ -12,10 +34,10 @@ export default class extends Controller {
     this._dropdown = this.hasDropdownTarget ? this.dropdownTarget : null
     this._list = this.hasListTarget ? this.listTarget : null
 
-    // If already connected to Jira (running timer), load tasks on page load
-    if (this.jiraConnectedValue) {
-      this.loadTasksForCurrentProject()
-    }
+    // The description input is the ONLY way to attach a task (there is no task
+    // <select> any more), so the list has to be ready on every page load —
+    // including a Turbo navigation, which reconnects this controller.
+    this.loadTasksForCurrentProject()
   }
 
   disconnect() {
@@ -25,38 +47,16 @@ export default class extends Controller {
     }
   }
 
+  // The picked project changed: its tasks are a different set, and whatever was
+  // attached belongs to the old project, so drop it.
   async projectChanged(event) {
-    const projectId = event.target.value
-    this.jiraConnectedValue = false
     this.tasksValue = []
+    this.clearTask()
 
-    if (!projectId) {
-      this.hideTaskSelect(false)
-      return
-    }
+    const projectId = event.target.value
+    if (!projectId) return
 
-    try {
-      const response = await fetch(`/projects/${projectId}/jira_tasks`, {
-        headers: { "Accept": "application/json" }
-      })
-
-      if (!response.ok) {
-        this.hideTaskSelect(false)
-        return
-      }
-
-      const tasks = await response.json()
-
-      if (tasks.length > 0) {
-        this.jiraConnectedValue = true
-        this.tasksValue = tasks
-        this.hideTaskSelect(true)
-      } else {
-        this.hideTaskSelect(false)
-      }
-    } catch (e) {
-      this.hideTaskSelect(false)
-    }
+    this.tasksValue = await fetchTasks(projectId)
   }
 
   async loadTasksForCurrentProject() {
@@ -64,34 +64,27 @@ export default class extends Controller {
     const projectSelect = form.querySelector("select[name*='project_id']")
     if (!projectSelect || !projectSelect.value) return
 
-    try {
-      const response = await fetch(`/projects/${projectSelect.value}/jira_tasks`, {
-        headers: { "Accept": "application/json" }
-      })
-      if (response.ok) {
-        const tasks = await response.json()
-        if (tasks.length > 0) {
-          this.tasksValue = tasks
-          this.jiraConnectedValue = true
-          this.hideTaskSelect(true)
-        }
-      }
-    } catch (e) {
-      // silently fail
-    }
+    this.tasksValue = await fetchTasks(projectSelect.value)
   }
 
   focus() {
     if (this._justSelected) return
-    if (!this.jiraConnectedValue || this.tasksValue.length === 0) return
+    if (this.tasksValue.length === 0) return
     this.renderList()
     this.show()
   }
 
   filter() {
-    if (!this.jiraConnectedValue) return
+    // Emptying the description detaches the task — without the old <select>
+    // there is no other way to undo a pick.
+    if (this.inputTarget.value.trim() === "") this.clearTask()
+    if (this.tasksValue.length === 0) return
     this.renderList(this.inputTarget.value)
     this.show()
+  }
+
+  clearTask() {
+    if (this.hasTaskIdTarget) this.taskIdTarget.value = ""
   }
 
   renderList(query = "") {
@@ -211,15 +204,6 @@ export default class extends Controller {
 
     if (!this.element.contains(event.target) && !this._dropdown.contains(event.target)) {
       this.hide()
-    }
-  }
-
-  hideTaskSelect(hide) {
-    const form = this.element.closest("form")
-    if (!form) return
-    const taskSelect = form.querySelector("[data-jira-task-select]")
-    if (taskSelect) {
-      taskSelect.style.display = hide ? "none" : ""
     }
   }
 

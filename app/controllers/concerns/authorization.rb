@@ -37,9 +37,22 @@ module Authorization
     current_membership&.role
   end
 
+  # Refuse the current request. An HTML page gets the familiar redirect + flash;
+  # a JSON/XHR caller gets a status it can actually read. Redirecting a JSON
+  # fetch used to send it to an HTML-only index, where the missing JSON template
+  # raised ActionController::UnknownFormat — 681 stack traces in production for
+  # requests that were merely unauthorized.
+  def deny_access!(message, path, status: :forbidden)
+    if request.format.json?
+      render json: { error: message }, status: status
+    else
+      redirect_to path, alert: message
+    end
+  end
+
   def require_admin!
     unless current_user&.admin_or_owner?(current_workspace)
-      redirect_to root_path, alert: "You don't have permission to access this page."
+      deny_access!("You don't have permission to access this page.", root_path)
     end
   end
 
@@ -65,15 +78,28 @@ module Authorization
   # only when an admin has switched their Time & HR product access on.
   def require_employee!
     unless current_user&.time_hr_member?(current_workspace)
-      redirect_to root_path, alert: "You don't have permission to access this page."
+      deny_access!("You don't have permission to access this page.", root_path)
     end
   end
 
   # Jira tasks + their AI features are open to clients as well as employees.
   def require_client_or_employee!
     unless current_user&.client_or_employee?(current_workspace)
-      redirect_to root_path, alert: "You don't have permission to access this page."
+      deny_access!("You don't have permission to access this page.", root_path)
     end
+  end
+
+  # Gate for endpoints that serve BOTH products, so neither product gate fits:
+  # the timer bar's Jira task picker is the case that matters — picking the
+  # ticket you're logging hours against is a Time & HR action, but the data is
+  # Jira's. Every role in the workspace may do it, including the Jira-only
+  # `client` and a `workspace_client` who has Time & HR switched on. The real
+  # boundary stays visible_jira_projects: a non-admin still only reaches the
+  # projects they are a member of.
+  def require_workspace_member!
+    return if current_membership.present?
+
+    deny_access!("You don't have permission to access this page.", root_path)
   end
 
   # Gate AI/workshop-tooling endpoints (e.g. brief chat) to real workshop
@@ -90,7 +116,7 @@ module Authorization
     return if membership&.workspace_client?
     return if membership && !membership.client? && membership.workshop_access
 
-    redirect_to root_path, alert: "Not authorized"
+    deny_access!("Not authorized", root_path)
   end
 
   def can_see_money?
@@ -103,13 +129,13 @@ module Authorization
   def require_product!(product)
     return if current_user&.can_access_product?(current_workspace, product)
 
-    redirect_to product_landing_path, alert: "You don't have access to that part of the app."
+    deny_access!("You don't have access to that part of the app.", product_landing_path)
   end
 
   # Used by the Jira/AI controllers: when a task/project lookup is scoped to the
   # user's visible projects and misses (e.g. a client guessing another project's
   # task id), send them back to the Jira board instead of a raw 404.
   def jira_record_not_found
-    redirect_to jira_tasks_path, alert: "You don't have access to that."
+    deny_access!("You don't have access to that.", jira_tasks_path, status: :not_found)
   end
 end

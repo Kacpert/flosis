@@ -3,7 +3,7 @@
        data-controller="timer timer-start-edit"
        data-timer-started-at-value="<%= @running_timer.started_at.iso8601 %>"
        data-timer-start-edit-started-at-value="<%= @running_timer.started_at.iso8601 %>">
-    <%= form_with url: update_running_timer_path, method: :patch, class: "flex items-center gap-2.5 flex-1 min-w-0", data: { controller: "auto-save jira-task-search", jira_task_search_jira_connected_value: @running_timer.project&.jira_connected? || false, timer_start_edit_target: "form" } do |f| %>
+    <%= form_with url: update_running_timer_path, method: :patch, class: "flex items-center gap-2.5 flex-1 min-w-0", data: { controller: "auto-save jira-task-search", timer_start_edit_target: "form" } do |f| %>
       <%# Carries a corrected start time when the counter pill is edited; empty
           otherwise, so ordinary description/project saves never touch it. %>
       <%= f.hidden_field "time_entry[started_at]", value: "", data: { timer_start_edit_target: "startedAt" } %>
@@ -33,13 +33,6 @@
               { include_blank: "Project" },
               class: "m3-timer-pill-select",
               data: { controller: "task-loader", action: "change->task-loader#load change->auto-save#save change->jira-task-search#projectChanged change->remember-project#save" } %>
-        </div>
-        <div class="m3-timer-pill-wrap" data-jira-task-select style="<%= @running_timer.project&.jira_connected? ? 'display:none' : '' %>">
-          <%= f.select "time_entry[task_id]",
-              @running_timer.project ? options_from_collection_for_select(@running_timer.project.tasks.active, :id, :name, @running_timer.task_id) : [],
-              { include_blank: "Task" },
-              class: "m3-timer-pill-select",
-              data: { action: "change->auto-save#save" } %>
         </div>
       </div>
 
@@ -106,12 +99,6 @@
               data: { controller: "task-loader", action: "change->task-loader#load change->jira-task-search#projectChanged change->remember-project#save" } %>
         </div>
 
-        <div class="timer-desktop-only" data-jira-task-select>
-          <%= f.select :task_id, [],
-              { include_blank: "Task" },
-              class: "m3-timer-pill" %>
-        </div>
-
         <%# Tag button %>
         <div class="relative timer-desktop-only" data-controller="tag-selector">
           <button type="button" tabindex="0" class="m3-icon-btn m3-icon-btn-sm" onclick="this.nextElementSibling.classList.toggle('hidden')">
@@ -162,11 +149,6 @@
               { include_blank: "Project" },
               class: "m3-timer-pill",
               data: { controller: "task-loader", action: "change->task-loader#load change->jira-task-search#projectChanged change->remember-project#save" } %>
-        </div>
-        <div class="timer-desktop-only" data-jira-task-select>
-          <%= f.select "time_entry[task_id]", [],
-              { include_blank: "Task" },
-              class: "m3-timer-pill" %>
         </div>
         <div class="h-5 w-px timer-desktop-only" style="background: var(--color-outline-variant)"></div>
 

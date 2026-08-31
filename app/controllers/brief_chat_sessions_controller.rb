@@ -24,7 +24,9 @@ class BriefChatSessionsController < ApplicationController
   # (chat_allowed_tools inherited from ChatStreaming returns nil → default tools.)
 
   def require_workshop!
-    redirect_to root_path unless current_workspace&.workshop_enabled?
+    return if current_workspace&.workshop_enabled?
+
+    deny_access!("Workshop is not enabled for this workspace.", root_path)
   end
 
   def extract_and_save_results(text)

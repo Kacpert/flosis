@@ -44,6 +44,29 @@ class Workshop::JiraBrowserControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /No tickets match\./
   end
 
+  # A ticket dropped into the NEXT sprint is still backlog: nobody has started
+  # it. Jira lists it in the backlog view, and so must we — before this, moving
+  # a ticket into an upcoming sprint made it vanish from here entirely.
+  test "backlog includes tasks parked in a sprint that has not started" do
+    @task.update!(sprint_id: jira_sprints(:future_sprint).jira_sprint_id,
+                  sprint_name: jira_sprints(:future_sprint).name)
+
+    get workshop_jira_browser_path(board: "backlog")
+
+    assert_response :success
+    assert_select ".clar-key", "ELV-1"
+  end
+
+  test "backlog still excludes tasks in a running sprint" do
+    @task.update!(sprint_id: jira_sprints(:design_sprint).jira_sprint_id,
+                  sprint_name: jira_sprints(:design_sprint).name)
+
+    get workshop_jira_browser_path(board: "backlog")
+
+    assert_response :success
+    assert_select "body", /No tickets match\./
+  end
+
   test "tasks already in the pipeline are excluded from the browser" do
     @task.enter_pipeline!(author: users(:one), stage: "briefing")
 

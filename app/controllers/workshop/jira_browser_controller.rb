@@ -51,8 +51,23 @@ class Workshop::JiraBrowserController < Workshop::BaseController
     end
   end
 
+  # Jira sprint ids of every sprint that has NOT started yet, across this
+  # project's boards. Tasks in one of them count as backlog here (see
+  # #filtered_backlog_tasks).
+  def not_started_sprint_ids
+    return [] unless current_workshop_project
+
+    JiraSprint.where(jira_board_id: current_workshop_project.jira_boards.select(:id), state: "future")
+              .pluck(:jira_sprint_id)
+  end
+
+  # Backlog = work that isn't being done yet. That covers tasks with no sprint
+  # at all AND tasks parked in a sprint that hasn't started — Jira shows the
+  # latter in its backlog view too, so excluding them (JiraSyncService assigns a
+  # sprint_id for `future` sprints just like `active` ones) made tickets
+  # disappear from here the moment they were dropped into the next sprint.
   def filtered_backlog_tasks
-    scope = base_tasks.where(sprint_id: nil)
+    scope = base_tasks.where(sprint_id: [ nil, *not_started_sprint_ids ])
     scope = scope.where(issue_type: params[:type]) if params[:type].present? && params[:type] != "all"
 
     order_sql = case params[:sort]

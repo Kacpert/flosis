@@ -1,10 +1,15 @@
 class JiraController < ApplicationController
   include WorkspaceScoped
 
-  before_action { require_product!(:workshop) }
+  # #jira_tasks is deliberately NOT behind the Workshop product gate: it is the
+  # JSON feed for the timer bar's task picker, i.e. a Time & HR surface. Most
+  # employees have workshop_access = false, so gating it on Workshop left them
+  # unable to log time against a Jira ticket at all (the picker silently showed
+  # nothing) — the whole point of the feature.
+  before_action -> { require_product!(:workshop) }, except: [ :jira_tasks ]
 
   before_action :require_admin!, only: [:projects, :sync]
-  before_action :require_client_or_employee!, only: [:jira_tasks]
+  before_action :require_workspace_member!, only: [:jira_tasks]
   before_action :set_project, only: [:jira_tasks, :sync]
   rescue_from ActiveRecord::RecordNotFound, with: :jira_record_not_found
 

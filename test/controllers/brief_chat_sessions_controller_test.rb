@@ -60,8 +60,9 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
   test "non-admin without workshop access is blocked" do
     sign_in_as(users(:two)) # employee without Workshop access
     get jira_task_brief_chat_session_path(@task), as: :json
-    # require_product!(:workshop) bounces them to their Time & HR landing.
-    assert_redirected_to time_entries_path
+    # require_product!(:workshop) refuses. A JSON caller gets 403 rather than a
+    # redirect to the Time & HR landing (an HTML page with no JSON template).
+    assert_response :forbidden
   end
 
   # require_workshop_member! (replacing require_admin!) must still block
@@ -71,7 +72,7 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
   test "client is blocked from show even though can_access_workshop? is true for clients" do
     sign_in_as(users(:client_user))
     get jira_task_brief_chat_session_path(@task), as: :json
-    assert_redirected_to root_path
+    assert_response :forbidden
   end
 
   test "client is blocked from posting a message" do
@@ -81,7 +82,7 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     )
     sign_in_as(users(:client_user))
     post message_jira_task_brief_chat_session_path(@task), params: { content: "hi" }, as: :json
-    assert_redirected_to root_path
+    assert_response :forbidden
     assert_equal "active", session.reload.status, "client's blocked request must not touch the session"
   end
 
@@ -94,7 +95,7 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
   test "blocked when workshop disabled" do
     @workspace.update!(workshop_enabled: false)
     get jira_task_brief_chat_session_path(@task), as: :json
-    assert_redirected_to root_path
+    assert_response :forbidden
   end
 
   test "extract_and_save_results creates a versioned Brief per <brief> block" do

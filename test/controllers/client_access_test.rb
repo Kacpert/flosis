@@ -41,7 +41,10 @@ class ClientAccessTest < ActionDispatch::IntegrationTest
 
   test "client cannot list drafts for an out-of-scope task" do
     get jira_task_task_drafts_path(@secret_task), as: :json
-    assert_redirected_to jira_tasks_path
+    # A JSON caller gets a status it can read, not a redirect to an HTML page
+    # (which used to end in ActionController::UnknownFormat).
+    assert_response :not_found
+    assert_no_match(/#{@secret_task.name}/, response.body)
   end
 
   test "index only exposes the client's jira projects" do

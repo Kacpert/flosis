@@ -13,3 +13,13 @@ closed_sprint:
   state: closed
   start_date: 2026-02-01
   end_date: 2026-02-28
+
+# Not started yet — the browser's Backlog tab must include its tasks, the way
+# Jira's own backlog view lists tickets parked in an upcoming sprint.
+future_sprint:
+  jira_board: dev_board
+  jira_sprint_id: 735
+  name: DEV Sprint 51
+  state: future
+  start_date: 2026-04-01
+  end_date: 2026-04-15
