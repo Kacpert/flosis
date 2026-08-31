@@ -148,6 +148,34 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
       "alert_rule form fields must not be double-nested"
   end
 
+  test "each alert rule card renders a pause switch, and a paused rule reads as paused" do
+    project = tasks(:jira_task).project
+    post switch_workshop_project_path, params: { project_id: project.id }
+    rule = AlertRule.create!(
+      workspace: @workspace, project: project, notify_enabled: false,
+      name: "QA column watch", prompt: "Watch the QA column.",
+      frequency: "daily", run_at_time: "13:00"
+    )
+
+    get workshop_process_path(tab: "alerts")
+    assert_response :success
+    assert_select "form[action=?] button.clar-toggle[aria-checked=?]",
+                  toggle_active_workshop_alert_rule_path(rule), "true"
+    assert_select "body", { text: /Paused/, count: 0 }
+
+    rule.update_column(:active, false)
+    get workshop_process_path(tab: "alerts")
+
+    assert_response :success
+    assert_select "form[action=?] button.clar-toggle[aria-checked=?]",
+                  toggle_active_workshop_alert_rule_path(rule), "false"
+    assert_select "body", /Paused/
+    # A paused rule is only stopped, never stripped: its prompt and schedule
+    # stay on the card so it can be resumed with one click.
+    assert_select "body", /Watch the QA column\./
+    assert_select "body", /Daily · 13:00/
+  end
+
   test "AI Alerts empty state renders without error" do
     get workshop_process_path(tab: "alerts")
 

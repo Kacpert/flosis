@@ -143,6 +143,51 @@ class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
     assert AlertRule.exists?(rule.id)
   end
 
+  test "toggle_active pauses an active rule and resumes it again" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "QA column watch", prompt: "Watch the QA column.",
+      frequency: "daily", run_at_time: "09:00")
+    assert rule.active?
+
+    patch toggle_active_workshop_alert_rule_path(rule)
+
+    assert_not rule.reload.active?
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_match(/paused/, flash[:clar_toast])
+    assert_match(/QA column watch/, flash[:clar_toast])
+
+    patch toggle_active_workshop_alert_rule_path(rule)
+
+    assert rule.reload.active?
+    assert_match(/resumed/, flash[:clar_toast])
+  end
+
+  test "a paused rule keeps its prompt, schedule and memory" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "QA column watch", prompt: "Watch the QA column.",
+      frequency: "weekdays", run_at_time: "09:00")
+    rule.store_memory("seen: PROJ-1")
+
+    patch toggle_active_workshop_alert_rule_path(rule)
+    rule.reload
+
+    assert_not rule.active?
+    assert_equal "Watch the QA column.", rule.prompt
+    assert_equal "weekdays", rule.frequency
+    assert_equal "seen: PROJ-1", rule.memory_text
+  end
+
+  test "toggle_active is scope-safe (404s for a rule outside the current workshop project)" do
+    rule = AlertRule.create!(workspace: @workspace, project: projects(:other_jira_project),
+      discord_webhook: @webhook, name: "Other project rule", prompt: "Watch something else.",
+      frequency: "daily", run_at_time: "09:00")
+
+    patch toggle_active_workshop_alert_rule_path(rule)
+
+    assert_response :not_found
+    assert rule.reload.active?
+  end
+
   test "history renders the run timeline with fired count" do
     rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
       name: "QA backlog watch", prompt: "Watch QA backlog.",

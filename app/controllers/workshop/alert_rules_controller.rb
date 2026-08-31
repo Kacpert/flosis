@@ -3,7 +3,7 @@
 # current_workshop_project (find always via that association — a crafted
 # cross-project id 404s), same convention as DesignRequestsController.
 class Workshop::AlertRulesController < Workshop::BaseController
-  before_action :set_alert_rule, only: [ :update, :destroy, :history, :memory, :clear_memory ]
+  before_action :set_alert_rule, only: [ :update, :destroy, :history, :memory, :clear_memory, :toggle_active ]
 
   def create
     rule = current_workshop_project.alert_rules.new(create_params.except(:discord_webhook_id))
@@ -47,6 +47,16 @@ class Workshop::AlertRulesController < Workshop::BaseController
   def destroy
     @alert_rule.destroy
     flash[:clar_toast] = %(Alert rule removed · "#{@alert_rule.name}")
+    redirect_to workshop_process_path(tab: "alerts"), status: :see_other
+  end
+
+  # Pause / resume an automation without deleting it. AlertRulesDispatchJob only
+  # enqueues runs for AlertRule.active, so flipping this off stops the rule at
+  # the next dispatch while keeping its prompt, schedule, memory and history.
+  def toggle_active
+    @alert_rule.update_column(:active, !@alert_rule.active?)
+    flash[:clar_toast] = %(Automation #{@alert_rule.active? ? 'resumed' : 'paused'} · "#{@alert_rule.name}")
+    # 303 so Turbo re-issues the follow-up as a GET (same contract as #destroy).
     redirect_to workshop_process_path(tab: "alerts"), status: :see_other
   end
 

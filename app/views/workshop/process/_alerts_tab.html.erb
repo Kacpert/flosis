@@ -1,6 +1,7 @@
 <div data-controller="clar-modal">
   <div class="flex items-center justify-between mb-3.5">
-    <span class="text-[13px] clar-text-muted"><%= pluralize(@alert_rules.size, "rule") %> &middot; scheduled prompts that notify a channel when conditions are met</span>
+    <% paused_count = @alert_rules.count { |r| !r.active? } %>
+    <span class="text-[13px] clar-text-muted"><%= pluralize(@alert_rules.size, "rule") %><% if paused_count.positive? %> &middot; <%= paused_count %> paused<% end %> &middot; scheduled prompts that notify a channel when conditions are met</span>
     <button type="button" class="clar-btn clar-btn-primary !gap-1.5 !py-[9px] !px-3.5" data-action="clar-modal#open" data-clar-modal-id-param="new-alert-rule">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
       New rule
@@ -13,17 +14,35 @@
     <div class="flex flex-col gap-3">
       <% @alert_rules.each do |rule| %>
         <div class="clar-row clar-row-hover !rounded-[13px] py-4 px-4.5">
-          <%# Top row: name (left) + last-run status chip (right). %>
+          <%# Top row: name (left) + last-run status chip and the pause switch
+              (right). A paused rule is kept in full — prompt, schedule, memory
+              and history — it just stops being dispatched, so the card only
+              dims and swaps its status chip for "Paused". %>
           <div class="flex items-center justify-between gap-3.5 mb-[9px]">
             <span class="font-[650] text-[14px] clar-text-text"><%= rule.name %></span>
-            <span class="inline-flex items-center gap-1.5 text-[11.5px] font-semibold <%= alert_last_run_color_class(rule.last_run_status) %>">
-              <span class="w-1.5 h-1.5 rounded-full bg-current"></span><%= rule.last_run_chip_label %>
-            </span>
+            <div class="flex items-center gap-3">
+              <% if rule.active? %>
+                <span class="inline-flex items-center gap-1.5 text-[11.5px] font-semibold <%= alert_last_run_color_class(rule.last_run_status) %>">
+                  <span class="w-1.5 h-1.5 rounded-full bg-current"></span><%= rule.last_run_chip_label %>
+                </span>
+              <% else %>
+                <span class="inline-flex items-center gap-1.5 text-[11.5px] font-semibold clar-text-faint">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 5v14M15 5v14"/></svg>
+                  Paused
+                </span>
+              <% end %>
+              <%= button_to toggle_active_workshop_alert_rule_path(rule), method: :patch,
+                    class: "clar-toggle", form: { class: "inline-flex" },
+                    title: rule.active? ? "Pause this automation" : "Resume this automation",
+                    aria: { checked: rule.active?.to_s, label: "#{rule.active? ? 'Pause' : 'Resume'} #{rule.name}" } do %>
+                <span class="knob"></span>
+              <% end %>
+            </div>
           </div>
-          <div class="text-[13px] clar-text-muted leading-[1.5] mb-3 italic">&ldquo;<%= rule.prompt %>&rdquo;</div>
+          <div class="text-[13px] clar-text-muted leading-[1.5] mb-3 italic <%= "opacity-55" unless rule.active? %>">&ldquo;<%= rule.prompt %>&rdquo;</div>
           <%# Footer: schedule · channel · last run on the left, then Edit +
               View history as buttons on the right. %>
-          <div class="flex gap-[18px] text-[12px] clar-text-faint flex-wrap items-center">
+          <div class="flex gap-[18px] text-[12px] clar-text-faint flex-wrap items-center <%= "opacity-55" unless rule.active? %>">
             <span class="inline-flex items-center gap-1.5">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
               <%= rule.schedule_label %>
