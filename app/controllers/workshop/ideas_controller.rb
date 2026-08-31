@@ -235,9 +235,13 @@ class Workshop::IdeasController < Workshop::BaseController
     stage = start_stage
     task.enter_pipeline!(author: current_user, stage: stage)
 
-    if task.description.present?
+    # Seed from the ticket's own ADF when we have it: that keeps the headings,
+    # bold, lists and tables the description was written with, instead of the
+    # flattened text. Origin "jira" so the panel says where it came from.
+    seed = AdfToMarkdown.call(task.description_adf).presence || task.description
+    if seed.present?
       task.briefs.create!(workspace: task.project.workspace, version: 0,
-                          origin: "user", status: "draft", content: task.description).make_current!
+                          origin: "jira", status: "draft", content: seed).make_current!
     end
 
     flash[:clar_toast] = "Imported #{task.external_reference} · #{stage_label(stage)}"

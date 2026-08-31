@@ -57,7 +57,7 @@
      data-controller="clar-editor"
      data-clar-editor-kind-value="<%= is_details ? 'detail' : 'brief' %>"
      data-clar-editor-version-value="<%= selected.version %>"
-     data-clar-editor-is-user-value="<%= selected.origin == 'user' %>"
+     data-clar-editor-is-user-value="<%= selected.source_document? %>"
      data-clar-editor-create-url-value="<%= workshop_idea_versions_path(idea) %>"
      data-clar-editor-update-url-value="<%= workshop_idea_version_path(idea, selected) %>"
      data-clar-editor-redirect-url-value="<%= workshop_idea_path(idea, stage: stage) %>"
@@ -110,7 +110,7 @@
     <% if selected.present? %>
       <div class="flex items-center gap-2 mb-4 flex-wrap">
         <span class="text-[11px] clar-text-faint">v<%= selected.version %> &middot; <%= clar_time_ago(selected.created_at) %></span>
-        <span class="clar-badge <%= selected.origin == 'user' ? 'clar-badge-warn' : 'clar-badge-muted' %>">
+        <span class="clar-badge <%= selected.source_document? ? 'clar-badge-warn' : 'clar-badge-muted' %>">
           <%= selected.label.upcase %>
         </span>
         <% if is_current %>
@@ -132,7 +132,7 @@
           content is unchanged: rendered as text and upgraded to HTML by the
           clar-markdown controller. %>
       <% if selected.content.to_s.lstrip.start_with?("<") %>
-        <div class="clar-prose" id="clar-document-body"><%= sanitize(selected.content, tags: %w[h4 p b strong i em ul ol li pre code a br], attributes: %w[href]) %></div>
+        <div class="clar-prose" id="clar-document-body"><%= sanitize(selected.content, tags: %w[h1 h2 h3 h4 h5 h6 p b strong i em u s ul ol li pre code a br hr blockquote table thead tbody tr th td], attributes: %w[href]) %></div>
       <% else %>
         <div class="clar-prose" id="clar-document-body" data-controller="clar-markdown"><%= selected.content %></div>
       <% end %>
@@ -165,7 +165,9 @@
             <div class="clar-prose text-[13px] leading-[1.6]" data-controller="clar-markdown"><%= local_text %></div>
             <div class="text-[11.5px] clar-text-faint">The Details AI is refining this into an implementation-ready description &mdash; it&rsquo;ll appear here as a version once drafted.</div>
           <% elsif idea.external_reference.present? %>
-            <div class="text-[13px] leading-[1.6] clar-text-text whitespace-pre-line"><%= local_text %></div>
+            <%# Straight from Jira: Markdown (AdfToMarkdown), so render it —
+                whitespace-pre-line showed raw ## and | table | rows. %>
+            <div class="clar-prose text-[13px] leading-[1.6]" data-controller="clar-markdown"><%= local_text %></div>
           <% else %>
             <div class="text-[13px] leading-[1.6] clar-text-text whitespace-pre-line px-3.5 py-3 bg-[var(--warn-soft)] border border-dashed border-[var(--warn)] rounded-[10px]"><%= local_text %></div>
           <% end %>

@@ -434,7 +434,9 @@ class JiraClient
       assignee_email: fields.dig("assignee", "emailAddress"),
       assignee_name: fields.dig("assignee", "displayName"),
       url: "https://#{@domain}/browse/#{issue['key']}",
-      description: adf_to_text(fields["description"]),
+      # Markdown, not flattened text: a Jira description carries headings,
+      # bold, lists and tables, and every one of those was being thrown away.
+      description: AdfToMarkdown.call(fields["description"]),
       description_adf: fields["description"]&.to_json,
       priority: fields.dig("priority", "name"),
       issue_type: fields.dig("issuetype", "name"),

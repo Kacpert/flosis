@@ -13,8 +13,10 @@
         and right document panel (Task 4.3 briefing / Task 5.1 details). Only one
         stage's chat ever mounts per page load, so the clar-chat controller
         never double-mounts (see chat_sessions_controller.rb notes). %>
-    <div class="flex-1 grid min-h-0" style="grid-template-columns: minmax(0, 1fr) 460px"
-         data-controller="clar-focus" data-clar-focus-target="grid">
+    <%# The document column's width is a CSS variable so the drag handle and the
+        focus toggle can both drive it (clar-splitter persists it per browser). %>
+    <div class="flex-1 grid min-h-0" style="--clar-doc-width: 460px; grid-template-columns: minmax(0, 1fr) 5px var(--clar-doc-width)"
+         data-controller="clar-focus clar-splitter" data-clar-focus-target="grid" data-clar-splitter-target="grid">
       <div class="border-r clar-divider min-h-0 transition-opacity" data-clar-focus-target="chat">
         <% if @stage == "briefing" %>
           <%= render "workshop/ideas/chat_panel", idea: @idea, persona: "briefing" %>
@@ -22,6 +24,9 @@
           <%= render "workshop/ideas/chat_panel", idea: @idea, persona: "details" %>
         <% end %>
       </div>
+      <%# Drag to widen the document panel. %>
+      <div class="clar-col-resizer" role="separator" aria-orientation="vertical" aria-label="Resize the document panel"
+           data-action="mousedown->clar-splitter#start dblclick->clar-splitter#reset"></div>
       <div class="min-h-0">
         <%# No src on the tag (inline content, no load-time refetch). The chat
             saves a new brief version mid-conversation and fires

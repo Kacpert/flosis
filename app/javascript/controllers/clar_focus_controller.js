@@ -23,7 +23,10 @@ export default class extends Controller {
 
   apply() {
     if (this.hasGridTarget) {
-      this.gridTarget.style.gridTemplateColumns = this.focused ? "0 1fr" : "minmax(0, 1fr) 460px"
+      // Keep the resizer column, and read the width the user dragged to
+      // (clar-splitter owns --clar-doc-width) instead of hard-coding 460px.
+      this.gridTarget.style.gridTemplateColumns =
+        this.focused ? "0 5px 1fr" : "minmax(0, 1fr) 5px var(--clar-doc-width, 460px)"
     }
     if (this.hasChatTarget) {
       this.chatTarget.classList.toggle("overflow-hidden", this.focused)

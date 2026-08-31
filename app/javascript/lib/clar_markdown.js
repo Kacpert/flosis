@@ -40,11 +40,27 @@ export function renderMarkdown(text) {
     if (inOl) { out.push("</ol>"); inOl = false }
   }
 
-  for (const rawLine of lines) {
-    const line = rawLine
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
     if (/^\s*$/.test(line)) { flushPara(); closeLists(); continue }
 
     let m
+    // GFM pipe table: a header row, a |---|---| separator, then body rows.
+    // Jira descriptions lean on tables heavily and without this they render as
+    // one run-on paragraph.
+    if (isTableRow(line) && isTableDivider(lines[i + 1])) {
+      flushPara(); closeLists()
+      const header = splitRow(line)
+      const body = []
+      i += 2
+      while (i < lines.length && isTableRow(lines[i])) {
+        body.push(splitRow(lines[i]))
+        i++
+      }
+      i-- // the for-loop's own increment lands us on the first non-row line
+      out.push(renderTable(header, body))
+      continue
+    }
     if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
       flushPara(); closeLists()
       const level = m[1].length
@@ -74,6 +90,34 @@ export function renderMarkdown(text) {
   // Restore code blocks
   html = html.replace(/ CODEBLOCK(\d+) /g, (_m, i) => codeBlocks[parseInt(i, 10)])
   return html
+}
+
+function isTableRow(line) {
+  return typeof line === "string" && /^\s*\|.*\|\s*$/.test(line)
+}
+
+// | --- | :---: | ---: |
+function isTableDivider(line) {
+  return typeof line === "string" && /^\s*\|(\s*:?-{3,}:?\s*\|)+\s*$/.test(line)
+}
+
+// Splits "| a | b |" into ["a", "b"], honouring the \| escape for a literal pipe.
+function splitRow(line) {
+  return line
+    .trim()
+    .replace(/^\||\|$/g, "")
+    .split(/(?<!\\)\|/)
+    .map(cell => cell.replace(/\\\|/g, "|").trim())
+}
+
+function renderTable(header, body) {
+  const width = Math.max(header.length, ...body.map(r => r.length))
+  const pad = (row) => row.concat(Array(Math.max(width - row.length, 0)).fill(""))
+  const cells = (row, tag) => pad(row).map(cell => `<${tag}>${inlineMd(cell)}</${tag}>`).join("")
+
+  const head = `<thead><tr>${cells(header, "th")}</tr></thead>`
+  const rows = body.map(row => `<tr>${cells(row, "td")}</tr>`).join("")
+  return `<div class="clar-prose-table-wrap"><table>${head}<tbody>${rows}</tbody></table></div>`
 }
 
 function inlineMd(s) {

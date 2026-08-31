@@ -2230,6 +2230,34 @@ span.flatpickr-weekday {
   .clar-prose pre { font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--surface-2);
     border:1px solid var(--border); border-radius:8px; padding:9px 11px; margin:5px 0; white-space:pre-wrap; }
   .clar-prose a { color:var(--primary); }
+  /* Jira descriptions lean on h1-h3 and tables; without these a pulled-in
+     ticket rendered as one undifferentiated block of 13px paragraphs. */
+  .clar-prose h1, .clar-prose h2, .clar-prose h3 { color:var(--text); font-weight:700;
+    line-height:1.3; margin:16px 0 6px; letter-spacing:-.01em; }
+  .clar-prose h1 { font-size:16px; }
+  .clar-prose h2 { font-size:14.5px; }
+  .clar-prose h3 { font-size:13.5px; }
+  .clar-prose > h1:first-child, .clar-prose > h2:first-child, .clar-prose > h3:first-child { margin-top:0; }
+  .clar-prose hr { border:none; border-top:1px solid var(--border); margin:14px 0; }
+  .clar-prose blockquote { margin:6px 0; padding:2px 0 2px 11px; border-left:2px solid var(--border);
+    color:var(--muted); }
+  .clar-prose code { font-family:'JetBrains Mono',monospace; font-size:11.5px;
+    background:var(--surface-2); border-radius:4px; padding:1px 4px; }
+  .clar-prose pre code { background:none; padding:0; }
+  /* The table scrolls inside its own box — a wide Jira table must never make
+     the whole panel scroll sideways. */
+  .clar-prose .clar-prose-table-wrap { overflow-x:auto; margin:9px 0; }
+  .clar-prose table { border-collapse:collapse; width:100%; font-size:12.5px; }
+  .clar-prose th, .clar-prose td { border:1px solid var(--border); padding:6px 9px;
+    text-align:left; vertical-align:top; line-height:1.5; color:var(--text); }
+  .clar-prose th { background:var(--surface-2); font-weight:650; }
+  /* Drag handle between the chat and the document panel. Sits in its own 5px
+     grid column; the hit area is widened with a pseudo-element so you don't
+     have to hunt for it. */
+  .clar-col-resizer { position:relative; cursor:col-resize; background:var(--border);
+    transition:background .15s; }
+  .clar-col-resizer:hover, .clar-col-resizer:active { background:var(--primary); }
+  .clar-col-resizer::after { content:""; position:absolute; top:0; bottom:0; left:-4px; right:-4px; }
   .clar-editor { outline:none; min-height:240px; padding:12px 14px; background:var(--bg);
     border:1px solid var(--border); border-radius:10px; }
   .clar-editor:focus { border-color:var(--primary); }

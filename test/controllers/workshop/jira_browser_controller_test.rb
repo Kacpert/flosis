@@ -91,15 +91,59 @@ class Workshop::JiraBrowserControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Imported ELV-1 · Briefing", flash[:clar_toast]
   end
 
-  test "POST import seeds a current v0 user brief from the task description" do
+  test "POST import seeds a current v0 brief from the task description" do
     post workshop_ideas_path, params: { task_id: @task.id }
 
     @task.reload
     brief = @task.briefs.find_by(version: 0)
     assert_not_nil brief
     assert brief.current?
-    assert_equal "user", brief.origin
+    # Origin "jira", not "user" — nobody here wrote it, the ticket did, and the
+    # panel labels it accordingly.
+    assert_equal "jira", brief.origin
+    assert_equal "Jira description", brief.label
     assert_equal "draft", brief.status
     assert_equal @task.description, brief.content
+  end
+
+  # The v0 seed used to be the flattened text, so a ticket written with
+  # headings, bold and a table arrived as an unreadable wall — cells run
+  # together ("FilterWhat it doesExample").
+  test "import seeds v0 from the ticket's ADF, keeping headings, bold and tables" do
+    @task.update!(description: "Why we're doing thisFilterWhat it does", description_adf: {
+      type: "doc", version: 1, content: [
+        { type: "heading", attrs: { level: 2 }, content: [ { type: "text", text: "Why we're doing this" } ] },
+        { type: "paragraph", content: [
+          { type: "text", text: "Customers want " },
+          { type: "text", text: "different job lists", marks: [ { type: "strong" } ] }
+        ] },
+        { type: "table", content: [
+          { type: "tableRow", content: [
+            { type: "tableHeader", content: [ { type: "paragraph", content: [ { type: "text", text: "Filter" } ] } ] },
+            { type: "tableHeader", content: [ { type: "paragraph", content: [ { type: "text", text: "What it does" } ] } ] }
+          ] },
+          { type: "tableRow", content: [
+            { type: "tableCell", content: [ { type: "paragraph", content: [ { type: "text", text: "Tags" } ] } ] },
+            { type: "tableCell", content: [ { type: "paragraph", content: [ { type: "text", text: "Matches any tag" } ] } ] }
+          ] }
+        ] }
+      ]
+    }.to_json)
+
+    post workshop_ideas_path, params: { task_id: @task.id }
+
+    content = @task.reload.briefs.find_by(version: 0).content
+    assert_includes content, "## Why we're doing this"
+    assert_includes content, "**different job lists**"
+    assert_includes content, "| Filter | What it does |"
+    assert_includes content, "| Tags | Matches any tag |"
+  end
+
+  test "import falls back to the plain description when the ticket has no ADF" do
+    @task.update!(description: "Just plain text", description_adf: nil)
+
+    post workshop_ideas_path, params: { task_id: @task.id }
+
+    assert_equal "Just plain text", @task.reload.briefs.find_by(version: 0).content
   end
 end
