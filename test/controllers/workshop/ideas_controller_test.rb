@@ -53,6 +53,31 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_equal "A sentence or two.", brief.content
   end
 
+  # The Details panel seeds its own v0 from the ticket. It used to copy the
+  # flattened description, so a ticket with a table arrived as a run-on wall of
+  # text there even after Briefing was fixed.
+  test "the details v0 draft is seeded from the ticket's ADF and labelled as Jira's" do
+    task = tasks(:jira_task)
+    task.update!(description: "flat text", description_adf: {
+      type: "doc", version: 1, content: [
+        { type: "heading", attrs: { level: 2 }, content: [ { type: "text", text: "Why we're doing this" } ] },
+        { type: "paragraph", content: [ { type: "text", text: "Customers want ", },
+                                        { type: "text", text: "filters", marks: [ { type: "strong" } ] } ] }
+      ]
+    }.to_json)
+    task.enter_pipeline!(author: users(:one), stage: "details")
+
+    get workshop_idea_path(task, stage: "details")
+
+    assert_response :success
+    draft = task.task_drafts.by_source(TaskDraft::REFINE_SOURCE).find_by(version: 0)
+    assert_not_nil draft
+    assert_equal "jira", draft.origin
+    assert_equal "Jira description", draft.label
+    assert_includes draft.content, "## Why we're doing this"
+    assert_includes draft.content, "**filters**"
+  end
+
   test "no description means no brief is seeded" do
     post workshop_ideas_path, params: { idea: { title: "Idea without description", description: "" } }
 
@@ -301,10 +326,10 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-clar-chat-persona-value='details']", count: 0
   end
 
-  test "GET show at details stage seeds a v0 user-description draft when there are no ai drafts yet" do
+  test "GET show at details stage seeds a v0 description draft when there are no ai drafts yet" do
     idea = tasks(:jira_task)
     idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago,
-                 description: "The Jira description text")
+                 description: "The Jira description text", description_adf: nil)
 
     assert_difference -> { idea.task_drafts.count }, 1 do
       get workshop_idea_path(idea, stage: "details")
@@ -313,7 +338,8 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     draft = idea.task_drafts.by_source("ai").current.first
     assert_not_nil draft
     assert_equal 0, draft.version
-    assert_equal "user", draft.origin
+    # "jira", not "user": the seed is the ticket's own description.
+    assert_equal "jira", draft.origin
     assert_equal "The Jira description text", draft.content
   end
 

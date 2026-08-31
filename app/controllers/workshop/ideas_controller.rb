@@ -273,10 +273,14 @@ class Workshop::IdeasController < Workshop::BaseController
   # Explicit version: 0 survives TaskDraft's `before_create { self.version ||= ... }`.
   def seed_v0_detail_draft
     return if @idea.task_drafts.by_source(TaskDraft::REFINE_SOURCE).exists?
-    return if @idea.description.blank?
 
-    @idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "user", version: 0,
-                              content: @idea.description).make_current!
+    # Same seed as briefing's v0: the ticket's own ADF, converted to Markdown so
+    # its headings, bold and tables survive. Origin "jira" — Jira wrote it.
+    seed = AdfToMarkdown.call(@idea.description_adf).presence || @idea.description
+    return if seed.blank?
+
+    @idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "jira", version: 0,
+                              content: seed).make_current!
   end
 
   # Summary data for the Ready screen (Task 5.4). "Pushed" (detail committed
