@@ -1,5 +1,6 @@
 require "json"
 require "fileutils"
+require "rbconfig"
 
 # Writes a per-project .mcp.json wiring the `github` and `jira` stdio MCP
 # servers to that project's resolved credentials. DB is the source of truth;
@@ -19,6 +20,10 @@ class ProjectMcpConfig
   # "Permission Denied: Resource not accessible by personal access token" —
   # while the very same token returns 200 on those REST endpoints.
   GITHUB_MCP_COMMAND = ENV.fetch("GITHUB_MCP_COMMAND", "github-mcp-server").freeze
+  # Our own narrow Lit server (lib/mcp/lit_server.rb). Resolved from Rails.root
+  # rather than pinned in ENV, because write! runs before every automation run —
+  # so a fresh release's path lands in the file automatically.
+  LIT_MCP_SCRIPT = "lib/mcp/lit_server.rb".freeze
 
   def self.path_for(project)
     File.join(project.workspace_dir, FILENAME)
@@ -56,7 +61,31 @@ class ProjectMcpConfig
     servers = {}
     servers["github"] = github_server if @creds.github_configured?
     servers["jira"] = jira_server if @creds.jira_configured?
+    servers["lit"] = lit_server if lit_configured?
     { "mcpServers" => servers }
+  end
+
+  # Lit is one shared instance, keyed from the app's own environment — there is
+  # nothing per-project to resolve, so its presence is simply whether the key
+  # is configured at all.
+  def lit_configured?
+    ENV["LIT_AI_API_KEY"].present?
+  end
+
+  # Two calls, no more: post translation suggestions and ask Lit to re-scan for
+  # keys. The alternative was granting the automation Bash to curl the endpoint,
+  # which would hand a prompt the whole environment this process runs with —
+  # SECRET_KEY_BASE, the database password, every token. See lib/mcp/lit_server.rb.
+  def lit_server
+    {
+      "type" => "stdio",
+      "command" => RbConfig.ruby,
+      "args" => [ Rails.root.join(LIT_MCP_SCRIPT).to_s ],
+      "env" => {
+        "LIT_AI_API_KEY" => ENV["LIT_AI_API_KEY"],
+        "LIT_API_BASE" => ENV.fetch("LIT_API_BASE", "https://pre-prod.elvium.com")
+      }
+    }
   end
 
   # --read-only is defence in depth: automations only ever read from GitHub

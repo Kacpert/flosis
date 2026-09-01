@@ -136,6 +136,10 @@ class ClaudeCliService
     mcp__jira__jira_get_issues_development_info
     mcp__jira__jira_add_comment
     mcp__jira__jira_edit_comment
+    # Lit (lib/mcp/lit_server.rb): our own two-call server, so the i18n
+    # automation can post its proposals without being handed Bash.
+    mcp__lit__post_suggestions
+    mcp__lit__refresh_keys
   ].freeze
 
   def build_command(session_id: nil, streaming: false)
