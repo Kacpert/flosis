@@ -12,7 +12,13 @@ class ProjectMcpConfig
   # PATH (which may not include ~/.local/bin or the node bin). Override via ENV
   # on the server; defaults are the bare commands for local/dev.
   JIRA_MCP_COMMAND = ENV.fetch("JIRA_MCP_COMMAND", "mcp-atlassian").freeze
-  NPX_COMMAND = ENV.fetch("GITHUB_MCP_NPX", "npx").freeze
+  # GitHub's own server (github/github-mcp-server). It replaced
+  # @modelcontextprotocol/server-github, which npm now reports as deprecated
+  # ("Package no longer supported", frozen at 2025.4.8) and whose
+  # list_pull_requests / list_commits / search_issues started answering
+  # "Permission Denied: Resource not accessible by personal access token" —
+  # while the very same token returns 200 on those REST endpoints.
+  GITHUB_MCP_COMMAND = ENV.fetch("GITHUB_MCP_COMMAND", "github-mcp-server").freeze
 
   def self.path_for(project)
     File.join(project.workspace_dir, FILENAME)
@@ -53,11 +59,15 @@ class ProjectMcpConfig
     { "mcpServers" => servers }
   end
 
+  # --read-only is defence in depth: automations only ever read from GitHub
+  # (they write to Jira), so the server never even offers create_pull_request,
+  # merge_pull_request or delete_file. ClaudeCliService::AUTOMATION_TOOLS is
+  # still the primary allowlist; this makes a mistake there unable to write.
   def github_server
     {
       "type" => "stdio",
-      "command" => NPX_COMMAND,
-      "args" => ["-y", "@modelcontextprotocol/server-github"],
+      "command" => GITHUB_MCP_COMMAND,
+      "args" => [ "stdio", "--read-only" ],
       "env" => { "GITHUB_PERSONAL_ACCESS_TOKEN" => @creds.github_token }
     }
   end

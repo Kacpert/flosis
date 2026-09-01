@@ -105,6 +105,11 @@ class ClaudeCliService
   #
   # The Jira tool names are those exposed by mcp-atlassian (the server wired in
   # each project's .mcp.json) — specific tools, not generic HTTP verbs.
+  #
+  # The GitHub names are github/github-mcp-server's (verified against a live
+  # tools/list on the server, not guessed): it folded get_pull_request and
+  # get_pull_request_files into one pull_request_read tool, so the old names
+  # would silently never be granted.
   AUTOMATION_TOOLS = %w[
     Read
     Glob
@@ -112,11 +117,12 @@ class ClaudeCliService
     WebFetch
     WebSearch
     mcp__github__list_pull_requests
-    mcp__github__get_pull_request
-    mcp__github__get_pull_request_files
+    mcp__github__search_pull_requests
+    mcp__github__pull_request_read
     mcp__github__get_file_contents
     mcp__github__search_code
     mcp__github__list_commits
+    mcp__github__get_commit
     mcp__jira__jira_search
     mcp__jira__jira_get_issue
     mcp__jira__jira_get_project_issues

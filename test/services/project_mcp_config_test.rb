@@ -19,11 +19,32 @@ class ProjectMcpConfigTest < ActiveSupport::TestCase
     servers = json["mcpServers"]
     assert servers.key?("github"), "server key must be exactly 'github'"
     assert servers.key?("jira"), "server key must be exactly 'jira'"
-    assert_equal "npx", servers["github"]["command"]
+    assert_equal "github-mcp-server", servers["github"]["command"]
+    assert_equal [ "stdio", "--read-only" ], servers["github"]["args"]
     assert_equal "ght", servers["github"]["env"]["GITHUB_PERSONAL_ACCESS_TOKEN"]
     assert_equal "mcp-atlassian", servers["jira"]["command"]
     assert_equal "https://acme.atlassian.net", servers["jira"]["env"]["JIRA_URL"]
     assert_equal "jt", servers["jira"]["env"]["JIRA_API_TOKEN"]
+  end
+
+  # The deprecated @modelcontextprotocol/server-github started denying
+  # list_pull_requests / list_commits with a token that returns 200 on the same
+  # REST endpoints. Nothing may point back at it.
+  test "wires GitHub's own server, never the deprecated npx reference one" do
+    json = JSON.parse(File.read(ProjectMcpConfig.write!(@project)))
+    github = json["mcpServers"]["github"]
+
+    assert_no_match(/modelcontextprotocol\/server-github/, github.to_json)
+    assert_no_match(/npx/, github["command"])
+    assert_equal "stdio", github["type"]
+  end
+
+  # Automations read from GitHub and write to Jira; the server should not even
+  # offer merge_pull_request or delete_file.
+  test "the GitHub server runs read-only" do
+    json = JSON.parse(File.read(ProjectMcpConfig.write!(@project)))
+
+    assert_includes json["mcpServers"]["github"]["args"], "--read-only"
   end
 
   test "file is chmod 600 and dir 700" do
