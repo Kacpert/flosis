@@ -1,6 +1,6 @@
 <%= turbo_frame_tag "time_entry_#{entry.id}" do %>
   <% is_running = entry.stopped_at.nil? %>
-  <div class="m3-entry-card group <%= 'running-entry-card' if is_running %>" data-controller="inline-edit<%= ' timer' if is_running %>" data-action="keydown->inline-edit#submitOnEscape" <%= "data-timer-started-at-value=#{entry.started_at.iso8601}" if is_running %>>
+  <div class="m3-entry-card group <%= 'running-entry-card' if is_running %> <%= 'is-editing' if local_assigns[:editing] %>" data-controller="inline-edit<%= ' timer' if is_running %>" data-action="keydown->inline-edit#submitOnEscape" <%= "data-timer-started-at-value=#{entry.started_at.iso8601}" if is_running %>>
     <% if is_running %>
       <span class="flex h-5 w-5 items-center justify-center flex-shrink-0">
         <span class="inline-flex rounded-full h-2.5 w-2.5" style="background: var(--color-primary)"></span>
@@ -71,39 +71,54 @@
 
     <%# Edit mode (inline) %>
     <% unless is_running %>
-      <div class="<%= local_assigns[:editing] ? '' : 'hidden' %> flex-1" data-inline-edit-target="form">
-        <%= form_with model: entry, url: time_entry_path(entry), method: :patch, class: "flex items-center gap-2 flex-wrap w-full", data: { action: "keydown->inline-edit#submitOnEnter", controller: "manual-entry" } do |f| %>
-          <%= f.text_field :description, placeholder: "Description",
-              class: "m3-input-compact flex-1 min-w-[120px]" %>
+      <div class="<%= local_assigns[:editing] ? '' : 'hidden' %> flex-1 min-w-0" data-inline-edit-target="form">
+        <%# Every control carries its own width (see .m3-entry-edit): a <select>
+            is otherwise as wide as its longest option, so a project with long
+            Jira task names tore the row into three ragged lines. %>
+        <%= form_with model: entry, url: time_entry_path(entry), method: :patch, class: "m3-entry-edit", data: { action: "keydown->inline-edit#submitOnEnter", controller: "manual-entry jira-task-search" } do |f| %>
+          <%# The ticket is picked from the description itself (same typeahead as
+              the timer bar), not from a select: a Jira project has hundreds of
+              tasks, and that dropdown was both unusable and — being as wide as
+              its longest option — what tore this row apart. %>
+          <div class="field-desc-wrap">
+            <%= f.text_field :description, placeholder: "Description",
+                class: "m3-input-compact field-desc", autocomplete: "off",
+                data: { jira_task_search_target: "input",
+                        action: "focus->jira-task-search#focus input->jira-task-search#filter keydown->jira-task-search#keydown" } %>
+            <%= f.hidden_field :task_id, data: { jira_task_search_target: "taskId" } %>
+            <div class="hidden m3-task-dropdown" data-jira-task-search-target="dropdown">
+              <div data-jira-task-search-target="list"></div>
+            </div>
+          </div>
           <%= f.collection_select :project_id,
               available_projects, :id, :name,
               { include_blank: "No project" },
-              class: "m3-input-compact",
-              data: { controller: "task-loader", action: "change->task-loader#load" } %>
-          <%= f.collection_select :task_id,
-              (entry.project ? entry.project.tasks.active : []), :id, :name,
-              { include_blank: "No task" },
-              class: "m3-input-compact" %>
-          <input type="text" value="<%= entry.started_at.strftime('%Y-%m-%d') %>"
-                 class="m3-input-compact w-[100px]"
-                 data-controller="datepicker"
-                 data-datepicker-first-day-of-week-value="1"
-                 data-manual-entry-target="startDate"
-                 data-action="datepicker:change->manual-entry#dateChanged"
-                 readonly>
-          <input type="text" value="<%= entry.started_at.strftime('%H:%M') %>"
-                 class="m3-input-compact w-[60px] text-center" style="font-family: var(--font-mono)"
-                 maxlength="5"
-                 data-manual-entry-target="startTime"
-                 data-action="blur->manual-entry#startTimeChanged keydown->manual-entry#timeKeydown">
-          <span style="color: var(--color-outline)">→</span>
-          <input type="text" value="<%= entry.stopped_at.strftime('%H:%M') %>"
-                 class="m3-input-compact w-[60px] text-center" style="font-family: var(--font-mono)"
-                 maxlength="5"
-                 data-manual-entry-target="endTime"
-                 data-action="blur->manual-entry#endTimeChanged keydown->manual-entry#timeKeydown">
-          <span class="m3-overnight-badge hidden" data-manual-entry-target="overnightBadge"
-                data-action="click->manual-entry#toggleEndDate">+1d</span>
+              class: "m3-input-compact field-select",
+              data: { action: "change->jira-task-search#projectChanged" } %>
+          <%# Date and both times travel together — splitting "10:23 → 14:08"
+              across two lines is what made the old row unreadable. %>
+          <div class="field-when">
+            <input type="text" value="<%= entry.started_at.strftime('%Y-%m-%d') %>"
+                   class="m3-input-compact field-date"
+                   data-controller="datepicker"
+                   data-datepicker-first-day-of-week-value="1"
+                   data-manual-entry-target="startDate"
+                   data-action="datepicker:change->manual-entry#dateChanged"
+                   readonly>
+            <input type="text" value="<%= entry.started_at.strftime('%H:%M') %>"
+                   class="m3-input-compact field-time"
+                   maxlength="5"
+                   data-manual-entry-target="startTime"
+                   data-action="blur->manual-entry#startTimeChanged keydown->manual-entry#timeKeydown">
+            <span class="field-arrow">→</span>
+            <input type="text" value="<%= entry.stopped_at.strftime('%H:%M') %>"
+                   class="m3-input-compact field-time"
+                   maxlength="5"
+                   data-manual-entry-target="endTime"
+                   data-action="blur->manual-entry#endTimeChanged keydown->manual-entry#timeKeydown">
+            <span class="m3-overnight-badge hidden" data-manual-entry-target="overnightBadge"
+                  data-action="click->manual-entry#toggleEndDate">+1d</span>
+          </div>
           <div class="hidden" data-manual-entry-target="endDateWrap">
             <div class="w-0 h-0 overflow-hidden">
               <input type="text"
@@ -115,8 +130,10 @@
           </div>
           <%= f.hidden_field :started_at, data: { manual_entry_target: "startedAt" } %>
           <%= f.hidden_field :stopped_at, data: { manual_entry_target: "stoppedAt" } %>
-          <%= f.submit "Save", class: "m3-btn m3-btn-filled m3-btn-sm" %>
-          <button type="button" class="m3-btn m3-btn-text m3-btn-sm" data-action="click->inline-edit#cancel">Cancel</button>
+          <div class="field-actions">
+            <%= f.submit "Save", class: "m3-btn m3-btn-filled m3-btn-sm" %>
+            <button type="button" class="m3-btn m3-btn-text m3-btn-sm" data-action="click->inline-edit#cancel">Cancel</button>
+          </div>
         <% end %>
       </div>
     <% end %>

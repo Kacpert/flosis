@@ -1230,6 +1230,52 @@ input.m3-text-field::placeholder {
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--radius-md);
 }
+/* ─── Inline edit row (time entry) ───
+   The old layout was a wrapping flex row of intrinsically sized controls, so a
+   <select> as wide as its longest option (a project with long Jira task names)
+   tore the row into three ragged lines and clipped "10:23" to "10:2". Every
+   control now declares its own basis and is allowed to shrink. */
+.m3-entry-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+.m3-entry-edit .field-desc-wrap { flex: 1 1 260px; min-width: 150px; position: relative; }
+.m3-entry-edit .field-desc { width: 100%; }
+/* The task typeahead, anchored under the description input. */
+.m3-task-dropdown {
+  position: absolute; left: 0; top: calc(100% + 4px); width: 100%;
+  max-height: 16rem; overflow-y: auto; z-index: 60;
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+}
+.m3-entry-edit .field-select {
+  flex: 0 1 170px;
+  min-width: 104px;
+  text-overflow: ellipsis; /* a long task name is cut, not stretched */
+}
+.m3-entry-edit .field-when { display: flex; align-items: center; gap: 0.375rem; flex: 0 0 auto; }
+/* min-width:0 is load-bearing: a flex item defaults to min-width:auto, and an
+   <input>'s content-based minimum is its `size` attribute (~190px), which
+   silently overrode every flex-basis here. */
+.m3-entry-edit .field-date { flex: 0 0 118px; min-width: 0; }
+.m3-entry-edit .field-time {
+  flex: 0 0 74px; /* 5 mono characters + padding: 60px clipped the last digit */
+  min-width: 0;
+  text-align: center;
+  font-family: var(--font-mono);
+}
+.m3-entry-edit .field-arrow { color: var(--color-outline); flex: 0 0 auto; }
+.m3-entry-edit .field-actions { display: flex; align-items: center; gap: 0.375rem; margin-left: auto; }
+/* While editing, the row is taller than one line: keep the checkbox with the
+   first line instead of floating it against the middle of the block. */
+.m3-entry-card.is-editing { align-items: flex-start; padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.m3-entry-card.is-editing .m3-checkbox-round { margin-top: 0.3rem; }
+
 .m3-entry-card:hover {
   background: var(--color-surface-container-low);
 }

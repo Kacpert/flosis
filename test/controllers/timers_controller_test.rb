@@ -35,6 +35,24 @@ class TimersControllerTest < ActionDispatch::IntegrationTest
     assert_select "select[name*=?]", "task_id", count: 0
   end
 
+  # The inline edit row on the entries list had the same problem, plus one of
+  # its own: the task <select> was as wide as its longest option, so a project
+  # with hundreds of Jira tasks tore the row into three ragged lines.
+  test "an entry's inline edit row has no task select either" do
+    entry = @workspace.time_entries.create!(user: @user, project: @project, description: "Fixing prices",
+                                            started_at: 3.hours.ago, stopped_at: 1.hour.ago)
+
+    get time_entries_path
+
+    assert_response :success
+    assert_select "form.m3-entry-edit"
+    assert_select "form.m3-entry-edit select[name*=?]", "task_id", count: 0
+    # The task still travels with the entry, and the typeahead can change it.
+    assert_select "form.m3-entry-edit input[type=hidden][name=?]", "time_entry[task_id]"
+    assert_select "form.m3-entry-edit input[data-jira-task-search-target=?]", "input"
+    assert_not_nil entry.reload
+  end
+
   test "the timer bar keeps the hidden task_id field the typeahead writes into" do
     get time_entries_path
 
