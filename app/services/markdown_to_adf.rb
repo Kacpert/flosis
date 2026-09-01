@@ -5,14 +5,25 @@
 #   - # / ## / ### headings
 #   - **bold** and `code` inline
 #   - "- " / "* " bullet lists
+#   - GFM pipe tables
+#   - --- horizontal rules
 #   - bare URLs and [text](url) links
 #   - blank-line-separated paragraphs
 # Anything else is emitted as plain paragraph text (safe fallback).
+#
+# Tables and rules landed with AdfToMarkdown: a description pulled FROM Jira
+# keeps its tables, so pushing it back had to keep them too — otherwise a
+# round trip turned a table into literal "| Filter | What it does |" lines.
 class MarkdownToAdf
   URL = %r{https?://[^\s<>()\]]+}
   MD_LINK = /\[([^\]]+)\]\((#{URL})\)/
   BOLD = /\*\*(.+?)\*\*/
   CODE = /`([^`]+)`/
+  # A table row is any line fenced by pipes; the divider is the |---|---| line
+  # under the header that makes it a table rather than prose with pipes in it.
+  TABLE_ROW = /\A\s*\|.*\|\s*\z/
+  TABLE_DIVIDER = /\A\s*\|(\s*:?-{3,}:?\s*\|)+\s*\z/
+  RULE = /\A\s*(-{3,}|\*{3,}|_{3,})\s*\z/
 
   def self.call(markdown)
     new(markdown).to_doc
@@ -43,7 +54,18 @@ class MarkdownToAdf
         next
       end
 
-      if (m = line.match(/\A(\#{1,6})\s+(.*)\z/)) # heading
+      if line.match?(TABLE_ROW) && @lines[i + 1].to_s.match?(TABLE_DIVIDER)
+        rows = [ split_row(line) ]
+        i += 2 # skip the header and its divider
+        while i < @lines.length && @lines[i].match?(TABLE_ROW)
+          rows << split_row(@lines[i])
+          i += 1
+        end
+        blocks << table(rows)
+      elsif line.match?(RULE)
+        blocks << { type: "rule" }
+        i += 1
+      elsif (m = line.match(/\A(\#{1,6})\s+(.*)\z/)) # heading
         level = m[1].length.clamp(1, 6)
         blocks << heading(level, m[2])
         i += 1
@@ -59,7 +81,9 @@ class MarkdownToAdf
         while i < @lines.length &&
               !@lines[i].strip.empty? &&
               !@lines[i].match?(/\A\#{1,6}\s+/) &&
-              !@lines[i].match?(/\A\s*[-*]\s+/)
+              !@lines[i].match?(/\A\s*[-*]\s+/) &&
+              !@lines[i].match?(RULE) &&
+              !(@lines[i].match?(TABLE_ROW) && @lines[i + 1].to_s.match?(TABLE_DIVIDER))
           para << @lines[i]
           i += 1
         end
@@ -67,6 +91,37 @@ class MarkdownToAdf
       end
     end
     blocks
+  end
+
+  # ADF tables need every row padded to the same width, and Jira renders the
+  # first row as the header (tableHeader cells) — which is exactly what a GFM
+  # table means by the row above the divider.
+  def table(rows)
+    width = rows.map(&:size).max
+    header, *body = rows
+
+    content = [ table_row(header, width, "tableHeader") ]
+    body.each { |row| content << table_row(row, width, "tableCell") }
+
+    { type: "table", attrs: { isNumberColumnEnabled: false, layout: "default" }, content: content }
+  end
+
+  def table_row(cells, width, cell_type)
+    padded = cells + Array.new([ width - cells.size, 0 ].max, "")
+    {
+      type: "tableRow",
+      content: padded.map do |cell|
+        { type: cell_type, attrs: {}, content: [ { type: "paragraph", content: inline(cell) } ] }
+      end
+    }
+  end
+
+  # "| a | b |" -> ["a", "b"], honouring the \| escape for a literal pipe.
+  def split_row(line)
+    line.strip
+        .sub(/\A\|/, "").sub(/\|\z/, "")
+        .split(/(?<!\\)\|/)
+        .map { |cell| cell.gsub("\\|", "|").strip }
   end
 
   def heading(level, text)

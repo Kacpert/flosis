@@ -257,6 +257,20 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "a", text: /Continue to Details/, count: 0
   end
 
+  # The button's name sounds like it might publish something; the note under it
+  # is what tells the user it doesn't.
+  test "details spells out that finishing sends nothing to Jira" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "d").make_current!
+
+    get workshop_idea_path(idea, stage: "details")
+
+    assert_response :success
+    assert_select "body", /Safe &mdash; nothing is sent to Jira|Safe — nothing is sent to Jira/
+    assert_select "body", /marks the ticket finished here/
+  end
+
   test "details 'Finish · go to Ready' is a LOCAL save_locally action (no Jira); briefing has none" do
     # Advancing stages is always local — Jira is only touched by the dedicated
     # "Update/Create Jira Ticket" button. In details the primary "Finish · go to

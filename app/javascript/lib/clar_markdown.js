@@ -61,6 +61,13 @@ export function renderMarkdown(text) {
       out.push(renderTable(header, body))
       continue
     }
+    // Horizontal rule. Jira descriptions use --- between sections, and without
+    // this it rendered as a literal "---" paragraph.
+    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      flushPara(); closeLists()
+      out.push("<hr>")
+      continue
+    }
     if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
       flushPara(); closeLists()
       const level = m[1].length
