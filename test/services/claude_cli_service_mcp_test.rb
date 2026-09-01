@@ -24,6 +24,32 @@ class ClaudeCliServiceMcpTest < ActiveSupport::TestCase
     assert_not_includes tools, "mcp__github__get_pull_request_files"
   end
 
+  # An automation reported it could not tell which PR belonged to DEV-636,
+  # because the two tools that answer that question were never granted. Both
+  # exist on the running servers (verified against a live tools/list); they were
+  # simply missing from the allowlist, which -p mode refuses silently.
+  test "automations can trace a ticket to its PR" do
+    tools = ClaudeCliService::AUTOMATION_TOOLS
+
+    assert_includes tools, "mcp__github__search_issues"
+    assert_includes tools, "mcp__jira__jira_get_issue_development_info"
+  end
+
+  test "automations may read Jira and comment, but not transition or delete" do
+    writes = %w[jira_create_issue jira_delete_issue jira_transition_issue jira_update_issue
+                jira_move_issue jira_assign_issue jira_add_worklog]
+
+    writes.each do |tool|
+      assert_not_includes ClaudeCliService::AUTOMATION_TOOLS, "mcp__jira__#{tool}"
+    end
+  end
+
+  test "no automation may run shell commands" do
+    assert_not_includes ClaudeCliService::AUTOMATION_TOOLS, "Bash"
+    assert_not_includes ClaudeCliService::ALLOWED_TOOLS, "Bash"
+    assert_not_includes ClaudeCliService::BRIEFING_TOOLS, "Bash"
+  end
+
   test "automations may read GitHub but never write to it" do
     writes = %w[create_pull_request merge_pull_request delete_file create_or_update_file push_files
                 update_pull_request create_branch fork_repository]

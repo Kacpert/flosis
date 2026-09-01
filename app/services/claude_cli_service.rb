@@ -118,6 +118,7 @@ class ClaudeCliService
     WebSearch
     mcp__github__list_pull_requests
     mcp__github__search_pull_requests
+    mcp__github__search_issues
     mcp__github__pull_request_read
     mcp__github__get_file_contents
     mcp__github__search_code
@@ -127,6 +128,12 @@ class ClaudeCliService
     mcp__jira__jira_get_issue
     mcp__jira__jira_get_project_issues
     mcp__jira__jira_get_transitions
+    # Jira's development panel: which branch/PR/commit is linked to a ticket.
+    # Without it the only way to connect a ticket to its PR was to already have
+    # that PR in the board snapshot, so an automation reported it simply could
+    # not cover DEV-636 — the fix existed, it just wasn't reachable.
+    mcp__jira__jira_get_issue_development_info
+    mcp__jira__jira_get_issues_development_info
     mcp__jira__jira_add_comment
     mcp__jira__jira_edit_comment
   ].freeze
