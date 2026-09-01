@@ -12,3 +12,18 @@ done_status:
   jira_board_column: done_column
   jira_status_name: "Done"
   jira_status_id: "10003"
+
+design_customer_acceptance_status:
+  jira_board_column: design_customer_acceptance_column
+  jira_status_name: "Customer Acceptance"
+  jira_status_id: "10006"
+
+dev_todo_status:
+  jira_board_column: dev_todo_column
+  jira_status_name: "To Do"
+  jira_status_id: "10001"
+
+dev_customer_acceptance_status:
+  jira_board_column: dev_customer_acceptance_column
+  jira_status_name: "Pre-production"
+  jira_status_id: "10007"

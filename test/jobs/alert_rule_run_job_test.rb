@@ -199,6 +199,80 @@ class AlertRuleRunJobTest < ActiveJob::TestCase
     out
   end
 
+  # ---- board snapshot ------------------------------------------------------
+  # A rule is written the way a person reads the board ("the Customer Acceptance
+  # column on DEV board"), but a column's name is not the status behind it. On
+  # production the DEV board's "Customer Acceptance" column holds the status
+  # "Pre-production", while the status actually called "Customer Acceptance"
+  # belongs to the Design board — so a snapshot of statuses alone sent an
+  # automation to work on the wrong board's tickets without noticing.
+
+  def snapshot_for(rule)
+    AlertRuleRunJob.new.send(:board_snapshot, rule)
+  end
+
+  test "the snapshot ships each board's column layout" do
+    boards = snapshot_for(@rule)[:boards]
+
+    dev = boards.find { |b| b[:name] == "DEV board" }
+    assert_not_nil dev, "every synced board must be described"
+    column = dev[:columns].find { |c| c[:name] == "Customer Acceptance" }
+    assert_equal [ "Pre-production" ], column[:statuses], "the column's real status, not its label"
+  end
+
+  test "a task says which column it sits in, on which board" do
+    task = tasks(:jira_task)
+    task.update!(jira_status_name: "Pre-production")
+
+    entry = snapshot_for(@rule)[:tasks].find { |t| t[:key] == task.external_reference }
+
+    assert_equal "Pre-production", entry[:status]
+    assert_equal "Customer Acceptance", entry[:columns]["DEV board"]
+  end
+
+  test "the same column name on two boards does not blur together" do
+    on_dev = tasks(:jira_task)
+    on_dev.update!(jira_status_name: "Pre-production")
+    on_design = @project.tasks.create!(
+      name: "DEV-937 design ticket", external_type: "jira",
+      external_reference: "DEV-937", jira_status_name: "Customer Acceptance"
+    )
+
+    tasks_by_key = snapshot_for(@rule)[:tasks].index_by { |t| t[:key] }
+
+    assert_equal({ "DEV board" => "Customer Acceptance" }, tasks_by_key["ELV-1"][:columns])
+    assert_equal({ "Design" => "Customer Acceptance (design)" }, tasks_by_key["DEV-937"][:columns])
+    assert_not_equal tasks_by_key["ELV-1"][:status], tasks_by_key["DEV-937"][:status]
+    assert_not_nil on_design.reload
+  end
+
+  test "a status no board maps leaves the columns map empty rather than guessing" do
+    task = tasks(:jira_task)
+    task.update!(jira_status_name: "Some Status Nobody Mapped")
+
+    entry = snapshot_for(@rule)[:tasks].find { |t| t[:key] == task.external_reference }
+
+    assert_equal({}, entry[:columns])
+  end
+
+  test "a task carries the state of the sprint it is in" do
+    task = tasks(:jira_task)
+    task.update!(sprint_id: jira_sprints(:future_sprint).jira_sprint_id, sprint_name: "DEV Sprint 51")
+
+    entry = snapshot_for(@rule)[:tasks].find { |t| t[:key] == task.external_reference }
+
+    assert_equal "future", entry[:sprint_state]
+    assert_equal "DEV Sprint 51", entry[:sprint]
+  end
+
+  test "the note warns that a column is not a status" do
+    note = snapshot_for(@rule)[:note]
+
+    assert_match(/column/i, note)
+    assert_match(/status/i, note)
+    assert_match(/`columns`/, note)
+  end
+
   test "persists the AI's returned memory blob" do
     with_webhook_post do
       with_ai(block(alert: false, memory: %({"scanned":["DEV-1@abc"]}))) do
@@ -256,8 +330,12 @@ class AlertRuleRunJobTest < ActiveJob::TestCase
     ensure
       ClaudeCliService.define_method(:initialize, orig)
     end
-    assert_includes captured, "mcp__github__get_pull_request_files"
+    assert_includes captured, "mcp__github__pull_request_read"
     assert_includes captured, "mcp__jira__jira_add_comment"
+    # %w[] has no comments: a stray "#" line inside the literal turns every word
+    # of the prose into its own "tool" on the CLI's --allowedTools.
+    assert_empty captured.grep_v(/\A(Read|Glob|Grep|WebFetch|WebSearch|mcp__)/),
+                 "the tool list must contain tool names only"
   end
 
   test "run regenerates the project's mcp config and passes it to the CLI" do

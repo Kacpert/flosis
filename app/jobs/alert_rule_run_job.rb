@@ -217,22 +217,43 @@ class AlertRuleRunJob < ApplicationJob
   # Jira at all, not strictly time since its last status transition (Jira
   # doesn't expose per-status timestamps to us) — documented here so the AI
   # (and future readers) don't over-trust its precision.
+  # A column's name and the status behind it are NOT the same thing, and a rule
+  # is written the way a person reads the board. On this project the DEV board's
+  # "Customer Acceptance" column holds the status "Pre-production", while the
+  # status literally named "Customer Acceptance" belongs to the Design board — so
+  # a snapshot carrying statuses alone made an automation asked for one board's
+  # column silently work on the other's tickets. Each task therefore says which
+  # column it sits in ON WHICH BOARD, and the board layout ships with it.
   def board_snapshot(rule)
     now = Time.current
-    tasks = rule.project.tasks.jira_synced.order(:jira_updated_at)
+    project = rule.project
+    boards = project.jira_boards.includes(jira_board_columns: :jira_board_column_statuses).order(:name).to_a
+    columns_by_status = column_index(boards)
+    sprint_states = sprint_states_for(boards)
+    tasks = project.tasks.jira_synced.order(:jira_updated_at)
 
     {
-      project: rule.project.name,
+      project: project.name,
       generated_at: now.iso8601,
-      note: "days_in_status is an approximation: time since jira_updated_at (last Jira update), not a true per-status timer.",
+      note: "A board COLUMN and a Jira STATUS are different names for different things — "             "match a rule that talks about a column against each task's `columns` map, not its `status`. "             "`columns` gives the column this task sits in on each board it appears on; a board is absent "             "when its layout maps no column to that status. Every synced task is listed, including ones "             "outside the active sprint — use `sprint` / `sprint_state` when a rule is about a sprint. "             "days_in_status is an approximation: time since jira_updated_at (last Jira update), not a true per-status timer.",
+      boards: boards.map do |board|
+        {
+          name: board.name,
+          columns: board.jira_board_columns.sort_by { |c| c.position.to_i }.map do |column|
+            { name: column.name, statuses: column.status_names }
+          end
+        }
+      end,
       tasks: tasks.map do |t|
         {
           key: t.external_reference,
           title: t.name,
           status: t.jira_status_name,
+          columns: columns_by_status[t.jira_status_name] || {},
           assignee: t.assignee_name || t.assignee_email,
           issue_type: t.issue_type,
           sprint: t.sprint_name,
+          sprint_state: sprint_states[t.sprint_id],
           days_in_status: t.jira_updated_at ? ((now - t.jira_updated_at) / 1.day).round(1) : nil
         }
       end,
@@ -247,5 +268,22 @@ class AlertRuleRunJob < ApplicationJob
         }
       end
     }
+  end
+
+  # status name => { board name => column name }. Built once per run rather than
+  # per task: a project has a couple of boards and hundreds of tickets.
+  def column_index(boards)
+    boards.each_with_object(Hash.new { |h, k| h[k] = {} }) do |board, index|
+      board.jira_board_columns.each do |column|
+        column.status_names.each { |status| index[status][board.name] = column.name }
+      end
+    end
+  end
+
+  # Jira sprint id => "active" / "future". Closed sprints are left out: a task
+  # still pointing at one is not in a sprint that matters.
+  def sprint_states_for(boards)
+    JiraSprint.where(jira_board_id: boards.map(&:id), state: %w[active future])
+              .pluck(:jira_sprint_id, :state).to_h
   end
 end

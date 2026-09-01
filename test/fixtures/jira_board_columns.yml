@@ -12,3 +12,22 @@ done_column:
   jira_board: design_board
   name: "DONE (DESIGN)"
   position: 2
+
+design_customer_acceptance_column:
+  jira_board: design_board
+  name: "Customer Acceptance (design)"
+  position: 3
+
+# The DEV board's own layout. Its "Customer Acceptance" column is backed by the
+# status "Pre-production" — the SAME words as the Design board's column but a
+# different status behind them, which is exactly the trap board_snapshot has to
+# keep an automation out of.
+dev_todo_column:
+  jira_board: dev_board
+  name: "To Do"
+  position: 0
+
+dev_customer_acceptance_column:
+  jira_board: dev_board
+  name: "Customer Acceptance"
+  position: 1

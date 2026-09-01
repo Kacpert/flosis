@@ -110,6 +110,16 @@ class ClaudeCliService
   # tools/list on the server, not guessed): it folded get_pull_request and
   # get_pull_request_files into one pull_request_read tool, so the old names
   # would silently never be granted.
+  #
+  # jira_get_issue*_development_info is Jira's development panel — which
+  # branch/PR/commit is linked to a ticket. Without it, connecting a ticket to
+  # its PR required that PR to already be in the board snapshot.
+  #
+  # mcp__lit__* is our own two-call server (lib/mcp/lit_server.rb), so the i18n
+  # automation can post its proposals without being handed Bash.
+  #
+  # NOTE: %w[] takes no comments — a "#" line inside the literal below becomes a
+  # list of bogus tool names, one per word. Keep prose up here.
   AUTOMATION_TOOLS = %w[
     Read
     Glob
@@ -128,16 +138,10 @@ class ClaudeCliService
     mcp__jira__jira_get_issue
     mcp__jira__jira_get_project_issues
     mcp__jira__jira_get_transitions
-    # Jira's development panel: which branch/PR/commit is linked to a ticket.
-    # Without it the only way to connect a ticket to its PR was to already have
-    # that PR in the board snapshot, so an automation reported it simply could
-    # not cover DEV-636 — the fix existed, it just wasn't reachable.
     mcp__jira__jira_get_issue_development_info
     mcp__jira__jira_get_issues_development_info
     mcp__jira__jira_add_comment
     mcp__jira__jira_edit_comment
-    # Lit (lib/mcp/lit_server.rb): our own two-call server, so the i18n
-    # automation can post its proposals without being handed Bash.
     mcp__lit__post_suggestions
     mcp__lit__refresh_keys
   ].freeze
