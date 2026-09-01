@@ -23,7 +23,11 @@ module Gold
     # Please, add to the `ignore` list any other `lib` subdirectories that do
     # not contain `.rb` files, or that should not be reloaded or eager loaded.
     # Common ones are `templates`, `generators`, or `middleware`, for example.
-    config.autoload_lib(ignore: %w[assets tasks])
+    # lib/mcp holds standalone MCP server executables (lib/mcp/lit_server.rb).
+    # They run as their own process — never inside this one — so they must stay
+    # out of the autoloader, which would otherwise demand Zeitwerk-shaped
+    # constant names of a plain script and break eager loading in production.
+    config.autoload_lib(ignore: %w[assets tasks mcp])
 
     # Configuration for the application, engines, and railties goes here.
     #
