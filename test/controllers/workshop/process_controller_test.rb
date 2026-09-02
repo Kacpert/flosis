@@ -175,6 +175,26 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /waiting for new commits/
   end
 
+  # A prompt runs to a dozen lines; unclamped it pushed each rule's schedule,
+  # channel and actions below the fold.
+  test "a rule's prompt is clamped with a toggle to open it" do
+    project = tasks(:jira_task).project
+    post switch_workshop_project_path, params: { project_id: project.id }
+    AlertRule.create!(workspace: @workspace, project: project, notify_enabled: false,
+                      name: "Long one", prompt: "Watch the board. " * 60,
+                      frequency: "daily", run_at_time: "13:00")
+
+    get workshop_process_path(tab: "alerts")
+
+    assert_response :success
+    assert_select "[data-controller=?]", "clar-clamp"
+    assert_select ".clar-clamp[data-clar-clamp-target=?]", "text"
+    # Hidden until the controller measures that the text really is clipped.
+    assert_select "button.clar-clamp-toggle[hidden][data-action=?]", "clar-clamp#toggle"
+    # The whole prompt is in the DOM — clamping is visual, so nothing is lost.
+    assert_select "body", /Watch the board\./
+  end
+
   test "each alert rule card renders a pause switch, and a paused rule reads as paused" do
     project = tasks(:jira_task).project
     post switch_workshop_project_path, params: { project_id: project.id }

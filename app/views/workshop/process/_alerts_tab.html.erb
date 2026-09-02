@@ -41,7 +41,14 @@
               <% end %>
             </div>
           </div>
-          <div class="text-[13px] clar-text-muted leading-[1.5] mb-3 italic <%= "opacity-55" unless rule.active? %>">&ldquo;<%= rule.prompt %>&rdquo;</div>
+          <%# A prompt runs to a dozen lines and pushed the schedule, channel and
+              actions of every rule below the fold — so show three lines and let
+              the reader open the rest. %>
+          <div class="mb-3 <%= "opacity-55" unless rule.active? %>" data-controller="clar-clamp">
+            <div class="text-[13px] clar-text-muted leading-[1.5] italic clar-clamp" data-clar-clamp-target="text">&ldquo;<%= rule.prompt %>&rdquo;</div>
+            <button type="button" class="clar-clamp-toggle" hidden
+                    data-clar-clamp-target="toggle" data-action="clar-clamp#toggle" aria-expanded="false">Show more</button>
+          </div>
           <%# Footer: schedule · channel · last run on the left, then Edit +
               View history as buttons on the right. %>
           <div class="flex gap-[18px] text-[12px] clar-text-faint flex-wrap items-center <%= "opacity-55" unless rule.active? %>">
