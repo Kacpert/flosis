@@ -175,6 +175,36 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /waiting for new commits/
   end
 
+  test "the edit modal lists previous prompt versions, with the full text to restore" do
+    project = tasks(:jira_task).project
+    post switch_workshop_project_path, params: { project_id: project.id }
+    rule = AlertRule.create!(workspace: @workspace, project: project, notify_enabled: false,
+                             name: "Edited", prompt: "The original wording.",
+                             frequency: "daily", run_at_time: "13:00")
+    rule.update!(prompt: "The new wording.")
+
+    get workshop_process_path(tab: "alerts")
+
+    assert_response :success
+    assert_select "summary", /Previous versions \(1\)/
+    # The whole old prompt travels with the button, so restoring needs no request.
+    assert_select "button.clar-prompt-version[data-prompt=?]", "The original wording."
+    assert_select "textarea[data-clar-prompt-history-target=?]", "field"
+  end
+
+  test "a rule whose prompt was never edited shows no history section" do
+    project = tasks(:jira_task).project
+    post switch_workshop_project_path, params: { project_id: project.id }
+    AlertRule.create!(workspace: @workspace, project: project, notify_enabled: false,
+                      name: "Untouched", prompt: "Only ever this.",
+                      frequency: "daily", run_at_time: "13:00")
+
+    get workshop_process_path(tab: "alerts")
+
+    assert_response :success
+    assert_select "summary", { text: /Previous versions/, count: 0 }
+  end
+
   test "the rules list is draggable and carries each rule's id" do
     project = tasks(:jira_task).project
     post switch_workshop_project_path, params: { project_id: project.id }

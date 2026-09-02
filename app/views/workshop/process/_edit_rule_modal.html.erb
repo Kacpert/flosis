@@ -14,13 +14,41 @@
     <p class="text-[13px] leading-normal clar-text-muted mb-4.5">A scheduled prompt. On its schedule the AI inspects the live Jira board state and posts to the channel only if the condition is met.</p>
 
     <%= form_with model: rule, url: workshop_alert_rule_path(rule), method: :patch,
-          data: { controller: "clar-alert-rule-form", turbo: false } do |f| %>
+          data: { controller: "clar-alert-rule-form clar-prompt-history", turbo: false } do |f| %>
       <label class="clar-field-label">NAME <span class="clar-text-danger">*</span></label>
       <%= f.text_field :name, class: "clar-input !text-[14px] mb-4" %>
 
       <label class="clar-field-label">WHAT TO WATCH FOR <span class="clar-text-danger">*</span></label>
-      <%= f.text_area :prompt, rows: 3, class: "clar-textarea mb-1.5" %>
-      <div class="text-[11px] clar-text-faint mb-4">Write it as a condition &mdash; natural language is fine.</div>
+      <%= f.text_area :prompt, rows: 3, class: "clar-textarea mb-1.5",
+            data: { clar_prompt_history_target: "field" } %>
+      <div class="text-[11px] clar-text-faint mb-1.5">Write it as a condition &mdash; natural language is fine.</div>
+
+      <%# The prompt IS the automation's behaviour, and editing it used to
+          overwrite the old wording with nothing kept. Previous versions are
+          listed here; picking one fills the field so it goes through the same
+          review and the same Save as any other edit. %>
+      <% versions = rule.prompt_versions.to_a %>
+      <% if versions.any? %>
+        <details class="mb-4 clar-prompt-history">
+          <summary class="text-[11.5px] font-semibold clar-text-primary cursor-pointer select-none">
+            Previous versions (<%= versions.size %>)
+          </summary>
+          <p class="text-[11px] clar-text-faint mt-1.5 mb-2 hidden" data-clar-prompt-history-target="notice">
+            Loaded into the field above &mdash; review it, then Save.
+          </p>
+          <div class="flex flex-col gap-1.5 mt-2">
+            <% versions.each do |version| %>
+              <button type="button" class="clar-prompt-version text-left"
+                      data-prompt="<%= version.prompt %>"
+                      data-action="clar-prompt-history#restore"
+                      title="Load this version into the field above">
+                <span class="text-[10.5px] clar-text-faint block"><%= clar_time_ago(version.created_at) %> &middot; <%= number_to_human_size(version.prompt.bytesize) %></span>
+                <span class="text-[11.5px] clar-text-muted block leading-[1.45]"><%= version.preview %></span>
+              </button>
+            <% end %>
+          </div>
+        </details>
+      <% end %>
 
       <%= render "workshop/process/schedule_builder", rule: rule %>
 

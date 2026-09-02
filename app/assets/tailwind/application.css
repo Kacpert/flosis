@@ -2297,6 +2297,12 @@ span.flatpickr-weekday {
   .clar-prose th, .clar-prose td { border:1px solid var(--border); padding:6px 9px;
     text-align:left; vertical-align:top; line-height:1.5; color:var(--text); }
   .clar-prose th { background:var(--surface-2); font-weight:650; }
+  /* One superseded prompt in the edit modal's history list. */
+  .clar-prompt-version { background:var(--surface-2); border:1px solid var(--border);
+    border-radius:8px; padding:7px 10px; cursor:pointer; transition:border-color .15s; }
+  .clar-prompt-version:hover { border-color:var(--primary); }
+  .clar-prompt-history > summary::marker { color:var(--primary); }
+
   /* Drag handle for reordering the automations. Faint until the row is hovered,
      so it never competes with the rule's name. */
   .clar-drag-handle { display:inline-flex; align-items:center; flex:0 0 auto; cursor:grab;

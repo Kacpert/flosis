@@ -14,6 +14,9 @@ class AlertRule < ApplicationRecord
   # off has no webhook and simply posts nothing.
   belongs_to :discord_webhook, optional: true
   has_many :alert_runs, dependent: :destroy
+  # Superseded prompt texts, newest first. The live text stays on this record;
+  # a version is written only when the prompt actually changes.
+  has_many :prompt_versions, -> { newest_first }, class_name: "AlertRulePromptVersion", dependent: :destroy
 
   FREQUENCIES = %w[daily weekdays mwf weekly hourly].freeze
 
@@ -38,7 +41,12 @@ class AlertRule < ApplicationRecord
   # AI to prune). 200KB of JSON text — far more than any sane automation needs.
   MEMORY_MAX_BYTES = 200_000
 
+  # How many superseded prompts to keep. Enough to walk back through a few
+  # rewrites; not so many that a rule edited daily grows without bound.
+  MAX_PROMPT_VERSIONS = 20
+
   before_validation :normalize_schedule
+  before_update :snapshot_previous_prompt
 
   validates :name, presence: true
   validates :prompt, presence: true
@@ -231,6 +239,23 @@ class AlertRule < ApplicationRecord
   end
 
   private
+
+  # Keep the wording this rule is being edited away from. Written before the
+  # change lands, so prompt_was is the text that is about to be lost.
+  def snapshot_previous_prompt
+    return unless prompt_changed?
+
+    previous = prompt_was
+    return if previous.blank?
+
+    prompt_versions.create!(prompt: previous, created_at: Time.current)
+    prune_prompt_versions
+  end
+
+  def prune_prompt_versions
+    surplus = prompt_versions.newest_first.offset(MAX_PROMPT_VERSIONS).pluck(:id)
+    AlertRulePromptVersion.where(id: surplus).delete_all if surplus.any?
+  end
 
   # New rules go to the end of their project's list, not the top: the order is
   # something the operator arranges, so nothing should reshuffle itself.

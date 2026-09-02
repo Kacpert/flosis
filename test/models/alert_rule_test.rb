@@ -261,4 +261,65 @@ class AlertRuleTest < ActiveSupport::TestCase
       assert rule.due?(Time.current), "due? does not consider `active` — that's the dispatcher's job"
     end
   end
+
+  # --- prompt history ---
+  # The prompt IS the automation's behaviour, and editing it used to overwrite
+  # the old wording with nothing kept.
+
+  test "editing the prompt keeps the wording it replaced" do
+    rule = build_rule(frequency: "daily", run_at_time: "09:00")
+    rule.prompt = "Watch the QA column."
+    rule.save!
+
+    rule.update!(prompt: "Watch the QA column, but only on weekdays.")
+
+    assert_equal [ "Watch the QA column." ], rule.prompt_versions.map(&:prompt)
+    assert_equal "Watch the QA column, but only on weekdays.", rule.reload.prompt
+  end
+
+  test "versions stack newest first across several edits" do
+    rule = build_rule(frequency: "daily", run_at_time: "09:00")
+    rule.prompt = "v1"
+    rule.save!
+    rule.update!(prompt: "v2")
+    rule.update!(prompt: "v3")
+
+    assert_equal %w[v2 v1], rule.prompt_versions.map(&:prompt)
+  end
+
+  test "saving without touching the prompt records nothing" do
+    rule = build_rule(frequency: "daily", run_at_time: "09:00")
+    rule.save!
+
+    assert_no_difference -> { AlertRulePromptVersion.count } do
+      rule.update!(name: "A new name")
+      rule.update!(run_at_time: "11:00")
+    end
+  end
+
+  test "creating a rule records no version — there is nothing it replaced" do
+    assert_no_difference -> { AlertRulePromptVersion.count } do
+      build_rule(frequency: "daily", run_at_time: "09:00").save!
+    end
+  end
+
+  test "history is capped so a rule edited daily cannot grow without bound" do
+    rule = build_rule(frequency: "daily", run_at_time: "09:00")
+    rule.save!
+    (AlertRule::MAX_PROMPT_VERSIONS + 5).times { |i| rule.update!(prompt: "version #{i}") }
+
+    assert_equal AlertRule::MAX_PROMPT_VERSIONS, rule.prompt_versions.count
+    assert_equal "version #{AlertRule::MAX_PROMPT_VERSIONS + 3}", rule.prompt_versions.first.prompt,
+                 "the newest superseded version is kept"
+  end
+
+  test "versions go with the rule when it is deleted" do
+    rule = build_rule(frequency: "daily", run_at_time: "09:00")
+    rule.save!
+    rule.update!(prompt: "changed")
+
+    assert_difference -> { AlertRulePromptVersion.count }, -1 do
+      rule.destroy
+    end
+  end
 end
