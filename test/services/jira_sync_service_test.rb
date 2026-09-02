@@ -251,17 +251,54 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
     end
   end
 
-  test "sprint trigger does NOT re-enqueue for a task that already had this sprint_id" do
+  # "Estimate when added to a Development sprint" has to mean every unestimated
+  # ticket sitting in one. Only counting tickets arriving from NO sprint missed
+  # two cases that both happened in production: a ticket carried over from the
+  # previous sprint, and one whose estimate run died against a broken CLI and
+  # was never retried.
+  test "sprint trigger enqueues an unestimated task that was already in the sprint" do
     @project.workspace.update!(estimation_trigger: "sprint")
-    dev_board = jira_boards(:dev_board)
-    dev_board.jira_sprints.create!(jira_sprint_id: 902, name: "Sprint 26", state: "active",
-                                    start_date: 1.day.ago, end_date: 1.week.from_now)
+    jira_boards(:dev_board).jira_sprints.create!(jira_sprint_id: 902, name: "Sprint 26", state: "active",
+                                                 start_date: 1.day.ago, end_date: 1.week.from_now)
     task = tasks(:jira_task)
-    task.update!(sprint_id: 902, sprint_name: "Sprint 26")
+    task.update!(sprint_id: 902, sprint_name: "Sprint 26", ai_estimate_points: nil)
 
     mock_client = stub_client_with_sprint_issue_keys(902 => [ task.external_reference ])
 
+    assert_enqueued_with(job: AutoEstimateJob, args: [ task.id ]) do
+      JiraSyncService.new(@project, client: mock_client).sync_sprint_assignments
+    end
+  end
+
+  # The other half of that: an estimate is spent once. Without this the sync
+  # would re-run the AI over a full sprint every 15 minutes.
+  test "sprint trigger never re-enqueues a task that already has an estimate" do
+    @project.workspace.update!(estimation_trigger: "sprint")
+    jira_boards(:dev_board).jira_sprints.create!(jira_sprint_id: 903, name: "Sprint 27", state: "active",
+                                                 start_date: 1.day.ago, end_date: 1.week.from_now)
+    task = tasks(:jira_task)
+    task.update!(sprint_id: nil, sprint_name: nil, ai_estimate_points: 5)
+
+    mock_client = stub_client_with_sprint_issue_keys(903 => [ task.external_reference ])
+
     assert_no_enqueued_jobs(only: AutoEstimateJob) do
+      JiraSyncService.new(@project, client: mock_client).sync_sprint_assignments
+    end
+  end
+
+  test "a sprint full of unestimated tasks is drained a few per sync, not all at once" do
+    @project.workspace.update!(estimation_trigger: "sprint")
+    jira_boards(:dev_board).jira_sprints.create!(jira_sprint_id: 904, name: "Sprint 28", state: "active",
+                                                 start_date: 1.day.ago, end_date: 1.week.from_now)
+    keys = (1..(JiraSyncService::AUTO_ESTIMATE_CAP + 5)).map do |i|
+      key = "ELV-90#{i}"
+      @project.tasks.create!(name: "#{key} thing", external_type: "jira", external_reference: key)
+      key
+    end
+
+    mock_client = stub_client_with_sprint_issue_keys(904 => keys)
+
+    assert_enqueued_jobs JiraSyncService::AUTO_ESTIMATE_CAP, only: AutoEstimateJob do
       JiraSyncService.new(@project, client: mock_client).sync_sprint_assignments
     end
   end

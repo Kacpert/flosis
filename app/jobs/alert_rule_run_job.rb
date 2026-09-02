@@ -227,21 +227,29 @@ class AlertRuleRunJob < ApplicationJob
   def board_snapshot(rule)
     now = Time.current
     project = rule.project
-    boards = project.jira_boards.includes(jira_board_columns: :jira_board_column_statuses).order(:name).to_a
+    boards = project.jira_boards
+                   .includes(:jira_sprints, jira_board_columns: :jira_board_column_statuses)
+                   .order(:name).to_a
     columns_by_status = column_index(boards)
     sprint_states = sprint_states_for(boards)
-    tasks = project.tasks.jira_synced.order(:jira_updated_at)
+    tasks = project.tasks.jira_synced.order(:jira_updated_at).to_a
+    tasks_by_sprint = tasks.group_by(&:sprint_id)
 
     {
       project: project.name,
       generated_at: now.iso8601,
-      note: "A board COLUMN and a Jira STATUS are different names for different things — "             "match a rule that talks about a column against each task's `columns` map, not its `status`. "             "`columns` gives the column this task sits in on each board it appears on; a board is absent "             "when its layout maps no column to that status. Every synced task is listed, including ones "             "outside the active sprint — use `sprint` / `sprint_state` when a rule is about a sprint. "             "days_in_status is an approximation: time since jira_updated_at (last Jira update), not a true per-status timer.",
+      note: "A board COLUMN and a Jira STATUS are different names for different things — "             "match a rule that talks about a column against each task's `columns` map, not its `status`. "             "`columns` gives the column this task sits in on each board it appears on; a board is absent "             "when its layout maps no column to that status. Every synced task is listed, including ones "             "outside the active sprint — use `sprint` / `sprint_state` when a rule is about a sprint. " \
+            "Each board also lists its open `sprints` with totals, including one holding no tickets, so " \
+            "\"does the next sprint exist and is it filled?\" is answerable here. points_total sums " \
+            "ai_estimate_points — this team leaves Jira's story-point fields empty, so the AI estimate " \
+            "is the only number available; unestimated_tasks says how many carry no number at all. "             "days_in_status is an approximation: time since jira_updated_at (last Jira update), not a true per-status timer.",
       boards: boards.map do |board|
         {
           name: board.name,
           columns: board.jira_board_columns.sort_by { |c| c.position.to_i }.map do |column|
             { name: column.name, statuses: column.status_names }
-          end
+          end,
+          sprints: sprint_rows(board, tasks_by_sprint)
         }
       end,
       tasks: tasks.map do |t|
@@ -254,6 +262,8 @@ class AlertRuleRunJob < ApplicationJob
           issue_type: t.issue_type,
           sprint: t.sprint_name,
           sprint_state: sprint_states[t.sprint_id],
+          story_points: t.story_points,
+          ai_estimate_points: t.ai_estimate_points,
           days_in_status: t.jira_updated_at ? ((now - t.jira_updated_at) / 1.day).round(1) : nil
         }
       end,
@@ -277,6 +287,35 @@ class AlertRuleRunJob < ApplicationJob
       board.jira_board_columns.each do |column|
         column.status_names.each { |status| index[status][board.name] = column.name }
       end
+    end
+  end
+
+  # Every open sprint on the board, WITH ITS TOTALS — including one that holds
+  # no tickets at all. A rule that asks "is the next sprint filled?" has to be
+  # able to see an empty sprint, and a snapshot that mentions sprints only via
+  # the tasks assigned to them makes exactly that case invisible.
+  #
+  # points_total sums ai_estimate_points, not story_points: this team leaves
+  # Jira's story-point fields empty (0 of 386 tickets carry one), so the AI
+  # estimate is the only number there is. unestimated_tasks travels with it, so
+  # a partial total is never mistaken for a complete one.
+  def sprint_rows(board, tasks_by_sprint)
+    board.jira_sprints.select { |s| %w[active future].include?(s.state) }
+         .sort_by { |s| [ s.state == "active" ? 0 : 1, s.start_date || Time.zone.at(0) ] }
+         .map do |sprint|
+      sprint_tasks = tasks_by_sprint[sprint.jira_sprint_id] || []
+      estimated = sprint_tasks.filter_map(&:ai_estimate_points)
+
+      {
+        name: sprint.name,
+        state: sprint.state,
+        starts_at: sprint.start_date&.to_date&.iso8601,
+        ends_at: sprint.end_date&.to_date&.iso8601,
+        task_count: sprint_tasks.size,
+        points_total: estimated.sum.to_f.round(1),
+        estimated_tasks: estimated.size,
+        unestimated_tasks: sprint_tasks.size - estimated.size
+      }
     end
   end
 

@@ -265,6 +265,55 @@ class AlertRuleRunJobTest < ActiveJob::TestCase
     assert_equal "DEV Sprint 51", entry[:sprint]
   end
 
+  # A watchdog asking "does the next sprint exist and does it hold enough?"
+  # cannot work off tasks alone: an EMPTY future sprint is exactly the case it
+  # must catch, and a snapshot that mentions sprints only through the tasks in
+  # them says nothing at all about one.
+  test "an open sprint is listed even when it holds no tickets" do
+    empty = JiraSprint.create!(jira_board: jira_boards(:dev_board), jira_sprint_id: 9001,
+                               name: "DEV Sprint 99", state: "future")
+
+    sprints = snapshot_for(@rule)[:boards].flat_map { |b| b[:sprints] }
+    row = sprints.find { |s| s[:name] == empty.name }
+
+    assert_not_nil row, "an empty future sprint must still appear"
+    assert_equal "future", row[:state]
+    assert_equal 0, row[:task_count]
+    assert_equal 0.0, row[:points_total]
+  end
+
+  test "a sprint reports its points and how many tickets carry no number" do
+    sprint = jira_sprints(:future_sprint)
+    estimated = tasks(:jira_task)
+    estimated.update!(sprint_id: sprint.jira_sprint_id, sprint_name: sprint.name, ai_estimate_points: 8)
+    @project.tasks.create!(name: "DEV-938 unestimated", external_type: "jira", external_reference: "DEV-938",
+                           sprint_id: sprint.jira_sprint_id, sprint_name: sprint.name)
+
+    row = snapshot_for(@rule)[:boards].flat_map { |b| b[:sprints] }.find { |s| s[:name] == sprint.name }
+
+    assert_equal 2, row[:task_count]
+    assert_equal 8.0, row[:points_total]
+    assert_equal 1, row[:estimated_tasks]
+    assert_equal 1, row[:unestimated_tasks], "a partial total must not read as a complete one"
+  end
+
+  test "closed sprints are left out" do
+    closed = jira_sprints(:closed_sprint)
+
+    names = snapshot_for(@rule)[:boards].flat_map { |b| b[:sprints] }.map { |s| s[:name] }
+
+    assert_not_includes names, closed.name
+  end
+
+  test "a task carries both point fields, so a rule can tell them apart" do
+    tasks(:jira_task).update!(story_points: nil, ai_estimate_points: 13)
+
+    entry = snapshot_for(@rule)[:tasks].find { |t| t[:key] == "ELV-1" }
+
+    assert_nil entry[:story_points]
+    assert_equal 13, entry[:ai_estimate_points]
+  end
+
   test "the note warns that a column is not a status" do
     note = snapshot_for(@rule)[:note]
 

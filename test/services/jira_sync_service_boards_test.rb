@@ -36,8 +36,12 @@ class JiraSyncServiceBoardsTest < ActiveSupport::TestCase
       define_method(:fetch_all_comments) { |_issue_key| [] }
 
       define_method(:resolve_story_points_field) { nil }
+      # sync_delivered_issues resolves the AI-estimation field through this;
+      # without it every test here died on NoMethodError before reaching its
+      # own assertions.
+      define_method(:fetch_field_id) { |_name| nil }
 
-      define_method(:fetch_recent_done_issues) do |_key, since: nil, story_points_field_id: nil|
+      define_method(:fetch_recent_done_issues) do |_key, since: nil, story_points_field_id: nil, ai_estimate_field_id: nil|
         done_issues_data
       end
     end.new

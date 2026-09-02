@@ -62,9 +62,9 @@ class JiraSyncService
   # re-enqueued.
   def sync_sprint_assignments
     trigger_on_sprint = @project.workspace.estimation_trigger == "sprint"
-    previous_sprint_ids = trigger_on_sprint ? @project.tasks.jira_synced.pluck(:external_reference, :sprint_id).to_h : {}
 
     @project.tasks.jira_synced.where.not(sprint_id: nil).update_all(sprint_id: nil, sprint_name: nil)
+    estimates_enqueued = 0
 
     @project.jira_boards.each do |board|
       board.jira_sprints.where(state: %w[active future]).find_each do |sprint|
@@ -77,17 +77,25 @@ class JiraSyncService
 
         next unless trigger_on_sprint
         next if design_sprint_name?(sprint.name)
+        next if estimates_enqueued >= AUTO_ESTIMATE_CAP
 
-        newly_assigned_keys = issue_keys.select { |key| previous_sprint_ids[key].nil? }
-        next if newly_assigned_keys.empty?
-
-        # Estimate once: don't even enqueue for tasks that already have an AI
-        # estimate (the job would skip them anyway — this just avoids the
-        # per-sync queue churn of re-enqueuing every sprint task forever).
+        # "Estimate a story when it is added to a Development sprint" means every
+        # unestimated ticket sitting in one — not only those arriving from NO
+        # sprint, which is all the old condition covered. A ticket carried over
+        # from the previous sprint never qualified, and neither did one whose
+        # estimate run failed: DEV-938 and DEV-948 were enqueued on 2026-08-27,
+        # died in two seconds against a broken Claude CLI, and stayed at nil ever
+        # since with nothing to retry them.
+        #
+        # Safe to repeat: `ai_estimate_points: nil` means an estimated task is
+        # never re-enqueued, so this self-heals without re-spending on work
+        # already done.
         @project.tasks.jira_synced
-          .where(external_reference: newly_assigned_keys, ai_estimate_points: nil)
+          .where(external_reference: issue_keys, ai_estimate_points: nil)
+          .limit(AUTO_ESTIMATE_CAP - estimates_enqueued)
           .find_each do |task|
           AutoEstimateJob.perform_later(task.id)
+          estimates_enqueued += 1
         end
       end
     end
@@ -100,6 +108,13 @@ class JiraSyncService
   # Cap on BugAttributionJob enqueues per sync run — bounds CLI cost when a
   # large batch of Bugs syncs at once (e.g. first sync of a new project).
   BUG_ATTRIBUTION_CAP = 3
+
+  # Same idea for auto-estimates. Since the sprint trigger now re-offers every
+  # unestimated ticket in a development sprint (rather than only newly arriving
+  # ones), a first sync of a full sprint could otherwise fire dozens of AI runs
+  # at once. Each sync picks up the next few, so a backlog drains over a couple
+  # of runs instead of in one burst.
+  AUTO_ESTIMATE_CAP = 10
 
   def sync_issues
     trigger_on_status = @project.workspace.estimation_trigger == "status"
