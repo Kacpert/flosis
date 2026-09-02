@@ -218,6 +218,23 @@ class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "", rule.ai_issues_text
   end
 
+  # Both buttons live inside the lazy "memory" turbo-frame. Submitting into that
+  # frame made Turbo swap it for the redirect's copy of itself — the "Loading
+  # memory…" placeholder, which never loads because it is lazy inside a hidden
+  # modal — leaving the modal stuck until a full refresh.
+  test "the memory modal's buttons navigate the whole page, not the lazy frame" do
+    rule = create_rule("Noisy")
+    rule.store_ai_issues("something broke")
+
+    get memory_workshop_alert_rule_path(rule)
+
+    assert_response :success
+    assert_select "form[action=?][data-turbo-frame=?]",
+                  clear_ai_issues_workshop_alert_rule_path(rule), "_top"
+    assert_select "form[action=?][data-turbo-frame=?]",
+                  clear_memory_workshop_alert_rule_path(rule), "_top"
+  end
+
   test "clear_ai_issues is scope-safe (404s for a rule outside the current workshop project)" do
     rule = AlertRule.create!(workspace: @workspace, project: projects(:other_jira_project),
                              discord_webhook: @webhook, name: "Other", prompt: "watch",

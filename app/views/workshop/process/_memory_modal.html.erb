@@ -8,8 +8,14 @@
         <div class="font-bold text-[17px] clar-text-text"><%= rule.name %> · memory</div>
         <div class="text-[12px] clar-text-faint mt-1">The AI manages this itself across runs. Read-only — clear it to make the automation rebuild from scratch.</div>
       </div>
+      <%# turbo_frame "_top": this button lives INSIDE the lazy memory frame, so a
+          plain submit makes Turbo swap the frame for the redirect's copy of
+          itself — which is the "Loading memory…" placeholder, and being lazy
+          inside a hidden modal it never loads. The modal then sits there empty
+          until a full refresh. Reload the page instead. %>
       <%= button_to clear_memory_workshop_alert_rule_path(rule), method: :post,
-            form: { data: { turbo_confirm: "Clear this automation's memory? It will rebuild from scratch on the next run." } },
+            form: { data: { turbo_frame: "_top",
+                            turbo_confirm: "Clear this automation's memory? It will rebuild from scratch on the next run." } },
             class: "clar-btn !py-[5px] !px-[10px] !text-[12px] clar-text-danger whitespace-nowrap" do %>
         Clear memory
       <% end %>
@@ -25,7 +31,8 @@
               you have already fixed keeps this card flagged red for hours.
               Dismiss it on its own — the memory is untouched. %>
           <%= button_to clear_ai_issues_workshop_alert_rule_path(rule), method: :post,
-                form: { data: { turbo_confirm: "Dismiss the reported issues? The memory is kept — the AI will report again on the next run if the problem is still there." } },
+                form: { data: { turbo_frame: "_top",
+                                turbo_confirm: "Dismiss the reported issues? The memory is kept — the AI will report again on the next run if the problem is still there." } },
                 class: "clar-btn !py-[3px] !px-[9px] !text-[11.5px] clar-text-muted whitespace-nowrap" do %>
             Dismiss
           <% end %>
