@@ -4,19 +4,24 @@
 #
 # Existing rules are numbered in the order they were already being displayed, so
 # nothing appears to move on the deploy that ships this.
+#
+# The backfill is plain Ruby, not one UPDATE … FROM (SELECT ROW_NUMBER() …):
+# development runs Postgres while production runs MySQL, and that syntax is
+# Postgres-only. MySQL also commits DDL outside the migration's transaction, so
+# a failure halfway leaves the column behind — hence the column_exists? guard,
+# which makes a retry work instead of dying on "Duplicate column name".
 class AddPositionToAlertRules < ActiveRecord::Migration[8.1]
   def up
-    add_column :alert_rules, :position, :integer
+    add_column :alert_rules, :position, :integer unless column_exists?(:alert_rules, :position)
 
-    execute <<~SQL.squish
-      UPDATE alert_rules
-         SET position = ranked.row_number
-        FROM (
-          SELECT id, ROW_NUMBER() OVER (PARTITION BY project_id ORDER BY created_at DESC) AS row_number
-            FROM alert_rules
-        ) AS ranked
-       WHERE alert_rules.id = ranked.id
-    SQL
+    rows = select_all("SELECT id, project_id FROM alert_rules ORDER BY project_id, created_at DESC")
+    next_position = Hash.new(0)
+
+    rows.each do |row|
+      project_id = row["project_id"]
+      next_position[project_id] += 1
+      execute("UPDATE alert_rules SET position = #{next_position[project_id].to_i} WHERE id = #{row['id'].to_i}")
+    end
   end
 
   def down

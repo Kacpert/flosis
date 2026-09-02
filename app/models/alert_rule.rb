@@ -56,7 +56,15 @@ class AlertRule < ApplicationRecord
   # Hand-arranged order (drag and drop in the rules list). created_at is the
   # tiebreaker so a rule whose position was never set still lands somewhere
   # sensible rather than at a random spot.
-  scope :ordered, -> { order(Arel.sql("position IS NULL, position ASC")).order(created_at: :desc) }
+  #
+  # CASE WHEN rather than NULLS LAST, and the column qualified: production is
+  # MySQL while development is Postgres, and MySQL understands neither NULLS
+  # LAST nor a bare `position` without ambiguity against POSITION().
+  scope :ordered, lambda {
+    order(Arel.sql("CASE WHEN alert_rules.position IS NULL THEN 1 ELSE 0 END"))
+      .order(:position)
+      .order(created_at: :desc)
+  }
 
   before_create :assign_position
 
