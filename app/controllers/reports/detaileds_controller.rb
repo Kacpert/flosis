@@ -35,6 +35,11 @@ module Reports
       # User totals for header stats
       @user_totals = @entries_by_user.map { |user, entries| { user: user, seconds: entries.sum(&:duration_seconds) } }
 
+      # Most time is logged without a Jira task, and an empty Task column just
+      # eats width the notes could use. Decided once for the whole report rather
+      # than per person, so every table in the document has the same shape.
+      @show_task_column = @entries.any? { |e| e.task_id.present? }
+
       @project = current_workspace.projects.find_by(id: params[:project_id])
       @projects = current_workspace.projects.active.order(:name)
       @users = current_workspace.users.order(:name)
@@ -220,6 +225,10 @@ module Reports
 
     def draw_pdf_user_sections(pdf, entries_by_user:, total_seconds:, project:)
       show_project = project.nil?
+      # Same call as the HTML report: an all-empty Task column is width the
+      # notes could use, so drop it — once for the whole document, so every
+      # person's table has the same shape.
+      show_task = entries_by_user.any? { |_, ents| ents.any? { |e| e.task_id.present? } }
 
       entries_by_user.each_with_index do |(user, user_entries), idx|
         user_seconds = user_entries.sum(&:duration_seconds)
@@ -252,7 +261,8 @@ module Reports
         # Build single table for this user, all dates.
         headers = [ "Date" ]
         headers << "Project" if show_project
-        headers += [ "Task", "Notes", "Time", "Duration" ]
+        headers << "Task" if show_task
+        headers += [ "Notes", "Time", "Duration" ]
 
         rows = [ headers ]
         prev_date = nil
@@ -273,7 +283,7 @@ module Reports
             end
             row = [ date_cell ]
             row << entry.project&.name.to_s if show_project
-            row << entry.task&.name.to_s
+            row << entry.task&.name.to_s if show_task
             row << entry.description.to_s
             row << time_str
             row << format_duration_hm(entry.duration_seconds)
@@ -289,13 +299,16 @@ module Reports
           end
         end
 
-        # Column widths: Date / [Project] / Task / Notes / Time / Duration
+        # Column widths: Date / [Project] / [Task] / Notes / Time / Duration.
+        # Notes takes whatever is left, so a dropped column widens it instead of
+        # leaving a gap.
         avail = pdf.bounds.width
-        widths = if show_project
-          [ 55, 95, 75, avail - 55 - 95 - 75 - 80 - 60, 80, 60 ]
-        else
-          [ 55, 95, avail - 55 - 95 - 80 - 60, 80, 60 ]
-        end
+        time_w = 80
+        duration_w = 60
+        widths = [ 55 ]
+        widths << 95 if show_project
+        widths << (show_project ? 75 : 95) if show_task
+        widths += [ avail - widths.sum - time_w - duration_w, time_w, duration_w ]
 
         pdf.table(rows, header: true, width: avail, column_widths: widths, cell_style: { size: 8.5, padding: [6, 8], border_color: PDF_RULE, border_width: 0.5, text_color: PDF_INK }) do
           row(0).font_style = :bold

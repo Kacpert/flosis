@@ -57,22 +57,83 @@ class Reports::DetailedsControllerTest < ActionDispatch::IntegrationTest
     assert_match "100.00 USD", response.body # user two: 1h @ $100
   end
 
+  # Almost nothing here is logged against a Jira task, and an empty Task column
+  # just eats the width the notes need.
+  test "the Task column is dropped when nothing in the report has a task" do
+    get reports_detailed_path(from: "2026-05-01", to: "2026-05-31", project_id: @project.id)
+
+    assert_response :success
+    assert_select "th", { text: "Task", count: 0 }
+    assert_select "th", text: "Notes"
+  end
+
+  test "the Task column comes back as soon as one entry has a task" do
+    @entry_one.update!(task: tasks(:jira_task))
+
+    get reports_detailed_path(from: "2026-05-01", to: "2026-05-31", project_id: @project.id)
+
+    assert_response :success
+    assert_select "th", text: "Task"
+    assert_select "td", text: tasks(:jira_task).name
+  end
+
+  # The day-subtotal row spans every column except Duration, so dropping a
+  # column has to narrow it too — otherwise the table shears.
+  test "the day subtotal keeps spanning the right number of columns" do
+    day = @day.to_time + 14.hours
+    create_entry(users(:one), start: day, hours: 1) # a second entry that day → subtotal row
+
+    get reports_detailed_path(from: "2026-05-01", to: "2026-05-31", project_id: @project.id)
+    assert_select "td[colspan=?]", "3", { text: /Day total/ }
+
+    @entry_one.update!(task: tasks(:jira_task))
+    get reports_detailed_path(from: "2026-05-01", to: "2026-05-31", project_id: @project.id)
+    assert_select "td[colspan=?]", "4", { text: /Day total/ }
+  end
+
   test "employee cannot see the detailed report at all" do
     sign_in_as(users(:two)) # employee
     get reports_detailed_path(from: "2026-05-01", to: "2026-05-31", project_id: @project.id)
     assert_redirected_to root_path
   end
 
+  # Prawn writes the table's text into the PDF stream, so the header is
+  # searchable — which is enough to tell whether the column was drawn.
+  test "the pdf drops the Task column too when nothing has a task" do
+    get export_pdf_reports_detailed_path(from: "2026-05-01", to: "2026-05-31", project_id: @project.id)
+
+    assert_response :success
+    assert_equal "application/pdf", response.media_type
+    assert_not pdf_contains?(response.body, "Task")
+    assert pdf_contains?(response.body, "Notes"), "sanity: the header row is searchable at all"
+  end
+
+  test "the pdf keeps the Task column when an entry has a task" do
+    @entry_one.update!(task: tasks(:jira_task))
+
+    get export_pdf_reports_detailed_path(from: "2026-05-01", to: "2026-05-31", project_id: @project.id)
+
+    assert_response :success
+    assert pdf_contains?(response.body, "Task")
+  end
+
   test "pdf export returns a pdf and does not embed the cost figures" do
     get export_pdf_reports_detailed_path(from: "2026-05-01", to: "2026-05-31", project_id: @project.id)
     assert_response :success
     assert_equal "application/pdf", response.media_type
-    # The HTML shows "400.00 USD" etc.; the PDF must not contain those strings.
-    assert_no_match "400.00 USD", response.body
-    assert_no_match "300.00 USD", response.body
+    # The HTML shows "400.00 USD" etc.; the PDF must not contain those figures.
+    # Prawn hex-encodes text, so a plain assert_no_match here passed vacuously.
+    assert_not pdf_contains?(response.body, "400.00")
+    assert_not pdf_contains?(response.body, "300.00")
   end
 
   private
+
+  # Prawn writes strings into the content stream as hex (<5461736b> = "Task"),
+  # so searching the raw body for the text itself always misses.
+  def pdf_contains?(body, text)
+    body.include?(text.unpack1("H*"))
+  end
 
   def create_entry(user, start:, hours:)
     @workspace.time_entries.create!(

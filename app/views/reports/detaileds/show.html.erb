@@ -87,7 +87,7 @@
             <tr>
               <th style="width: 80px">Date</th>
               <% unless @project %><th>Project</th><% end %>
-              <th>Task</th>
+              <% if @show_task_column %><th>Task</th><% end %>
               <th>Notes</th>
               <th class="text-center" style="width: 100px">Time</th>
               <th class="text-right" style="width: 70px">Duration</th>
@@ -111,7 +111,9 @@
                       </span>
                     </td>
                   <% end %>
-                  <td class="text-sm" style="color: var(--color-on-surface-variant)"><%= entry.task&.name %></td>
+                  <% if @show_task_column %>
+                    <td class="text-sm" style="color: var(--color-on-surface-variant)"><%= entry.task&.name %></td>
+                  <% end %>
                   <td class="text-sm" style="color: var(--color-on-surface)"><%= entry.description %></td>
                   <td class="text-center text-xs font-mono" style="color: var(--color-on-surface-variant)">
                     <%= entry.started_at.strftime("%H:%M") %>&ndash;<%= entry.stopped_at&.strftime("%H:%M") %>
@@ -125,7 +127,7 @@
               <% day_total = day_entries.sum(&:duration_seconds) %>
               <% if day_entries.size > 1 %>
                 <tr style="background: var(--color-surface-variant); background: rgba(0,0,0,0.02)">
-                  <td colspan="<%= @project ? 4 : 5 %>" class="text-right text-xs font-medium" style="color: var(--color-on-surface-variant)">
+                  <td colspan="<%= 3 + (@project ? 0 : 1) + (@show_task_column ? 1 : 0) %>" class="text-right text-xs font-medium" style="color: var(--color-on-surface-variant)">
                     Day total
                   </td>
                   <td class="text-right font-mono text-sm font-medium" style="color: var(--color-on-surface)">
