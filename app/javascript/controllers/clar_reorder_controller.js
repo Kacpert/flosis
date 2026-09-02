@@ -2,9 +2,12 @@ import { Controller } from "@hotwired/stimulus"
 
 // Drag the cards in a list into the order you want them, and remember it.
 //
-// Dragging starts from the handle only: the cards carry buttons, links and
-// selectable prompt text, and making the whole card draggable would swallow all
-// of that. The handle flips draggable on for the duration of one drag.
+// The whole card is the grab area — a small handle was too fiddly to aim at.
+// Dragging is armed on mousedown rather than set on the element permanently, so
+// the card's own buttons, links and switches keep working: a mousedown that
+// lands on one of those arms nothing, and the click goes through as usual.
+const INTERACTIVE = "button, a, input, select, textarea, label, [role='button']"
+
 export default class extends Controller {
   static targets = ["item", "handle"]
   static values = { url: String }
@@ -13,8 +16,10 @@ export default class extends Controller {
     this.dragging = null
   }
 
-  // mousedown on a handle — arm the card it belongs to.
+  // mousedown anywhere on a card — arm it, unless the press landed on a control.
   arm(event) {
+    if (event.target.closest(INTERACTIVE)) return
+
     const item = event.target.closest("[data-clar-reorder-target='item']")
     if (item) item.draggable = true
   }

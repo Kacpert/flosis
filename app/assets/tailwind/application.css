@@ -2303,6 +2303,12 @@ span.flatpickr-weekday {
     color:var(--border); transition:color .15s; }
   .clar-row:hover .clar-drag-handle { color:var(--faint); }
   .clar-drag-handle:active { cursor:grabbing; }
+  /* The card itself is the grab area; its buttons keep the normal pointer so it
+     stays obvious that they are clickable, not draggable. */
+  .clar-draggable-card { cursor:grab; }
+  .clar-draggable-card:active { cursor:grabbing; }
+  .clar-draggable-card button, .clar-draggable-card a, .clar-draggable-card label,
+  .clar-draggable-card input, .clar-draggable-card select { cursor:pointer; }
   .is-dragging { opacity:.45; }
 
   /* Collapsed long text (an automation's prompt) with a Show more toggle.

@@ -16,9 +16,11 @@
          data-clar-reorder-url-value="<%= reorder_workshop_alert_rules_path %>"
          data-action="dragover->clar-reorder#over drop->clar-reorder#drop">
       <% @alert_rules.each do |rule| %>
-        <div class="clar-row clar-row-hover !rounded-[13px] py-4 px-4.5 relative"
+        <%# The whole card is the grab area; #arm ignores presses that land on a
+            button or switch, so those still work normally. %>
+        <div class="clar-row clar-row-hover !rounded-[13px] py-4 px-4.5 relative clar-draggable-card"
              data-clar-reorder-target="item" data-rule-id="<%= rule.id %>"
-             data-action="dragstart->clar-reorder#start dragend->clar-reorder#end">
+             data-action="mousedown->clar-reorder#arm dragstart->clar-reorder#start dragend->clar-reorder#end">
           <%# Top row: name (left) + last-run status chip and the pause switch
               (right). A paused rule is kept in full — prompt, schedule, memory
               and history — it just stops being dispatched, so the card only
@@ -27,9 +29,10 @@
             <div class="flex items-center gap-2 min-w-0">
               <%# Drag from here only: the card is full of buttons, links and
                   selectable prompt text that a draggable card would swallow. %>
+              <%# Kept purely as a visual cue that the card can be moved — the
+                  whole card is draggable, so this needs no action of its own. %>
               <span class="clar-drag-handle" title="Drag to reorder" aria-hidden="true"
-                    data-clar-reorder-target="handle"
-                    data-action="mousedown->clar-reorder#arm">
+                    data-clar-reorder-target="handle">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
               </span>
               <%# The name dims too when paused, but less than the body — it stays

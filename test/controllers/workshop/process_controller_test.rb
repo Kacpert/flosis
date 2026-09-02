@@ -188,6 +188,8 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
                   reorder_workshop_alert_rules_path
     assert_select "[data-clar-reorder-target='item'][data-rule-id=?]", rule.id.to_s
     assert_select "[data-clar-reorder-target='handle']"
+    # The whole card is the grab area, not just the handle icon.
+    assert_select "[data-clar-reorder-target='item'][data-action*=?]", "mousedown->clar-reorder#arm"
   end
 
   # A prompt runs to a dozen lines; unclamped it pushed each rule's schedule,
