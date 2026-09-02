@@ -19,7 +19,17 @@
   <div class="px-[22px] py-4 overflow-auto flex-1 flex flex-col gap-4">
     <% if rule.ai_issues_text.present? %>
       <div>
-        <div class="text-[11px] font-bold tracking-[.4px] clar-text-danger mb-1.5">⚠ ISSUES REPORTED BY THE AI</div>
+        <div class="flex items-center justify-between gap-3 mb-1.5">
+          <div class="text-[11px] font-bold tracking-[.4px] clar-text-danger">⚠ ISSUES REPORTED BY THE AI</div>
+          <%# The report only changes on the automation's next run, so a problem
+              you have already fixed keeps this card flagged red for hours.
+              Dismiss it on its own — the memory is untouched. %>
+          <%= button_to clear_ai_issues_workshop_alert_rule_path(rule), method: :post,
+                form: { data: { turbo_confirm: "Dismiss the reported issues? The memory is kept — the AI will report again on the next run if the problem is still there." } },
+                class: "clar-btn !py-[3px] !px-[9px] !text-[11.5px] clar-text-muted whitespace-nowrap" do %>
+            Dismiss
+          <% end %>
+        </div>
         <pre class="text-[12px] leading-[1.5] whitespace-pre-wrap break-words clar-mono px-3.5 py-3 rounded-[10px] bg-[var(--danger-soft)] border border-[color:var(--danger)] clar-text-text"><%= rule.ai_issues_text %></pre>
       </div>
     <% end %>

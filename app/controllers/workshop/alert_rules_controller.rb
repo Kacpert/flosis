@@ -3,7 +3,8 @@
 # current_workshop_project (find always via that association — a crafted
 # cross-project id 404s), same convention as DesignRequestsController.
 class Workshop::AlertRulesController < Workshop::BaseController
-  before_action :set_alert_rule, only: [ :update, :destroy, :history, :memory, :clear_memory, :toggle_active ]
+  before_action :set_alert_rule,
+                only: [ :update, :destroy, :history, :memory, :clear_memory, :clear_ai_issues, :toggle_active ]
 
   def create
     rule = current_workshop_project.alert_rules.new(create_params.except(:discord_webhook_id))
@@ -95,6 +96,17 @@ class Workshop::AlertRulesController < Workshop::BaseController
     @alert_rule.clear_memory!
     @alert_rule.clear_ai_issues!
     flash[:clar_toast] = %(Memory cleared · "#{@alert_rule.name}")
+    redirect_to workshop_process_path(tab: "alerts")
+  end
+
+  # Dismiss the reported problems WITHOUT touching the memory. The report is the
+  # AI's last word on what blocked it, and it only changes when the automation
+  # next runs — so a problem you have already fixed keeps the card's Memory
+  # button red for hours, with clearing the memory (and losing everything the
+  # automation learned) as the only way to silence it.
+  def clear_ai_issues
+    @alert_rule.clear_ai_issues!
+    flash[:clar_toast] = %(Reported issues cleared · "#{@alert_rule.name}")
     redirect_to workshop_process_path(tab: "alerts")
   end
 

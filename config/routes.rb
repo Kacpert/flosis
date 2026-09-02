@@ -116,7 +116,7 @@ Rails.application.routes.draw do
     post "bugs/:jira_key/analyze", to: "bugs#analyze", as: :analyze_bug, constraints: { jira_key: /[^\/]+/ }
     resources :alert_rules, only: [ :create, :update, :destroy ] do
       collection { patch :reorder }
-      member { get :history; get :memory; post :clear_memory; patch :toggle_active }
+      member { get :history; get :memory; post :clear_memory; post :clear_ai_issues; patch :toggle_active }
     end
     get "configuration", to: "configuration#show", as: :configuration
     patch "configuration", to: "configuration#update"

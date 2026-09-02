@@ -188,6 +188,48 @@ class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
     assert rule.reload.active?
   end
 
+  # The AI's problem report only changes when the automation next runs, so a
+  # problem you have already fixed kept the card's Memory button red for hours —
+  # and the only way to silence it was Clear memory, which threw away everything
+  # the automation had learned.
+  test "dismissing the reported issues keeps the memory" do
+    rule = create_rule("Noisy")
+    rule.store_memory("seen: PROJ-1")
+    rule.store_ai_issues("GitHub MCP token lost permissions this run.")
+
+    post clear_ai_issues_workshop_alert_rule_path(rule)
+
+    rule.reload
+    assert_equal "", rule.ai_issues_text
+    assert_equal "seen: PROJ-1", rule.memory_text, "the memory must survive"
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_match(/Reported issues cleared/, flash[:clar_toast])
+  end
+
+  test "clear_memory still wipes both" do
+    rule = create_rule("Noisy")
+    rule.store_memory("seen: PROJ-1")
+    rule.store_ai_issues("something broke")
+
+    post clear_memory_workshop_alert_rule_path(rule)
+
+    rule.reload
+    assert_equal "", rule.memory_text
+    assert_equal "", rule.ai_issues_text
+  end
+
+  test "clear_ai_issues is scope-safe (404s for a rule outside the current workshop project)" do
+    rule = AlertRule.create!(workspace: @workspace, project: projects(:other_jira_project),
+                             discord_webhook: @webhook, name: "Other", prompt: "watch",
+                             frequency: "daily", run_at_time: "09:00")
+    rule.store_ai_issues("boom")
+
+    post clear_ai_issues_workshop_alert_rule_path(rule)
+
+    assert_response :not_found
+    assert_equal "boom", rule.reload.ai_issues_text
+  end
+
   # ---- ordering -----------------------------------------------------------
 
   test "reorder stores the order the cards were dragged into" do
