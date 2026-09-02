@@ -12,11 +12,15 @@ class AlertRuleTest < ActiveSupport::TestCase
     @webhook = DiscordWebhook.create!(workspace: @workspace, channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/abc")
   end
 
-  def build_rule(frequency:, run_at_time: nil, last_run_at: nil)
+  # created_at defaults to well in the past: #due? refuses slots that predate the
+  # rule (see "a rule does not fire for a slot..."), and every scheduling test
+  # here is about an established rule, not a brand-new one.
+  def build_rule(frequency:, run_at_time: nil, last_run_at: nil, created_at: Time.zone.local(2020, 1, 1))
     AlertRule.new(
       workspace: @workspace, project: @project, discord_webhook: @webhook,
       name: "Rule", prompt: "Watch something.",
-      frequency: frequency, run_at_time: run_at_time, last_run_at: last_run_at, active: true
+      frequency: frequency, run_at_time: run_at_time, last_run_at: last_run_at, active: true,
+      created_at: created_at
     )
   end
 
@@ -198,7 +202,38 @@ class AlertRuleTest < ActiveSupport::TestCase
     rule.save!
 
     assert rule.due?(Time.zone.local(2026, 7, 6, 10, 0)), "inside the window with no previous run"
+    # (build_rule dates the rule to 2020, so its first interval is long past.)
     assert_not rule.due?(Time.zone.local(2026, 7, 6, 20, 0)), "outside the window"
+  end
+
+  # Saving a "weekdays at 10:00" rule in the afternoon used to fire it within
+  # five minutes, because the dispatcher saw today's slot as a missed run. For a
+  # notifying rule that means pinging real people the moment you hit save.
+  test "a rule does not fire for a slot that had already passed when it was created" do
+    rule = build_rule(frequency: "daily", run_at_time: "10:00",
+                      created_at: Time.zone.local(2026, 7, 6, 15, 10))
+    rule.save!
+
+    assert_not rule.due?(Time.zone.local(2026, 7, 6, 15, 15)), "today's 10:00 happened before the rule existed"
+    assert rule.due?(Time.zone.local(2026, 7, 7, 10, 0)), "tomorrow's slot is its first real one"
+  end
+
+  test "a rule created before today's slot still fires today" do
+    rule = build_rule(frequency: "daily", run_at_time: "10:00",
+                      created_at: Time.zone.local(2026, 7, 6, 8, 0))
+    rule.save!
+
+    assert rule.due?(Time.zone.local(2026, 7, 6, 10, 1))
+  end
+
+  test "an interval rule waits out one interval after it is created" do
+    rule = build_rule(frequency: "daily", created_at: Time.zone.local(2026, 7, 6, 12, 0))
+    rule.schedule_mode = "interval"
+    rule.interval_hours = 4
+    rule.save!
+
+    assert_not rule.due?(Time.zone.local(2026, 7, 6, 13, 0)), "one hour after creation is not four"
+    assert rule.due?(Time.zone.local(2026, 7, 6, 16, 0))
   end
 
   test "schedule_label reads the way the card renders it" do

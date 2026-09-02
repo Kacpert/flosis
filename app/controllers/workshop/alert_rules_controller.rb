@@ -60,6 +60,22 @@ class Workshop::AlertRulesController < Workshop::BaseController
     redirect_to workshop_process_path(tab: "alerts"), status: :see_other
   end
 
+  # Persist the order the operator dragged the cards into. Takes the full list of
+  # ids; anything not in this project is ignored rather than trusted, so a
+  # crafted payload can't renumber another project's rules.
+  def reorder
+    ids = Array(params[:ids]).map(&:to_i)
+    rules = current_workshop_project.alert_rules.where(id: ids).index_by(&:id)
+
+    AlertRule.transaction do
+      ids.each_with_index do |id, index|
+        rules[id]&.update_column(:position, index + 1)
+      end
+    end
+
+    head :no_content
+  end
+
   # Rendered inside a turbo frame from the rules list card (history modal).
   def history
     @runs = @alert_rule.alert_runs.newest_first.limit(30)

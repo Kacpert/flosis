@@ -188,6 +188,43 @@ class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
     assert rule.reload.active?
   end
 
+  # ---- ordering -----------------------------------------------------------
+
+  test "reorder stores the order the cards were dragged into" do
+    a = create_rule("First")
+    b = create_rule("Second")
+    c = create_rule("Third")
+    assert_equal %w[First Second Third], @project.alert_rules.ordered.pluck(:name)
+
+    patch reorder_workshop_alert_rules_path, params: { ids: [ c.id, a.id, b.id ] }
+
+    assert_response :no_content
+    assert_equal %w[Third First Second], @project.alert_rules.ordered.pluck(:name)
+  end
+
+  test "a new rule goes to the end, not the top" do
+    create_rule("First")
+    create_rule("Second")
+
+    create_rule("Newest")
+
+    assert_equal %w[First Second Newest], @project.alert_rules.ordered.pluck(:name)
+  end
+
+  test "reorder ignores ids from another project (cross-project guard)" do
+    mine = create_rule("Mine")
+    theirs = AlertRule.create!(workspace: @workspace, project: projects(:other_jira_project),
+                               discord_webhook: @webhook, name: "Theirs", prompt: "watch",
+                               frequency: "daily", run_at_time: "09:00")
+    before = theirs.position
+
+    patch reorder_workshop_alert_rules_path, params: { ids: [ theirs.id, mine.id ] }
+
+    assert_response :no_content
+    assert_equal before, theirs.reload.position, "another project's rule must not be renumbered"
+    assert_equal 2, mine.reload.position, "ids are honoured positionally, foreign ones included"
+  end
+
   test "history renders the run timeline with fired count" do
     rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
       name: "QA backlog watch", prompt: "Watch QA backlog.",
@@ -213,5 +250,10 @@ class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
     get history_workshop_alert_rule_path(rule)
 
     assert_response :not_found
+  end
+
+  def create_rule(name)
+    AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+                      name: name, prompt: "Watch something.", frequency: "daily", run_at_time: "09:00")
   end
 end

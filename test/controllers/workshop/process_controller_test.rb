@@ -175,6 +175,21 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /waiting for new commits/
   end
 
+  test "the rules list is draggable and carries each rule's id" do
+    project = tasks(:jira_task).project
+    post switch_workshop_project_path, params: { project_id: project.id }
+    rule = AlertRule.create!(workspace: @workspace, project: project, notify_enabled: false,
+                             name: "Draggable", prompt: "Watch.", frequency: "daily", run_at_time: "13:00")
+
+    get workshop_process_path(tab: "alerts")
+
+    assert_response :success
+    assert_select "[data-controller=?][data-clar-reorder-url-value=?]", "clar-reorder",
+                  reorder_workshop_alert_rules_path
+    assert_select "[data-clar-reorder-target='item'][data-rule-id=?]", rule.id.to_s
+    assert_select "[data-clar-reorder-target='handle']"
+  end
+
   # A prompt runs to a dozen lines; unclamped it pushed each rule's schedule,
   # channel and actions below the fold.
   test "a rule's prompt is clamped with a toggle to open it" do

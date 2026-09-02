@@ -1,11 +1,16 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Collapses a long block of text to a few lines with a toggle. Automation
-// prompts run to a dozen lines each, which pushed the schedule, the channel and
-// the actions of every rule below the fold.
+// Collapses a long block of text to two lines with a toggle. Automation prompts
+// run to a dozen lines each, which pushed the schedule, the channel and the
+// actions of every rule below the fold.
 //
-// The toggle only appears when the text is actually clipped — a two-line prompt
-// gets no "Show more" that does nothing.
+// The toggle costs a line of its own, so clamping only pays from four lines up:
+// two shown + a button is three, exactly what a three-line prompt takes anyway.
+// Anything at or under the threshold is left whole, with no button.
+// The clamp itself (2 lines) lives in .clar-clamp; this is the threshold at
+// which hiding anything starts to save room.
+const MIN_LINES_TO_CLAMP = 4
+
 export default class extends Controller {
   static targets = ["text", "toggle"]
   static values = { expanded: { type: Boolean, default: false } }
@@ -29,21 +34,28 @@ export default class extends Controller {
   }
 
   sync() {
-    if (!this.hasTextTarget || !this.hasToggleTarget) return
-    // Measure in the collapsed state: an expanded box never overflows.
+    if (!this.hasTextTarget) return
+
+    // Measure the text unclamped — a clamped box reports the clamped height, so
+    // the full length has to be read with the clamp off.
     const wasExpanded = this.expandedValue
-    this.textTarget.classList.remove("is-expanded")
-    this.clipped = this.textTarget.scrollHeight > this.textTarget.clientHeight + 2
-    this.expandedValue = wasExpanded
+    this.textTarget.classList.add("is-expanded")
+    const lineHeight = parseFloat(getComputedStyle(this.textTarget).lineHeight) || 1
+    const lines = Math.round(this.textTarget.clientHeight / lineHeight)
+    this.textTarget.classList.toggle("is-expanded", wasExpanded)
+
+    this.worthClamping = lines >= MIN_LINES_TO_CLAMP
     this.render()
   }
 
   render() {
     if (!this.hasTextTarget) return
-    this.textTarget.classList.toggle("is-expanded", this.expandedValue)
+    // Short enough to show whole: no clamp, no button.
+    const collapsed = this.worthClamping && !this.expandedValue
+    this.textTarget.classList.toggle("is-expanded", !collapsed)
 
     if (this.hasToggleTarget) {
-      this.toggleTarget.hidden = !this.clipped && !this.expandedValue
+      this.toggleTarget.hidden = !this.worthClamping
       this.toggleTarget.textContent = this.expandedValue ? "Show less" : "Show more"
       this.toggleTarget.setAttribute("aria-expanded", String(this.expandedValue))
     }

@@ -11,17 +11,31 @@
   <% if @alert_rules.empty? %>
     <div class="clar-card p-8 text-center clar-text-muted text-[13.5px]" data-empty>No alert rules yet.</div>
   <% else %>
-    <div class="flex flex-col gap-3">
+    <div class="flex flex-col gap-3"
+         data-controller="clar-reorder"
+         data-clar-reorder-url-value="<%= reorder_workshop_alert_rules_path %>"
+         data-action="dragover->clar-reorder#over drop->clar-reorder#drop">
       <% @alert_rules.each do |rule| %>
-        <div class="clar-row clar-row-hover !rounded-[13px] py-4 px-4.5">
+        <div class="clar-row clar-row-hover !rounded-[13px] py-4 px-4.5 relative"
+             data-clar-reorder-target="item" data-rule-id="<%= rule.id %>"
+             data-action="dragstart->clar-reorder#start dragend->clar-reorder#end">
           <%# Top row: name (left) + last-run status chip and the pause switch
               (right). A paused rule is kept in full — prompt, schedule, memory
               and history — it just stops being dispatched, so the card only
               dims and swaps its status chip for "Paused". %>
           <div class="flex items-center justify-between gap-3.5 mb-[9px]">
-            <%# The name dims too when paused, but less than the body — it stays
-                the card's identifier, so it must remain easy to scan. %>
-            <span class="font-[650] text-[14px] clar-text-text <%= "opacity-65" unless rule.active? %>"><%= rule.name %></span>
+            <div class="flex items-center gap-2 min-w-0">
+              <%# Drag from here only: the card is full of buttons, links and
+                  selectable prompt text that a draggable card would swallow. %>
+              <span class="clar-drag-handle" title="Drag to reorder" aria-hidden="true"
+                    data-clar-reorder-target="handle"
+                    data-action="mousedown->clar-reorder#arm">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+              </span>
+              <%# The name dims too when paused, but less than the body — it stays
+                  the card's identifier, so it must remain easy to scan. %>
+              <span class="font-[650] text-[14px] clar-text-text truncate <%= "opacity-65" unless rule.active? %>"><%= rule.name %></span>
+            </div>
             <div class="flex items-center gap-3">
               <% if rule.active? %>
                 <span class="inline-flex items-center gap-1.5 text-[11.5px] font-semibold <%= alert_last_run_color_class(rule.last_run_status) %>">

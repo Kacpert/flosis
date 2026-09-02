@@ -53,6 +53,12 @@ class AlertRule < ApplicationRecord
   validates :discord_webhook, presence: true, if: :notify_enabled?
 
   scope :active, -> { where(active: true) }
+  # Hand-arranged order (drag and drop in the rules list). created_at is the
+  # tiebreaker so a rule whose position was never set still lands somewhere
+  # sensible rather than at a random spot.
+  scope :ordered, -> { order(Arel.sql("position IS NULL, position ASC")).order(created_at: :desc) }
+
+  before_create :assign_position
 
   FREQUENCY_LABELS = {
     "daily"    => "Daily",
@@ -119,6 +125,11 @@ class AlertRule < ApplicationRecord
     scheduled_at = today_scheduled_time(now)
     return false if scheduled_at.nil?
     return false if now < scheduled_at
+    # A slot that had already passed when the rule was written is not a missed
+    # run — it happened before the rule existed. Saving a "weekdays at 10:00"
+    # rule in the afternoon used to fire it within five minutes, which for a
+    # notifying rule means pinging real people the moment you hit save.
+    return false if created_at.present? && scheduled_at < created_at
 
     last_run_at.nil? || last_run_at < scheduled_at
   end
@@ -213,6 +224,14 @@ class AlertRule < ApplicationRecord
 
   private
 
+  # New rules go to the end of their project's list, not the top: the order is
+  # something the operator arranges, so nothing should reshuffle itself.
+  def assign_position
+    return if position.present?
+
+    self.position = (self.class.where(project_id: project_id).maximum(:position) || 0) + 1
+  end
+
   # Persist an AI-managed text blob to `column`, enforcing the hard size cap so a
   # runaway automation can't bloat the table. Returns true/false (saved?).
   def store_blob(column, text)
@@ -236,11 +255,15 @@ class AlertRule < ApplicationRecord
     days.include?(WDAY_TO_NAME[now.wday])
   end
 
+  # Same rule for interval mode: a brand-new rule waits out one interval rather
+  # than firing on the first dispatch after it was saved.
   def interval_due?(now)
     return false if window_enabled? && !inside_window?(now)
-    return true if last_run_at.nil?
 
-    last_run_at <= now - (interval_hours.hours - DISPATCH_SLACK)
+    since = last_run_at || created_at
+    return true if since.nil?
+
+    since <= now - (interval_hours.hours - DISPATCH_SLACK)
   end
 
   # Inclusive on both ends. A window whose end is at/before its start (e.g.

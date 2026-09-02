@@ -7,12 +7,35 @@ class AlertRulesDispatchJobTest < ActiveJob::TestCase
     @webhook = DiscordWebhook.create!(workspace: @workspace, channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/abc")
   end
 
-  def build_rule(frequency:, run_at_time: nil, last_run_at: nil, active: true)
+  # Dated to the past on purpose: a rule is not due for a slot that had already
+  # passed when it was created (see AlertRule#due?), and these tests are about
+  # established rules, not freshly saved ones.
+  def build_rule(frequency:, run_at_time: nil, last_run_at: nil, active: true,
+                 created_at: Time.zone.local(2020, 1, 1))
     AlertRule.create!(
       workspace: @workspace, project: @project, discord_webhook: @webhook,
       name: "Rule #{SecureRandom.hex(3)}", prompt: "Watch something.",
-      frequency: frequency, run_at_time: run_at_time, last_run_at: last_run_at, active: active
+      frequency: frequency, run_at_time: run_at_time, last_run_at: last_run_at, active: active,
+      created_at: created_at
     )
+  end
+
+  # Saving a rule after its time of day used to fire it on the next dispatch,
+  # five minutes later — a notifying rule pinged real people the moment it was
+  # created.
+  test "a rule saved after today's slot waits for the next one" do
+    travel_to Time.zone.local(2026, 7, 6, 15, 10) do # Monday afternoon
+      fresh = build_rule(frequency: "daily", run_at_time: "10:00",
+                         created_at: Time.zone.local(2026, 7, 6, 15, 9))
+
+      AlertRulesDispatchJob.perform_now
+      assert_no_enqueued_jobs_for(fresh)
+    end
+
+    travel_to Time.zone.local(2026, 7, 7, 10, 1) do
+      AlertRulesDispatchJob.perform_now
+      assert_enqueued_jobs 1, only: AlertRuleRunJob
+    end
   end
 
   test "enqueues a run only for due AND active rules" do
