@@ -88,7 +88,12 @@ class GithubClient
   def post(path, payload)
     response = raw(:post, path, payload.to_json)
     return true if response.is_a?(Net::HTTPSuccess)
-    Rails.logger.error("[GithubClient] POST #{path} failed: #{response.code} #{response.message}")
+
+    # The body is the only place GitHub says WHY. A 422 on a review is usually
+    # "line must be part of the diff" — the status alone left that guesswork.
+    Rails.logger.error(
+      "[GithubClient] POST #{path} failed: #{response.code} #{response.message} #{response.body.to_s.truncate(400)}"
+    )
     false
   rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED => e
     Rails.logger.error("[GithubClient] POST #{path} error: #{e.message}")

@@ -6,16 +6,27 @@ class PrReviewJobTest < ActiveJob::TestCase
     @workspace.update!(github_token: "t", github_repo: "acme/widgets", pr_review_enabled: true)
   end
 
-  def fake_github(pr:, files: [ { "filename" => "a.rb", "patch" => "@@ -1 +1 @@\n+code" } ], commits: [], existing_comments: [])
+  # `reviews` decides what create_review returns, call by call: [true] accepts
+  # the first, [false, true] rejects the inline review and accepts the plain
+  # retry, [false, false] rejects both. Every call is recorded in `attempts`.
+  def fake_github(pr:, files: [ { "filename" => "a.rb", "patch" => "@@ -1 +1 @@\n+code" } ], commits: [],
+                  existing_comments: [], reviews: [ true ])
     fake = Object.new
     captured = {}
+    attempts = []
+    results = reviews.dup
     fake.define_singleton_method(:pull_request) { |_n| pr }
     fake.define_singleton_method(:pull_request_files) { |_n| files }
     fake.define_singleton_method(:pull_request_commits) { |_n| commits }
     fake.define_singleton_method(:pull_request_review_comments) { |_n| existing_comments }
-    fake.define_singleton_method(:create_review) { |n, body:, event:, comments:| captured.merge!(n: n, body: body, comments: comments); true }
+    fake.define_singleton_method(:create_review) do |n, body:, event:, comments:|
+      captured.merge!(n: n, body: body, comments: comments)
+      attempts << { body: body, comments: comments }
+      results.empty? ? true : results.shift
+    end
     fake.define_singleton_method(:configured?) { true }
     fake.define_singleton_method(:captured) { captured }
+    fake.define_singleton_method(:attempts) { attempts }
     fake
   end
 
@@ -228,6 +239,55 @@ class PrReviewJobTest < ActiveJob::TestCase
     assert_empty fake.captured, "auth failure must not post a review"
     assert_equal 1, review.attempts
     assert_match(/authenticate/i, review.last_error)
+  end
+
+  # GitHub rejects an inline comment whose line is not part of the diff, and
+  # throws away the WHOLE review with it — 422. Four PRs (1214, 1233, 1268,
+  # 1273) were recorded here as reviewed while nothing ever reached them.
+
+  test "a rejected inline review is retried as a plain one carrying the findings" do
+    fake = fake_github(pr: pr_payload(sha: "abc"), reviews: [ false, true ])
+
+    with_github(fake) do
+      with_ai(%([{"path": "app/models/user.rb", "line": 42, "comment": "This drops the transaction."}])) do
+        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+      end
+    end
+
+    assert_equal 2, fake.attempts.size, "the inline attempt, then the fallback"
+    assert fake.attempts.first[:comments].any?, "first attempt pins the finding to the diff"
+    assert_empty fake.attempts.last[:comments], "the retry carries no inline comments"
+    # The finding must survive the fallback, with where it was meant to point.
+    assert_match(/app\/models\/user\.rb:42/, fake.attempts.last[:body])
+    assert_match(/drops the transaction/, fake.attempts.last[:body])
+
+    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    assert_equal "abc", review.last_reviewed_sha, "the fallback counts as posted"
+    assert_equal "comments", review.outcome
+  end
+
+  test "a review GitHub refuses outright is not recorded as posted" do
+    fake = fake_github(pr: pr_payload(sha: "abc"), reviews: [ false, false ])
+
+    with_github(fake) do
+      with_ai(%([{"path": "a.rb", "line": 1, "comment": "Something."}])) do
+        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+      end
+    end
+
+    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    assert_nil review.reviewed_at, "nothing reached the PR, so it is not reviewed"
+    assert_nil review.last_reviewed_sha
+    assert_equal 1, review.attempts, "it costs a retry and comes back with a backoff"
+    assert_match(/rejected/i, review.last_error)
+  end
+
+  test "a rejected no-issues review is not recorded as posted either" do
+    fake = fake_github(pr: pr_payload(sha: "abc"), reviews: [ false ])
+
+    with_github(fake) { with_ai("[]") { PrReviewJob.perform_now(@workspace.id, 7, "initial") } }
+
+    assert_nil PrReview.find_by(workspace: @workspace, pr_number: 7).reviewed_at
   end
 
   test "a successful review clears the retry state left by earlier failures" do

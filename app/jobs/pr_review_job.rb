@@ -101,7 +101,12 @@ class PrReviewJob < ApplicationJob
     issues = reject_already_posted(github, pr_number, issues)
 
     issues = issues.first(CAPS.fetch(mode, 4))
-    post_review(github, pr_number, issues)
+    # A review GitHub refused is not a review: record the failure so it retries
+    # with a backoff and shows up in the UI, instead of the PR being marked
+    # reviewed with comments that never reached it.
+    unless post_review(github, pr_number, issues)
+      return record.record_failure!(head_sha, "GitHub rejected the review (see log for its reason)")
+    end
 
     record.update!(record.failure_cleared_attributes.merge(
       last_reviewed_sha: head_sha,
@@ -237,12 +242,33 @@ class PrReviewJob < ApplicationJob
       .gsub("{{CAP}}", cap.to_s)
   end
 
+  # Returns true when GitHub accepted the review.
+  #
+  # An inline comment is rejected outright (422) when its line is not part of
+  # the diff — a line number the AI took from the file rather than the changed
+  # hunk is enough, and GitHub then drops the WHOLE review, every comment with
+  # it. That happened on PRs 1214, 1233, 1268 and 1273: the review was written,
+  # thrown away by GitHub, and recorded here as posted.
+  #
+  # So a rejected inline review is retried as a plain one with the findings in
+  # its body. Less precise than a comment pinned to a line, but the developer
+  # gets the review instead of silence.
   def post_review(github, pr_number, issues)
-    if issues.empty?
-      github.create_review(pr_number, body: "🤖 No issues found 👍", event: "COMMENT", comments: [])
-    else
-      comments = issues.map { |i| { path: i[:path], line: i[:line], side: "RIGHT", body: i[:comment] } }
-      github.create_review(pr_number, body: "🤖 Automated AI review", event: "COMMENT", comments: comments)
-    end
+    return github.create_review(pr_number, body: "🤖 No issues found 👍", event: "COMMENT", comments: []) if issues.empty?
+
+    comments = issues.map { |i| { path: i[:path], line: i[:line], side: "RIGHT", body: i[:comment] } }
+    return true if github.create_review(pr_number, body: "🤖 Automated AI review", event: "COMMENT", comments: comments)
+
+    Rails.logger.warn("[PrReviewJob] inline review rejected for ##{pr_number} — retrying without inline comments")
+    github.create_review(pr_number, body: fallback_review_body(issues), event: "COMMENT", comments: [])
+  end
+
+  # The findings as one message, each with the file and line it refers to, since
+  # they can no longer be pinned to the diff.
+  def fallback_review_body(issues)
+    lines = issues.map { |i| "- **`#{i[:path]}:#{i[:line]}`** — #{i[:comment]}" }
+    "🤖 Automated AI review\n\n" \
+      "(couldn't attach these to the diff — GitHub rejected the line references)\n\n" +
+      lines.join("\n")
   end
 end
