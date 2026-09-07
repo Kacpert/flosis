@@ -91,6 +91,38 @@ class Workshop::JiraBrowserControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Imported ELV-1 · Briefing", flash[:clar_toast]
   end
 
+  # Importing a ticket that is already in the pipeline is a stale board, a double
+  # click or a back button — not an error. It used to raise on the duplicate v0
+  # brief ([task_id, version] is unique) and hand the user a 500 page.
+  test "importing a ticket that is already in the pipeline opens it instead of erroring" do
+    @task.enter_pipeline!(author: users(:one), stage: "details")
+    @task.briefs.create!(workspace: @task.project.workspace, version: 0, origin: "jira",
+                         status: "draft", content: "Already here.").make_current!
+
+    assert_no_difference -> { Brief.count } do
+      post workshop_ideas_path, params: { task_id: @task.id }
+    end
+
+    assert_redirected_to workshop_idea_path(@task, stage: "details")
+    assert_match(/already in the pipeline/, flash[:clar_toast])
+    assert_equal "details", @task.reload.workshop_stage, "its stage is left alone"
+    assert_equal "Already here.", @task.briefs.find_by(version: 0).content, "and so are its documents"
+  end
+
+  # A ticket can leave the pipeline and keep its documents, so the seed has to
+  # cope with a v0 that already exists.
+  test "re-importing a ticket that kept an old v0 brief does not raise" do
+    @task.briefs.create!(workspace: @task.project.workspace, version: 0, origin: "jira",
+                         status: "draft", content: "From an earlier run.").make_current!
+
+    assert_no_difference -> { Brief.count } do
+      post workshop_ideas_path, params: { task_id: @task.id }
+    end
+
+    assert_redirected_to workshop_idea_path(@task)
+    assert @task.reload.in_pipeline?
+  end
+
   test "POST import seeds a current v0 brief from the task description" do
     post workshop_ideas_path, params: { task_id: @task.id }
 

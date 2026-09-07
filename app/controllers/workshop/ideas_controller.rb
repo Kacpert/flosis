@@ -232,14 +232,28 @@ class Workshop::IdeasController < Workshop::BaseController
   # same as the new-idea path, so Briefing always starts from something.
   def import_from_jira
     task = current_workshop_project.tasks.find(params[:task_id])
+
+    # Importing a ticket that is already in the pipeline is not an error — it is
+    # a stale board, a double click, or a back button. Take the user to it
+    # instead of blowing up (it used to 500 on the duplicate v0 brief) and leave
+    # its stage and its documents exactly as they are.
+    if task.in_pipeline?
+      flash[:clar_toast] = "#{task.external_reference} is already in the pipeline"
+      return redirect_to workshop_idea_path(task, stage: explicit_stage(task.workshop_stage))
+    end
+
     stage = start_stage
     task.enter_pipeline!(author: current_user, stage: stage)
 
     # Seed from the ticket's own ADF when we have it: that keeps the headings,
     # bold, lists and tables the description was written with, instead of the
     # flattened text. Origin "jira" so the panel says where it came from.
+    #
+    # Guarded on the brief as well: a ticket pulled out of the pipeline keeps
+    # its documents, and [task_id, version] is unique, so re-seeding a v0 would
+    # raise rather than start over.
     seed = AdfToMarkdown.call(task.description_adf).presence || task.description
-    if seed.present?
+    if seed.present? && !task.briefs.exists?(version: 0)
       task.briefs.create!(workspace: task.project.workspace, version: 0,
                           origin: "jira", status: "draft", content: seed).make_current!
     end
