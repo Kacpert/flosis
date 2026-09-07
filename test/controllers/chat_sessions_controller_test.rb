@@ -38,6 +38,31 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes msg["thinking"], "Let me search the code."
   end
 
+  # The conversation belongs to the ticket, not to whoever started it: anyone in
+  # the workspace opens the same one. A workspace_client (the client-side
+  # Product Owner) used to get a 403 here, so the chat panel rendered empty
+  # while the page around it worked — the conversation looked lost.
+  test "a workspace_client sees the conversation someone else started" do
+    session = chat_sessions(:one)
+    session.chat_messages.create!(role: "user", content: "Started by an employee.", user: users(:one))
+    sign_in_as(users(:workspace_client_user))
+
+    get jira_task_chat_session_path(@task), as: :json
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert_equal session.id, json["chat_session"]["id"]
+    assert_includes json["chat_session"]["messages"].map { |m| m["content"] }, "Started by an employee."
+  end
+
+  test "a workspace_client may open the chat" do
+    sign_in_as(users(:workspace_client_user))
+
+    post jira_task_chat_session_path(@task), as: :json
+
+    assert_response :success
+  end
+
   test "show returns 404 when no active session" do
     chat_sessions(:one).update!(status: "closed")
     get jira_task_chat_session_path(@task), as: :json

@@ -55,9 +55,14 @@ class User < ApplicationRecord
     role_in(workspace) == "workspace_client"
   end
 
-  # Clients get Jira-tasks-only access alongside employees/admins/owners.
+  # Everyone who works on tickets: employees and up, the Jira-only `client`, and
+  # a `workspace_client` — who has FULL Workshop access (see
+  # #workspace_client_role?) and so cannot be the one role locked out of the
+  # Jira Tasks surface. Leaving them out gave a Product Owner a 403 on the AI
+  # chat while the page around it rendered fine, so the conversation simply
+  # appeared empty.
   def client_or_employee?(workspace)
-    client_role?(workspace) || at_least_employee?(workspace)
+    client_role?(workspace) || workspace_client_role?(workspace) || at_least_employee?(workspace)
   end
 
   # Pricing (rates/revenue/costs) is visible to admins/owners and to

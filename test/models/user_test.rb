@@ -55,6 +55,17 @@ class UserTest < ActiveSupport::TestCase
     refute user.time_hr_member?(ws)
   end
 
+  # A workspace_client is the Product Owner on the client side: full Workshop
+  # access. Leaving them out of this predicate 403'd them out of the Jira Tasks
+  # surface — including the AI chat, which then rendered as an empty panel.
+  test "workspace_client counts as someone who works on tickets" do
+    workspace = workspaces(:one)
+
+    assert users(:workspace_client_user).client_or_employee?(workspace)
+    assert users(:client_user).client_or_employee?(workspace), "the Jira-only client too"
+    assert users(:one).client_or_employee?(workspace), "and employees and up"
+  end
+
   test "workspace_client sees pricing" do
     ws = workspaces(:one)
     user = workspace_client_user(ws)
