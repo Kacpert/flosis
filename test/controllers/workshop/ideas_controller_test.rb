@@ -288,9 +288,46 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     get workshop_idea_path(idea, stage: "details")
     assert_response :success
     # The "Finish · go to Ready" primary is a save_locally form…
-    assert_select "form[action='#{save_locally_workshop_idea_path(idea)}'] button", text: /Finish · go to Ready/
+    assert_select "form[action='#{save_locally_workshop_idea_path(idea, stage: 'details')}'] button",
+                  text: /Finish · go to Ready/
     # …and the details advance does NOT go through push_jira (which writes to Jira).
     assert_select "form[action='#{push_jira_workshop_idea_path(idea)}']", count: 0
+  end
+
+  # Pressing "Finish · go to Ready" twice used to stamp the BRIEF as saved
+  # locally and bounce the user back to Briefing: the action read the stage off
+  # the task, which the first click had already moved to "ready".
+  test "finishing again from the details panel keeps you on Ready" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "ready", pipeline_entered_at: 1.hour.ago,
+                 detail_saved_locally_at: 1.minute.ago)
+
+    post save_locally_workshop_idea_path(idea, stage: "details")
+
+    assert_redirected_to workshop_idea_path(idea, stage: "ready")
+    assert_equal "ready", idea.reload.workshop_stage
+    assert_nil idea.brief_saved_locally_at, "the brief must not be marked saved by a details action"
+  end
+
+  test "the briefing panel's local save still stays on briefing" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+
+    post save_locally_workshop_idea_path(idea, stage: "briefing")
+
+    assert_redirected_to workshop_idea_path(idea, stage: "briefing")
+    assert_not_nil idea.reload.brief_saved_locally_at
+    assert_equal "briefing", idea.workshop_stage
+  end
+
+  test "without a stage param it still follows the task's own stage" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+
+    post save_locally_workshop_idea_path(idea)
+
+    assert_redirected_to workshop_idea_path(idea, stage: "ready")
+    assert_equal "ready", idea.reload.workshop_stage
   end
 
   test "a non-current, non-v0 version shows a Delete button; current and v0 do not" do

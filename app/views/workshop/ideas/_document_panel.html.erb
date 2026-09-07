@@ -271,7 +271,9 @@
             DETAILS: "Finish · go to Ready" saves locally + advances to Ready, no
             Jira write. %>
         <% if is_details %>
-          <%= button_to save_locally_workshop_idea_path(idea), method: :post,
+          <%# Send the stage this panel is showing: the action must not read it
+              back off the task, which may already have moved on. %>
+          <%= button_to save_locally_workshop_idea_path(idea, stage: stage), method: :post,
                 form: { data: { turbo_frame: "_top" } },
                 class: "clar-btn clar-btn-primary clar-btn-block",
                 title: "Save locally and finish (use Update Jira Ticket to push to Jira)" do %>

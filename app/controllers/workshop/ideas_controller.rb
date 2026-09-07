@@ -65,7 +65,14 @@ class Workshop::IdeasController < Workshop::BaseController
   def save_locally
     @idea = current_workshop_project.tasks.pipeline.find(params[:id])
 
-    if @idea.workshop_stage == "details"
+    # Which stage's button was pressed, not where the task has since moved to.
+    # Reading workshop_stage sent a second click on "Finish · go to Ready" —
+    # from a details panel of a task already at ready — down the BRIEFING
+    # branch: it stamped the brief as saved locally and bounced the user back
+    # to Briefing, which is the opposite of what the button says.
+    stage = params[:stage].presence_in(%w[briefing details]) || @idea.workshop_stage
+
+    if stage == "details"
       @idea.update!(detail_saved_locally_at: Time.current, workshop_stage: "ready")
       flash[:clar_toast] = "Saved to the task locally · finished without Jira"
       redirect_to workshop_idea_path(@idea, stage: "ready")
