@@ -79,6 +79,23 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
   # same seam BriefChatSessionsControllerTest uses for its refine_current
   # coverage — to get a real assertion on the generated prompt text without
   # spinning up the SSE/create endpoint.
+  # The draft block is stripped out of the chat and rendered in the Description
+  # panel, so a lead-in like "Here's the refined ticket:" left the reader
+  # looking at a sentence with nothing after it — a client had no idea the
+  # description had been rewritten at all.
+  test "the prompt tells the AI to point the reader at the description panel" do
+    controller = ChatSessionsController.new
+    controller.instance_variable_set(:@task, @task)
+    def controller.params; {}; end
+
+    prompt = controller.send(:build_initial_prompt)
+
+    assert_match(/REMOVED from the chat/, prompt)
+    assert_match(/Description panel on the right/, prompt)
+    assert_match(/version selector/, prompt)
+    assert_match(/never write as though the ticket were in the chat/, prompt)
+  end
+
   test "build_initial_prompt appends the refine_current paragraph and current brief when mode=refine_current" do
     workspace = workspaces(:one)
     @task.briefs.create!(

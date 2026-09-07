@@ -143,11 +143,13 @@ class ChatSessionsController < ApplicationController
       (Only if any remain — otherwise omit this section)
       </draft>
 
-      The `<draft>` and `</draft>` markers are **mandatory** — the system uses them to save the draft as a versioned record the user can copy into Jira. Do not put anything outside the tags besides a one-line lead-in like "Here's the refined ticket:".
+      The `<draft>` and `</draft>` markers are **mandatory** — the system uses them to save the draft as a versioned record the user can copy into Jira.
+
+      IMPORTANT: the block is REMOVED from the chat and rendered in the **Description panel on the right**. So the reader never sees the ticket where you wrote it, and a lead-in like "Here's the refined ticket:" leaves them staring at a sentence with nothing after it. Outside the tags write one short line that says WHERE it went and how to compare versions — e.g. "The refined description is in the Description panel on the right; use the version selector at the top of that panel to switch between versions." Vary the wording, keep it to one sentence, and never write as though the ticket were in the chat.
 
       ## Step 4 — Revisions
 
-      If the user asks for changes after the first draft, produce a fully revised ticket in a **new** `<draft>...</draft>` block — don't show a diff and don't reuse the old block. Each `<draft>` block becomes a new saved version, and the user always has access to the previous ones.
+      If the user asks for changes after the first draft, produce a fully revised ticket in a **new** `<draft>...</draft>` block — don't show a diff and don't reuse the old block. Each `<draft>` block becomes a new saved version in that same panel, and the earlier ones stay available in its version selector — say so in your one-line note, so the reader knows the previous wording was not lost.
 
       # Start now
 
