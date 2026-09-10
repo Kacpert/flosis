@@ -306,6 +306,68 @@ class PrReviewJobTest < ActiveJob::TestCase
     assert_nil record.next_attempt_at
   end
 
+  # What a ticket ends up meaning is usually settled in its comments ("we agreed
+  # to drop X", "admins only") — a reviewer without them flags decisions as
+  # mistakes.
+  test "the prompt carries the linked ticket's comments, oldest last" do
+    task = tasks(:jira_task)
+    task.update!(external_reference: "DEV-836", description: "Original description.")
+    task.jira_comments.create!(jira_comment_id: "1", author_name: "Ana", body: "We agreed to drop the cache.",
+                               jira_created_at: 3.days.ago)
+    task.jira_comments.create!(jira_comment_id: "2", author_name: "Bo", body: "Admins only, not recruiters.",
+                               jira_created_at: 1.day.ago)
+
+    prompt = PrReviewJob.new.send(:build_prompt, @workspace, pr_payload, [], "initial")
+
+    assert_includes prompt, "Linked Jira ticket DEV-836"
+    assert_includes prompt, "Original description."
+    assert_includes prompt, "Comments on the ticket"
+    assert_includes prompt, "Ana"
+    assert_includes prompt, "We agreed to drop the cache."
+    assert_operator prompt.index("We agreed to drop the cache."), :<,
+                    prompt.index("Admins only, not recruiters."), "oldest first, newest last"
+  end
+
+  test "only the most recent comments travel, and the prompt says so" do
+    task = tasks(:jira_task)
+    task.update!(external_reference: "DEV-836")
+    (PrReviewJob::MAX_TICKET_COMMENTS + 3).times do |i|
+      task.jira_comments.create!(jira_comment_id: "c#{i}", author_name: "Ana",
+                                 body: "comment number #{i}", jira_created_at: (30 - i).days.ago)
+    end
+
+    prompt = PrReviewJob.new.send(:build_prompt, @workspace, pr_payload, [], "initial")
+
+    assert_includes prompt, "the #{PrReviewJob::MAX_TICKET_COMMENTS} most recent of #{PrReviewJob::MAX_TICKET_COMMENTS + 3}"
+    assert_not_includes prompt, "comment number 0", "the oldest are dropped"
+    assert_includes prompt, "comment number #{PrReviewJob::MAX_TICKET_COMMENTS + 2}", "the newest is kept"
+  end
+
+  test "a ticket with no comments reads exactly as before" do
+    tasks(:jira_task).update!(external_reference: "DEV-836")
+
+    prompt = PrReviewJob.new.send(:build_prompt, @workspace, pr_payload, [], "initial")
+
+    assert_includes prompt, "Linked Jira ticket DEV-836"
+    assert_not_includes prompt, "Comments on the ticket"
+  end
+
+  # The reviewer gets read-only Jira: a PR names its ticket, and the epic or a
+  # linked issue is often what separates "this is wrong" from "this is what was
+  # asked for". It must never be able to write.
+  test "the review tool set adds read-only Jira and nothing that writes" do
+    tools = ClaudeCliService::REVIEW_TOOLS
+
+    assert_includes tools, "mcp__jira__jira_get_issue"
+    assert_includes tools, "mcp__jira__jira_search"
+    assert_includes tools, "Read", "and keeps the codebase tools"
+    %w[jira_add_comment jira_edit_comment jira_update_issue jira_transition_issue jira_create_issue
+       jira_delete_issue].each do |tool|
+      assert_not_includes tools, "mcp__jira__#{tool}"
+    end
+    assert_not_includes tools, "Bash"
+  end
+
   test "build_prompt with blank pr_review_prompt preserves the original ticket/diff/instructions ORDER" do
     @workspace.update!(pr_review_prompt: nil)
     job = PrReviewJob.new

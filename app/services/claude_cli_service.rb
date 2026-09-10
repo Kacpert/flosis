@@ -97,6 +97,16 @@ class ClaudeCliService
     mcp__figma__download_figma_images
   ].freeze
 
+  # The PR reviewer's set: the default tools plus READ-ONLY Jira. A PR usually
+  # names its ticket, and the ticket's own record — acceptance criteria, linked
+  # issues, what was decided in the discussion — is what separates "this is
+  # wrong" from "this is what was asked for". Read only: a reviewer has no
+  # business writing to Jira.
+  REVIEW_TOOLS = (ALLOWED_TOOLS + %w[
+    mcp__jira__jira_get_issue
+    mcp__jira__jira_search
+  ]).freeze
+
   # Tools for AI Agents & Alerts: read code, read the web, and act on
   # GitHub + Jira via MCP (list/read PRs, read issues, add/edit Jira comments) so
   # an automation can e.g. scan PRs and post a Jira comment. Read + a NARROW set

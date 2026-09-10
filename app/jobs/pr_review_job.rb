@@ -182,7 +182,19 @@ class PrReviewJob < ApplicationJob
 
   def ai_issues(workspace, pr, files, mode)
     prompt = build_prompt(workspace, pr, files, mode)
-    response = ClaudeCliService.new(codebase_path: CODEBASE_PATH).start_session(prompt: prompt)[:response].to_s
+    # Read-only Jira alongside the codebase: the prompt carries the ticket and
+    # its comments, but a reviewer often needs the epic, a linked issue or a
+    # ticket the PR only mentions in passing — and those it has to fetch.
+    # Without an MCP config the CLI gets no servers at all (--strict-mcp-config).
+    project = jira_project_for(workspace, prompt)
+    mcp_config = (ProjectMcpConfig.write!(project) if project&.workspace_dir.present?)
+
+    service = ClaudeCliService.new(
+      codebase_path: CODEBASE_PATH,
+      allowed_tools: mcp_config ? ClaudeCliService::REVIEW_TOOLS : nil,
+      mcp_config: mcp_config
+    )
+    response = service.start_session(prompt: prompt)[:response].to_s
     json = extract_json(response)
 
     if json.nil?
@@ -210,6 +222,18 @@ class PrReviewJob < ApplicationJob
     []
   end
 
+  # The project whose Jira credentials the reviewer should use. A workspace can
+  # hold several, so prefer the one the PR's own ticket belongs to and fall back
+  # to the workspace's first Jira project — one repo maps to one Jira project in
+  # practice, and the wrong credentials would just fail to read.
+  def jira_project_for(workspace, prompt)
+    key = prompt[/Linked Jira ticket ([A-Z][A-Z0-9]+-\d+):/, 1]
+    task = key && Task.find_by(external_reference: key)
+    return task.project if task&.project&.workspace_id == workspace.id
+
+    workspace.projects.active.find_by(external_type: "jira")
+  end
+
   # True when the response indicates the CLI failed to run a real review rather
   # than legitimately finding nothing.
   def cli_failed?(response)
@@ -221,14 +245,16 @@ class PrReviewJob < ApplicationJob
     text.to_s[/\[.*\]/m]
   end
 
+  # How many of the ticket's comments to include. Newest last, so the reader
+  # ends on the most recent decision; enough to carry a discussion without
+  # burying the diff.
+  MAX_TICKET_COMMENTS = 12
+  COMMENT_LENGTH = 700
+
   def build_prompt(workspace, pr, files, mode)
     key = PrJiraKey.extract(branch: pr.dig("head", "ref"), title: pr["title"], body: pr["body"])
     task = key ? Task.find_by(external_reference: key) : nil
-    ticket = if task
-      "Linked Jira ticket #{key}:\nTitle: #{task.name}\nDescription: #{task.description}"
-    else
-      "No linked Jira ticket."
-    end
+    ticket = task ? ticket_section(key, task) : "No linked Jira ticket."
     cap = CAPS.fetch(mode, 4)
     diff = files.map { |f| "FILE: #{f['filename']}\n#{f['patch']}" }.join("\n\n")
     template = workspace.pr_review_prompt.presence || DEFAULT_PROMPT
@@ -253,6 +279,28 @@ class PrReviewJob < ApplicationJob
   # So a rejected inline review is retried as a plain one with the findings in
   # its body. Less precise than a comment pinned to a line, but the developer
   # gets the review instead of silence.
+  # Title, description and the discussion. Comments matter as much as the
+  # description here: what a ticket ends up meaning is usually settled in them
+  # ("we agreed to drop X", "only for admins"), and a reviewer without that
+  # flags decisions as mistakes.
+  def ticket_section(key, task)
+    lines = [ "Linked Jira ticket #{key}:", "Title: #{task.name}", "Description: #{task.description}" ]
+
+    comments = task.jira_comments.order(:jira_created_at).last(MAX_TICKET_COMMENTS)
+    if comments.any?
+      total = task.jira_comments.count
+      shown = total > comments.size ? " (the #{comments.size} most recent of #{total})" : ""
+      lines << "\nComments on the ticket#{shown}, oldest first:"
+      comments.each do |comment|
+        who = comment.author_name.presence || comment.author_email.presence || "someone"
+        when_at = comment.jira_created_at&.to_date&.iso8601
+        lines << "- #{who}#{" on #{when_at}" if when_at}: #{comment.body.to_s.squish.truncate(COMMENT_LENGTH)}"
+      end
+    end
+
+    lines.join("\n")
+  end
+
   def post_review(github, pr_number, issues)
     return github.create_review(pr_number, body: "🤖 No issues found 👍", event: "COMMENT", comments: []) if issues.empty?
 
