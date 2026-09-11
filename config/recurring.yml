@@ -41,6 +41,12 @@ production:
   # AlertRuleRunJob for each active AlertRule whose schedule says it's due
   # right now (AlertRule#due?). The dispatch itself is cheap (no AI calls) —
   # the per-rule AI evaluation happens in the enqueued job.
+  # Credentials rot on their own — a Figma token expired unnoticed and the AI
+  # was the one to break the news, to a client. Ask every integration whether it
+  # still works, so the topbar chips report health rather than "configured".
+  integration_health:
+    class: IntegrationHealthJob
+    schedule: every 30 minutes
   alert_rules_dispatch:
     class: AlertRulesDispatchJob
     schedule: every 5 minutes

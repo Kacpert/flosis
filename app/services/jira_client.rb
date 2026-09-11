@@ -12,6 +12,30 @@ class JiraClient
     @api_token = api_token
   end
 
+  def configured?
+    @domain.present? && @email.present? && @api_token.present?
+  end
+
+  # { ok: true } or { ok: false, error: "..." } — whether these credentials can
+  # still talk to Jira at all. /myself is the cheapest call that proves it.
+  # Never raises: a health check must not be able to break the page it feeds.
+  def health_check
+    return { ok: false, error: "Jira is not configured" } unless configured?
+
+    uri = URI("https://#{@domain}/rest/api/3/myself")
+    request = Net::HTTP::Get.new(uri)
+    request["Authorization"] = "Basic #{Base64.strict_encode64("#{@email}:#{@api_token}")}"
+    request["Accept"] = "application/json"
+
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: true,
+                               open_timeout: 10, read_timeout: 10) { |http| http.request(request) }
+    return { ok: true } if response.is_a?(Net::HTTPSuccess)
+
+    { ok: false, error: "#{response.code} #{response.message}" }
+  rescue StandardError => e
+    { ok: false, error: "#{e.class}: #{e.message}" }
+  end
+
   def fetch_projects
     results = []
     start_at = 0

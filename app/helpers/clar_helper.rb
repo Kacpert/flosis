@@ -71,6 +71,46 @@ module ClarHelper
   # Text color for the AI Alerts rules-list "last run" status chip
   # (AlertRule#last_run_status: :fired/:quiet are both green "ok" outcomes,
   # :error is red, :not_run is neutral gray).
+  # The topbar's integration chips. Each is one of three states:
+  #   configured and its last health check passed → on (green)
+  #   configured but the last check FAILED        → broken (red, reason on hover)
+  #   not configured at all                       → neither (grey)
+  #
+  # Discord has no health check: a webhook URL is write-only, so there is
+  # nothing to ask it. It reports configured-or-not, and says so on hover
+  # rather than implying it was verified.
+  def integration_chips
+    workspace = Current.workspace
+
+    [
+      chip("Jira", configured: current_workshop_project&.jira_connected?,
+                   ok: workspace.jira_status_ok, error: workspace.jira_status_error),
+      chip("GitHub", configured: workspace.github_repo.present?,
+                     ok: workspace.github_status_ok, error: workspace.github_status_error),
+      chip("Discord", configured: workspace.discord_channel_id.present?, ok: nil, error: nil,
+                      unchecked_note: "not health-checked"),
+      chip("Figma", configured: workspace.figma_read_enabled?,
+                    ok: workspace.figma_status_ok, error: workspace.figma_status_error)
+    ]
+  end
+
+  private
+
+  def chip(label, configured:, ok:, error:, unchecked_note: "not checked yet")
+    broken = configured.present? && ok == false
+
+    title =
+      if !configured.present? then "#{label} · not connected"
+      elsif broken            then "#{label} · not working — #{error.presence || 'last check failed'}"
+      elsif ok.nil?           then "#{label} · connected (#{unchecked_note})"
+      else "#{label} · connected"
+      end
+
+    { label: label, on: configured.present?, broken: broken, title: title }
+  end
+
+  public
+
   def alert_last_run_color_class(status)
     case status
     when :fired, :quiet then "text-[color:var(--success)]"

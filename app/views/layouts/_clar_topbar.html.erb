@@ -49,18 +49,16 @@
   </div>
 
   <div class="flex items-center gap-[7px]">
-    <%
-      jira_on = current_workshop_project&.jira_connected?
-      github_on = Current.workspace.github_repo.present? && Current.workspace.github_status_ok
-      discord_on = Current.workspace.discord_channel_id.present?
-      figma_on = Current.workspace.figma_read_enabled
-      chips = { "Jira" => jira_on, "GitHub" => github_on, "Discord" => discord_on, "Figma" => figma_on }
-    %>
-    <% chips.each do |label, on| %>
-      <div title="<%= label %><%= on ? ' connected' : ' not connected' %>"
-           class="flex items-center gap-[5px] text-[11px] font-semibold rounded-[7px] border px-2 py-1 <%= on ? 'clar-text-muted' : 'clar-text-faint' %>"
-           style="background: var(--surface-2); border-color: var(--border);">
-        <span class="w-1.5 h-1.5 rounded-full" style="background: <%= on ? 'var(--success)' : 'var(--faint)' %>;"></span><%= label %>
+    <%# Three states, not two. Green used to mean "somebody filled the field in",
+        which is a different question from "does it work" — a Figma token
+        expired in silence and the AI broke the news to a client mid-chat.
+        configured + healthy → green · configured + failing → red, with the
+        reason on hover · not configured → grey. %>
+    <% integration_chips.each do |chip| %>
+      <div title="<%= chip[:title] %>"
+           class="flex items-center gap-[5px] text-[11px] font-semibold rounded-[7px] border px-2 py-1 <%= chip[:broken] ? 'clar-text-danger' : (chip[:on] ? 'clar-text-muted' : 'clar-text-faint') %>"
+           style="background: var(--surface-2); border-color: <%= chip[:broken] ? 'var(--danger)' : 'var(--border)' %>;">
+        <span class="w-1.5 h-1.5 rounded-full" style="background: <%= chip[:broken] ? 'var(--danger)' : (chip[:on] ? 'var(--success)' : 'var(--faint)') %>;"></span><%= chip[:label] %>
       </div>
     <% end %>
   </div>

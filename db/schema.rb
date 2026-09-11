@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_11_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -693,6 +693,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_150000) do
     t.string "estimation_status_trigger", default: "Ready for dev"
     t.string "estimation_trigger", default: "manual", null: false
     t.boolean "figma_read_enabled", default: false, null: false
+    t.datetime "figma_status_checked_at"
+    t.string "figma_status_error"
+    t.boolean "figma_status_ok"
     t.string "github_repo"
     t.datetime "github_status_checked_at"
     t.string "github_status_error"
@@ -700,6 +703,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_150000) do
     t.string "github_token"
     t.string "jira_ai_actions_field_id"
     t.string "jira_ai_estimation_field_id"
+    t.datetime "jira_status_checked_at"
+    t.string "jira_status_error"
+    t.boolean "jira_status_ok"
     t.string "jira_story_points_field_id"
     t.string "name", null: false
     t.integer "pr_poll_minutes", default: 7, null: false
