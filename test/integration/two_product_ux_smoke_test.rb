@@ -77,6 +77,9 @@ class TwoProductUxSmokeTest < ActionDispatch::IntegrationTest
   end
 
   test "employee (time_hr only): no switcher dropdown, no workshop access" do
+    # Workshop access is now "has a project to work in" rather than a flag, so
+    # the employee with only Time & HR is the one on no project at all.
+    ProjectMembership.where(user: users(:two)).destroy_all
     sign_in_as(users(:two))
     get time_entries_path
     assert_response :success
@@ -89,6 +92,9 @@ class TwoProductUxSmokeTest < ActionDispatch::IntegrationTest
   end
 
   test "switching to an inaccessible product is rejected" do
+    # Workshop access is now "has a project to work in" rather than a flag, so
+    # the employee with only Time & HR is the one on no project at all.
+    ProjectMembership.where(user: users(:two)).destroy_all
     sign_in_as(users(:two)) # no workshop
     post switch_product_path, params: { product: "workshop" }
     assert_redirected_to time_entries_path
