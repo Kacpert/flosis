@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_11_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_12_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -380,9 +380,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_120000) do
   end
 
   create_table "project_memberships", force: :cascade do |t|
+    t.boolean "automations", default: true, null: false
+    t.boolean "briefing_config", default: false, null: false
+    t.boolean "configuration", default: false, null: false
     t.datetime "created_at", null: false
     t.integer "hourly_rate_cents", default: 0, null: false
+    t.boolean "pricing", default: false, null: false
     t.bigint "project_id", null: false
+    t.boolean "reporting", default: true, null: false
+    t.boolean "tasks", default: true, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["project_id", "user_id"], name: "index_project_memberships_on_project_id_and_user_id", unique: true
@@ -678,6 +684,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_120000) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.boolean "workshop_access", default: false, null: false
+    t.boolean "workspace_admin", default: false, null: false
     t.bigint "workspace_id", null: false
     t.index ["user_id", "workspace_id"], name: "index_workspace_memberships_on_user_id_and_workspace_id", unique: true
     t.index ["user_id"], name: "index_workspace_memberships_on_user_id"
