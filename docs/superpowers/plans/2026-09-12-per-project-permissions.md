@@ -708,38 +708,9 @@ class PermissionGatesTest < ActionDispatch::IntegrationTest
     @membership.update!(PermissionPreset.attributes_for(preset))
   end
 
-  test "Tasks opens the Jira board and its absence closes it" do
-    with_permissions("Project Manager")
-    get jira_tasks_path
-    assert_response :success
-
-    @membership.update!(tasks: false)
-    get jira_tasks_path
-    assert_redirected_to root_path
-  end
-
-  test "Configuration opens the configuration page" do
-    with_permissions("Administrator")
-    get workshop_configuration_path(tab: "integrations")
-    assert_response :success
-  end
-
-  test "a Product Owner reaches Briefing but not Integrations" do
-    with_permissions("Product Owner")
-
-    get workshop_configuration_path(tab: "briefing")
-    assert_response :success
-
-    get workshop_configuration_path(tab: "integrations")
-    assert_redirected_to workshop_configuration_path(tab: "briefing")
-  end
-
-  test "a Project Manager cannot open the configuration page at all" do
-    with_permissions("Project Manager")
-
-    get workshop_configuration_path(tab: "briefing")
-    assert_response :redirect
-  end
+  # The Workshop-route cases live in Task 6 and the Configuration-tab cases in
+  # Task 8 — each is added by the task that makes it pass, so no task commits a
+  # red test.
 
   test "the workspace privilege opens the HR member directory" do
     with_permissions("Project Manager")
@@ -778,9 +749,11 @@ The picker is a member route on `projects` (`get :jira_tasks, to: "jira#jira_tas
 Run: `bin/rails test test/controllers/permission_gates_test.rb`
 Expected: FAIL — the Product Owner cases pass the page today, since Configuration is one admin-only gate
 
-- [ ] **Step 3: Rewrite the Authorization concern**
+- [ ] **Step 3: Add the new gates to the Authorization concern**
 
-Replace the whole body of `app/controllers/concerns/authorization.rb` with:
+**Add these to `app/controllers/concerns/authorization.rb`, leaving everything already there in place.** The old predicates are still called by fourteen Workshop controllers and a dozen views, which Tasks 6 to 8 migrate one at a time; deleting them here would leave three tasks committing a tree that raises. Task 9 removes them in one sweep once the last caller is gone.
+
+Extend the `helper_method` list rather than replacing it, and add:
 
 ```ruby
 # Every authorization question in the app funnels through here.
@@ -817,23 +790,6 @@ module Authorization
 
   def can?(permission)
     current_project_access.can?(permission)
-  end
-
-  def github_connection_problem?
-    project = current_workshop_project
-    project&.github_token.present? && project.github_status_ok == false
-  end
-
-  # Refuse the current request. A JSON caller gets a status it can read; an
-  # HTML one gets the familiar redirect and flash. Redirecting a JSON fetch to
-  # an HTML-only index used to raise UnknownFormat — hundreds of production
-  # stack traces for requests that were merely unauthorized.
-  def deny_access!(message, path, status: :forbidden)
-    if request.format.json?
-      render json: { error: message }, status: status
-    else
-      redirect_to path, alert: message
-    end
   end
 
   def require_permission!(permission)
@@ -880,22 +836,16 @@ module Authorization
          .order(:name)
   end
 
-  # Gate a controller to a product (:time_hr / :workshop).
-  def require_product!(product)
-    return if current_user&.can_access_product?(current_workspace, product)
-
-    deny_access!("You don't have access to that part of the app.", product_landing_path)
-  end
-
-  def jira_record_not_found
-    deny_access!("You don't have access to that.", jira_tasks_path, status: :not_found)
-  end
 end
 ```
 
+`deny_access!`, `current_membership`, `require_product!` and `jira_record_not_found` already exist and are unchanged. `github_connection_problem?` keeps reading the workspace for now — the project's own `github_status_ok` column does not exist until Task 10, and Task 11 is where it moves.
+
+**Replace** the existing `require_admin!`, `require_employee!` and `visible_jira_projects` with the versions above; that is the whole of this task's destructive surface.
+
 - [ ] **Step 4: Rewrite the product predicates on User**
 
-In `app/models/user.rb`, delete `role_in`, `admin_or_owner?`, `at_least_employee?`, `client_role?`, `workspace_client_role?`, `client_or_employee?`, `can_see_money?` and `time_hr_member?`, and replace the product block with:
+In `app/models/user.rb`, **leave every existing predicate in place** — Task 9 deletes them once the last caller is gone. Replace only the product block (`can_access_time_hr?`, `can_access_workshop?`, `accessible_products`, `default_product`, `can_access_product?`) with:
 
 ```ruby
   # ---- Product access (Time & HR / Workshop) ---------------------------
@@ -936,30 +886,21 @@ In `app/models/user.rb`, delete `role_in`, `admin_or_owner?`, `at_least_employee
   end
 ```
 
-- [ ] **Step 5: Strip the role enum and the client redirect**
+- [ ] **Step 5: Collapse the duplicated project scope, and check the fallout**
 
-In `app/models/workspace_membership.rb`, delete the `enum :role, ...` declaration and the comment block above it. Leave the column in place — Task 18 drops it.
-
-In `app/controllers/concerns/workspace_scoped.rb`:
-- delete `redirect_clients_to_jira`, its `before_action`, and the `CLIENT_ALLOWED_PREFIXES` / `CLIENT_ALLOWED_EXACT_PATHS` constants
-- drop the `client_role?` branch from `product_landing_path`
-- replace `workshop_projects` with `def workshop_projects = visible_jira_projects`, removing the duplicated scope
+In `app/controllers/concerns/workspace_scoped.rb`, replace `workshop_projects` with a delegation, removing the duplicated scope:
 
 ```ruby
-  # Landing path for a product. The Workshop's landing is the pipeline; a
-  # person holding only Tasks is redirected on from there by the ordinary gate.
-  def product_landing_path(product = current_product)
-    return time_entries_path unless product&.to_sym == :workshop
-
-    workshop_pipeline_path
-  end
-
   # The Jira projects forming the Workshop work context — the same set
   # Authorization already scopes for the Jira board.
   def workshop_projects
     visible_jira_projects
   end
 ```
+
+Leave `redirect_clients_to_jira`, its constants and `product_landing_path` alone; they still read `client_role?`, which survives until Task 9.
+
+**This task changes one behaviour, so check what it moves.** Workshop access used to be a flag and is now "has at least one project". A fixture employee with `workshop_access: false` who nevertheless has a project membership now HAS Workshop access. Run `bin/rails test test/controllers/workshop_controller_test.rb` and fix any case that was relying on the old flag by giving or removing the project membership, not by reintroducing the flag.
 
 - [ ] **Step 6: Rewrite the product access test**
 
@@ -1110,17 +1051,33 @@ And `app/controllers/jira_controller.rb`:
   before_action { require_permission!(:reporting) }
 ```
 
-- [ ] **Step 4: Run the gate test**
+- [ ] **Step 4: Add the case this task makes pass**
+
+Append to `test/controllers/permission_gates_test.rb`:
+
+```ruby
+  test "Tasks opens the Jira board and its absence closes it" do
+    with_permissions("Project Manager")
+    get jira_tasks_path
+    assert_response :success
+
+    @membership.update!(tasks: false)
+    get jira_tasks_path
+    assert_redirected_to root_path
+  end
+```
+
+- [ ] **Step 5: Run the gate test**
 
 Run: `bin/rails test test/controllers/permission_gates_test.rb`
-Expected: PASS apart from the two Configuration tab cases, which Task 8 finishes
+Expected: PASS, every case
 
-- [ ] **Step 5: Verify no caller of a deleted predicate survives**
+- [ ] **Step 6: Verify no controller still calls an old gate**
 
-Run: `grep -rn 'admin_or_owner?\|client_role?\|workspace_client\|at_least_employee?\|can_see_money?\|client_or_employee?\|require_workshop_config_access!\|require_workshop_member!\|require_workspace_member!' app lib`
-Expected: only hits in `app/views` and `app/helpers`, which Task 8 clears
+Run: `grep -rn 'require_workshop_config_access!\|require_workshop_member!\|require_client_or_employee!\|require_workspace_member!' app/controllers`
+Expected: no output. The predicates themselves still exist on `User` — Task 9 removes them once the views stop calling them too.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add app/controllers
@@ -1523,21 +1480,53 @@ Apply these substitutions across the view files listed at the top of this task:
 | `membership.workshop_access?` in `_clar_sidebar.html.erb` | `can?(:tasks)` |
 | `workshop_role_badge(...)` | `permission_role_badge(...)` |
 
-- [ ] **Step 7: Verify nothing references a deleted predicate**
+- [ ] **Step 7: Verify no view still calls an old predicate**
 
-Run: `grep -rn 'admin_or_owner?\|client_role?\|workspace_client\|at_least_employee?\|can_see_money?\|workshop_role_badge\|workshop_access' app lib`
-Expected: no output
+Run: `grep -rn 'admin_or_owner?\|can_see_money?\|workshop_role_badge\|workshop_access?' app/views app/helpers`
+Expected: no output. `client_role?` survives in `workspace_scoped.rb` until Task 9.
 
-- [ ] **Step 8: Run the affected tests**
+- [ ] **Step 8: Add the tab cases this task makes pass**
+
+Append to `test/controllers/permission_gates_test.rb`:
+
+```ruby
+  test "Configuration opens for an Administrator" do
+    with_permissions("Administrator")
+
+    get workshop_configuration_path(tab: "integrations")
+
+    assert_response :success
+  end
+
+  test "a Product Owner reaches Briefing but not Integrations" do
+    with_permissions("Product Owner")
+
+    get workshop_configuration_path(tab: "briefing")
+    assert_response :success
+
+    get workshop_configuration_path(tab: "integrations")
+    assert_redirected_to workshop_configuration_path(tab: "briefing")
+  end
+
+  test "a Project Manager cannot open the configuration page at all" do
+    with_permissions("Project Manager")
+
+    get workshop_configuration_path(tab: "briefing")
+
+    assert_response :redirect
+  end
+```
+
+- [ ] **Step 9: Run the affected tests**
 
 Run: `bin/rails test test/helpers/clar_helper_role_badge_test.rb test/controllers/permission_gates_test.rb test/controllers/workshop/configuration_controller_test.rb`
-Expected: PASS, including the two Product Owner tab cases from Task 5
+Expected: PASS
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add app/controllers/workshop/configuration_controller.rb app/views app/helpers/clar_helper.rb \
-  test/helpers/clar_helper_role_badge_test.rb
+  test/controllers/permission_gates_test.rb test/helpers/clar_helper_role_badge_test.rb
 git commit -m "feat: Configuration locks the tabs you lack, and views ask the new permissions"
 ```
 
@@ -1722,10 +1711,44 @@ done
 
 Expected: no `FAILED:` lines
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Delete the old model, now that nothing calls it**
+
+Every caller is gone as of Task 8, so remove the predicates in one sweep.
+
+From `app/models/user.rb`: `role_in`, `admin_or_owner?`, `at_least_employee?`, `client_role?`, `workspace_client_role?`, `client_or_employee?`, `can_see_money?`, `time_hr_member?`.
+
+From `app/controllers/concerns/authorization.rb`: `require_workshop_config_access!`, `require_client_or_employee!`, `require_workshop_member!`, `require_workspace_member!`, `workshop_config_manager?`, `can_see_money?`, and their entries in the `helper_method` list.
+
+From `app/models/workspace_membership.rb`: the `enum :role, ...` declaration and the comment block above it. Leave the column — Task 18 drops it.
+
+From `app/controllers/concerns/workspace_scoped.rb`: `redirect_clients_to_jira`, its `before_action`, the `CLIENT_ALLOWED_PREFIXES` and `CLIENT_ALLOWED_EXACT_PATHS` constants, and the `client_role?` branch of `product_landing_path`, which becomes:
+
+```ruby
+  # Landing path for a product. The Workshop's landing is the pipeline; a
+  # person holding only Tasks is redirected on from there by the ordinary gate.
+  def product_landing_path(product = current_product)
+    return time_entries_path unless product&.to_sym == :workshop
+
+    workshop_pipeline_path
+  end
+```
+
+Then confirm nothing survives:
 
 ```bash
-git add -A test
+grep -rn 'admin_or_owner?\|client_role?\|workspace_client\|at_least_employee?\|can_see_money?\|client_or_employee?\|time_hr_member?\|workshop_config_manager?\|require_workshop_config_access!\|require_workshop_member!\|require_client_or_employee!\|require_workspace_member!\|redirect_clients_to_jira' app lib
+```
+
+Expected: no output.
+
+- [ ] **Step 7: Re-run every test touched so far**
+
+Repeat the loop from Step 5. Expected: no `FAILED:` lines.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add -A app test
 git commit -m "test: express the suite in per-project permissions instead of workspace roles"
 ```
 
@@ -2526,6 +2549,8 @@ end
 <%= render "invite_modal" %>
 ```
 
+**Create `app/views/workshop/configuration/_invite_modal.html.erb` as an empty file in this same step.** Task 15 fills it. Without it every render of the Users tab raises a missing-partial error for the length of one task.
+
 Change `load_users_tab` in the configuration controller to:
 
 ```ruby
@@ -2987,7 +3012,7 @@ git commit -m "feat: the project switcher names the team and repo it is swapping
 - Test: `test/services/project_creator_test.rb`
 
 **Interfaces:**
-- Consumes: `ProjectCredentials` (Task 11), `PermissionPreset`, `ProjectMembership#apply_preset`.
+- Consumes: the project configuration columns from Task 10 (read directly as `source[column]`, not through `ProjectCredentials`), `PermissionPreset`, `ProjectMembership#apply_preset`.
 - Produces: `ProjectCreator.new(workspace:, attributes:, reuse_from:, member_ids:, preset:).call -> Project`. `reuse_from` is a `Hash{String => Integer}` mapping an integration name (`"jira"`, `"github"`, `"discord"`, `"figma"`, `"ai"`) to a source project id; a missing or blank entry means "set up later".
 
 - [ ] **Step 1: Write the failing test**
