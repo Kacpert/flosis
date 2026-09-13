@@ -69,7 +69,10 @@ class Workshop::DiscordWebhooksControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "employee (non-admin) is blocked from create and destroy" do
-    workspace_memberships(:two_employee).update!(workshop_access: true)
+    # Workshop access is now per-project Tasks/etc. permissions, not the
+    # retired workshop_access flag — fixture two_elvium already gives users(:two)
+    # a membership on @project without Configuration (column default: false),
+    # which is what this Configuration-only route actually gates on.
     sign_out
     sign_in_as(users(:two))
     post switch_product_path, params: { product: "workshop" }
@@ -79,11 +82,14 @@ class Workshop::DiscordWebhooksControllerTest < ActionDispatch::IntegrationTest
         discord_webhook: { channel_name: "#sneaky", url: "https://discord.com/api/webhooks/3/ghi" }
       }
     end
-    assert_redirected_to root_path
+    # require_permission! denies via workshop_landing_path, which stays inside
+    # Workshop — this membership keeps Tasks (column default: true), so it
+    # sends them to the pipeline, not to root_path.
+    assert_redirected_to workshop_pipeline_path
 
     webhook = DiscordWebhook.create!(workspace: @workspace, channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/abc")
     delete workshop_discord_webhook_path(webhook)
-    assert_redirected_to root_path
+    assert_redirected_to workshop_pipeline_path
     assert DiscordWebhook.exists?(webhook.id)
   end
 end

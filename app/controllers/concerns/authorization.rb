@@ -34,10 +34,13 @@ module Authorization
     current_project_access.can?(permission)
   end
 
-  def require_permission!(permission)
-    return if can?(permission)
+  # Passes when the person holds ANY of the named permissions. A page that
+  # serves two audiences — the process page carries both ticket flow and the
+  # automations — should not demand both.
+  def require_permission!(*permissions)
+    return if permissions.any? { |permission| can?(permission) }
 
-    deny_access!("You don't have permission to access this page.", product_landing_path)
+    deny_access!("You don't have permission to access this page.", workshop_landing_path)
   end
 
   # Standing in the project, without naming a permission. The Workshop subtree

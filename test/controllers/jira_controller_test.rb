@@ -113,10 +113,10 @@ class JiraControllerTest < ActionDispatch::IntegrationTest
 
     post jira_sync_project_path(@project)
 
-    # require_permission! denies via product_landing_path, not root_path — this
-    # user keeps time_hr_access: true (fixture two_employee), so the deny sends
-    # them to the product they still have (Time & HR), not to "/".
-    assert_redirected_to time_entries_path
+    # require_permission! denies via workshop_landing_path, which stays inside
+    # Workshop — this membership keeps Tasks (column default: true), so the
+    # deny sends them to the pipeline, not to Time & HR and not to root_path.
+    assert_redirected_to workshop_pipeline_path
   end
 
   test "projects requires admin" do

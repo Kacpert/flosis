@@ -63,9 +63,10 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
     # Passes the product gate (fixture two_elvium gives them a project in this
     # workspace), but the Workshop tab needs the Configuration permission,
     # which that membership doesn't grant (column default: false). Denied via
-    # product_landing_path, not root_path — they keep time_hr_access: true
-    # (fixture two_employee), so it sends them to Time & HR, not to "/".
-    assert_redirected_to time_entries_path
+    # workshop_landing_path, which stays inside Workshop — this membership
+    # keeps Tasks (column default: true), so it sends them to the pipeline,
+    # not to Time & HR and not to root_path.
+    assert_redirected_to workshop_pipeline_path
   end
 
   test "start redirects to the pipeline (legacy create-task flow retired, modals replace it)" do

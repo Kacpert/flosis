@@ -63,13 +63,41 @@ module WorkspaceScoped
     return time_entries_path unless product&.to_sym == :workshop
     return jira_tasks_path if current_user&.client_role?(current_workspace)
 
-    workshop_pipeline_path
+    workshop_landing_path
   end
 
-  # The Jira projects forming the Workshop work context — the same set
-  # Authorization already scopes for the Jira board.
+  # The first Workshop page this person can actually open. Every entry here
+  # must be a page whose own gate this branch has just proved, otherwise the
+  # redirect bounces and the browser gives up with too many redirects. Someone
+  # holding no Workshop permission at all gets their profile, which is gated by
+  # neither product.
+  def workshop_landing_path
+    return workshop_pipeline_path if can?(:tasks)
+    return workshop_process_path if can?(:automations)
+    return workshop_reporting_path if can?(:reporting)
+    return workshop_configuration_path if can?(:configuration) || can?(:briefing_config)
+
+    profile_path
+  end
+
+  # The Jira projects forming the Workshop work context: the project switcher,
+  # and via current_workshop_project below, what require_project_member! and
+  # every require_permission! check actually run against. Deliberately NOT
+  # visible_jira_projects (Authorization) — that scope is Tasks-specific (the
+  # Jira board's "which projects can I work tickets in"), and reusing it here
+  # left current_workshop_project unresolvable for anyone holding Automations,
+  # Reporting or Configuration but not Tasks: their membership would never
+  # match, so can?() saw no project at all and always answered false,
+  # regardless of what they were actually granted. This scope is any
+  # membership at all — the individual page still asks for the permission it
+  # needs once a project is selected.
   def workshop_projects
-    visible_jira_projects
+    scope = current_workspace.projects.active.where(external_type: "jira")
+    return scope.order(:name) if workspace_admin?
+
+    scope.joins(:project_memberships)
+         .where(project_memberships: { user_id: current_user&.id })
+         .order(:name)
   end
 
   # The active Workshop project context (a project switcher, like the workspace

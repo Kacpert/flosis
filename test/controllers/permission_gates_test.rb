@@ -9,6 +9,10 @@ class PermissionGatesTest < ActionDispatch::IntegrationTest
     @user = users(:two)
     workspace_memberships(:two_employee).update!(workspace_admin: false, time_hr_access: true)
     @membership = project_memberships(:two_elvium)
+    # workshop_enabled defaults to false — irrelevant to the HR/Jira-board
+    # cases above (neither goes through Workshop::BaseController's
+    # require_workshop!), but the Workshop-route cases below do.
+    workspaces(:one).update!(workshop_enabled: true)
     sign_in_as(@user)
   end
 
@@ -47,10 +51,11 @@ class PermissionGatesTest < ActionDispatch::IntegrationTest
 
     @membership.update!(tasks: false)
     get jira_tasks_path
-    # require_permission! denies via product_landing_path, not root_path — this
-    # user keeps time_hr_access: true from setup, so the deny sends them to the
-    # product they still have (Time & HR), not to "/".
-    assert_redirected_to time_entries_path
+    # require_permission! denies via workshop_landing_path, which stays inside
+    # Workshop and picks the best page this person can still open — Project
+    # Manager also grants Automations, so that's workshop_process_path, not
+    # Time & HR and not root_path.
+    assert_redirected_to workshop_process_path
   end
 
   # The picker is a member route on projects, so its helper takes the project.
@@ -59,6 +64,23 @@ class PermissionGatesTest < ActionDispatch::IntegrationTest
     @membership.update!(PermissionPreset::PERMISSIONS.index_with(false))
 
     get jira_tasks_project_path(@project)
+
+    assert_response :success
+  end
+
+  test "someone without Tasks is not bounced between pages forever" do
+    @membership.update!(PermissionPreset.attributes_for("Project Manager").merge(tasks: false))
+
+    get workshop_pipeline_path
+    follow_redirect!
+
+    assert_response :success, "the deny target must be a page this person can actually open"
+  end
+
+  test "someone holding only Automations reaches the automations page" do
+    @membership.update!(PermissionPreset::PERMISSIONS.index_with(false).merge(automations: true))
+
+    get workshop_process_path
 
     assert_response :success
   end

@@ -1,7 +1,7 @@
 # Agents & Automations: three AI automations (PR reviews, estimate, agents)
 # that comment/propose but never decide for the team.
 class Workshop::ProcessController < Workshop::BaseController
-  before_action { require_permission!(:tasks) }
+  before_action { require_permission!(:tasks, :automations) }
 
   TABS = %w[pr estimate alerts].freeze
 
