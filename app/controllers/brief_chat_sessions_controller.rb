@@ -12,7 +12,7 @@ class BriefChatSessionsController < ApplicationController
   BRIEF_BLOCK = /<brief>(.*?)<\/brief>/m
 
   before_action { require_product!(:workshop) }
-  before_action :require_workshop_member!
+  before_action { require_permission!(:tasks) }
   before_action :require_workshop!
   before_action :set_task
 

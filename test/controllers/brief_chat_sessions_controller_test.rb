@@ -57,29 +57,38 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert Brief.exists?(brief.id), "Brief rows belong to the task, not the session, and must survive a session reset"
   end
 
-  test "non-admin without workshop access is blocked" do
-    sign_in_as(users(:two)) # employee without Workshop access
+  test "non-admin without the Tasks permission is blocked" do
+    # Workshop access is now per-project Tasks permission (Task 5/6), not a
+    # workspace-wide flag — an employee's existing project membership (fixture
+    # two_elvium) grants Tasks by default, so express "no access" by switching
+    # it off rather than the retired workshop_access flag.
+    ProjectMembership.where(user: users(:two)).update_all(tasks: false)
+    sign_in_as(users(:two))
     get jira_task_brief_chat_session_path(@task), as: :json
-    # require_product!(:workshop) refuses. A JSON caller gets 403 rather than a
+    # require_permission!(:tasks) refuses. A JSON caller gets 403 rather than a
     # redirect to the Time & HR landing (an HTML page with no JSON template).
     assert_response :forbidden
   end
 
-  # require_workshop_member! (replacing require_admin!) must still block
-  # clients explicitly — can_access_workshop? returns true for clients, and
-  # /jira_tasks/* is client-allowed by redirect_clients_to_jira, so this guard
-  # is the only thing stopping a client from spawning an AI brief session.
-  test "client is blocked from show even though can_access_workshop? is true for clients" do
+  # require_permission!(:tasks) (replacing require_workshop_member!) is purely
+  # permission-based now — a client is blocked exactly when their project
+  # membership doesn't grant Tasks, not because of their role. The fixture
+  # (client_elvium) grants Tasks by default like any other membership, so
+  # deny it explicitly to exercise the same guard a project owner would use to
+  # keep a client out of the AI brief chat.
+  test "client without the Tasks permission is blocked from show" do
+    project_memberships(:client_elvium).update!(tasks: false)
     sign_in_as(users(:client_user))
     get jira_task_brief_chat_session_path(@task), as: :json
     assert_response :forbidden
   end
 
-  test "client is blocked from posting a message" do
+  test "client without the Tasks permission is blocked from posting a message" do
     session = ChatSession.create!(
       task: @task, workspace: @workspace, user: users(:one),
       claude_session_id: "br-uuid", codebase_path: "/tmp", purpose: "brief"
     )
+    project_memberships(:client_elvium).update!(tasks: false)
     sign_in_as(users(:client_user))
     post message_jira_task_brief_chat_session_path(@task), params: { content: "hi" }, as: :json
     assert_response :forbidden

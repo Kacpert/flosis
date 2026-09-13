@@ -1,7 +1,7 @@
 class TaskDraftsController < ApplicationController
   include WorkspaceScoped
 
-  before_action :require_client_or_employee!
+  before_action { require_permission!(:tasks) }
   before_action :set_task
   rescue_from ActiveRecord::RecordNotFound, with: :jira_record_not_found
 

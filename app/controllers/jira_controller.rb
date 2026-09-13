@@ -8,8 +8,8 @@ class JiraController < ApplicationController
   # nothing) — the whole point of the feature.
   before_action -> { require_product!(:workshop) }, except: [ :jira_tasks ]
 
-  before_action :require_admin!, only: [:projects, :sync]
-  before_action :require_workspace_member!, only: [:jira_tasks]
+  before_action -> { require_permission!(:configuration) }, only: [ :projects, :sync ]
+  before_action :require_time_hr_or_project_member!, only: [ :jira_tasks ]
   before_action :set_project, only: [:jira_tasks, :sync]
   rescue_from ActiveRecord::RecordNotFound, with: :jira_record_not_found
 
@@ -43,10 +43,13 @@ class JiraController < ApplicationController
 
   private
 
+  # Two different questions, deliberately kept apart. #jira_tasks is the timer
+  # bar's picker: "which projects may this person book time against", which is
+  # any project they are on. #sync is Workshop work and wants the Workshop
+  # scope, where a membership must actually grant Tasks.
   def set_project
-    # Clients/employees may only reach Jira projects they're a member of; admins
-    # (the only role that reaches #sync) see all Jira projects.
-    @project = visible_jira_projects.find(params[:id])
+    scope = action_name == "jira_tasks" ? available_projects : visible_jira_projects
+    @project = scope.find(params[:id])
   end
 
   def sort_tasks_for_user(tasks, user)

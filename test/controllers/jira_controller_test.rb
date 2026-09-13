@@ -106,12 +106,17 @@ class JiraControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "sync requires admin" do
-    users(:two).membership_for(workspaces(:one)).update!(workshop_access: true)
+    # users(:two) is already a member of @project (fixture two_elvium) without
+    # the Configuration permission (column default: false) — the new model's
+    # equivalent of "not an admin" for this gate.
     sign_in_as(users(:two))
 
     post jira_sync_project_path(@project)
 
-    assert_redirected_to root_path
+    # require_permission! denies via product_landing_path, not root_path — this
+    # user keeps time_hr_access: true (fixture two_employee), so the deny sends
+    # them to the product they still have (Time & HR), not to "/".
+    assert_redirected_to time_entries_path
   end
 
   test "projects requires admin" do

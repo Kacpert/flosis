@@ -9,8 +9,8 @@ class TaskBreakdownsController < ApplicationController
 
   before_action { require_product!(:workshop) }
 
-  before_action :require_client_or_employee!
-  before_action :require_admin!, only: :update_jira
+  before_action { require_permission!(:tasks) }
+  before_action -> { require_permission!(:configuration) }, only: :update_jira
   before_action :require_workshop!, only: :update_jira
   before_action :set_task
   rescue_from ActiveRecord::RecordNotFound, with: :jira_record_not_found

@@ -6,7 +6,7 @@ class BriefCommitsController < ApplicationController
   include WorkspaceScoped
 
   before_action { require_product!(:workshop) }
-  before_action :require_admin!
+  before_action { require_permission!(:configuration) }
   before_action :require_workshop!
 
   def commit

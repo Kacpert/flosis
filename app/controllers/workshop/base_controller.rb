@@ -5,6 +5,7 @@ class Workshop::BaseController < ApplicationController
 
   before_action { require_product!(:workshop) }
   before_action :require_workshop!
+  before_action :require_project_member!
   before_action :set_pipeline_badge
 
   private

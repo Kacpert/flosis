@@ -1,4 +1,6 @@
 class Workshop::PipelineController < Workshop::BaseController
+  before_action { require_permission!(:tasks) }
+
   def index
     # NEVER redirect to workshop_path here — WorkshopController#index redirects
     # back to the pipeline (Step 5), which would loop. Render an empty state.

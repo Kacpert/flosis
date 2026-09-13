@@ -5,6 +5,7 @@
 class Workshop::AlertRulesController < Workshop::BaseController
   before_action :set_alert_rule,
                 only: [ :update, :destroy, :history, :memory, :clear_memory, :clear_ai_issues, :toggle_active ]
+  before_action { require_permission!(:automations) }
 
   def create
     rule = current_workshop_project.alert_rules.new(create_params.except(:discord_webhook_id))

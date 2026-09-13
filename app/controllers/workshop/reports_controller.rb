@@ -4,6 +4,8 @@
 class Workshop::ReportsController < Workshop::BaseController
   include Workshop::TrendControls
 
+  before_action { require_permission!(:reporting) }
+
   # The per-developer modal offers finer windows than the main trend card.
   DEV_MODAL_RANGES = [ 1, 2, 3, 6, 12, 24 ].freeze
   DEFAULT_DEV_MODAL_RANGE = 6

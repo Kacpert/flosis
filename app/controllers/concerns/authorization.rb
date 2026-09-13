@@ -40,6 +40,16 @@ module Authorization
     deny_access!("You don't have permission to access this page.", product_landing_path)
   end
 
+  # Standing in the project, without naming a permission. The Workshop subtree
+  # needs this; each area below it then asks for the permission it actually
+  # uses. Gating the whole subtree on :tasks instead would shut someone who
+  # holds only Reporting out of the reports they were deliberately granted.
+  def require_project_member!
+    return if current_project_access.member?
+
+    deny_access!("You don't have permission to access this page.", product_landing_path)
+  end
+
   # Jira projects the current user may WORK in. Admins see every one; everyone
   # else sees the projects where their membership grants Tasks.
   def visible_jira_projects

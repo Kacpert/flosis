@@ -4,6 +4,8 @@ class Workshop::JiraBrowserController < Workshop::BaseController
   # view (board columns -> statuses -> tasks) or, for Backlog, a grooming
   # table (tasks with no sprint). Mirrors the grouping approach from
   # JiraTasksController#board_data.
+  before_action { require_permission!(:tasks) }
+
   BACKLOG_BOARD_ID = "backlog".freeze
 
   PRIORITY_ORDER_SQL = "CASE tasks.priority WHEN 'High' THEN 0 WHEN 'Medium' THEN 1 WHEN 'Low' THEN 2 ELSE 3 END".freeze

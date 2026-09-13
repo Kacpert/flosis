@@ -5,8 +5,8 @@ class JiraTasksController < ApplicationController
 
   before_action { require_product!(:workshop) }
 
-  before_action :require_client_or_employee!
-  before_action :require_admin!, only: [:refresh]
+  before_action { require_permission!(:tasks) }
+  before_action -> { require_permission!(:configuration) }, only: [:refresh]
   rescue_from ActiveRecord::RecordNotFound, with: :jira_record_not_found
 
   def index

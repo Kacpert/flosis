@@ -1,4 +1,6 @@
 class Workshop::IdeasController < Workshop::BaseController
+  before_action { require_permission!(:tasks) }
+
   # Server-side whitelist of legal stepper transitions. Anything else (e.g.
   # skipping a stage, or moving backwards) is rejected with 422 — the stepper
   # UI only ever links to done/current steps, but the endpoint still guards

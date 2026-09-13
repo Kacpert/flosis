@@ -8,6 +8,8 @@
 class Workshop::BugsController < Workshop::BaseController
   include Workshop::TrendControls
 
+  before_action { require_permission!(:tasks) }
+
   BUG = "Bug".freeze
   LIST_LIMIT = 30
 

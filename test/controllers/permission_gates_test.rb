@@ -40,4 +40,26 @@ class PermissionGatesTest < ActionDispatch::IntegrationTest
     assert_response :redirect
   end
 
+  test "Tasks opens the Jira board and its absence closes it" do
+    with_permissions("Project Manager")
+    get jira_tasks_path
+    assert_response :success
+
+    @membership.update!(tasks: false)
+    get jira_tasks_path
+    # require_permission! denies via product_landing_path, not root_path — this
+    # user keeps time_hr_access: true from setup, so the deny sends them to the
+    # product they still have (Time & HR), not to "/".
+    assert_redirected_to time_entries_path
+  end
+
+  # The picker is a member route on projects, so its helper takes the project.
+  # An employee who logs hours but was never given Workshop work still needs it.
+  test "the timer's Jira task picker survives without the Tasks permission" do
+    @membership.update!(PermissionPreset::PERMISSIONS.index_with(false))
+
+    get jira_tasks_project_path(@project)
+
+    assert_response :success
+  end
 end

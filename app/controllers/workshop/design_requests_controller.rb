@@ -4,6 +4,8 @@
 # unique index) — "request changes" transitions the SAME row back to
 # "requested" rather than creating a new one, so link history survives.
 class Workshop::DesignRequestsController < Workshop::BaseController
+  before_action { require_permission!(:tasks) }
+
   def create
     @idea = current_workshop_project.tasks.pipeline.find(params[:idea_id])
     # Scope the designer to workspace members — the picker only offers them, and

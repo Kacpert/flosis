@@ -58,11 +58,14 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
 
   test "employee with workshop access but not admin is blocked from the tab" do
     @workspace.update!(workshop_enabled: true)
-    users(:two).membership_for(@workspace).update!(workshop_access: true)
     sign_in_as(users(:two))
     get workshop_path
-    # passes the product gate, but the Workshop tab is admin-only.
-    assert_redirected_to root_path
+    # Passes the product gate (fixture two_elvium gives them a project in this
+    # workspace), but the Workshop tab needs the Configuration permission,
+    # which that membership doesn't grant (column default: false). Denied via
+    # product_landing_path, not root_path — they keep time_hr_access: true
+    # (fixture two_employee), so it sends them to Time & HR, not to "/".
+    assert_redirected_to time_entries_path
   end
 
   test "start redirects to the pipeline (legacy create-task flow retired, modals replace it)" do

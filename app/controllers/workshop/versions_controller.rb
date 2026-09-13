@@ -17,6 +17,8 @@
 # to the Jira issue's description the same way, but does not touch the "AI
 # actions" field (that only changes via an explicit push, JiraWriter#commit_detail).
 class Workshop::VersionsController < Workshop::BaseController
+  before_action { require_permission!(:tasks) }
+
   def make_current
     @idea = current_workshop_project.tasks.pipeline.find(params[:idea_id])
     brief = @idea.briefs.find_by(id: params[:id])
