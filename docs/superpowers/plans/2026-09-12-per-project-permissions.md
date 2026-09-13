@@ -2175,7 +2175,7 @@ git commit -m "feat: a Discord webhook belongs to a project, not to the whole wo
 ### Task 13: Configuration edits the project
 
 **Files:**
-- Modify: `app/controllers/workshop/configuration_controller.rb`, `app/views/workshop/configuration/_integrations_tab.html.erb`, `_ai_tab.html.erb`, `_manage_github.html.erb`, `_manage_figma.html.erb`
+- Modify: `app/controllers/workshop/configuration_controller.rb`, `app/controllers/workshop/process_controller.rb`, `app/controllers/workspace_settings_controller.rb`, `app/views/workspace_settings/show.html.erb`, `app/views/workshop/configuration/_integrations_tab.html.erb`, `_ai_tab.html.erb`, `_manage_github.html.erb`, `_manage_figma.html.erb`
 - Test: `test/controllers/workshop/configuration_controller_test.rb` (extended)
 
 **Interfaces:**
@@ -2295,16 +2295,35 @@ Also change `test_github` and `verify_jira_fields` to write onto `current_worksh
 
 In the four partials, change every `form_with model: current_workspace` / `f.fields_for :workspace` to the project, and every `current_workspace.<setting>` read to `current_workshop_project.<setting>`. Add a Figma token field to `_manage_figma.html.erb` in the same shape as the GitHub token field, rendered blank with the placeholder `Leave blank to keep the current token`.
 
-- [ ] **Step 5: Run the test**
+- [ ] **Step 5: Move the last two workspace readers**
 
-Run: `bin/rails test test/controllers/workshop/configuration_controller_test.rb`
-Expected: PASS
+Two places outside Configuration still read settings that now live on the project. Both break the moment Task 18 drops the columns, so they move here.
 
-- [ ] **Step 6: Commit**
+In `app/controllers/workshop/process_controller.rb:16`, change
+`@poll_minutes = [ 7, current_workspace.pr_poll_minutes ].max` to read
+`current_workshop_project&.pr_poll_minutes || 7`. Leave
+`current_workspace.pr_reviews` alone — `pr_reviews` still belongs to the
+workspace and that table is not moving.
+
+In `app/controllers/workspace_settings_controller.rb`, delete `test_github` and
+its route, and remove the GitHub section from
+`app/views/workspace_settings/show.html.erb`. GitHub is per-project now, and
+Configuration › Integrations is where it is edited; a second form writing a
+column that no longer exists is worse than no form. Workspace Settings keeps
+its name, the Workshop and Clients feature toggles, and the Discord channel
+used by the HR time-logging reminders.
+
+- [ ] **Step 6: Run the tests**
+
+Run: `bin/rails test test/controllers/workshop/configuration_controller_test.rb test/controllers/workspace_settings_controller_test.rb`
+Expected: PASS. If the workspace-settings test asserts on the GitHub section, delete those cases — the section is gone by design.
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add app/controllers/workshop/configuration_controller.rb app/views/workshop/configuration \
-  test/controllers/workshop/configuration_controller_test.rb
+git add app/controllers/workshop app/controllers/workspace_settings_controller.rb \
+  app/views/workshop/configuration app/views/workspace_settings config/routes.rb \
+  test/controllers
 git commit -m "feat: Configuration reads and writes the project it is showing"
 ```
 
@@ -3308,8 +3327,17 @@ git commit -m "feat: create a project, reusing the keys and people of an existin
 
 - [ ] **Step 1: Confirm nothing reads them**
 
-Run: `grep -rn 'workshop_access\|\brole\b' app lib --include=*.rb --include=*.erb | grep -v 'role_label\|role=\|aria\|role_badge'`
-Expected: no hits on `WorkspaceMembership`
+Run both greps. Either producing a hit means an earlier task left a reader behind, and that reader must be fixed before this migration runs.
+
+```bash
+grep -rn 'workshop_access\|\brole\b' app lib --include=*.rb --include=*.erb \
+  | grep -v 'role_label\|role=\|aria\|role_badge\|chat_message'
+
+grep -rn 'workspace\.\(github_token\|github_repo\|pr_review_enabled\|pr_review_prompt\|pr_poll_minutes\|pr_polled_at\|estimation_\|jira_ai_\|jira_story_points\|figma_read_enabled\|jira_status_\|github_status_\|figma_status_\)' \
+  app lib --include=*.rb --include=*.erb
+```
+
+Expected: no hits on `WorkspaceMembership` from the first, and no output at all from the second.
 
 - [ ] **Step 2: Write the migration**
 
