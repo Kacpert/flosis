@@ -1,4 +1,5 @@
 require "test_helper"
+require "webmock/minitest"
 
 # One request per gate family, asserting the refusal as well as the pass.
 # Sixty files used to decide access for themselves; these pin down the handful
@@ -83,5 +84,53 @@ class PermissionGatesTest < ActionDispatch::IntegrationTest
     get workshop_process_path
 
     assert_response :success
+  end
+
+  # Configuration is per-project. Holding it on the session's current project
+  # (jira_project) must not grant it on a different project (SecretProject)
+  # reached via params — the three sites below all resolve their target
+  # project from params, not from current_workshop_project.
+  def grant_configuration_here_tasks_there
+    @membership.update!(PermissionPreset.attributes_for("Administrator"))
+    other = projects(:other_jira_project)
+    ProjectMembership.create!(user: @user, project: other,
+                               **PermissionPreset.attributes_for("Project Manager"))
+    other
+  end
+
+  test "Configuration on one project is not Configuration on another (jira_tasks#refresh)" do
+    other = grant_configuration_here_tasks_there
+
+    post refresh_jira_tasks_path(project_id: other.id)
+
+    assert_response :redirect
+    assert_not_equal "Jira sync complete.", flash[:notice]
+  end
+
+  test "Configuration on one project is not Configuration on another (jira#sync)" do
+    other = grant_configuration_here_tasks_there
+
+    post jira_sync_project_path(other)
+
+    assert_response :redirect
+    assert_not_equal "Jira sync complete.", flash[:notice]
+  end
+
+  test "Configuration on one project is not Configuration on another (task_breakdowns#update_jira)" do
+    other = grant_configuration_here_tasks_there
+    task = tasks(:secret_task)
+    assert_equal other, task.project
+    # Give the task something to push — otherwise commit_breakdown short-circuits
+    # on "No breakdown to push" whether or not the permission check ran, and the
+    # test would pass for the wrong reason. With a real breakdown present, an
+    # incorrectly-allowed request reaches JiraWriter and attempts a real Jira
+    # API call, which WebMock (required above) turns into a loud test failure —
+    # the same tell the other two sites' tests rely on.
+    task.task_drafts.create!(content: '{"needs_breakdown":false,"total_points":3}', source: TaskDraft::BREAKDOWN_SOURCE)
+
+    post jira_task_breakdown_update_jira_path(task)
+
+    assert_response :redirect
+    assert_equal "You don't have permission to access this page.", flash[:alert]
   end
 end

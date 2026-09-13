@@ -41,6 +41,11 @@ class BriefCommitsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "non-admin is blocked" do
+    # Workshop access is now "has a project to work in" rather than a flag —
+    # fixture two_elvium would otherwise give this user Tasks on jira_project,
+    # which is a real, valid Workshop membership and no longer represents
+    # "without Workshop access" at all.
+    ProjectMembership.where(user: users(:two)).destroy_all
     sign_in_as(users(:two)) # employee without Workshop access
     stub_writer({ ok: true, key: "BCM-1" }) do
       post commit_jira_task_brief_path(@task, @brief)

@@ -8,9 +8,13 @@ class JiraController < ApplicationController
   # nothing) — the whole point of the feature.
   before_action -> { require_product!(:workshop) }, except: [ :jira_tasks ]
 
-  before_action -> { require_permission!(:configuration) }, only: [ :projects, :sync ]
+  before_action -> { require_permission!(:configuration) }, only: [ :projects ]
   before_action :require_time_hr_or_project_member!, only: [ :jira_tasks ]
-  before_action :set_project, only: [:jira_tasks, :sync]
+  before_action :set_project, only: [ :jira_tasks, :sync ]
+  # set_project must run first — :sync's Configuration permission is asked
+  # about the project being synced (from the params), not the session's
+  # current_workshop_project.
+  before_action -> { require_permission_on!(@project, :configuration) }, only: [ :sync ]
   rescue_from ActiveRecord::RecordNotFound, with: :jira_record_not_found
 
   def projects

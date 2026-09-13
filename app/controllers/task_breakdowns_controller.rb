@@ -10,9 +10,11 @@ class TaskBreakdownsController < ApplicationController
   before_action { require_product!(:workshop) }
 
   before_action { require_permission!(:tasks) }
-  before_action -> { require_permission!(:configuration) }, only: :update_jira
-  before_action :require_workshop!, only: :update_jira
   before_action :set_task
+  # set_task must run first — :update_jira's Configuration permission is asked
+  # about @task's own project, not the session's current_workshop_project.
+  before_action -> { require_permission_on!(@task.project, :configuration) }, only: :update_jira
+  before_action :require_workshop!, only: :update_jira
   rescue_from ActiveRecord::RecordNotFound, with: :jira_record_not_found
 
   # GET /jira_tasks/:jira_task_id/breakdown

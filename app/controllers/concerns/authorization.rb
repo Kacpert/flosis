@@ -43,6 +43,18 @@ module Authorization
     deny_access!("You don't have permission to access this page.", workshop_landing_path)
   end
 
+  # Permission on a NAMED project, for actions that operate on a project taken
+  # from the params rather than on the session's current one. `can?` answers
+  # about current_workshop_project, so using it to guard those actions asks
+  # about the wrong project and hands someone Configuration over a project they
+  # merely have Tasks on.
+  def require_permission_on!(project, *permissions)
+    access = ProjectAccess.new(current_user, project)
+    return if project && permissions.any? { |permission| access.can?(permission) }
+
+    deny_access!("You don't have permission to access this page.", workshop_landing_path)
+  end
+
   # Standing in the project, without naming a permission. The Workshop subtree
   # needs this; each area below it then asks for the permission it actually
   # uses. Gating the whole subtree on :tasks instead would shut someone who
