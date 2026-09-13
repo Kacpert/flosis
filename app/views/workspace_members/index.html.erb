@@ -17,8 +17,9 @@
           </div>
           <div class="flex items-center gap-3">
             <span class="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full"
-                  style="<%= role_badge_style(membership.role) %>">
-              <%= membership.role %>
+                  style="<%= membership.workspace_admin? ? "color: var(--color-primary); background: var(--color-primary-container)" : "color: var(--color-on-surface-variant); background: var(--color-surface-container-high)" %>">
+              <%= membership.workspace_admin? ? "Administrator" : "Member" %>
+              <%= " · Time & HR" if membership.time_hr_access %>
             </span>
             <% project_count = membership.user.project_memberships.joins(:project).where(projects: { workspace_id: current_workspace.id }).count %>
             <span class="text-xs" style="color: var(--color-outline)"><%= project_count %> projects</span>

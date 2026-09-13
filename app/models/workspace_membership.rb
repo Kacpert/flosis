@@ -13,6 +13,15 @@ class WorkspaceMembership < ApplicationRecord
 
   validates :user_id, uniqueness: { scope: :workspace_id }
 
+  # A workspace must keep someone who can run it. Demoting or removing the
+  # last administrator is refused rather than silently allowed, because the
+  # recovery is a console session.
+  def last_workspace_admin?
+    return false unless workspace_admin?
+
+    !workspace.workspace_memberships.where(workspace_admin: true).where.not(id: id).exists?
+  end
+
   private
 
   def destroy_project_memberships

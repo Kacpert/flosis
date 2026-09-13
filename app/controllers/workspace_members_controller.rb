@@ -45,23 +45,19 @@ class WorkspaceMembersController < ApplicationController
       return render :new, status: :unprocessable_entity
     end
 
-    # The add form has no product checkboxes, so the schema defaults apply:
-    # time_hr_access true, workshop_access false. That suits employees, but a
-    # client role is Workshop-first — Time & HR has to be switched on
-    # deliberately from the edit screen, never handed out by default.
+    # The directory grants HR access and, optionally, the workspace privilege.
+    # Nothing here touches any project: Workshop standing is granted per
+    # project, in Configuration > Users.
     @membership = current_workspace.workspace_memberships.build(
       user: user,
-      role: params[:role],
-      time_hr_access: !%w[client workspace_client].include?(params[:role])
+      time_hr_access: params[:time_hr_access] != "0",
+      workspace_admin: params[:workspace_admin] == "1"
     )
 
     if @membership.save
-      if new_user
-        InvitationMailer.welcome(user, current_workspace).deliver_later
-      else
-        InvitationMailer.added_to_workspace(user, current_workspace).deliver_later
-      end
-      redirect_to workspace_members_path, notice: "#{user.name} added as #{@membership.role}. Invitation email sent."
+      mailer = new_user ? :welcome : :added_to_workspace
+      InvitationMailer.public_send(mailer, user, current_workspace).deliver_later
+      redirect_to workspace_members_path, notice: "#{user.name} added. Invitation email sent."
     else
       render :new, status: :unprocessable_entity
     end
@@ -71,16 +67,16 @@ class WorkspaceMembersController < ApplicationController
   end
 
   def update
-    if @membership.owner? && !current_membership.owner?
-      redirect_to workspace_members_path, alert: "Only owners can modify owner memberships."
+    if @membership.last_workspace_admin? && params[:workspace_admin] != "1"
+      redirect_to workspace_members_path, alert: "A workspace needs at least one administrator."
       return
     end
 
     attrs = {
-      role: params[:role],
       time_hr_access: params[:time_hr_access] == "1",
-      workshop_access: params[:workshop_access] == "1"
+      workspace_admin: params[:workspace_admin] == "1"
     }
+
     if @membership.update(attrs)
       redirect_to workspace_members_path, notice: "Member updated."
     else
@@ -94,8 +90,8 @@ class WorkspaceMembersController < ApplicationController
       return
     end
 
-    if @membership.owner? && !current_membership.owner?
-      redirect_to workspace_members_path, alert: "Only owners can remove owners."
+    if @membership.last_workspace_admin?
+      redirect_to workspace_members_path, alert: "A workspace needs at least one administrator."
       return
     end
 

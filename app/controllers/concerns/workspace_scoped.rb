@@ -111,15 +111,17 @@ module WorkspaceScoped
     @current_workshop_project = chosen
   end
 
+  # Projects this person may book time against. A workspace admin sees every
+  # one; everyone else sees the projects they are on. Deliberately NOT
+  # visible_jira_projects, which additionally requires the Tasks permission —
+  # booking hours is an HR action and must not need Workshop standing.
   def available_projects
-    if current_user.admin_or_owner?(current_workspace)
-      current_workspace.projects.active.order(:name)
-    else
-      current_workspace.projects.active
-        .joins(:project_memberships)
-        .where(project_memberships: { user_id: current_user.id })
-        .order(:name)
-    end
+    return current_workspace.projects.active.order(:name) if workspace_admin?
+
+    current_workspace.projects.active
+      .joins(:project_memberships)
+      .where(project_memberships: { user_id: current_user.id })
+      .order(:name)
   end
 
   def set_current_workspace
