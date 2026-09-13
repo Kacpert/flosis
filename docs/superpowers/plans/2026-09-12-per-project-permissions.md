@@ -533,7 +533,11 @@ require Rails.root.join("db/migrate/20260912121000_backfill_per_project_permissi
 # a test rather than a careful read. Deleted in Task 18 along with the columns
 # it reads.
 class BackfillPerProjectPermissionsTest < ActiveSupport::TestCase
+  # The `two_employee` fixture ships with `workshop_access: false`. Most cases
+  # here want the employee who DID have Workshop access, so turn it on in setup
+  # and let the one case that tests the other branch turn it back off.
   setup do
+    workspace_memberships(:two_employee).update_columns(workshop_access: true)
     ProjectMembership.update_all(PermissionPreset::PERMISSIONS.index_with(false))
     WorkspaceMembership.update_all(workspace_admin: false)
     BackfillPerProjectPermissions.new.up
@@ -555,6 +559,7 @@ class BackfillPerProjectPermissionsTest < ActiveSupport::TestCase
   test "an employee without Workshop access gets no permissions" do
     workspace_memberships(:two_employee).update_columns(workshop_access: false)
     ProjectMembership.update_all(PermissionPreset::PERMISSIONS.index_with(false))
+    WorkspaceMembership.update_all(workspace_admin: false)
 
     BackfillPerProjectPermissions.new.up
 
@@ -732,17 +737,10 @@ class PermissionGatesTest < ActionDispatch::IntegrationTest
     assert_response :redirect
   end
 
-  test "an HR employee with no project keeps the timer's Jira task picker" do
-    ProjectMembership.where(user: @user).destroy_all
-
-    get jira_tasks_project_path(@project)
-
-    assert_response :success
-  end
 end
 ```
 
-The picker is a member route on `projects` (`get :jira_tasks, to: "jira#jira_tasks"`), so its helper is `jira_tasks_project_path(project)` — not a top-level path.
+The timer-picker case lives in Task 6, which is where `JiraController` gets the scope change that makes it pass.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -1039,7 +1037,27 @@ And `app/controllers/jira_controller.rb`:
   before_action :require_time_hr_or_project_member!, only: [ :jira_tasks ]
 ```
 
-- [ ] **Step 3: Add the narrower Workshop gates**
+- [ ] **Step 3: Split the picker's project scope from the Workshop's**
+
+`JiraController#set_project` resolves the project through `visible_jira_projects`
+for both its actions. That scope now requires the `tasks` permission, which
+would shut the timer bar's picker to an employee who only logs hours. The two
+actions want two different questions, so ask them separately:
+
+```ruby
+  # app/controllers/jira_controller.rb — replace set_project
+
+  # Two different questions, deliberately kept apart. #jira_tasks is the timer
+  # bar's picker: "which projects may this person book time against", which is
+  # any project they are on. #sync is Workshop work and wants the Workshop
+  # scope, where a membership must actually grant Tasks.
+  def set_project
+    scope = action_name == "jira_tasks" ? available_projects : visible_jira_projects
+    @project = scope.find(params[:id])
+  end
+```
+
+- [ ] **Step 4: Add the narrower Workshop gates**
 
 ```ruby
 # app/controllers/workshop/alert_rules_controller.rb — below the existing before_actions
@@ -1051,7 +1069,7 @@ And `app/controllers/jira_controller.rb`:
   before_action { require_permission!(:reporting) }
 ```
 
-- [ ] **Step 4: Add the case this task makes pass**
+- [ ] **Step 5: Add the two cases this task makes pass**
 
 Append to `test/controllers/permission_gates_test.rb`:
 
@@ -1065,22 +1083,35 @@ Append to `test/controllers/permission_gates_test.rb`:
     get jira_tasks_path
     assert_redirected_to root_path
   end
+
+  # The picker is a member route on projects, so its helper takes the project.
+  # An employee who logs hours but was never given Workshop work still needs it.
+  test "the timer's Jira task picker survives without the Tasks permission" do
+    @membership.update!(PermissionPreset::PERMISSIONS.index_with(false))
+
+    get jira_tasks_project_path(@project)
+
+    assert_response :success
+  end
+end
 ```
 
-- [ ] **Step 5: Run the gate test**
+Note the closing `end` — append these INSIDE the existing class, before its final `end`.
+
+- [ ] **Step 6: Run the gate test**
 
 Run: `bin/rails test test/controllers/permission_gates_test.rb`
 Expected: PASS, every case
 
-- [ ] **Step 6: Verify no controller still calls an old gate**
+- [ ] **Step 7: Verify no controller still calls an old gate**
 
 Run: `grep -rn 'require_workshop_config_access!\|require_workshop_member!\|require_client_or_employee!\|require_workspace_member!' app/controllers`
 Expected: no output. The predicates themselves still exist on `User` — Task 9 removes them once the views stop calling them too.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add app/controllers
+git add app/controllers test/controllers/permission_gates_test.rb
 git commit -m "feat: every Workshop route is gated on a per-project permission"
 ```
 
@@ -1144,12 +1175,26 @@ class WorkspaceMembersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "A workspace needs at least one administrator.", flash[:alert]
   end
 
-  test "the last administrator cannot be removed" do
-    workspace_memberships(:two_employee).update!(workspace_admin: false)
-
-    assert_no_difference "WorkspaceMembership.count" do
-      delete workspace_member_path(@admin_membership)
+  test "removing an ordinary member works" do
+    assert_difference "WorkspaceMembership.count", -1 do
+      delete workspace_member_path(workspace_memberships(:two_employee))
     end
+  end
+
+  # Deliberately a model assertion, not a request. Through the controller the
+  # sole administrator is always the signed-in user, so the "you can't remove
+  # yourself" guard fires first and a request test would pass for the wrong
+  # reason. The predicate is what the destroy and update guards both consult.
+  test "the sole administrator knows it is the last one" do
+    assert workspace_memberships(:one_owner).last_workspace_admin?
+
+    workspace_memberships(:two_employee).update!(workspace_admin: true)
+
+    assert_not workspace_memberships(:one_owner).reload.last_workspace_admin?
+  end
+
+  test "a membership that is not an admin is never the last one" do
+    assert_not workspace_memberships(:two_employee).last_workspace_admin?
   end
 end
 ```
