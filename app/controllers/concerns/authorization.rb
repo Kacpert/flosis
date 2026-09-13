@@ -2,7 +2,9 @@ module Authorization
   extend ActiveSupport::Concern
 
   included do
-    helper_method :current_membership, :can_see_money?, :visible_jira_projects, :github_connection_problem?, :workshop_config_manager?
+    helper_method :current_membership, :current_project_access, :can?,
+                  :workspace_admin?, :can_see_money?, :visible_jira_projects,
+                  :github_connection_problem?, :workshop_config_manager?
   end
 
   private
@@ -17,19 +19,35 @@ module Authorization
     @current_membership ||= current_user&.membership_for(current_workspace)
   end
 
-  # Jira projects the current user may see. Admins/owners and workspace_clients
-  # (full Workshop access) see every Jira project in the workspace; everyone else
-  # (employee, Jira-only client) sees only the Jira projects they have a
-  # ProjectMembership for. Used to scope the Jira Tasks views and task lookups so
-  # a restricted user can't reach another project's tasks.
+  # The workspace-wide privilege: creating projects, the HR module, the
+  # employee directory.
+  def workspace_admin?
+    current_user&.workspace_admin?(current_workspace) || false
+  end
+
+  # Access to the Workshop project currently being viewed.
+  def current_project_access
+    @current_project_access ||= ProjectAccess.new(current_user, current_workshop_project)
+  end
+
+  def can?(permission)
+    current_project_access.can?(permission)
+  end
+
+  def require_permission!(permission)
+    return if can?(permission)
+
+    deny_access!("You don't have permission to access this page.", product_landing_path)
+  end
+
+  # Jira projects the current user may WORK in. Admins see every one; everyone
+  # else sees the projects where their membership grants Tasks.
   def visible_jira_projects
     scope = current_workspace.projects.active.where(external_type: "jira")
-    if current_user&.admin_or_owner?(current_workspace) || current_user&.workspace_client_role?(current_workspace)
-      return scope.order(:name)
-    end
+    return scope.order(:name) if workspace_admin?
 
     scope.joins(:project_memberships)
-         .where(project_memberships: { user_id: current_user&.id })
+         .where(project_memberships: { user_id: current_user&.id, tasks: true })
          .order(:name)
   end
 
@@ -50,10 +68,12 @@ module Authorization
     end
   end
 
+  # The workspace-wide privilege: creating projects, the HR module, the
+  # employee directory.
   def require_admin!
-    unless current_user&.admin_or_owner?(current_workspace)
-      deny_access!("You don't have permission to access this page.", root_path)
-    end
+    return if workspace_admin?
+
+    deny_access!("You don't have permission to access this page.", root_path)
   end
 
   # Gate for MANAGING the Workshop product (Configuration: integrations, AI,
@@ -73,13 +93,23 @@ module Authorization
       current_user&.workspace_client_role?(current_workspace)
   end
 
-  # Gate for the Time & HR working surfaces (time entries, timesheet, timer,
-  # tags, holidays). Employees and up always pass; a workspace_client passes
-  # only when an admin has switched their Time & HR product access on.
+  # The HR working surfaces: time entries, timesheet, timer, tags, holidays.
   def require_employee!
-    unless current_user&.time_hr_member?(current_workspace)
-      deny_access!("You don't have permission to access this page.", root_path)
-    end
+    return if current_user&.can_access_time_hr?(current_workspace)
+
+    deny_access!("You don't have permission to access this page.", root_path)
+  end
+
+  # The timer bar's Jira task picker belongs to neither product. Choosing which
+  # ticket you are logging hours against is an HR action that happens to read
+  # Jira's data, so an employee who was never invited to the Workshop must keep
+  # it. The real boundary stays available_projects: you only ever see the
+  # projects you are on.
+  def require_time_hr_or_project_member!
+    return if current_user&.can_access_time_hr?(current_workspace)
+    return if available_projects.exists?
+
+    deny_access!("You don't have permission to access this page.", root_path)
   end
 
   # Jira tasks + their AI features are open to clients as well as employees.

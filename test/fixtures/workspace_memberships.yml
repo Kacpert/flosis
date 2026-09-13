@@ -1,9 +1,14 @@
+# The workspace_admin flag is Task 5's global privilege check (require_admin!
+# reads it directly now, not the role). Mirrors what the backfill migration
+# does for a real ADMIN/OWNER row in production — set here by hand since
+# fixtures load straight into the test DB and never run that migration.
 one_owner:
   user: one
   workspace: one
   role: 2
   time_hr_access: true
   workshop_access: true
+  workspace_admin: true
 
 two_employee:
   user: two

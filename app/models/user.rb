@@ -81,16 +81,13 @@ class User < ApplicationRecord
   end
 
   # ---- Product access (Time & HR / Workshop) ---------------------------
-  # The app is split into two products that share one DB. Access is per-user
-  # per-workspace, stored on the membership. Clients are a special case: they
-  # are Jira-Tasks-only, which lives in the Workshop product.
+  # The app is two products sharing one database. HR access is a flag on the
+  # workspace membership. Workshop access is having somewhere to work: at least
+  # one project. Keeping them on different facts is what makes the product
+  # switcher honest — it appears exactly when an account exists in both places,
+  # rather than when two checkboxes on one form happen to agree.
 
-  # The Jira-Tasks-only `client` role is never a Time & HR user. A
-  # `workspace_client` is Workshop-first, but an admin can additionally switch
-  # Time & HR on for them — some clients want to log their own hours — in which
-  # case the per-membership flag governs, exactly as it does for an employee.
   def can_access_time_hr?(workspace)
-    return false if client_role?(workspace)
     membership_for(workspace)&.time_hr_access || false
   end
 
@@ -99,32 +96,30 @@ class User < ApplicationRecord
   # is a pure ROLE question used outside this product too; widening that would
   # hand workspace_clients employee powers in places this feature never meant to
   # touch.
+  #
+  # Kept for the old require_employee! callers that remain (see Authorization);
+  # removed in Task 9 along with the rest of the role-based predicates.
   def time_hr_member?(workspace)
     return true if at_least_employee?(workspace)
 
     workspace_client_role?(workspace) && can_access_time_hr?(workspace)
   end
 
-  # Access to the Workshop PRODUCT (Jira Tasks + conceptual tooling). This is the
-  # per-user product gate and is independent of the workspace `workshop_enabled`
-  # feature flag — that flag only gates the Workshop briefing tab within the
-  # product. Clients are Jira-Tasks-only, which lives in this product.
   def can_access_workshop?(workspace)
     return false unless workspace
-    return true if client_role?(workspace)
-    return true if workspace_client_role?(workspace) # full Workshop access
-    membership_for(workspace)&.workshop_access || false
+    return true if workspace_admin?(workspace)
+
+    project_memberships.joins(:project)
+                       .where(projects: { workspace_id: workspace.id, archived: false })
+                       .exists?
   end
 
-  # Ordered list of products the user can access in this workspace.
-  # Order matters: the first entry is the default landing product. A
-  # workspace_client holds an account for the Workshop, so that stays their
-  # default even once Time & HR is switched on for them.
+  # Order matters: the first entry is the default landing product. The host
+  # still overrides it, which is how app.flosis.com lands on the Workshop.
   def accessible_products(workspace)
     products = []
     products << :time_hr if can_access_time_hr?(workspace)
     products << :workshop if can_access_workshop?(workspace)
-    products.reverse! if workspace_client_role?(workspace)
     products
   end
 

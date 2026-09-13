@@ -46,7 +46,11 @@ class WorkshopControllerTest < ActionDispatch::IntegrationTest
 
   test "employee is blocked even when enabled" do
     @workspace.update!(workshop_enabled: true)
-    sign_in_as(users(:two)) # non-admin, no workshop access
+    # Workshop access is now "has at least one project" (Task 5), not a flag,
+    # so an employee with no project membership at all is the one who is
+    # genuinely locked out of the product.
+    ProjectMembership.where(user: users(:two)).destroy_all
+    sign_in_as(users(:two)) # non-admin, no project membership
     get workshop_path
     # require_product!(:workshop) fires first → bounced to their Time & HR landing.
     assert_redirected_to time_entries_path

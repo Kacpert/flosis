@@ -62,6 +62,10 @@ class JiraControllerTest < ActionDispatch::IntegrationTest
   test "an employee without workshop access can still list a project's Jira tasks" do
     membership = users(:two).membership_for(workspaces(:one))
     membership.update!(workshop_access: false)
+    # Workshop access is now "has at least one project" (Task 5), not this
+    # retired flag, so the fixture's existing project membership has to go
+    # before this assertion means what it says.
+    ProjectMembership.where(user: users(:two)).destroy_all
     assert_not users(:two).can_access_product?(workspaces(:one), :workshop)
     ProjectMembership.find_or_create_by!(project: @project, user: users(:two))
     sign_in_as(users(:two))

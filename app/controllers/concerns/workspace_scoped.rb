@@ -66,15 +66,10 @@ module WorkspaceScoped
     workshop_pipeline_path
   end
 
-  # The Jira-connected projects that form the Workshop "work context" — the same
-  # set the Jira board / Workshop pipeline operate on, scoped to what the user
-  # can see (admins: all; others: their project memberships).
+  # The Jira projects forming the Workshop work context — the same set
+  # Authorization already scopes for the Jira board.
   def workshop_projects
-    return @workshop_projects if defined?(@workshop_projects)
-    scope = current_workspace.projects.active.where(external_type: "jira")
-    scope = scope.joins(:project_memberships)
-                 .where(project_memberships: { user_id: current_user.id }) unless current_user.admin_or_owner?(current_workspace)
-    @workshop_projects = scope.order(:name)
+    visible_jira_projects
   end
 
   # The active Workshop project context (a project switcher, like the workspace

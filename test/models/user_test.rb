@@ -10,10 +10,14 @@ class UserTest < ActiveSupport::TestCase
   # Full Workshop access WITH pricing, and cannot manage users. Time & HR is off
   # by default, but an admin can switch it on for a client who also logs hours.
 
+  # Workshop access is now "has at least one project" (Task 5), not a role or a
+  # flag, so this workspace_client fixture needs a real ProjectMembership to
+  # have anywhere to work — never the retired workshop_access flag.
   def workspace_client_user(workspace, time_hr_access: false)
     user = User.create!(name: "WC", email_address: "wc@example.com", password: "password12")
     WorkspaceMembership.create!(user: user, workspace: workspace, role: "workspace_client",
                                time_hr_access: time_hr_access, workshop_access: false)
+    ProjectMembership.create!(user: user, project: workspace.projects.first)
     user
   end
 
@@ -35,24 +39,29 @@ class UserTest < ActiveSupport::TestCase
     assert user.time_hr_member?(ws), "granting the product must also open the employee surfaces"
   end
 
-  # The Workshop is why this role has an account at all, so it stays the landing
-  # product even once Time & HR is added.
-  test "workspace_client keeps Workshop as the default product" do
+  # Task 5 dropped the role-based reordering: accessible_products now always
+  # lists Time & HR before Workshop when both are open, and the host (not the
+  # role) is what lands app.flosis.com on the Workshop instead.
+  test "workspace_client with both accesses lists Time & HR before Workshop" do
     ws = workspaces(:one)
     user = workspace_client_user(ws, time_hr_access: true)
 
-    assert_equal [ :workshop, :time_hr ], user.accessible_products(ws)
-    assert_equal :workshop, user.default_product(ws)
+    assert_equal [ :time_hr, :workshop ], user.accessible_products(ws)
+    assert_equal :time_hr, user.default_product(ws)
   end
 
-  # The Jira-Tasks-only client role is NOT affected by any of this.
-  test "the Jira-only client role never gets Time & HR, flag or not" do
+  # Task 5 made can_access_time_hr? read the raw flag alone, with no more
+  # client_role? special-case — production data forces the flag off for every
+  # client via the backfill migration's revoke_hr, so the guard is redundant
+  # there. time_hr_member? still excludes a plain client: only at-least-employee
+  # roles, or a workspace_client with the flag on, work the HR surfaces.
+  test "the Jira-only client role reads the raw Time & HR flag, but is not a Time & HR member" do
     ws = workspaces(:one)
     user = users(:client_user)
     user.membership_for(ws).update!(time_hr_access: true)
 
-    refute user.can_access_time_hr?(ws), "the Jira-only client role stays out of Time & HR"
-    refute user.time_hr_member?(ws)
+    assert user.can_access_time_hr?(ws), "the flag alone now governs can_access_time_hr?"
+    refute user.time_hr_member?(ws), "a plain client is still not a Time & HR member"
   end
 
   # A workspace_client is the Product Owner on the client side: full Workshop
