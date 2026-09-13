@@ -31,6 +31,15 @@ class User < ApplicationRecord
     workspace_memberships.find_by(workspace: workspace)
   end
 
+  def workspace_admin?(workspace)
+    membership_for(workspace)&.workspace_admin || false
+  end
+
+  # The entry point for every authorization question about a project.
+  def project_access(project)
+    ProjectAccess.new(self, project)
+  end
+
   def role_in(workspace)
     membership_for(workspace)&.role
   end
