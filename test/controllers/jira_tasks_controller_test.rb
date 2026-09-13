@@ -31,6 +31,10 @@ class JiraTasksControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "index is blocked for an employee without Workshop access" do
+    # Workshop access is now "has at least one project" (Task 5), not the
+    # retired workshop_access flag, so the fixture's ProjectMembership has to
+    # go before this employee genuinely has nowhere to work.
+    ProjectMembership.where(user: users(:two)).destroy_all
     sign_in_as(users(:two))
     get jira_tasks_path
     assert_redirected_to time_entries_path
