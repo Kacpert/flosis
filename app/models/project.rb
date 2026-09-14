@@ -17,6 +17,8 @@ class Project < ApplicationRecord
   # plain. Resolution/fallback lives in ProjectCredentials, not here.
   encrypts :github_token
   encrypts :jira_api_token
+  encrypts :figma_token
+  encrypts :anthropic_api_key
 
   validates :name, presence: true
   validates :color, presence: true, format: { with: /\A#[0-9A-Fa-f]{6}\z/ }

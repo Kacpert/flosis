@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_12_121000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_12_123000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -397,6 +397,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_121000) do
   end
 
   create_table "projects", force: :cascade do |t|
+    t.text "anthropic_api_key"
     t.boolean "archived", default: false, null: false
     t.text "briefing_personas"
     t.integer "budget_cents"
@@ -407,19 +408,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_121000) do
     t.text "context_info"
     t.datetime "created_at", null: false
     t.string "currency", limit: 3, default: "USD", null: false
+    t.json "estimation_field_names"
+    t.string "estimation_status_trigger", default: "Ready for dev"
+    t.string "estimation_trigger", default: "manual", null: false
     t.string "external_reference"
     t.string "external_type"
     t.text "features_summary"
     t.datetime "features_summary_updated_at"
+    t.boolean "figma_read_enabled", default: false, null: false
+    t.datetime "figma_status_checked_at"
+    t.string "figma_status_error"
+    t.boolean "figma_status_ok"
+    t.text "figma_token"
     t.string "github_repo"
+    t.datetime "github_status_checked_at"
+    t.string "github_status_error"
+    t.boolean "github_status_ok"
     t.text "github_token"
+    t.string "jira_ai_actions_field_id"
+    t.string "jira_ai_estimation_field_id"
     t.text "jira_api_token"
     t.string "jira_email"
     t.string "jira_site"
+    t.datetime "jira_status_checked_at"
+    t.string "jira_status_error"
+    t.boolean "jira_status_ok"
+    t.string "jira_story_points_field_id"
     t.datetime "mcp_synced_at"
     t.string "name", null: false
+    t.integer "pr_poll_minutes", default: 7, null: false
+    t.datetime "pr_polled_at"
+    t.boolean "pr_review_enabled", default: false, null: false
+    t.text "pr_review_prompt"
     t.string "repo_checkout_error"
     t.string "repo_checkout_status"
+    t.string "team"
     t.datetime "updated_at", null: false
     t.string "workspace_dir"
     t.bigint "workspace_id", null: false
