@@ -11,7 +11,7 @@
   </div>
 
   <%# Admin: Pending Requests %>
-  <% if current_user.admin_or_owner?(current_workspace) && @pending_requests&.any? %>
+  <% if workspace_admin? && @pending_requests&.any? %>
     <div class="space-y-2">
       <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Pending Approval</h2>
       <div class="m3-card-outlined overflow-hidden">
@@ -93,7 +93,7 @@
   <% end %>
 
   <%# Admin: full team holiday history (all statuses) %>
-  <% if current_user.admin_or_owner?(current_workspace) && @all_requests&.any? %>
+  <% if workspace_admin? && @all_requests&.any? %>
     <div class="space-y-2">
       <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Team Holidays</h2>
       <div class="m3-card-outlined overflow-hidden">
@@ -120,7 +120,7 @@
   <%# Balance History Link %>
   <div class="text-center">
     <%= link_to "View balance history", holiday_balance_entries_path, class: "text-sm font-medium", style: "color: var(--color-primary)" %>
-    <% if current_user.admin_or_owner?(current_workspace) %>
+    <% if workspace_admin? %>
       &middot;
       <%= link_to "Manage team balances", holiday_balance_entries_path(view: "team"), class: "text-sm font-medium", style: "color: var(--color-primary)" %>
     <% end %>

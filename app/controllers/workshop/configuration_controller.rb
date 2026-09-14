@@ -1,21 +1,24 @@
-# Configuration (Task 9.1): admin-only per-project credentials, AI behaviour
-# and access. Gated by require_admin! — Product Owners (employees with
-# workshop_access) must never reach this page (D5-adjacent access rule).
-#
-# This task builds the page shell + the AI tab in full. Integrations (9.2) and
-# Users (9.3) render as placeholders for now.
+# Configuration: per-project credentials, AI behaviour and access. Each tab
+# costs a permission (see TAB_PERMISSIONS); the page opens for anyone holding
+# either of the two the tabs use, and a tab you lack renders locked instead of
+# missing.
 class Workshop::ConfigurationController < Workshop::BaseController
   TABS = %w[integrations ai briefing users].freeze
-  # The "users" tab is member management — admins/owners only. A
-  # workspace_client can manage everything else but never users.
-  ADMIN_ONLY_TABS = %w[users].freeze
 
-  before_action :require_workshop_config_access!
-  # User management (the "users" tab) is admin-only even for workspace_clients.
-  before_action :block_admin_only_tabs
+  # What each tab costs. Briefing is the one a Product Owner holds, which is
+  # why this is a per-tab map and not a single gate on the page.
+  TAB_PERMISSIONS = {
+    "integrations" => :configuration,
+    "ai" => :configuration,
+    "briefing" => :briefing_config,
+    "users" => :configuration
+  }.freeze
+
+  before_action :require_configuration_access!
+  before_action :redirect_to_a_tab_they_hold, only: :show
 
   def show
-    @tab = TABS.include?(params[:tab]) ? params[:tab] : "ai"
+    @tab = requested_tab
     load_ai_tab if @tab == "ai"
     load_briefing_tab if @tab == "briefing"
     load_integrations_tab if @tab == "integrations"
@@ -24,6 +27,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
 
   def update
     tab = TABS.include?(params[:tab]) ? params[:tab] : "ai"
+    return head :forbidden unless tab_permitted?(tab)
 
     case tab
     when "ai"
@@ -84,14 +88,33 @@ class Workshop::ConfigurationController < Workshop::BaseController
 
   private
 
-  # Keep non-admins (workspace_clients) out of the "users" tab on both show and
-  # update — user management is admin/owner-only.
-  def block_admin_only_tabs
-    return if current_user&.admin_or_owner?(current_workspace)
-    return unless ADMIN_ONLY_TABS.include?(params[:tab].to_s)
+  # The page opens for either permission; with neither there is nothing on it.
+  def require_configuration_access!
+    return if can?(:configuration) || can?(:briefing_config)
 
-    redirect_to workshop_configuration_path(tab: "ai"),
-                alert: "You don't have permission to manage users."
+    deny_access!("You don't have permission to access this page.", product_landing_path)
+  end
+
+  def requested_tab
+    TABS.include?(params[:tab]) ? params[:tab] : default_tab
+  end
+
+  # The first tab this person actually holds, so the bare URL never lands on a
+  # padlock.
+  def default_tab
+    can?(:configuration) ? "ai" : "briefing"
+  end
+
+  def tab_permitted?(tab)
+    can?(TAB_PERMISSIONS.fetch(tab, :configuration))
+  end
+  helper_method :tab_permitted?
+
+  def redirect_to_a_tab_they_hold
+    return if tab_permitted?(requested_tab)
+
+    redirect_to workshop_configuration_path(tab: default_tab),
+                alert: "You don't have permission to open that tab."
   end
 
   def update_integrations_settings
@@ -160,8 +183,15 @@ class Workshop::ConfigurationController < Workshop::BaseController
                        ProjectCredentials.new(current_workshop_project).jira_configured?
   end
 
+  # Per-project membership, with the switches that decide each person's
+  # access on THIS project — permission_role_badge reads role_label off these,
+  # which only a ProjectMembership (or ProjectAccess) can answer.
   def load_users_tab
-    @members = current_workspace.workspace_memberships.includes(:user).joins(:user).order("users.name")
+    @members = if current_workshop_project
+      current_workshop_project.project_memberships.includes(:user).joins(:user).order("users.name")
+    else
+      ProjectMembership.none
+    end
   end
 
   def update_ai_settings

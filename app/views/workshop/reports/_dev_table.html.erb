@@ -17,7 +17,7 @@
     <span class="w-[90px] text-right">BUGS FIXED</span>
     <span class="w-[100px] text-right">BUGS CREATED</span>
     <span class="w-[80px] text-right">HOURS</span>
-    <% if can_see_money? %>
+    <% if can?(:pricing) %>
       <span class="w-[110px] text-right">COST</span>
     <% end %>
   </div>
@@ -36,7 +36,7 @@
       <span class="w-[90px] text-right text-[13.5px] clar-text-success"><%= dev[:bugs_fixed] %></span>
       <span class="w-[100px] text-right text-[13.5px] <%= dev[:bugs_created] >= 4 ? 'clar-text-danger' : (dev[:bugs_created].zero? ? 'clar-text-faint' : 'clar-text-muted') %>"><%= dev[:bugs_created] %></span>
       <span class="w-[80px] text-right text-[13.5px] clar-text-muted"><%= number_with_precision(dev[:hours], precision: 1) %></span>
-      <% if can_see_money? %>
+      <% if can?(:pricing) %>
         <span class="w-[110px] text-right text-[13.5px] font-mono clar-text-text"><%= format_money(dev[:cost_cents], current_workshop_project&.currency) %></span>
       <% end %>
     </div>
@@ -49,7 +49,7 @@
       <span class="w-[90px] text-right font-semibold text-[13.5px] clar-text-success"><%= team_bugs_fixed %></span>
       <span class="w-[100px] text-right font-semibold text-[13.5px] clar-text-warn"><%= team_bugs_created %></span>
       <span class="w-[80px] text-right font-semibold text-[13.5px] clar-text-text"><%= number_with_precision(team_hours, precision: 1) %></span>
-      <% if can_see_money? %>
+      <% if can?(:pricing) %>
         <span class="w-[110px] text-right font-bold text-[13.5px] font-mono clar-text-text"><%= format_money(team_cost_cents, current_workshop_project&.currency) %></span>
       <% end %>
     </div>

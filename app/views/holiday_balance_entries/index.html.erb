@@ -2,7 +2,7 @@
   <div class="flex justify-between items-center">
     <div>
       <h1 class="text-2xl font-bold tracking-tight" style="color: var(--color-on-surface)">
-        <% if current_user.admin_or_owner?(current_workspace) && params[:view] == "team" %>
+        <% if workspace_admin? && params[:view] == "team" %>
           Team Holiday Balances
         <% elsif @target_user != current_user %>
           Balance History — <%= @target_user.name %>
@@ -17,7 +17,7 @@
           <div class="text-2xl font-bold" style="color: var(--color-primary)"><%= @balance %></div>
           <div class="text-xs" style="color: var(--color-outline)">days remaining</div>
         </div>
-        <% if current_user.admin_or_owner?(current_workspace) && @target_user != current_user %>
+        <% if workspace_admin? && @target_user != current_user %>
           <%= link_to "Adjust Balance", new_holiday_balance_entry_path(user_id: @target_user.id), class: "m3-btn m3-btn-filled" %>
         <% end %>
       <% end %>
@@ -38,7 +38,7 @@
   <% end %>
 
   <%# Team overview for admins %>
-  <% if current_user.admin_or_owner?(current_workspace) && params[:view] == "team" %>
+  <% if workspace_admin? && params[:view] == "team" %>
     <div class="m3-card-outlined overflow-hidden">
       <% current_workspace.workspace_memberships.where.not(role: :client).includes(:user).order("users.name").each do |membership| %>
         <div class="flex items-center justify-between p-4 border-b" style="border-color: var(--color-outline-variant)">

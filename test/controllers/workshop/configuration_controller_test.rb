@@ -41,44 +41,37 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /Figma/
   end
 
-  test "admin GET show with tab=users renders the member list with role badges (Task 9.3)" do
+  # Access is per-project now, so "the member list" is this project's
+  # ProjectMemberships, and the badge is derived from their switches rather
+  # than a workspace-wide role — see PermissionPreset.
+  test "admin GET show with tab=users lists this project's members with permission-derived badges" do
+    project_memberships(:one_elvium).update!(PermissionPreset.attributes_for("Administrator"))
+    project_memberships(:two_elvium).update!(PermissionPreset.attributes_for("Product Owner"))
+
     get workshop_configuration_path(tab: "users")
 
     assert_response :success
     assert_select ".clar-tab-active", /Users/
 
-    # Owner (workspace_memberships(:one_owner), users(:one)) -> Administrator
     assert_select "body", /Kacper/
     assert_select "body", /one@example\.com/
-
-    # Employee with workshop_access -> Product Owner (Task 9.3 setup below toggles this on)
     assert_select "body", /Other User/
     assert_select "body", /two@example\.com/
-
-    # Client -> Client
+    # Client Person is still a member of this project (client_elvium fixture)
+    # and still shows, with whatever the switches on their row say.
     assert_select "body", /Client Person/
-    assert_select "body", /client-fixture@example\.com/
 
     assert_select ".clar-badge-warn", /Administrator/
-    assert_select ".clar-badge-muted", /Client/
-  end
-
-  test "users tab shows Product Owner badge for employee with workshop_access" do
-    workspace_memberships(:two_employee).update!(workshop_access: true)
-
-    get workshop_configuration_path(tab: "users")
-
-    assert_response :success
     assert_select ".clar-badge-primary", /Product Owner/
   end
 
-  test "users tab shows a muted Member badge for employee without workshop_access" do
-    workspace_memberships(:two_employee).update!(workshop_access: false)
+  test "users tab shows a muted Custom badge for a permission set matching no preset" do
+    project_memberships(:two_elvium).update!(pricing: true) # off every preset
 
     get workshop_configuration_path(tab: "users")
 
     assert_response :success
-    assert_select ".clar-badge-muted", /Member/
+    assert_select ".clar-badge-muted", /Custom/
   end
 
   test "users tab Invite button links to the HR invite screen in a new tab" do
@@ -88,47 +81,44 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?][target=?]", new_workspace_member_path, "_blank", /Invite/
   end
 
-  test "employee is blocked from the users tab too" do
-    workspace_memberships(:two_employee).update!(workshop_access: true)
+  test "someone holding Briefing but not Configuration is blocked from the users tab" do
+    project_memberships(:two_elvium).update!(PermissionPreset.attributes_for("Product Owner"))
     sign_out
     sign_in_as(users(:two))
     post switch_product_path, params: { product: "workshop" }
 
     get workshop_configuration_path(tab: "users")
-    assert_redirected_to root_path
+    # Bounced to the tab they DO hold, not thrown out of the page — they still
+    # pass require_configuration_access! on Briefing alone.
+    assert_redirected_to workshop_configuration_path(tab: "briefing")
   end
 
-  test "employee (non-admin) is blocked from Configuration show AND update" do
-    # workshop_access true + workshop_enabled true rule out require_product!/
-    # require_workshop! as the cause — so the block is provably require_admin!.
-    workspace_memberships(:two_employee).update!(workshop_access: true)
+  test "someone holding neither Configuration nor Briefing is blocked from the whole page, and PATCH cannot persist" do
+    project_memberships(:two_elvium).update!(PermissionPreset::PERMISSIONS.index_with(false))
     sign_out
     sign_in_as(users(:two))
     post switch_product_path, params: { product: "workshop" }
 
     get workshop_configuration_path
-    assert_redirected_to root_path # require_admin! target
+    assert_response :redirect
 
-    # update must be gated too — a non-admin PATCH must not persist anything.
     before = workspaces(:one).reload.pr_poll_minutes
-    patch workshop_configuration_path, params: { workspace: { pr_poll_minutes: 25 } }
-    assert_redirected_to root_path
-    assert_equal before, workspaces(:one).reload.pr_poll_minutes, "employee PATCH must not persist"
+    patch workshop_configuration_path, params: { workspace: { pr_poll_minutes: 25 }, tab: "ai" }
+    assert_response :redirect
+    assert_equal before, workspaces(:one).reload.pr_poll_minutes, "must not persist"
   end
 
-  test "workspace_client can reach Configuration (AI tab) and manage settings, but NOT the users tab" do
-    workspace_memberships(:two_employee).update!(role: "workspace_client")
+  test "someone holding Briefing manages that tab, but Integrations/Users render locked and refuse server-side too" do
+    project_memberships(:two_elvium).update!(PermissionPreset.attributes_for("Product Owner"))
     sign_out
     sign_in_as(users(:two))
     post switch_product_path, params: { product: "workshop" }
 
-    # Can open Configuration and its non-users tabs.
     get workshop_configuration_path
     assert_response :success
-    assert_select ".clar-tab", /AI/
-    # The Users tab is SHOWN but locked for a workspace_client — visible with a
-    # reason beats silently missing. It must not be a link, and the server-side
-    # block below is what actually enforces it.
+    assert_select ".clar-tab.clar-tab-active", /Briefing/
+    # Users (and Integrations/AI) are SHOWN but locked — visible with a reason
+    # beats silently missing. It must not be a link.
     assert_select "a.clar-tab", text: /Users/, count: 0
     assert_select "span.clar-tab[aria-disabled='true']", text: /Users/ do |tab|
       # data-tip drives the .clar-tip bubble; the native title attribute waited
@@ -137,14 +127,17 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
       assert_match(/Missing permission/, tab.first["aria-label"], "and say it to screen readers")
     end
 
-    # Can manage settings — a real management action (AI tab) persists.
-    before = workspaces(:one).reload.pr_poll_minutes
-    patch workshop_configuration_path, params: { tab: "ai", workspace: { pr_poll_minutes: 21 } }
-    assert_equal 21, workspaces(:one).reload.pr_poll_minutes, "workspace_client must be able to manage settings"
+    # Can manage the tab they hold.
+    patch workshop_configuration_path, params: { tab: "briefing", workspace: { briefing_personas: "Recruiters." } }
+    assert_equal "Recruiters.", @project.reload.briefing_personas
 
-    # But is blocked from the users tab (show) and any users-tab update.
+    # But cannot even reach the users tab — bounced to the tab they hold.
     get workshop_configuration_path(tab: "users")
-    assert_redirected_to workshop_configuration_path(tab: "ai")
+    assert_redirected_to workshop_configuration_path(tab: "briefing")
+
+    # Nor PATCH it — forbidden server-side, not silently accepted.
+    patch workshop_configuration_path, params: { tab: "users" }
+    assert_response :forbidden
   end
 
   test "PATCH update persists AI settings and toasts" do
@@ -251,20 +244,20 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /Figma/
   end
 
-  test "employee is blocked from the integrations endpoints too" do
-    workspace_memberships(:two_employee).update!(workshop_access: true)
+  test "someone without Configuration or Briefing is blocked from the integrations endpoints too" do
+    project_memberships(:two_elvium).update!(PermissionPreset::PERMISSIONS.index_with(false))
     sign_out
     sign_in_as(users(:two))
     post switch_product_path, params: { product: "workshop" }
 
     get workshop_configuration_path(tab: "integrations")
-    assert_redirected_to root_path
+    assert_response :redirect
 
     post workshop_test_github_configuration_path
-    assert_redirected_to root_path
+    assert_response :redirect
 
     post workshop_verify_jira_fields_configuration_path
-    assert_redirected_to root_path
+    assert_response :redirect
   end
 
   test "POST test_github runs the health check, persists status, and toasts" do

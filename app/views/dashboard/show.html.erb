@@ -12,7 +12,7 @@
     <div class="m3-card-elevated text-center py-10">
       <h2 class="text-lg font-semibold" style="color: var(--color-on-surface)">Welcome to Clar</h2>
       <p class="text-sm max-w-sm mx-auto mt-2" style="color: var(--color-on-surface-variant)">Create a project and start your first timer to see how your time flows.</p>
-      <% if current_user.admin_or_owner?(current_workspace) %>
+      <% if workspace_admin? %>
         <div class="flex justify-center gap-3 mt-5">
           <%= link_to new_project_path, class: "m3-btn m3-btn-filled" do %>
             Create Project
@@ -53,7 +53,7 @@
     <div class="stat-card">
       <div class="stat-label">Active Projects</div>
       <div class="stat-number"><%= @active_projects_count %></div>
-      <% if current_user.admin_or_owner?(current_workspace) %>
+      <% if workspace_admin? %>
         <div class="stat-detail">
           <%= link_to "View all", projects_path, style: "color: var(--color-primary); text-decoration: none;", onmouseover: "this.style.textDecoration='underline'", onmouseout: "this.style.textDecoration='none'" %>
         </div>

@@ -5,7 +5,7 @@
     <h1 class="clar-h1">Create Tasks</h1>
     <p class="clar-sub">Turn rough ideas and unclear tickets into implementation-ready Jira tasks. The AI reads the repo first, then helps you shape them.</p>
   </div>
-  <% if current_user&.admin_or_owner?(current_workspace) %>
+  <% if can?(:configuration) %>
     <%= link_to workshop_configuration_path(tab: "briefing"),
           title: "Briefing setup — personas & app feature list",
           class: "clar-btn !text-[12px] !py-1.5 !px-3 flex-none whitespace-nowrap mt-1" do %>

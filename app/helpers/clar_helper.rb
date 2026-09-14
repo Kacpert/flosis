@@ -140,21 +140,16 @@ module ClarHelper
     end
   end
 
-  # Configuration > Users tab (Task 9.3) role badge: [badge_class, label] for
-  # a WorkspaceMembership. admin/owner outrank workshop_access; employees are
-  # split on workshop_access (Product Owner vs plain Member); client is its
-  # own muted badge.
-  def workshop_role_badge(membership)
-    if membership.admin? || membership.owner?
-      [ "clar-badge-warn", "Administrator" ]
-    elsif membership.workspace_client?
-      [ "clar-badge-primary", "Workspace Client" ]
-    elsif membership.client?
-      [ "clar-badge-muted", "Client" ]
-    elsif membership.workshop_access?
-      [ "clar-badge-primary", "Product Owner" ]
-    else
-      [ "clar-badge-muted", "Member" ]
-    end
+  # Configuration > Users: [badge_class, label] for a project membership or a
+  # ProjectAccess. The label is derived from the switches, so a set matching no
+  # preset reads "Custom" rather than being rounded to the nearest role.
+  def permission_role_badge(holder)
+    label = holder.role_label
+    klass = case label
+            when "Administrator" then "clar-badge-warn"
+            when "Custom" then "clar-badge-muted"
+            else "clar-badge-primary"
+            end
+    [ klass, label ]
   end
 end

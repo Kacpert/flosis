@@ -5,7 +5,7 @@
   <%# Header %>
   <div class="flex justify-between items-center">
     <h1 class="clar-h1">Jira Tasks</h1>
-    <% if @selected_project && current_user.admin_or_owner?(current_workspace) %>
+    <% if @selected_project && can?(:configuration) %>
       <button type="button"
               class="clar-btn flex items-center gap-1.5"
               data-jira-tasks-target="refreshButton"

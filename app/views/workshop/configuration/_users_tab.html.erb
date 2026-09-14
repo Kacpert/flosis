@@ -8,7 +8,7 @@
   </div>
 
   <% @members.each do |membership| %>
-    <% badge_class, badge_label = workshop_role_badge(membership) %>
+    <% badge_class, badge_label = permission_role_badge(membership) %>
     <div class="flex items-center gap-3.5 py-3.5 px-5 border-b border-[color:var(--border)] last:border-b-0">
       <span class="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-none <%= clar_avatar_bg_class(membership.user.name) %>">
         <%= clar_initials(membership.user.name) %>

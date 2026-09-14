@@ -50,7 +50,7 @@
       <div class="stat-label">Team Members</div>
       <div class="stat-number"><%= @entries_by_user.size %></div>
     </div>
-    <% if can_see_money? %>
+    <% if workspace_admin? %>
       <div class="stat-card flex-1">
         <div class="stat-label">Total Cost</div>
         <div class="stat-number"><%= format_money(@total_cents, @project&.currency) %></div>
@@ -72,7 +72,7 @@
             <span class="font-mono font-bold text-sm" style="color: var(--color-on-surface)">
               <%= format("%d:%02d", user_total / 3600, (user_total % 3600) / 60) %>
             </span>
-            <% if can_see_money? %>
+            <% if workspace_admin? %>
               <span class="font-mono font-bold text-sm" style="color: var(--color-primary)">
                 <%= format_money(user_cost_cents, @project&.currency) %>
               </span>

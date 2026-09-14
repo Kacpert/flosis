@@ -1,5 +1,5 @@
 <% content_for :title, "Configuration · Flosis" %>
-<% is_admin = current_user&.admin_or_owner?(current_workspace) %>
+<% is_admin = can?(:configuration) %>
 
 <% if is_admin %>
   <div class="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[.4px] clar-text-warn bg-[color:var(--warn-soft)] py-[3px] px-[9px] rounded-[6px] mb-2.5">ADMINISTRATOR ONLY</div>
@@ -8,36 +8,23 @@
 <p class="clar-sub">Per-project credentials, AI behaviour<%= " and access" if is_admin %>.</p>
 
 <div class="clar-tabs mb-6">
-  <%= link_to "Integrations", workshop_configuration_path(tab: "integrations"),
-        class: "clar-tab #{'clar-tab-active' if @tab == 'integrations'}" %>
-  <%= link_to "AI", workshop_configuration_path(tab: "ai"),
-        class: "clar-tab #{'clar-tab-active' if @tab == 'ai'}" %>
-  <%= link_to "Briefing", workshop_configuration_path(tab: "briefing"),
-        class: "clar-tab #{'clar-tab-active' if @tab == 'briefing'}" %>
-  <%# Users tab is admin/owner-only. It still renders for a workspace client,
-      but locked — showing that it exists and why they can't open it is clearer
-      than silently hiding it. The controller blocks the tab server-side too
-      (block_admin_only_tabs), so this is presentation, not the gate. %>
-  <% if is_admin %>
-    <%= link_to "Users", workshop_configuration_path(tab: "users"),
-          class: "clar-tab #{'clar-tab-active' if @tab == 'users'}" %>
-  <% else %>
-    <span class="clar-tab clar-tip inline-flex items-center gap-1.5 cursor-not-allowed opacity-60"
-          data-tip="Missing permission &mdash; only administrators can manage users"
-          aria-label="Missing permission — only administrators can manage users"
-          tabindex="0" aria-disabled="true">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-      Users
-    </span>
+  <% { "integrations" => "Integrations", "ai" => "AI",
+       "briefing" => "Briefing", "users" => "Users" }.each do |tab, label| %>
+    <% if tab_permitted?(tab) %>
+      <%= link_to label, workshop_configuration_path(tab: tab),
+            class: "clar-tab #{'clar-tab-active' if @tab == tab}" %>
+    <% else %>
+      <%# Shown but locked. That it exists, and why it is shut, is more use
+          than a tab that silently is not there. The controller refuses it
+          server-side too, so this is presentation and not the gate. %>
+      <span class="clar-tab clar-tip inline-flex items-center gap-1.5 cursor-not-allowed opacity-60"
+            data-tip="Missing permission &mdash; ask an administrator"
+            aria-label="Missing permission" tabindex="0" aria-disabled="true">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <%= label %>
+      </span>
+    <% end %>
   <% end %>
 </div>
 
-<% if @tab == "integrations" %>
-  <%= render "integrations_tab" %>
-<% elsif @tab == "ai" %>
-  <%= render "ai_tab" %>
-<% elsif @tab == "briefing" %>
-  <%= render "briefing_tab" %>
-<% elsif @tab == "users" && is_admin %>
-  <%= render "users_tab" %>
-<% end %>
+<%= render "#{@tab}_tab" %>

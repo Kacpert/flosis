@@ -5,7 +5,7 @@
     <p class="clar-text-muted text-[14px] leading-relaxed">
       No Jira project connected. Connect a project in Projects (Time &amp; HR) to use the Workshop.
     </p>
-    <% if current_user&.admin_or_owner?(current_workspace) %>
+    <% if can?(:configuration) %>
       <%= link_to "Go to Projects", projects_path, class: "clar-btn clar-btn-primary clar-btn-block mt-4 no-underline" %>
     <% end %>
   </div>

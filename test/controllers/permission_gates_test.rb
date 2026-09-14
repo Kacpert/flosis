@@ -133,4 +133,43 @@ class PermissionGatesTest < ActionDispatch::IntegrationTest
     assert_response :redirect
     assert_equal "You don't have permission to access this page.", flash[:alert]
   end
+
+  test "Configuration opens for an Administrator" do
+    with_permissions("Administrator")
+
+    get workshop_configuration_path(tab: "integrations")
+
+    assert_response :success
+  end
+
+  test "a Product Owner reaches Briefing but not Integrations" do
+    with_permissions("Product Owner")
+
+    get workshop_configuration_path(tab: "briefing")
+    assert_response :success
+
+    get workshop_configuration_path(tab: "integrations")
+    assert_redirected_to workshop_configuration_path(tab: "briefing")
+  end
+
+  test "a Project Manager cannot open the configuration page at all" do
+    with_permissions("Project Manager")
+
+    get workshop_configuration_path(tab: "briefing")
+
+    assert_response :redirect
+  end
+
+  # Until this task, the Configuration controller gated on the retired role
+  # predicate while workshop_landing_path already sent Configuration-only
+  # people here — so this leg of the landing chain bounced. It is the last
+  # unproven branch of the redirect-loop fix.
+  test "the landing chain's Configuration leg actually lands" do
+    @membership.update!(PermissionPreset::PERMISSIONS.index_with(false).merge(configuration: true))
+
+    get workshop_pipeline_path
+    follow_redirect!
+
+    assert_response :success
+  end
 end
