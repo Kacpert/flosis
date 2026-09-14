@@ -100,14 +100,14 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     post switch_product_path, params: { product: "workshop" }
 
     # require_configuration_access! denies via product_landing_path, which for
-    # the Workshop product is the pipeline (the ordinary Workshop gate takes it
-    # from there if they can't hold that page either).
+    # the Workshop product is workshop_landing_path — with every permission
+    # off, that resolves to the profile page, not any Workshop route.
     get workshop_configuration_path
-    assert_redirected_to workshop_pipeline_path
+    assert_redirected_to profile_path
 
     before = workspaces(:one).reload.pr_poll_minutes
     patch workshop_configuration_path, params: { workspace: { pr_poll_minutes: 25 }, tab: "ai" }
-    assert_redirected_to workshop_pipeline_path
+    assert_redirected_to profile_path
     assert_equal before, workspaces(:one).reload.pr_poll_minutes, "must not persist"
   end
 
@@ -273,13 +273,13 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     post switch_product_path, params: { product: "workshop" }
 
     get workshop_configuration_path(tab: "integrations")
-    assert_redirected_to workshop_pipeline_path
+    assert_redirected_to profile_path
 
     post workshop_test_github_configuration_path
-    assert_redirected_to workshop_pipeline_path
+    assert_redirected_to profile_path
 
     post workshop_verify_jira_fields_configuration_path
-    assert_redirected_to workshop_pipeline_path
+    assert_redirected_to profile_path
   end
 
   test "POST test_github runs the health check, persists status, and toasts" do

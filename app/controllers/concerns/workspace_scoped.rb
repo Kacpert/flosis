@@ -56,12 +56,14 @@ module WorkspaceScoped
     host == root || host.end_with?(".#{root}")
   end
 
-  # Landing path for a product. The Workshop's landing is the pipeline; a
-  # person holding only Tasks is redirected on from there by the ordinary gate.
+  # Landing path for a product. For the Workshop that is whichever page this
+  # person can actually open — see workshop_landing_path. Returning the
+  # pipeline unconditionally would send someone who lacks Tasks to a page that
+  # immediately refuses them.
   def product_landing_path(product = current_product)
     return time_entries_path unless product&.to_sym == :workshop
 
-    workshop_pipeline_path
+    workshop_landing_path
   end
 
   # The first Workshop page this person can actually open. Every entry here
