@@ -751,7 +751,7 @@ Expected: FAIL — the Product Owner cases pass the page today, since Configurat
 
 **Add these to `app/controllers/concerns/authorization.rb`, leaving everything already there in place.** The old predicates are still called by fourteen Workshop controllers and a dozen views, which Tasks 6 to 8 migrate one at a time; deleting them here would leave three tasks committing a tree that raises. Task 9 removes them in one sweep once the last caller is gone.
 
-Extend the `helper_method` list rather than replacing it, and add:
+Extend the existing `helper_method` list rather than replacing it, and add the methods below. **Everything shown here is new except `require_admin!`, `require_employee!` and `visible_jira_projects`, which replace same-named methods already in the file.** Do not re-declare `current_membership`, `deny_access!`, `require_product!` or `jira_record_not_found` — they are already there and unchanged.
 
 ```ruby
 # Every authorization question in the app funnels through here.
@@ -772,10 +772,6 @@ module Authorization
   end
 
   private
-
-  def current_membership
-    @current_membership ||= current_user&.membership_for(current_workspace)
-  end
 
   def workspace_admin?
     current_user&.workspace_admin?(current_workspace) || false
@@ -1008,17 +1004,32 @@ git commit -m "feat: authorization asks ProjectAccess, and product access means 
 
 - [ ] **Step 1: Apply the base controller gate**
 
+First add the membership gate to `app/controllers/concerns/authorization.rb`, beside `require_permission!`:
+
+```ruby
+  # Standing in the project, without naming a permission. The Workshop subtree
+  # needs this; each area below it then asks for the permission it actually
+  # uses. Gating the whole subtree on :tasks instead would shut someone who
+  # holds only Reporting out of the reports they were deliberately granted.
+  def require_project_member!
+    return if current_project_access.member?
+
+    deny_access!("You don't have permission to access this page.", product_landing_path)
+  end
+```
+
+Then:
+
 ```ruby
 # app/controllers/workshop/base_controller.rb — replace the before_action block
 
   before_action { require_product!(:workshop) }
   before_action :require_workshop!
-  # Everything under /workshop is work on tickets. The narrower permissions
-  # (automations, reporting, configuration) are added by the subclasses that
-  # need them, on top of this one.
-  before_action { require_permission!(:tasks) }
+  before_action :require_project_member!
   before_action :set_pipeline_badge
 ```
+
+The ticket surfaces that genuinely need `tasks` — the pipeline, ideas, bugs, design requests, versions, the Jira browser and the process page — each add `before_action { require_permission!(:tasks) }` of their own. Reports and alert rules do not; they ask for `:reporting` and `:automations` in Step 4.
 
 - [ ] **Step 2: Apply the remaining thirteen lines from the table**
 
@@ -1331,7 +1342,32 @@ In `app/views/workspace_members/new.html.erb` and `edit.html.erb`, delete the Ro
 
 For `new.html.erb` the membership is unsaved, so replace `@membership.time_hr_access` with `true` and `@membership.workspace_admin` with `false` in the two `checked` expressions.
 
-- [ ] **Step 6: Fix the index view**
+- [ ] **Step 6: Close the seam this screen opens**
+
+Promoting someone here is the first time a workspace admin can exist whose old
+`role` is still `employee`. `available_projects` in
+`app/controllers/concerns/workspace_scoped.rb` still asks the OLD role
+predicate, so that person would see no projects at all — no projects to book
+time against, and a refused Jira task picker, because
+`require_time_hr_or_project_member!` falls back to this method. Point it at the
+flag:
+
+```ruby
+  # Projects this person may book time against. A workspace admin sees every
+  # one; everyone else sees the projects they are on. Deliberately NOT
+  # visible_jira_projects, which additionally requires the Tasks permission —
+  # booking hours is an HR action and must not need Workshop standing.
+  def available_projects
+    return current_workspace.projects.active.order(:name) if workspace_admin?
+
+    current_workspace.projects.active
+      .joins(:project_memberships)
+      .where(project_memberships: { user_id: current_user.id })
+      .order(:name)
+  end
+```
+
+- [ ] **Step 7: Fix the index view**
 
 In `app/views/workspace_members/index.html.erb`, replace any `membership.role` display with:
 
@@ -1340,15 +1376,15 @@ In `app/views/workspace_members/index.html.erb`, replace any `membership.role` d
 <%= " · Time & HR" if membership.time_hr_access %>
 ```
 
-- [ ] **Step 7: Run the test**
+- [ ] **Step 8: Run the tests**
 
-Run: `bin/rails test test/controllers/workspace_members_controller_test.rb`
-Expected: PASS, 4 runs
+Run: `bin/rails test test/controllers/workspace_members_controller_test.rb test/controllers/permission_gates_test.rb`
+Expected: PASS
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add app/controllers/workspace_members_controller.rb app/views/workspace_members \
+git add app/controllers/workspace_members_controller.rb app/controllers/concerns/workspace_scoped.rb app/views/workspace_members \
   app/models/workspace_membership.rb test/controllers/workspace_members_controller_test.rb
 git commit -m "feat: the employee directory grants HR access and the workspace privilege, nothing more"
 ```
@@ -1560,6 +1596,19 @@ Append to `test/controllers/permission_gates_test.rb`:
 
     assert_response :redirect
   end
+
+  # Until this task, the Configuration controller gated on the retired role
+  # predicate while workshop_landing_path already sent Configuration-only
+  # people here — so this leg of the landing chain bounced. It is the last
+  # unproven branch of the redirect-loop fix.
+  test "the landing chain's Configuration leg actually lands" do
+    @membership.update!(PermissionPreset::PERMISSIONS.index_with(false).merge(configuration: true))
+
+    get workshop_pipeline_path
+    follow_redirect!
+
+    assert_response :success
+  end
 ```
 
 - [ ] **Step 9: Run the affected tests**
@@ -1580,7 +1629,7 @@ git commit -m "feat: Configuration locks the tabs you lack, and views ask the ne
 ### Task 9: Retire the legacy role tests
 
 **Files:**
-- Delete: `test/models/client_role_test.rb`, `test/controllers/client_access_test.rb`, `test/controllers/workspace_client_time_hr_test.rb`
+- Delete: `test/models/client_role_test.rb`, `test/controllers/client_access_test.rb` (`test/controllers/workspace_client_time_hr_test.rb` was already deleted in Task 7, which is what broke it)
 - Modify: `test/models/user_test.rb`, `test/fixtures/workspace_memberships.yml`, `test/fixtures/project_memberships.yml`, and the role-dependent setups in `test/controllers/brief_chat_sessions_controller_test.rb`, `test/controllers/chat_sessions_controller_test.rb`, `test/controllers/jira_controller_test.rb`, `test/controllers/jira_tasks_controller_test.rb`, `test/controllers/workshop_controller_test.rb`, `test/controllers/workshop/configuration_controller_test.rb`, `test/controllers/workshop/discord_webhooks_controller_test.rb`, `test/controllers/workshop/reports_controller_test.rb`
 
 **Interfaces:**
@@ -1694,8 +1743,7 @@ workspace_client_elvium:
 - [ ] **Step 2: Delete the three obsolete files**
 
 ```bash
-git rm test/models/client_role_test.rb test/controllers/client_access_test.rb \
-  test/controllers/workspace_client_time_hr_test.rb
+git rm test/models/client_role_test.rb test/controllers/client_access_test.rb
 ```
 
 - [ ] **Step 3: Add the scoping test that replaces them**
@@ -1733,6 +1781,26 @@ end
 
 Each sets a role to arrange a case. Translate as follows, leaving the assertions alone:
 
+**Three carried-over fixes to the Task 4 backfill test**, which the Task 4 review
+raised and which are cheapest to make here, while you are already in the
+fixtures:
+
+- Its "a client keeps Tasks only and loses HR" case asserts `time_hr_access` is
+  false, but the `client_membership` fixture already ships it false, so that
+  half of the test would pass even with the revocation deleted. Set
+  `time_hr_access: true` on that membership inside the test before running the
+  backfill, so the assertion proves something.
+- No fixture carries `role: 1` (plain `admin`); only `role: 2` is exercised,
+  though both share a branch. Add a case that sets a membership's role to 1 and
+  asserts it too becomes a workspace admin.
+- Its idempotency case diffs only the six permission columns. Widen the pluck to
+  include `workspace_admin` on `WorkspaceMembership` as well.
+
+One file outside that list also breaks the moment the enum declaration goes:
+`test/jobs/holiday_yearly_grant_job_test.rb:22` passes `role: :client` when
+building a membership. Drop that argument — the job has nothing to do with
+roles, and the membership it builds only needs `time_hr_access`.
+
 | Old setup | New setup |
 | --- | --- |
 | `membership.update!(role: :admin)` | `membership.update!(workspace_admin: true)` |
@@ -1762,7 +1830,7 @@ Every caller is gone as of Task 8, so remove the predicates in one sweep.
 
 From `app/models/user.rb`: `role_in`, `admin_or_owner?`, `at_least_employee?`, `client_role?`, `workspace_client_role?`, `client_or_employee?`, `can_see_money?`, `time_hr_member?`.
 
-From `app/controllers/concerns/authorization.rb`: `require_workshop_config_access!`, `require_client_or_employee!`, `require_workshop_member!`, `require_workspace_member!`, `workshop_config_manager?`, `can_see_money?`, and their entries in the `helper_method` list.
+From `app/controllers/concerns/authorization.rb`: `require_workshop_config_access!`, `require_client_or_employee!`, `require_workshop_member!`, `require_workspace_member!`, `workshop_config_manager?`, `can_see_money?`, `current_role` (verified to have no callers at all), and their entries in the `helper_method` list.
 
 From `app/models/workspace_membership.rb`: the `enum :role, ...` declaration and the comment block above it. Leave the column — Task 18 drops it.
 
