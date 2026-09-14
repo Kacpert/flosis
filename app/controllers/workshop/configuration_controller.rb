@@ -15,6 +15,8 @@ class Workshop::ConfigurationController < Workshop::BaseController
   }.freeze
 
   before_action :require_configuration_access!
+  before_action -> { require_permission!(:configuration) }, only: %i[test_github verify_jira_fields]
+  before_action -> { require_permission!(:briefing_config) }, only: :refresh_features
   before_action :redirect_to_a_tab_they_hold, only: :show
 
   def show

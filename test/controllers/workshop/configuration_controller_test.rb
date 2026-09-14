@@ -99,12 +99,15 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     sign_in_as(users(:two))
     post switch_product_path, params: { product: "workshop" }
 
+    # require_configuration_access! denies via product_landing_path, which for
+    # the Workshop product is the pipeline (the ordinary Workshop gate takes it
+    # from there if they can't hold that page either).
     get workshop_configuration_path
-    assert_response :redirect
+    assert_redirected_to workshop_pipeline_path
 
     before = workspaces(:one).reload.pr_poll_minutes
     patch workshop_configuration_path, params: { workspace: { pr_poll_minutes: 25 }, tab: "ai" }
-    assert_response :redirect
+    assert_redirected_to workshop_pipeline_path
     assert_equal before, workspaces(:one).reload.pr_poll_minutes, "must not persist"
   end
 
@@ -138,6 +141,25 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     # Nor PATCH it — forbidden server-side, not silently accepted.
     patch workshop_configuration_path, params: { tab: "users" }
     assert_response :forbidden
+  end
+
+  # test_github and verify_jira_fields are Integrations-tab writes but used to
+  # be gated only by the page (:configuration OR :briefing_config), not by the
+  # tab. A Product Owner (briefing_config only, sees Integrations locked)
+  # could still POST to either and mutate GitHub health / cached Jira field
+  # ids. Both now require :configuration directly.
+  test "a Product Owner cannot reach the Integrations endpoints they see locked" do
+    # briefing_config on, configuration off
+    project_memberships(:two_elvium).update!(PermissionPreset.attributes_for("Product Owner"))
+    sign_out
+    sign_in_as(users(:two))
+    post switch_product_path, params: { product: "workshop" }
+
+    post workshop_test_github_configuration_path
+    assert_response :redirect
+
+    post workshop_verify_jira_fields_configuration_path
+    assert_response :redirect
   end
 
   test "PATCH update persists AI settings and toasts" do
@@ -251,13 +273,13 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     post switch_product_path, params: { product: "workshop" }
 
     get workshop_configuration_path(tab: "integrations")
-    assert_response :redirect
+    assert_redirected_to workshop_pipeline_path
 
     post workshop_test_github_configuration_path
-    assert_response :redirect
+    assert_redirected_to workshop_pipeline_path
 
     post workshop_verify_jira_fields_configuration_path
-    assert_response :redirect
+    assert_redirected_to workshop_pipeline_path
   end
 
   test "POST test_github runs the health check, persists status, and toasts" do
