@@ -2,9 +2,11 @@ require "test_helper"
 
 class HolidayYearlyGrantJobTest < ActiveSupport::TestCase
   test "creates yearly grant for active members without existing grant" do
-    # user :one already has a kacper_yearly_grant fixture (yearly_grant for current year)
-    # so the job should only create for user :two
-    assert_difference "HolidayBalanceEntry.count", 1 do
+    # user :one already has a kacper_yearly_grant fixture (yearly_grant for current
+    # year), so the job creates for :two (two_employee) and workspace_client_user
+    # (workspace_client_membership, whose time_hr_access is on) — the two
+    # memberships with time_hr_access and no grant yet.
+    assert_difference "HolidayBalanceEntry.count", 2 do
       HolidayYearlyGrantJob.perform_now
     end
 
@@ -13,18 +15,20 @@ class HolidayYearlyGrantJobTest < ActiveSupport::TestCase
     assert_match "Annual holiday grant for #{Date.current.year}", entry.note
   end
 
-  test "skips client role members" do
-    # Add a client membership
+  test "skips members without Time & HR access" do
+    # Add a membership with Time & HR access switched off — nothing to do with
+    # role, since the job grants purely on the time_hr_access flag.
     workspaces(:one).workspace_memberships.create!(user: User.create!(
       name: "Client User",
       email_address: "client@example.com",
       password: "password123"
-    ), role: :client)
+    ), time_hr_access: false)
 
     count_before = HolidayBalanceEntry.yearly_grant.count
     HolidayYearlyGrantJob.perform_now
-    # Should only create for user :two (user :one already has yearly_grant fixture), not the client
-    assert_equal count_before + 1, HolidayBalanceEntry.yearly_grant.count
+    # Grants go to :two and workspace_client_user (both have time_hr_access);
+    # the new time_hr_access: false membership gets nothing.
+    assert_equal count_before + 2, HolidayBalanceEntry.yearly_grant.count
   end
 
   test "idempotent — does not duplicate grants" do

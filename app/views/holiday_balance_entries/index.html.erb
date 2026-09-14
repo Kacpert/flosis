@@ -40,13 +40,13 @@
   <%# Team overview for admins %>
   <% if workspace_admin? && params[:view] == "team" %>
     <div class="m3-card-outlined overflow-hidden">
-      <% current_workspace.workspace_memberships.where.not(role: :client).includes(:user).order("users.name").each do |membership| %>
+      <% current_workspace.workspace_memberships.where.not(role: 3).includes(:user).order("users.name").each do |membership| %>
         <div class="flex items-center justify-between p-4 border-b" style="border-color: var(--color-outline-variant)">
           <div class="flex items-center gap-3">
             <div class="m3-avatar m3-avatar-sm"><%= membership.user.name.first(2).upcase %></div>
             <div>
               <span class="text-sm font-medium" style="color: var(--color-on-surface)"><%= membership.user.name %></span>
-              <div class="text-xs" style="color: var(--color-outline)"><%= membership.role %></div>
+              <div class="text-xs" style="color: var(--color-outline)"><%= membership.workspace_admin? ? "Admin" : "Employee" %></div>
             </div>
           </div>
           <div class="flex items-center gap-3">

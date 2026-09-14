@@ -172,4 +172,17 @@ class PermissionGatesTest < ActionDispatch::IntegrationTest
 
     assert_response :success
   end
+
+  # A person promoted through the HR directory carries workspace_admin without
+  # ever having had an admin ROLE. Everything that used to ask the role has to
+  # answer for them too — available_projects is the one that bit us.
+  test "an administrator by flag alone sees every project" do
+    workspace_memberships(:two_employee).update!(workspace_admin: true)
+    ProjectMembership.where(user: @user).destroy_all
+
+    get new_time_entry_path
+
+    assert_response :success
+    assert_select "select#time_entry_project_id option", minimum: 2
+  end
 end

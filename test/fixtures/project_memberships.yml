@@ -2,26 +2,55 @@ one_elvium:
   project: jira_project
   user: one
   hourly_rate_cents: 15000
+  automations: true
+  tasks: true
+  reporting: true
+  pricing: true
+  briefing_config: true
+  configuration: true
 
 two_elvium:
   project: jira_project
   user: two
   hourly_rate_cents: 10000
+  automations: true
+  tasks: true
+  reporting: true
+  pricing: false
+  briefing_config: false
+  configuration: false
 
 one_internal:
   project: plain_project
   user: one
   hourly_rate_cents: 12000
+  automations: true
+  tasks: true
+  reporting: true
+  pricing: true
+  briefing_config: true
+  configuration: true
 
-# Client is a member of jira_project only (NOT other_jira_project), so scoping
-# tests can assert they can't reach SecretProject's tasks.
+# Tasks only, and on jira_project alone, so scoping tests can assert they
+# cannot reach SecretProject.
 client_elvium:
   project: jira_project
   user: client_user
   hourly_rate_cents: 0
+  automations: false
+  tasks: true
+  reporting: false
+  pricing: false
+  briefing_config: false
+  configuration: false
 
-# The workspace_client logs time against jira_project only.
 workspace_client_elvium:
   project: jira_project
   user: workspace_client_user
   hourly_rate_cents: 0
+  automations: true
+  tasks: true
+  reporting: true
+  pricing: false
+  briefing_config: true
+  configuration: false

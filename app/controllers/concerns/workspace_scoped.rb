@@ -3,7 +3,6 @@ module WorkspaceScoped
 
   included do
     before_action :set_current_workspace
-    before_action :redirect_clients_to_jira
     before_action :set_running_timer
     helper_method :current_workspace
     helper_method :available_projects
@@ -57,13 +56,12 @@ module WorkspaceScoped
     host == root || host.end_with?(".#{root}")
   end
 
-  # Landing path for a product (or the current one when nil given). Clients are
-  # Jira-Tasks-only, so the Workshop landing for them is the Jira board.
+  # Landing path for a product. The Workshop's landing is the pipeline; a
+  # person holding only Tasks is redirected on from there by the ordinary gate.
   def product_landing_path(product = current_product)
     return time_entries_path unless product&.to_sym == :workshop
-    return jira_tasks_path if current_user&.client_role?(current_workspace)
 
-    workshop_landing_path
+    workshop_pipeline_path
   end
 
   # The first Workshop page this person can actually open. Every entry here
@@ -135,26 +133,6 @@ module WorkspaceScoped
     end
   end
 
-
-  # Clients may only use the Jira Tasks area (plus profile / session). Any other
-  # page is redirected to Jira Tasks. Runs after the workspace is set and before
-  # the per-controller role guards; never redirects a request already under an
-  # allowed prefix, so there is no loop.
-  CLIENT_ALLOWED_PREFIXES = ["/jira_tasks", "/profile", "/session"].freeze
-
-  # The "Switch Back" escape hatch for an impersonating admin must never be
-  # trapped, otherwise an admin who is viewing-as a client gets bounced back to
-  # Jira Tasks and can never restore their own session.
-  CLIENT_ALLOWED_EXACT_PATHS = ["/stop_impersonating"].freeze
-
-  def redirect_clients_to_jira
-    return unless Current.workspace
-    return unless current_user&.client_role?(Current.workspace)
-    return if CLIENT_ALLOWED_EXACT_PATHS.include?(request.path)
-    return if CLIENT_ALLOWED_PREFIXES.any? { |p| request.path == p || request.path.start_with?("#{p}/") }
-
-    redirect_to jira_tasks_path
-  end
 
   def set_running_timer
     return unless Current.workspace

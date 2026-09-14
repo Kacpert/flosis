@@ -12,7 +12,7 @@ class RegistrationsController < ApplicationController
     ActiveRecord::Base.transaction do
       @user.save!
       workspace = Workspace.create!(name: "#{@user.name}'s Workspace")
-      workspace.workspace_memberships.create!(user: @user, role: :owner)
+      workspace.workspace_memberships.create!(user: @user, workspace_admin: true)
     end
 
     start_new_session_for @user

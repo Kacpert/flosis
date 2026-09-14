@@ -13,7 +13,7 @@ class TimersController < ApplicationController
 
     project = current_workspace.projects.find(params[:project_id]) if params[:project_id].present?
 
-    unless current_user.admin_or_owner?(current_workspace) || project.nil?
+    unless current_user.workspace_admin?(current_workspace) || project.nil?
       unless ProjectMembership.exists?(project: project, user: current_user)
         redirect_back fallback_location: root_path, alert: "You are not assigned to this project."
         return

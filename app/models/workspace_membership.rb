@@ -4,13 +4,6 @@ class WorkspaceMembership < ApplicationRecord
 
   before_destroy :destroy_project_memberships
 
-  # employee/admin/owner — Time & HR + (flagged) Workshop access.
-  # client            — Jira-Tasks-ONLY (a restricted Workshop guest, no Time & HR).
-  # workspace_client  — FULL Workshop access WITH pricing. Time & HR is off by
-  #                     default, but an admin can switch it on (time_hr_access)
-  #                     for a client who also logs their own hours.
-  enum :role, { employee: 0, admin: 1, owner: 2, client: 3, workspace_client: 4 }
-
   validates :user_id, uniqueness: { scope: :workspace_id }
 
   # A workspace must keep someone who can run it. Demoting or removing the

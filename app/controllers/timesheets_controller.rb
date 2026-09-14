@@ -96,7 +96,7 @@ class TimesheetsController < ApplicationController
   def update_cell
     project_id = params[:project_id]
 
-    unless current_user.admin_or_owner?(current_workspace)
+    unless current_user.workspace_admin?(current_workspace)
       unless ProjectMembership.exists?(project_id: project_id, user_id: current_user.id)
         redirect_to timesheet_path, alert: "You are not assigned to this project."
         return
@@ -140,12 +140,12 @@ class TimesheetsController < ApplicationController
   private
 
   def set_viewed_user
-    if params[:user_id].present? && current_user.admin_or_owner?(current_workspace)
+    if params[:user_id].present? && current_user.workspace_admin?(current_workspace)
       @viewed_user = current_workspace.users.find_by(id: params[:user_id]) || current_user
     else
       @viewed_user = current_user
     end
-    @users = current_user.admin_or_owner?(current_workspace) ? current_workspace.users.order(:name) : []
+    @users = current_user.workspace_admin?(current_workspace) ? current_workspace.users.order(:name) : []
   end
 
   def parse_timesheet_duration(str)

@@ -7,7 +7,7 @@ class HolidayBalanceEntriesController < ApplicationController
   before_action :require_admin!, only: [:new, :create]
 
   def index
-    if current_user.admin_or_owner?(current_workspace) && params[:user_id].present?
+    if current_user.workspace_admin?(current_workspace) && params[:user_id].present?
       @target_user = User.find(params[:user_id])
     else
       @target_user = current_user

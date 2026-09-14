@@ -10,7 +10,7 @@ class HolidayRequestsController < ApplicationController
   def index
     @balance = current_user.holiday_balance(current_workspace)
 
-    if current_user.admin_or_owner?(current_workspace)
+    if current_user.workspace_admin?(current_workspace)
       @pending_requests = current_workspace.holiday_requests
         .pending
         .includes(:user)

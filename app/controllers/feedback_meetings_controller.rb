@@ -14,12 +14,12 @@ class FeedbackMeetingsController < ApplicationController
     end
     @selected_meeting ||= @feedback_meetings.first
     if @selected_meeting
-      @show_notes = current_user.admin_or_owner?(current_workspace) || @selected_meeting.notes_visible
+      @show_notes = current_user.workspace_admin?(current_workspace) || @selected_meeting.notes_visible
     end
   end
 
   def show
-    @show_notes = current_user.admin_or_owner?(current_workspace) || @feedback_meeting.notes_visible
+    @show_notes = current_user.workspace_admin?(current_workspace) || @feedback_meeting.notes_visible
   end
 
   def new
@@ -56,7 +56,7 @@ class FeedbackMeetingsController < ApplicationController
   private
 
   def scoped_meetings
-    if current_user.admin_or_owner?(current_workspace)
+    if current_user.workspace_admin?(current_workspace)
       current_workspace.feedback_meetings
     else
       current_workspace.feedback_meetings.for_employee(current_user)
@@ -69,7 +69,7 @@ class FeedbackMeetingsController < ApplicationController
 
   def set_employees
     @employees = current_workspace.workspace_memberships
-      .where(role: [:employee, :admin, :owner])
+      .where(time_hr_access: true)
       .includes(:user)
       .map { |m| [m.user.name, m.user.id] }
   end

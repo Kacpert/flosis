@@ -43,17 +43,30 @@ class BackfillPerProjectPermissionsTest < ActiveSupport::TestCase
   end
 
   test "a client keeps Tasks only and loses HR" do
+    workspace_memberships(:client_membership).update_columns(time_hr_access: true)
+
+    BackfillPerProjectPermissions.new.up
     membership = project_memberships(:client_elvium).reload
 
     assert_equal %i[tasks], membership.granted
     assert_not workspace_memberships(:client_membership).reload.time_hr_access
   end
 
+  test "a plain admin becomes a workspace admin too" do
+    workspace_memberships(:two_employee).update_columns(role: 1)
+
+    BackfillPerProjectPermissions.new.up
+
+    assert workspace_memberships(:two_employee).reload.workspace_admin
+  end
+
   test "running it twice changes nothing" do
     before = ProjectMembership.order(:id).pluck(:id, *PermissionPreset::PERMISSIONS)
+    before_workspace = WorkspaceMembership.order(:id).pluck(:id, :workspace_admin)
 
     BackfillPerProjectPermissions.new.up
 
     assert_equal before, ProjectMembership.order(:id).pluck(:id, *PermissionPreset::PERMISSIONS)
+    assert_equal before_workspace, WorkspaceMembership.order(:id).pluck(:id, :workspace_admin)
   end
 end

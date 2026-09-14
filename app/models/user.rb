@@ -40,46 +40,6 @@ class User < ApplicationRecord
     ProjectAccess.new(self, project)
   end
 
-  def role_in(workspace)
-    membership_for(workspace)&.role
-  end
-
-  def admin_or_owner?(workspace)
-    role = role_in(workspace)
-    role == "admin" || role == "owner"
-  end
-
-  def at_least_employee?(workspace)
-    role = role_in(workspace)
-    role == "employee" || role == "admin" || role == "owner"
-  end
-
-  def client_role?(workspace)
-    role_in(workspace) == "client"
-  end
-
-  # A "workspace client": full Workshop access WITH pricing, but no Time & HR.
-  # Distinct from the Jira-Tasks-only `client` role.
-  def workspace_client_role?(workspace)
-    role_in(workspace) == "workspace_client"
-  end
-
-  # Everyone who works on tickets: employees and up, the Jira-only `client`, and
-  # a `workspace_client` — who has FULL Workshop access (see
-  # #workspace_client_role?) and so cannot be the one role locked out of the
-  # Jira Tasks surface. Leaving them out gave a Product Owner a 403 on the AI
-  # chat while the page around it rendered fine, so the conversation simply
-  # appeared empty.
-  def client_or_employee?(workspace)
-    client_role?(workspace) || workspace_client_role?(workspace) || at_least_employee?(workspace)
-  end
-
-  # Pricing (rates/revenue/costs) is visible to admins/owners and to
-  # workspace_clients — the latter get a full, priced view of the Workshop.
-  def can_see_money?(workspace)
-    admin_or_owner?(workspace) || workspace_client_role?(workspace)
-  end
-
   # ---- Product access (Time & HR / Workshop) ---------------------------
   # The app is two products sharing one database. HR access is a flag on the
   # workspace membership. Workshop access is having somewhere to work: at least
@@ -89,20 +49,6 @@ class User < ApplicationRecord
 
   def can_access_time_hr?(workspace)
     membership_for(workspace)&.time_hr_access || false
-  end
-
-  # "May use Time & HR the way an employee does" — log time, run a timer, tag
-  # entries, file holidays. Deliberately separate from at_least_employee?, which
-  # is a pure ROLE question used outside this product too; widening that would
-  # hand workspace_clients employee powers in places this feature never meant to
-  # touch.
-  #
-  # Kept for the old require_employee! callers that remain (see Authorization);
-  # removed in Task 9 along with the rest of the role-based predicates.
-  def time_hr_member?(workspace)
-    return true if at_least_employee?(workspace)
-
-    workspace_client_role?(workspace) && can_access_time_hr?(workspace)
   end
 
   def can_access_workshop?(workspace)

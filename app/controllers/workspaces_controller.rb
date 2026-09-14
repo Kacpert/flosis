@@ -1,8 +1,8 @@
 class WorkspacesController < ApplicationController
   # This controller intentionally does NOT include WorkspaceScoped (it manages
-  # workspaces, including for users who have none yet), so the client redirect
-  # there doesn't apply. A client account is single-workspace and admin-managed,
-  # so clients must not create or switch workspaces — bounce them to Jira Tasks.
+  # workspaces, including for users who have none yet). A client account is
+  # single-workspace and admin-managed, so clients must not create or switch
+  # workspaces — bounce them to Jira Tasks.
   before_action :block_clients
 
   def new
@@ -13,7 +13,7 @@ class WorkspacesController < ApplicationController
     @workspace = Workspace.new(workspace_params)
 
     if @workspace.save
-      @workspace.workspace_memberships.create!(user: current_user, role: :owner)
+      @workspace.workspace_memberships.create!(user: current_user, workspace_admin: true)
       session[:workspace_id] = @workspace.id
       redirect_to root_path, notice: "Workspace created."
     else
@@ -29,10 +29,12 @@ class WorkspacesController < ApplicationController
 
   private
 
-  # A user is treated as a client if any of their memberships is a client role.
-  # (Client accounts have exactly one membership in practice.)
+  # A user is treated as a client if any of their memberships still carries the
+  # legacy `client` role (raw value 3 — the enum is gone as of Task 9, and no
+  # membership is created with this role any more). Client accounts have
+  # exactly one membership in practice.
   def block_clients
-    if current_user&.workspace_memberships&.exists?(role: :client)
+    if current_user&.workspace_memberships&.exists?(role: 3)
       redirect_to jira_tasks_path, alert: "Clients can't manage workspaces."
     end
   end

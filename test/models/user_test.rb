@@ -6,16 +6,19 @@ class UserTest < ActiveSupport::TestCase
     assert_equal("downcased@example.com", user.email_address)
   end
 
-  # ---- workspace_client role -------------------------------------------
+  # ---- workspace_client (a Product Owner who logs their own hours) ------
   # Full Workshop access WITH pricing, and cannot manage users. Time & HR is off
   # by default, but an admin can switch it on for a client who also logs hours.
+  # The `role` column stays until Task 18, but nothing in the app reads it any
+  # more — Task 9 removed the role-based predicates. It is set here only for
+  # fixture-shape parity with the seeded workspace_client_membership fixture.
 
   # Workshop access is now "has at least one project" (Task 5), not a role or a
   # flag, so this workspace_client fixture needs a real ProjectMembership to
   # have anywhere to work — never the retired workshop_access flag.
   def workspace_client_user(workspace, time_hr_access: false)
     user = User.create!(name: "WC", email_address: "wc@example.com", password: "password12")
-    WorkspaceMembership.create!(user: user, workspace: workspace, role: "workspace_client",
+    WorkspaceMembership.create!(user: user, workspace: workspace, role: 4,
                                time_hr_access: time_hr_access, workshop_access: false)
     ProjectMembership.create!(user: user, project: workspace.projects.first)
     user
@@ -28,15 +31,13 @@ class UserTest < ActiveSupport::TestCase
     assert user.can_access_workshop?(ws), "workspace_client must have full Workshop access"
     refute user.can_access_time_hr?(ws), "Time & HR must be off until an admin grants it"
     assert_equal [ :workshop ], user.accessible_products(ws)
-    refute user.time_hr_member?(ws)
   end
 
-  test "workspace_client granted Time & HR may use it like an employee" do
+  test "workspace_client granted Time & HR gains the product" do
     ws = workspaces(:one)
     user = workspace_client_user(ws, time_hr_access: true)
 
     assert user.can_access_time_hr?(ws)
-    assert user.time_hr_member?(ws), "granting the product must also open the employee surfaces"
   end
 
   # Task 5 dropped the role-based reordering: accessible_products now always
@@ -53,41 +54,12 @@ class UserTest < ActiveSupport::TestCase
   # Task 5 made can_access_time_hr? read the raw flag alone, with no more
   # client_role? special-case — production data forces the flag off for every
   # client via the backfill migration's revoke_hr, so the guard is redundant
-  # there. time_hr_member? still excludes a plain client: only at-least-employee
-  # roles, or a workspace_client with the flag on, work the HR surfaces.
-  test "the Jira-only client role reads the raw Time & HR flag, but is not a Time & HR member" do
+  # there.
+  test "the Jira-only client's Time & HR access reads the raw flag" do
     ws = workspaces(:one)
     user = users(:client_user)
     user.membership_for(ws).update!(time_hr_access: true)
 
     assert user.can_access_time_hr?(ws), "the flag alone now governs can_access_time_hr?"
-    refute user.time_hr_member?(ws), "a plain client is still not a Time & HR member"
-  end
-
-  # A workspace_client is the Product Owner on the client side: full Workshop
-  # access. Leaving them out of this predicate 403'd them out of the Jira Tasks
-  # surface — including the AI chat, which then rendered as an empty panel.
-  test "workspace_client counts as someone who works on tickets" do
-    workspace = workspaces(:one)
-
-    assert users(:workspace_client_user).client_or_employee?(workspace)
-    assert users(:client_user).client_or_employee?(workspace), "the Jira-only client too"
-    assert users(:one).client_or_employee?(workspace), "and employees and up"
-  end
-
-  test "workspace_client sees pricing" do
-    ws = workspaces(:one)
-    user = workspace_client_user(ws)
-    assert user.can_see_money?(ws), "workspace_client sees pricing"
-  end
-
-  test "workspace_client is distinct from the Jira-only client role" do
-    ws = workspaces(:one)
-    user = workspace_client_user(ws)
-    assert user.workspace_client_role?(ws)
-    refute user.client_role?(ws)
-    # And Workshop access does NOT depend on the workshop_access flag for this role.
-    refute user.membership_for(ws).workshop_access
-    assert user.can_access_workshop?(ws)
   end
 end

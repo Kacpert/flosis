@@ -4,7 +4,7 @@ class HolidayYearlyGrantJob < ApplicationJob
   def perform
     year = Date.current.year
 
-    WorkspaceMembership.where(role: [:employee, :admin, :owner]).includes(:user, :workspace).find_each do |membership|
+    WorkspaceMembership.where(time_hr_access: true).includes(:user, :workspace).find_each do |membership|
       already_granted = HolidayBalanceEntry.exists?(
         user: membership.user,
         workspace: membership.workspace,

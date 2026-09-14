@@ -3,8 +3,8 @@ module Authorization
 
   included do
     helper_method :current_membership, :current_project_access, :can?,
-                  :workspace_admin?, :can_see_money?, :visible_jira_projects,
-                  :github_connection_problem?, :workshop_config_manager?
+                  :workspace_admin?, :visible_jira_projects,
+                  :github_connection_problem?
   end
 
   private
@@ -76,10 +76,6 @@ module Authorization
          .order(:name)
   end
 
-  def current_role
-    current_membership&.role
-  end
-
   # Refuse the current request. An HTML page gets the familiar redirect + flash;
   # a JSON/XHR caller gets a status it can actually read. Redirecting a JSON
   # fetch used to send it to an HTML-only index, where the missing JSON template
@@ -101,23 +97,6 @@ module Authorization
     deny_access!("You don't have permission to access this page.", root_path)
   end
 
-  # Gate for MANAGING the Workshop product (Configuration: integrations, AI,
-  # briefing; Discord webhooks). Admins/owners AND workspace_clients pass — a
-  # workspace_client can manage everything in the Workshop EXCEPT users. User
-  # management stays behind require_admin! (workspace_client fails that), and the
-  # Configuration "users" tab is hidden/blocked for them separately.
-  def require_workshop_config_access!
-    return if current_user&.admin_or_owner?(current_workspace)
-    return if current_user&.workspace_client_role?(current_workspace)
-
-    redirect_to root_path, alert: "You don't have permission to access this page."
-  end
-
-  def workshop_config_manager?
-    current_user&.admin_or_owner?(current_workspace) ||
-      current_user&.workspace_client_role?(current_workspace)
-  end
-
   # The HR working surfaces: time entries, timesheet, timer, tags, holidays.
   def require_employee!
     return if current_user&.can_access_time_hr?(current_workspace)
@@ -135,47 +114,6 @@ module Authorization
     return if available_projects.exists?
 
     deny_access!("You don't have permission to access this page.", root_path)
-  end
-
-  # Jira tasks + their AI features are open to clients as well as employees.
-  def require_client_or_employee!
-    unless current_user&.client_or_employee?(current_workspace)
-      deny_access!("You don't have permission to access this page.", root_path)
-    end
-  end
-
-  # Gate for endpoints that serve BOTH products, so neither product gate fits:
-  # the timer bar's Jira task picker is the case that matters — picking the
-  # ticket you're logging hours against is a Time & HR action, but the data is
-  # Jira's. Every role in the workspace may do it, including the Jira-only
-  # `client` and a `workspace_client` who has Time & HR switched on. The real
-  # boundary stays visible_jira_projects: a non-admin still only reaches the
-  # projects they are a member of.
-  def require_workspace_member!
-    return if current_membership.present?
-
-    deny_access!("You don't have permission to access this page.", root_path)
-  end
-
-  # Gate AI/workshop-tooling endpoints (e.g. brief chat) to real workshop
-  # members. Deliberately does NOT reuse require_product!(:workshop) /
-  # User#can_access_workshop? — that predicate returns true for the Jira-only
-  # `client` role (they are Jira-Tasks-only, which lives in the Workshop
-  # product), and routes like /jira_tasks/* are client-allowed by
-  # redirect_clients_to_jira. Reusing it here would let a Jira-only client spawn
-  # an AI chat session. So this helper excludes the `client` role and requires
-  # the workshop_access flag — BUT a `workspace_client` (full Workshop access)
-  # is a real workshop member and always passes.
-  def require_workshop_member!
-    membership = current_user&.workspace_memberships&.find_by(workspace: current_workspace)
-    return if membership&.workspace_client?
-    return if membership && !membership.client? && membership.workshop_access
-
-    deny_access!("Not authorized", root_path)
-  end
-
-  def can_see_money?
-    current_user&.can_see_money?(current_workspace)
   end
 
   # Gate a controller to a product (:time_hr / :workshop). When the user lacks
