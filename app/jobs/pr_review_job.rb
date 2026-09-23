@@ -1,7 +1,7 @@
 class PrReviewJob < ApplicationJob
   queue_as :default
 
-  CAPS = { "initial" => 4, "followup" => 2 }.freeze
+  CAPS = { "initial" => 5, "followup" => 5 }.freeze
   CODEBASE_PATH = ENV.fetch("PR_REVIEW_CODEBASE_PATH", File.expand_path("~/work/elvium"))
 
   # The full PR-review prompt template used when a workspace hasn't customized
@@ -100,7 +100,7 @@ class PrReviewJob < ApplicationJob
     # every push doesn't re-post the same comment.
     issues = reject_already_posted(github, pr_number, issues)
 
-    issues = issues.first(CAPS.fetch(mode, 4))
+    issues = issues.first(CAPS.fetch(mode, 5))
     # A review GitHub refused is not a review: record the failure so it retries
     # with a backoff and shows up in the UI, instead of the PR being marked
     # reviewed with comments that never reached it.
