@@ -14,6 +14,15 @@
 class AlertRuleRunJob < ApplicationJob
   queue_as :default
 
+  # One run per rule at a time. AlertRulesDispatchJob re-checks every 5 minutes
+  # and last_run_at only moves when a run ends, so a run longer than that got a
+  # second, parallel run — started from the memory as it was before the first
+  # one saved, so it redid the first one's work (QA notes posted twice on twelve
+  # tickets). While a rule is running, further enqueues of it are dropped; once
+  # it finishes, last_run_at is current and the rule is no longer due. The
+  # duration only bounds a lock whose run was killed mid-way.
+  limits_concurrency to: 1, key: ->(alert_rule_id) { alert_rule_id }, duration: 1.hour, on_conflict: :discard
+
   CODEBASE_PATH = ENV.fetch("PR_REVIEW_CODEBASE_PATH", File.expand_path("~/work/elvium"))
 
   CLI_FAILURE_MARKERS = /\b(401|403|429|invalid authentication|failed to authenticate|api error|credit balance|rate limit|usage limit|overloaded|unauthorized)\b/i

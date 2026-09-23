@@ -142,6 +142,20 @@ class AlertRuleRunJobTest < ActiveJob::TestCase
     assert_equal "ok", run.status, "the AlertRun itself succeeded even though the Discord post failed"
   end
 
+  # The dispatcher re-checks every 5 minutes and last_run_at only moves when a
+  # run ENDS, so a run longer than 5 minutes used to get a second, parallel run
+  # of the same rule — built from the memory as it was before the first one
+  # saved, so it redid the first one's work (twelve QA-notes comments posted
+  # twice on 2026-08-31). A rule already running must drop the extra enqueue.
+  test "a rule never runs twice at once: an overlapping run of the same rule is discarded" do
+    assert_equal 1, AlertRuleRunJob.concurrency_limit
+    assert_equal :discard, AlertRuleRunJob.concurrency_on_conflict
+    assert_equal AlertRuleRunJob.new(@rule.id).concurrency_key, AlertRuleRunJob.new(@rule.id).concurrency_key
+    refute_equal AlertRuleRunJob.new(@rule.id).concurrency_key, AlertRuleRunJob.new(@rule.id + 1).concurrency_key
+    # Must outlast the longest real run (8+ minutes seen), or the lock lapses mid-run.
+    assert_operator AlertRuleRunJob.concurrency_duration, :>=, 30.minutes
+  end
+
   test "does nothing when the rule no longer exists" do
     assert_nothing_raised { AlertRuleRunJob.perform_now(-1) }
   end
