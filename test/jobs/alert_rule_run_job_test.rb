@@ -98,6 +98,8 @@ class AlertRuleRunJobTest < ActiveJob::TestCase
     run = @rule.alert_runs.last
     assert_equal "error", run.status
     assert_equal "Run failed", run.summary
+    # The error message should be captured and displayed in the history modal
+    assert_includes run.detail, "boom"
     assert_not_nil @rule.reload.last_run_at
   end
 
@@ -111,6 +113,8 @@ class AlertRuleRunJobTest < ActiveJob::TestCase
 
     run = @rule.alert_runs.last
     assert_equal "error", run.status
+    # The error message should be captured and displayed in the history modal
+    assert_includes run.detail, "401 Invalid authentication"
   end
 
   test "garbage output with no alert block records an error run and does not crash" do
