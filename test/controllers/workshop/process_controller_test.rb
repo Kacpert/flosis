@@ -270,6 +270,21 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /Daily · 13:00/
   end
 
+  test "each alert rule card has a Run now button" do
+    project = tasks(:jira_task).project
+    post switch_workshop_project_path, params: { project_id: project.id }
+    rule = AlertRule.create!(
+      workspace: @workspace, project: project, notify_enabled: false,
+      name: "QA column watch", prompt: "Watch the QA column.",
+      frequency: "daily", run_at_time: "13:00"
+    )
+
+    get workshop_process_path(tab: "alerts")
+
+    assert_response :success
+    assert_select "form[action=?] button", run_now_workshop_alert_rule_path(rule), text: /Run now/
+  end
+
   test "AI Alerts empty state renders without error" do
     get workshop_process_path(tab: "alerts")
 

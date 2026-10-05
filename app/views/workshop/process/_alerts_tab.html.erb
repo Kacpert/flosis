@@ -92,6 +92,13 @@
                 outline button, and turns Memory red when the AI reported issues. %>
             <% footer_btn = "inline-flex items-center gap-[5px] text-[12px] font-semibold rounded-[7px] py-1 px-2.5 cursor-pointer bg-[color:var(--surface)] border" %>
             <% flagged = rule.ai_issues_text.present? %>
+            <%= button_to run_now_workshop_alert_rule_path(rule), method: :post,
+                  class: "#{footer_btn} clar-divider clar-text-muted", form: { class: "inline-flex" },
+                  title: "Run this automation now, without waiting for its schedule",
+                  data: { turbo_submits_with: "Starting…" } do %>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.52.85l12-7.5a1 1 0 0 0 0-1.7l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>
+              Run now
+            <% end %>
             <button type="button" title="View this automation's AI memory"
                     class="<%= footer_btn %> <%= flagged ? 'border-[color:var(--danger)] clar-text-danger' : 'clar-divider clar-text-muted' %>"
                     data-action="click->clar-modal#open" data-clar-modal-id-param="alert-memory-<%= rule.id %>">

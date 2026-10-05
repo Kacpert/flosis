@@ -188,6 +188,43 @@ class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
     assert rule.reload.active?
   end
 
+  test "run_now enqueues a run of the rule straight away and toasts" do
+    rule = create_rule("Sprint capacity watch")
+
+    assert_enqueued_with(job: AlertRuleRunJob, args: [ rule.id ]) do
+      post run_now_workshop_alert_rule_path(rule)
+    end
+
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_response :see_other
+    assert_match(/Run started/, flash[:clar_toast])
+    assert_match(/Sprint capacity watch/, flash[:clar_toast])
+  end
+
+  # Running a paused rule by hand is how you try it out before resuming it.
+  test "run_now also runs a paused rule, without resuming it" do
+    rule = create_rule("Paused watch")
+    rule.update_column(:active, false)
+
+    assert_enqueued_with(job: AlertRuleRunJob, args: [ rule.id ]) do
+      post run_now_workshop_alert_rule_path(rule)
+    end
+
+    assert_not rule.reload.active?
+  end
+
+  test "run_now is scope-safe (404s for a rule outside the current workshop project)" do
+    rule = AlertRule.create!(workspace: @workspace, project: projects(:other_jira_project),
+      discord_webhook: @webhook, name: "Other project rule", prompt: "Watch something else.",
+      frequency: "daily", run_at_time: "09:00")
+
+    assert_no_enqueued_jobs(only: AlertRuleRunJob) do
+      post run_now_workshop_alert_rule_path(rule)
+    end
+
+    assert_response :not_found
+  end
+
   # The AI's problem report only changes when the automation next runs, so a
   # problem you have already fixed kept the card's Memory button red for hours —
   # and the only way to silence it was Clear memory, which threw away everything

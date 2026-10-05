@@ -4,7 +4,7 @@
 # cross-project id 404s), same convention as DesignRequestsController.
 class Workshop::AlertRulesController < Workshop::BaseController
   before_action :set_alert_rule,
-                only: [ :update, :destroy, :history, :memory, :clear_memory, :clear_ai_issues, :toggle_active ]
+                only: [ :update, :destroy, :history, :memory, :clear_memory, :clear_ai_issues, :toggle_active, :run_now ]
 
   def create
     rule = current_workshop_project.alert_rules.new(create_params.except(:discord_webhook_id))
@@ -58,6 +58,17 @@ class Workshop::AlertRulesController < Workshop::BaseController
     @alert_rule.update_column(:active, !@alert_rule.active?)
     flash[:clar_toast] = %(Automation #{@alert_rule.active? ? 'resumed' : 'paused'} · "#{@alert_rule.name}")
     # 303 so Turbo re-issues the follow-up as a GET (same contract as #destroy).
+    redirect_to workshop_process_path(tab: "alerts"), status: :see_other
+  end
+
+  # Run the automation now instead of waiting for its schedule — also on a paused
+  # rule, which is how you try one out before resuming it. A run that is already
+  # going swallows this one (AlertRuleRunJob allows one run per rule at a time).
+  # The schedule is unaffected: due? only skips a slot when a run happened AFTER
+  # it, so running by hand before today's slot still leaves that slot to fire.
+  def run_now
+    AlertRuleRunJob.perform_later(@alert_rule.id)
+    flash[:clar_toast] = %(Run started · "#{@alert_rule.name}" — the result lands in View history)
     redirect_to workshop_process_path(tab: "alerts"), status: :see_other
   end
 
