@@ -26,7 +26,7 @@ gem "bcrypt", "~> 3.1.7"
 
 # Tailwind CSS [https://github.com/rails/tailwindcss-rails]
 # Only needed locally for asset precompilation (assets are rsynced to production)
-gem "tailwindcss-rails", "~> 4.2", groups: [:development, :test]
+gem "tailwindcss-rails", "~> 4.6", groups: [:development, :test]
 
 # PDF generation
 gem "prawn", "~> 2.5"
