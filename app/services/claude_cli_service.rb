@@ -125,8 +125,9 @@ class ClaudeCliService
   # branch/PR/commit is linked to a ticket. Without it, connecting a ticket to
   # its PR required that PR to already be in the board snapshot.
   #
-  # mcp__lit__* is our own two-call server (lib/mcp/lit_server.rb), so the i18n
-  # automation can post its proposals without being handed Bash.
+  # mcp__lit__* is our own narrow server (lib/mcp/lit_server.rb), so the i18n
+  # automation can read what Lit serves and post its proposals without being
+  # handed Bash.
   #
   # NOTE: %w[] takes no comments — a "#" line inside the literal below becomes a
   # list of bogus tool names, one per word. Keep prose up here.
@@ -152,6 +153,7 @@ class ClaudeCliService
     mcp__jira__jira_get_issues_development_info
     mcp__jira__jira_add_comment
     mcp__jira__jira_edit_comment
+    mcp__lit__lookup_translations
     mcp__lit__post_suggestions
     mcp__lit__refresh_keys
   ].freeze

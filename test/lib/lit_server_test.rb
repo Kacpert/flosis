@@ -40,7 +40,8 @@ class LitServerTest < ActiveSupport::TestCase
 
     assert_equal 2, responses.size, "a notification must not get a reply"
     assert_equal "lit", responses.first.dig("result", "serverInfo", "name")
-    assert_equal %w[post_suggestions refresh_keys], responses.last.dig("result", "tools").map { |t| t["name"] }
+    assert_equal %w[lookup_translations post_suggestions refresh_keys],
+                 responses.last.dig("result", "tools").map { |t| t["name"] }
   end
 
   test "an unknown tool is refused" do
@@ -94,6 +95,56 @@ class LitServerTest < ActiveSupport::TestCase
     stub_request(:post, "https://lit.test/lit/api/v1/ai/suggestions").to_timeout
 
     assert error?(call("post_suggestions", { "suggestions" => [ suggestion ] }))
+  end
+
+  # ---- reading what Lit serves --------------------------------------------
+
+  test "looks up keys in Lit" do
+    stub_request(:post, "https://lit.test/lit/api/v1/ai/lookup")
+      .with(
+        headers: { "Authorization" => 'Token token="secret-key"' },
+        body: { keys: [ "talent.export" ], locales: [ "da", "sv" ] }
+      )
+      .to_return(status: 200, body: { keys: [ { key: "talent.export" } ] }.to_json)
+
+    response = call("lookup_translations", { "keys" => [ "talent.export" ], "locales" => [ "da", "sv" ] })
+
+    assert_not error?(response)
+    assert_match(/talent\.export/, result_text(response))
+  end
+
+  test "looks up a whole namespace by prefix, one page at a time" do
+    stub_request(:post, "https://lit.test/lit/api/v1/ai/lookup")
+      .with(body: { prefix: "js.hr.talents", limit: 100, page: 2 })
+      .to_return(status: 200, body: "{}")
+
+    assert_not error?(call("lookup_translations", { "prefix" => "js.hr.talents", "page" => 2 }))
+  end
+
+  test "a lookup takes keys or a prefix, not both and not neither" do
+    assert error?(call("lookup_translations", {}))
+    assert error?(call("lookup_translations", { "keys" => [ "a.b" ], "prefix" => "a" }))
+    assert_not_requested :post, "https://lit.test/lit/api/v1/ai/lookup"
+  end
+
+  # A bigger answer would not fit in one tool result.
+  test "a lookup of more than 100 keys is refused" do
+    response = call("lookup_translations", { "keys" => Array.new(101) { |i| "k#{i}" } })
+
+    assert error?(response)
+    assert_match(/exceeds the 100 limit/, result_text(response))
+  end
+
+  test "a lookup refuses arguments it does not know" do
+    response = call("lookup_translations", { "keys" => [ "a.b" ], "url" => "https://evil.test" })
+
+    assert error?(response)
+    assert_match(/unsupported arguments: url/, result_text(response))
+  end
+
+  test "a lookup refuses a malformed page or locale list" do
+    assert error?(call("lookup_translations", { "prefix" => "a", "page" => 0 }))
+    assert error?(call("lookup_translations", { "keys" => [ "a.b" ], "locales" => "da" }))
   end
 
   # ---- the guardrails -----------------------------------------------------
