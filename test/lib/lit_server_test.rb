@@ -128,6 +128,19 @@ class LitServerTest < ActiveSupport::TestCase
   end
 
   # A bigger answer would not fit in one tool result.
+  # Net::HTTP hands back the body as binary. Passed on as-is, JSON warns today
+  # and will raise in json 3.0 on every Danish or Swedish letter.
+  test "a response with non-ASCII text is passed on as UTF-8" do
+    body = { keys: [ { key: "accounts.form.hiring_date", value: "Ansættelsesdato" } ] }.to_json.b
+    stub_request(:post, "https://lit.test/lit/api/v1/ai/lookup").to_return(status: 200, body: body)
+
+    response = nil
+    _out, err = capture_io { response = call("lookup_translations", { "keys" => [ "accounts.form.hiring_date" ] }) }
+
+    assert_no_match(/BINARY/, err)
+    assert_match(/Ansættelsesdato/, result_text(response))
+  end
+
   test "a lookup of more than 100 keys is refused" do
     response = call("lookup_translations", { "keys" => Array.new(101) { |i| "k#{i}" } })
 

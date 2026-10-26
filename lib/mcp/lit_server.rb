@@ -258,7 +258,9 @@ module Lit
         http.request(request)
       end
 
-      text = "HTTP #{response.code}\n#{response.body}"
+      # Net::HTTP returns the body as binary; Lit always answers in UTF-8.
+      body = response.body.to_s.dup.force_encoding(Encoding::UTF_8)
+      text = "HTTP #{response.code}\n#{body}"
       response.is_a?(Net::HTTPSuccess) ? tool_result(text) : tool_error(text)
     rescue StandardError => e
       tool_error("Request to Lit failed: #{e.class}: #{e.message}")
