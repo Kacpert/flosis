@@ -178,7 +178,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
   end
 
   def load_integrations_tab
-    @discord_webhooks = current_workspace.discord_webhooks.order(:channel_name)
+    @discord_webhooks = current_workshop_project&.discord_webhooks&.order(:channel_name) || DiscordWebhook.none
     # "Connected" reflects the project's resolved Jira (per-project creds, with
     # ENV fallback), not just the global ENV domain.
     @jira_configured = current_workshop_project &&

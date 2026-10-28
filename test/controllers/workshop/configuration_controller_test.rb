@@ -247,8 +247,11 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
       github_status_ok: true, github_status_checked_at: 2.hours.ago,
       pr_review_enabled: true, figma_read_enabled: true
     )
-    DiscordWebhook.create!(workspace: @workspace, channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/a")
-    DiscordWebhook.create!(workspace: @workspace, channel_name: "#product", url: "https://discord.com/api/webhooks/2/b")
+    DiscordWebhook.create!(workspace: @workspace, project: @project, channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/a")
+    DiscordWebhook.create!(workspace: @workspace, project: @project, channel_name: "#product", url: "https://discord.com/api/webhooks/2/b")
+    # Another project's webhook must not be counted on this project's card.
+    DiscordWebhook.create!(workspace: @workspace, project: projects(:plain_project),
+      channel_name: "#internal", url: "https://discord.com/api/webhooks/3/c")
     ENV["JIRA_DOMAIN"] = "acme.atlassian.net"
     ENV["JIRA_EMAIL"] = "a@example.com"
     ENV["JIRA_API_TOKEN"] = "tok"

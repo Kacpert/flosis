@@ -7,7 +7,8 @@ class Workshop::DiscordWebhooksController < Workshop::BaseController
   before_action :set_discord_webhook, only: [ :destroy ]
 
   def create
-    webhook = current_workspace.discord_webhooks.new(create_params)
+    webhook = current_workshop_project.discord_webhooks.new(create_params)
+    webhook.workspace = current_workspace
 
     if webhook.save
       flash[:clar_toast] = %(Webhook added · "#{webhook.channel_name}")
@@ -35,10 +36,11 @@ class Workshop::DiscordWebhooksController < Workshop::BaseController
 
   private
 
-  # Scope-safe: a crafted id from another workspace 404s rather than leaking
-  # existence or letting an admin delete another workspace's webhook.
+  # Scope-safe: a crafted id from another project 404s rather than leaking
+  # existence or letting an admin delete a webhook another project's alerts
+  # still post to.
   def set_discord_webhook
-    @discord_webhook = current_workspace.discord_webhooks.find(params[:id])
+    @discord_webhook = current_workshop_project.discord_webhooks.find(params[:id])
   end
 
   def create_params

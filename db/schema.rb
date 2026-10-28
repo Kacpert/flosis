@@ -226,9 +226,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_125000) do
   create_table "discord_webhooks", force: :cascade do |t|
     t.string "channel_name", null: false
     t.datetime "created_at", null: false
+    t.bigint "project_id"
     t.datetime "updated_at", null: false
     t.string "url", null: false
     t.bigint "workspace_id", null: false
+    t.index ["project_id"], name: "index_discord_webhooks_on_project_id"
     t.index ["workspace_id"], name: "index_discord_webhooks_on_workspace_id"
   end
 

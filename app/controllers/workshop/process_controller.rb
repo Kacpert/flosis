@@ -27,7 +27,7 @@ class Workshop::ProcessController < Workshop::BaseController
 
   def load_alerts_tab
     @alert_rules = current_workshop_project ? current_workshop_project.alert_rules.ordered : AlertRule.none
-    @discord_webhooks = current_workspace.discord_webhooks.order(:channel_name)
+    @discord_webhooks = current_workshop_project&.discord_webhooks&.order(:channel_name) || DiscordWebhook.none
   end
 
   def load_estimate_tab

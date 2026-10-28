@@ -10,15 +10,18 @@ class Workshop::DiscordWebhooksControllerTest < ActionDispatch::IntegrationTest
     post switch_workshop_project_path, params: { project_id: @project.id }
   end
 
-  test "create adds a webhook scoped to the current workspace and toasts" do
-    assert_difference -> { @workspace.discord_webhooks.count }, 1 do
+  test "create adds a webhook scoped to the current project and toasts" do
+    assert_difference -> { @project.discord_webhooks.count }, 1 do
       post workshop_discord_webhooks_path, params: {
         discord_webhook: { channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/abc" }
       }
     end
 
-    webhook = @workspace.discord_webhooks.last
+    webhook = @project.discord_webhooks.last
     assert_equal "#dev-alerts", webhook.channel_name
+    # The workspace column stays filled in: it is still NOT NULL, and the
+    # workspace is what AlertRuleRunJob's cross-tenant guards read.
+    assert_equal @workspace, webhook.workspace
     assert_redirected_to workshop_configuration_path(tab: "integrations")
     assert_match(/webhook/i, flash[:clar_toast])
   end
@@ -33,7 +36,7 @@ class Workshop::DiscordWebhooksControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "destroy removes an unreferenced webhook" do
-    webhook = DiscordWebhook.create!(workspace: @workspace, channel_name: "#product", url: "https://discord.com/api/webhooks/2/def")
+    webhook = DiscordWebhook.create!(workspace: @workspace, project: @project, channel_name: "#product", url: "https://discord.com/api/webhooks/2/def")
 
     assert_difference -> { DiscordWebhook.count }, -1 do
       delete workshop_discord_webhook_path(webhook)
@@ -44,7 +47,7 @@ class Workshop::DiscordWebhooksControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "destroy is blocked with a toast when the webhook is referenced by alert rules" do
-    webhook = DiscordWebhook.create!(workspace: @workspace, channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/abc")
+    webhook = DiscordWebhook.create!(workspace: @workspace, project: @project, channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/abc")
     AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: webhook,
       name: "QA backlog watch", prompt: "Watch QA backlog.", frequency: "daily", run_at_time: "13:00")
     AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: webhook,
@@ -68,6 +71,16 @@ class Workshop::DiscordWebhooksControllerTest < ActionDispatch::IntegrationTest
     assert DiscordWebhook.exists?(foreign_webhook.id)
   end
 
+  test "destroy 404s for a webhook on another project in the same workspace" do
+    other_webhook = DiscordWebhook.create!(workspace: @workspace, project: projects(:plain_project),
+      channel_name: "#internal", url: "https://discord.com/api/webhooks/8/uvw")
+
+    delete workshop_discord_webhook_path(other_webhook)
+
+    assert_response :not_found
+    assert DiscordWebhook.exists?(other_webhook.id)
+  end
+
   test "employee (non-admin) is blocked from create and destroy" do
     # Workshop access is now per-project Tasks/etc. permissions, not the
     # retired workshop_access flag — fixture two_elvium already gives users(:two)
@@ -87,7 +100,7 @@ class Workshop::DiscordWebhooksControllerTest < ActionDispatch::IntegrationTest
     # sends them to the pipeline, not to root_path.
     assert_redirected_to workshop_pipeline_path
 
-    webhook = DiscordWebhook.create!(workspace: @workspace, channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/abc")
+    webhook = DiscordWebhook.create!(workspace: @workspace, project: @project, channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/abc")
     delete workshop_discord_webhook_path(webhook)
     assert_redirected_to workshop_pipeline_path
     assert DiscordWebhook.exists?(webhook.id)

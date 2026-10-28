@@ -10,11 +10,13 @@ class Workshop::AlertRulesController < Workshop::BaseController
   def create
     rule = current_workshop_project.alert_rules.new(create_params.except(:discord_webhook_id))
     rule.workspace = current_workspace
-    # Scope the webhook to THIS workspace — a crafted discord_webhook_id from
-    # another workspace must not attach (it would post alerts into that
-    # workspace's Discord channel). Only attach it when notifications are on.
+    # Scope the webhook to THIS project — a crafted discord_webhook_id from
+    # anywhere else must not attach: from another workspace it would post alerts
+    # into that workspace's Discord channel, and from a sibling project it would
+    # leave the rule holding a channel its own form cannot show (the next save
+    # would silently blank it). Only attach it when notifications are on.
     if rule.notify_enabled?
-      rule.discord_webhook = current_workspace.discord_webhooks.find_by(id: create_params[:discord_webhook_id])
+      rule.discord_webhook = current_workshop_project.discord_webhooks.find_by(id: create_params[:discord_webhook_id])
     end
 
     if rule.save
@@ -29,11 +31,11 @@ class Workshop::AlertRulesController < Workshop::BaseController
   def update
     attrs = create_params.except(:discord_webhook_id)
     # When notifications are turned OFF, drop the channel entirely. When ON,
-    # (re)assign a workspace-scoped webhook if one was chosen.
+    # (re)assign a project-scoped webhook if one was chosen.
     if create_params[:notify_enabled] == "0"
       attrs = attrs.merge(discord_webhook: nil)
     elsif create_params[:discord_webhook_id].present?
-      wh = current_workspace.discord_webhooks.find_by(id: create_params[:discord_webhook_id])
+      wh = current_workshop_project.discord_webhooks.find_by(id: create_params[:discord_webhook_id])
       attrs = attrs.merge(discord_webhook: wh) if wh
     end
 

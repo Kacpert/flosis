@@ -5,7 +5,7 @@ class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
     @workspace = workspaces(:one)
     @workspace.update!(workshop_enabled: true)
     @project = projects(:jira_project)
-    @webhook = DiscordWebhook.create!(workspace: @workspace, channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/abc")
+    @webhook = DiscordWebhook.create!(workspace: @workspace, project: @project, channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/abc")
     sign_in_as(users(:one)) # admin/owner
     post switch_product_path, params: { product: "workshop" }
     post switch_workshop_project_path, params: { project_id: @project.id }
@@ -55,6 +55,39 @@ class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to workshop_process_path(tab: "alerts")
     assert_not_nil flash[:alert]
+  end
+
+  test "create rejects a discord_webhook from another project in the same workspace" do
+    # Webhooks are per project (Task 12). A rule holding another project's
+    # webhook renders a dropdown without its own current value, and the next
+    # save of that form silently blanks the channel it was posting to.
+    other_webhook = DiscordWebhook.create!(workspace: @workspace, project: projects(:plain_project),
+                                           channel_name: "#internal", url: "https://discord.com/api/webhooks/3/ghi")
+
+    assert_no_difference -> { AlertRule.count } do
+      post workshop_alert_rules_path, params: {
+        alert_rule: {
+          name: "Cross-project rule", prompt: "watch something",
+          frequency: "daily", run_at_time: "13:00", discord_webhook_id: other_webhook.id
+        }
+      }
+    end
+
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_not_nil flash[:alert]
+  end
+
+  test "update ignores a discord_webhook from another project (keeps the current one)" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "R1", prompt: "p", frequency: "daily", run_at_time: "09:00", notify_enabled: true)
+    other_webhook = DiscordWebhook.create!(workspace: @workspace, project: projects(:plain_project),
+                                           channel_name: "#internal", url: "https://discord.com/api/webhooks/3/ghi")
+
+    patch workshop_alert_rule_path(rule), params: {
+      alert_rule: { name: "R2", prompt: "p", frequency: "daily", run_at_time: "09:00", discord_webhook_id: other_webhook.id }
+    }
+
+    assert_equal @webhook, rule.reload.discord_webhook, "must not reassign to another project's webhook"
   end
 
   test "update changes the rule's fields and toasts" do
