@@ -3339,9 +3339,14 @@ end
   </div></div>
 
   <%= render "permission_legend" %>
-</div>
 
-<%= render "invite_modal" %>
+  <%# INSIDE the clar-modal element, not after it. Stimulus claims a target
+      only where `element.closest('[data-controller~="clar-modal"]')` is the
+      controller's own element, so a panel rendered as a sibling is never a
+      target, `open()` finds nothing and the button does nothing at all —
+      silently, with no console error. %>
+  <%= render "invite_modal" %>
+</div>
 ```
 
 **Create `app/views/workshop/configuration/_permission_legend.html.erb` in this same
@@ -3934,6 +3939,14 @@ class ProjectCreatorTest < ActiveSupport::TestCase
     ).call
   end
 
+  # Marking every new project "jira" would make the Jira chip claim a connection
+  # it does not have, have the health check call Jira for it, and let the daily
+  # features scan write a codebase summary onto it.
+  test "a project is only a Jira project when it was given Jira credentials" do
+    assert_nil create.external_type
+    assert_equal "jira", create(reuse_from: { "jira" => @source.id }).external_type
+  end
+
   test "copies the chosen keys and leaves the rest blank" do
     project = create(reuse_from: { "jira" => @source.id, "ai" => @source.id })
 
@@ -4026,6 +4039,12 @@ class ProjectCreator
     project = @workspace.projects.new(@attributes)
     project.color ||= next_colour
     copy_credentials_into(project)
+    # `external_type: "jira"` is what `jira_connected?` answers, and it decides
+    # whether the Jira chip claims a connection, whether the health check calls
+    # Jira for this project, and whether the daily features scan writes a
+    # codebase summary onto it. So it is set only when the dialog actually gave
+    # the project Jira credentials — never as a default for every new project.
+    project.external_type = "jira" if project.jira_site.present?
 
     project.save!
     add_members(project)
@@ -4106,7 +4125,7 @@ class Workshop::ProjectsController < Workshop::BaseController
   def create
     project = ProjectCreator.new(
       workspace: current_workspace,
-      attributes: params.require(:project).permit(:name, :team, :github_repo).merge(external_type: "jira"),
+      attributes: params.require(:project).permit(:name, :team, :github_repo),
       reuse_from: params[:reuse_from]&.permit!&.to_h,
       member_ids: params[:user_ids],
       preset: params[:preset]
