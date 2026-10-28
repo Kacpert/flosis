@@ -6,6 +6,7 @@ class AutoEstimateJobTest < ActiveJob::TestCase
     @task = tasks(:jira_task)
     @project = @task.project
     @project.update!(estimation_field_names: ["AI estimation"])
+    checkout!(@project)
   end
 
   def with_ai(response)

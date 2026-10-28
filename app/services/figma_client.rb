@@ -23,9 +23,10 @@ class FigmaClient
   end
 
   # The token the AI would actually use for THIS project. Reading anything else
-  # would prove only that some other token works.
+  # would prove only that some other token works — so the resolution, fallback
+  # and all, is ProjectCredentials' and not repeated here.
   def self.for_project(project)
-    new(token: ProjectCredentials.new(project).figma_token || cli_token)
+    new(token: ProjectCredentials.new(project).figma_token)
   end
 
   # The API key the figma MCP server is configured with, or nil when Figma isn't

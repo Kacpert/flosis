@@ -253,4 +253,27 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
 
     assert_not_equal one.id, two.id
   end
+
+  # With one workspace-wide reviewer an exception cost that one poll. Per
+  # project it silently stops every project the sweep had not reached yet, and
+  # the only symptom is a pr_polled_at that quietly stops moving.
+  test "a project whose poll raises does not stop the others" do
+    broken = projects(:other_jira_project)
+    broken.update!(github_token: "t", github_repo: "acme/broken", pr_review_enabled: true)
+    healthy = fake_github(prs: [ pr(7, "abc") ])
+
+    orig = GithubClient.method(:for_project)
+    GithubClient.define_singleton_method(:for_project) do |project, *_a, **_k|
+      raise OpenSSL::SSL::SSLError, "certificate verify failed" if project.id == broken.id
+      healthy
+    end
+
+    travel_to Time.zone.local(2026, 6, 15, 10, 0) do
+      assert_enqueued_with(job: PrReviewJob, args: [ @project.id, 7, "initial" ]) do
+        PrReviewCheckJob.perform_now
+      end
+    end
+  ensure
+    GithubClient.define_singleton_method(:for_project, orig)
+  end
 end

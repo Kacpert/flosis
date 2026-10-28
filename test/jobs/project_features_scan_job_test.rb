@@ -6,6 +6,7 @@ class ProjectFeaturesScanJobTest < ActiveJob::TestCase
     @workspace.update!(workshop_enabled: true)
     @project = @workspace.projects.create!(name: "FS", color: "#555555",
       external_type: "jira", external_reference: "FS")
+    checkout!(@project)
   end
 
   def with_ai(response)
@@ -18,7 +19,7 @@ class ProjectFeaturesScanJobTest < ActiveJob::TestCase
 
   def job_without_pull
     job = ProjectFeaturesScanJob.new
-    def job.pull_latest!; true; end
+    def job.pull_latest!(_codebase); true; end
     job
   end
 
@@ -41,7 +42,7 @@ class ProjectFeaturesScanJobTest < ActiveJob::TestCase
   test "a failed git pull skips scanning entirely" do
     @project.update!(features_summary: "PREVIOUS")
     job = ProjectFeaturesScanJob.new
-    def job.pull_latest!; false; end
+    def job.pull_latest!(_codebase); false; end
     with_ai("new summary that is long enough to pass the length gate easily here") do
       job.perform
     end

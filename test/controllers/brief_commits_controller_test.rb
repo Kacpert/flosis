@@ -55,8 +55,11 @@ class BriefCommitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "draft", @brief.reload.status
   end
 
-  test "successful commit enqueues AutoEstimateJob when estimation_trigger is briefed" do
-    @workspace.update!(estimation_trigger: "briefed")
+  # The workspace is left on a different trigger on purpose: reading it rather
+  # than the brief's own project gives the wrong answer.
+  test "successful commit enqueues AutoEstimateJob when the project's trigger is briefed" do
+    @workspace.update!(estimation_trigger: "manual")
+    @project.update!(estimation_trigger: "briefed")
     stub_writer({ ok: true, key: "BCM-1", url: "u" }) do
       assert_enqueued_with(job: AutoEstimateJob, args: [ @task.id ]) do
         post commit_jira_task_brief_path(@task, @brief)
@@ -64,8 +67,9 @@ class BriefCommitsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "successful commit does NOT enqueue AutoEstimateJob when estimation_trigger is not briefed" do
-    @workspace.update!(estimation_trigger: "manual")
+  test "successful commit does NOT enqueue AutoEstimateJob when the project's trigger is not briefed" do
+    @workspace.update!(estimation_trigger: "briefed")
+    @project.update!(estimation_trigger: "manual")
     stub_writer({ ok: true, key: "BCM-1", url: "u" }) do
       assert_no_enqueued_jobs(only: AutoEstimateJob) do
         post commit_jira_task_brief_path(@task, @brief)
@@ -74,7 +78,7 @@ class BriefCommitsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "failed commit does NOT enqueue AutoEstimateJob even when trigger is briefed" do
-    @workspace.update!(estimation_trigger: "briefed")
+    @project.update!(estimation_trigger: "briefed")
     stub_writer({ ok: false, error: "403 Forbidden" }) do
       assert_no_enqueued_jobs(only: AutoEstimateJob) do
         post commit_jira_task_brief_path(@task, @brief)

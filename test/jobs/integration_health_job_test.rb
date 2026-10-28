@@ -60,6 +60,27 @@ class IntegrationHealthJobTest < ActiveJob::TestCase
     assert_nil @project.reload.figma_status_checked_at, "nothing to report on an integration nobody uses"
   end
 
+  # The Jira domain, login and token fall back to the environment, so every
+  # project on the box answers jira_configured?. Stamping them all green claims
+  # a working integration that belongs to somebody else's client.
+  test "a project with no Jira of its own is not checked even with the environment set" do
+    other = projects(:plain_project)
+    assert_not other.jira_connected?
+
+    ENV["JIRA_DOMAIN"] = "acme.atlassian.net"
+    ENV["JIRA_EMAIL"] = "e@x.com"
+    ENV["JIRA_API_TOKEN"] = "jt"
+
+    with_health(jira: { ok: true }, github: { ok: true }, figma: { ok: true }) do
+      IntegrationHealthJob.perform_now
+    end
+
+    assert_nil other.reload.jira_status_checked_at, "a project with no Jira was reported as Jira-healthy"
+    assert @project.reload.jira_status_ok, "the Jira-connected project is still checked"
+  ensure
+    %w[JIRA_DOMAIN JIRA_EMAIL JIRA_API_TOKEN].each { |k| ENV.delete(k) }
+  end
+
   test "an archived project is left alone" do
     @project.update!(archived: true)
 

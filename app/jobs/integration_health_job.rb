@@ -24,7 +24,13 @@ class IntegrationHealthJob < ApplicationJob
 
   private
 
+  # jira_connected? as well as jira_configured?: the domain, login and token
+  # fall back to the environment, so a project with no Jira at all still
+  # answers "configured" — and would get a green chip, plus an identical API
+  # call per tick, for somebody else's Jira.
   def check_jira(project)
+    return unless project.jira_connected?
+
     credentials = ProjectCredentials.new(project)
     return unless credentials.jira_configured?
 

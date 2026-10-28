@@ -7,6 +7,7 @@ class PrReviewJobTest < ActiveJob::TestCase
     @project = projects(:jira_project)
     @project.update!(github_token: "t", github_repo: "acme/widgets", pr_review_enabled: true)
     @workspace = @project.workspace
+    checkout!(@project) # a review of a codebase the project does not own is not a review
   end
 
   # `reviews` decides what create_review returns, call by call: [true] accepts

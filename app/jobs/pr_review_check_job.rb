@@ -37,6 +37,11 @@ class PrReviewCheckJob < ApplicationJob
         next if pr["draft"]
         check_pull_request(project, pr)
       end
+    rescue StandardError => e
+      # One project's broken repository must not stop the rest from being
+      # polled: without this the sweep dies on the first failure and every
+      # project after it goes unpolled for as long as the failure lasts.
+      Rails.logger.error("[PrReviewCheckJob] project #{project.id} failed: #{e.message}")
     end
   end
 

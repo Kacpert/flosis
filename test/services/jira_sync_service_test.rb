@@ -210,7 +210,7 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
   end
 
   test "sprint trigger enqueues AutoEstimateJob for a task newly gaining a sprint_id on a non-design sprint" do
-    @project.workspace.update!(estimation_trigger: "sprint")
+    @project.update!(estimation_trigger: "sprint")
     dev_board = jira_boards(:dev_board)
     dev_board.jira_sprints.create!(jira_sprint_id: 900, name: "Sprint 24", state: "active",
                                     start_date: 1.day.ago, end_date: 1.week.from_now)
@@ -225,7 +225,7 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
   end
 
   test "sprint trigger does NOT enqueue for a task landing in a design sprint" do
-    @project.workspace.update!(estimation_trigger: "sprint")
+    @project.update!(estimation_trigger: "sprint")
     task = tasks(:jira_task)
     task.update!(sprint_id: nil, sprint_name: nil)
 
@@ -237,7 +237,7 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
   end
 
   test "sprint trigger does NOT enqueue when estimation_trigger is not sprint" do
-    @project.workspace.update!(estimation_trigger: "manual")
+    @project.update!(estimation_trigger: "manual")
     dev_board = jira_boards(:dev_board)
     dev_board.jira_sprints.create!(jira_sprint_id: 901, name: "Sprint 25", state: "active",
                                     start_date: 1.day.ago, end_date: 1.week.from_now)
@@ -257,7 +257,7 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
   # previous sprint, and one whose estimate run died against a broken CLI and
   # was never retried.
   test "sprint trigger enqueues an unestimated task that was already in the sprint" do
-    @project.workspace.update!(estimation_trigger: "sprint")
+    @project.update!(estimation_trigger: "sprint")
     jira_boards(:dev_board).jira_sprints.create!(jira_sprint_id: 902, name: "Sprint 26", state: "active",
                                                  start_date: 1.day.ago, end_date: 1.week.from_now)
     task = tasks(:jira_task)
@@ -273,7 +273,7 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
   # The other half of that: an estimate is spent once. Without this the sync
   # would re-run the AI over a full sprint every 15 minutes.
   test "sprint trigger never re-enqueues a task that already has an estimate" do
-    @project.workspace.update!(estimation_trigger: "sprint")
+    @project.update!(estimation_trigger: "sprint")
     jira_boards(:dev_board).jira_sprints.create!(jira_sprint_id: 903, name: "Sprint 27", state: "active",
                                                  start_date: 1.day.ago, end_date: 1.week.from_now)
     task = tasks(:jira_task)
@@ -287,7 +287,7 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
   end
 
   test "a sprint full of unestimated tasks is drained a few per sync, not all at once" do
-    @project.workspace.update!(estimation_trigger: "sprint")
+    @project.update!(estimation_trigger: "sprint")
     jira_boards(:dev_board).jira_sprints.create!(jira_sprint_id: 904, name: "Sprint 28", state: "active",
                                                  start_date: 1.day.ago, end_date: 1.week.from_now)
     keys = (1..(JiraSyncService::AUTO_ESTIMATE_CAP + 5)).map do |i|
@@ -303,10 +303,27 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
     end
   end
 
+  # The trigger lives on the project now. These leave the workspace set to
+  # something else on purpose: reading the wrong object gives the wrong answer.
+  test "the sprint trigger is read off the project, not the workspace" do
+    @project.workspace.update!(estimation_trigger: "manual")
+    @project.update!(estimation_trigger: "sprint")
+    jira_boards(:dev_board).jira_sprints.create!(jira_sprint_id: 905, name: "Sprint 29", state: "active",
+                                                 start_date: 1.day.ago, end_date: 1.week.from_now)
+    task = tasks(:jira_task)
+    task.update!(sprint_id: nil, sprint_name: nil, ai_estimate_points: nil)
+
+    mock_client = stub_client_with_sprint_issue_keys(905 => [ task.external_reference ])
+
+    assert_enqueued_with(job: AutoEstimateJob, args: [ task.id ]) do
+      JiraSyncService.new(@project, client: mock_client).sync_sprint_assignments
+    end
+  end
+
   # --- status trigger ---
 
   test "status trigger enqueues AutoEstimateJob when jira_status_name transitions into the configured trigger" do
-    @project.workspace.update!(estimation_trigger: "status", estimation_status_trigger: "Ready for dev")
+    @project.update!(estimation_trigger: "status", estimation_status_trigger: "Ready for dev")
     task = tasks(:jira_task)
     task.update!(jira_status_name: "In Progress")
 
@@ -323,7 +340,7 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
   end
 
   test "status trigger does NOT enqueue when already in the trigger status (no transition)" do
-    @project.workspace.update!(estimation_trigger: "status", estimation_status_trigger: "Ready for dev")
+    @project.update!(estimation_trigger: "status", estimation_status_trigger: "Ready for dev")
     task = tasks(:jira_task)
     task.update!(jira_status_name: "Ready for dev")
 
@@ -339,8 +356,26 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "the status trigger and the status it watches are read off the project" do
+    @project.workspace.update!(estimation_trigger: "manual", estimation_status_trigger: "Pending review")
+    @project.update!(estimation_trigger: "status", estimation_status_trigger: "Ready for dev")
+    task = tasks(:jira_task)
+    task.update!(jira_status_name: "In Progress")
+
+    issues = [ {
+      key: task.external_reference, summary: "Existing task updated", status_category: "indeterminate",
+      status_name: "Ready for dev", assignee_email: "one@example.com",
+      url: "https://elvium.atlassian.net/browse/#{task.external_reference}"
+    } ]
+    mock_client = stub_client(issues)
+
+    assert_enqueued_with(job: AutoEstimateJob, args: [ task.id ]) do
+      JiraSyncService.new(@project, client: mock_client).sync_issues
+    end
+  end
+
   test "status trigger does NOT enqueue when estimation_trigger is not status" do
-    @project.workspace.update!(estimation_trigger: "manual", estimation_status_trigger: "Ready for dev")
+    @project.update!(estimation_trigger: "manual", estimation_status_trigger: "Ready for dev")
     task = tasks(:jira_task)
     task.update!(jira_status_name: "In Progress")
 

@@ -25,13 +25,20 @@ class WorkshopLayoutTest < ActionDispatch::IntegrationTest
     assert_select "div.clar-app", count: 0
   end
 
-  test "clients get the Clar shell on the board but only the Jira Tasks nav item" do
+  # The Jira-only "client" role is retired: Tasks on its own now means the task
+  # board and working on the ticket briefs, so both of those surfaces belong to
+  # someone who holds nothing else — and nothing beyond them does.
+  test "a person holding only Tasks gets the Clar shell and only the ticket surfaces" do
     sign_in_as(users(:client_user))
     get jira_tasks_path
     assert_response :success
+    assert_select "div.clar-app"
     assert_select "nav.clar-sidebar" do
-      assert_select "a", text: /Create Tasks/, count: 0
-      assert_select "a", text: /Configuration/, count: 0
+      assert_select "a span", text: "Jira Tasks", count: 1
+      assert_select "a span", text: "Create Tasks", count: 1
+      assert_select "a span", text: "Agents & Automations", count: 0
+      assert_select "a span", text: "Reporting", count: 0
+      assert_select "a span", text: "Configuration", count: 0
     end
   end
 end

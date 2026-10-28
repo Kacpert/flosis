@@ -45,12 +45,50 @@ class NarrowProjectConfigurationFanoutTest < ActiveSupport::TestCase
     assert_equal "acme/its-own", @other.reload.github_repo
   end
 
-  test "with no single Jira project nothing is designated and nothing is cleared" do
+  test "with no single Jira project the repositories stay and the polling stops" do
     @primary.update_columns(external_type: nil)
 
     NarrowProjectConfigurationFanout.new.up
 
     assert_equal "acme/app", @other.reload.github_repo
     assert_equal "acme/app", @primary.reload.github_repo
+    assert_not @other.pr_review_enabled
+    assert_not @other.figma_read_enabled
+    assert_not @primary.pr_review_enabled
+    assert_not @primary.figma_read_enabled
+  end
+
+  test "with two Jira projects every project keeps its repo and none of them polls" do
+    second = projects(:other_jira_project)
+    second.update_columns(external_type: "jira", github_repo: "acme/app",
+                          pr_review_enabled: true, figma_read_enabled: true)
+
+    NarrowProjectConfigurationFanout.new.up
+
+    [ @primary, @other, second ].each do |project|
+      project.reload
+      assert_equal "acme/app", project.github_repo, "#{project.name} lost its repository"
+      assert_not project.pr_review_enabled, "#{project.name} is still polling"
+      assert_not project.figma_read_enabled, "#{project.name} still reads Figma"
+    end
+  end
+
+  test "an archived Jira project does not make the workspace ambiguous" do
+    projects(:other_jira_project).update_columns(external_type: "jira", archived: true)
+
+    NarrowProjectConfigurationFanout.new.up
+
+    assert_equal "acme/app", @primary.reload.github_repo
+    assert @primary.pr_review_enabled
+    assert_nil @other.reload.github_repo
+  end
+
+  test "a switch the project set for itself survives the ambiguous case" do
+    @workspace.update_columns(pr_review_enabled: false)
+    projects(:other_jira_project).update_columns(external_type: "jira")
+
+    NarrowProjectConfigurationFanout.new.up
+
+    assert @primary.reload.pr_review_enabled
   end
 end

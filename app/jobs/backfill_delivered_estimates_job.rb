@@ -51,10 +51,13 @@ class BackfillDeliveredEstimatesJob < ApplicationJob
 
   # Returns the raw 1–100 score for a delivered issue, or nil on failure.
   def estimate(di, project, model: nil)
+    codebase = ai_codebase_path(project)
+    return nil if codebase.nil?
+
     ticket = "Ticket #{di.jira_key}: #{di.title}\n#{di.description}"
     prompt = AutoEstimateJob.rubric_prompt(ticket)
 
-    response = ClaudeCliService.new(codebase_path: project.repo_checkout_path, model: model)
+    response = ClaudeCliService.new(codebase_path: codebase, model: model)
                                .start_session(prompt: prompt)[:response].to_s
     return nil if response.match?(CLI_FAILURE_MARKERS) || response.strip.length < 20
 

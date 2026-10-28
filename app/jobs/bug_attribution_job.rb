@@ -82,8 +82,11 @@ class BugAttributionJob < ApplicationJob
   end
 
   def run_ai(project, jira_key, bug)
+    codebase = ai_codebase_path(project)
+    return nil if codebase.nil?
+
     prompt = build_prompt(project, jira_key, bug)
-    ClaudeCliService.new(codebase_path: project.repo_checkout_path).start_session(prompt: prompt)[:response].to_s.tap do |response|
+    ClaudeCliService.new(codebase_path: codebase).start_session(prompt: prompt)[:response].to_s.tap do |response|
       return nil if cli_failed?(response)
     end
   rescue ClaudeCliService::ClaudeCliError => e

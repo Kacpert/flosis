@@ -10,6 +10,7 @@ class AlertRuleRunJobTest < ActiveJob::TestCase
       name: "QA backlog watch", prompt: "If more than 4 tasks have been in QA for longer than 3 days, notify.",
       frequency: "daily", run_at_time: "13:00"
     )
+    checkout!(@project)
   end
 
   def with_ai(response)

@@ -79,17 +79,18 @@ class AlertRuleRunJob < ApplicationJob
 
   def run_ai(rule)
     project = rule.project
+    codebase = ai_codebase_path(project)
+    return nil if codebase.nil?
+
     # DB is the source of truth: regenerate the project's .mcp.json right before
     # running so a deleted/stale file self-heals and creds are always current.
     ProjectMcpConfig.write!(project) if project.workspace_dir.present?
 
     prompt = build_prompt(rule)
     # Automations act on GitHub + Jira (scan PRs, post comments) via that
-    # project's own MCP servers, and run inside its repo checkout. When the
-    # project has no folder yet, mcp_config is nil and the codebase falls back
-    # to the shared ~/work/elvium — i.e. the pre-feature behavior.
+    # project's own MCP servers, and run inside its own repo checkout.
     service = ClaudeCliService.new(
-      codebase_path: project.repo_checkout_path,
+      codebase_path: codebase,
       allowed_tools: ClaudeCliService::AUTOMATION_TOOLS,
       mcp_config: (ProjectMcpConfig.path_for(project) if project.workspace_dir.present?)
     )

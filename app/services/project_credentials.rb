@@ -1,6 +1,7 @@
 # Single source of truth for "what credentials does this project use".
-# Resolution order: Project column -> ENV, and ENV only for the two things that
-# are genuinely machine-wide (Jira's domain/login and the AI key).
+# Resolution order: Project column -> the machine's own configuration, and only
+# for the things that are genuinely machine-wide (Jira's domain/login, the AI
+# key, and the Figma key the Claude CLI is already set up with).
 #
 # There is deliberately no fallback to the workspace column: with more than one
 # client in a workspace, falling back means quietly reviewing one client's repo
@@ -34,8 +35,12 @@ class ProjectCredentials
     @project.external_reference.presence
   end
 
+  # The one place the Figma fallback happens. It used to live in
+  # FigmaClient.for_project alone, so the health check resolved the CLI's key
+  # while ProjectMcpConfig gated on the column: the chip went green and the AI
+  # was handed no Figma server at all.
   def figma_token
-    @project.figma_token.presence
+    @project.figma_token.presence || FigmaClient.cli_token
   end
 
   def anthropic_api_key

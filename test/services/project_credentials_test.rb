@@ -10,6 +10,14 @@ class ProjectCredentialsTest < ActiveSupport::TestCase
     @project.update!(external_reference: "DEV")
   end
 
+  def with_cli_token(token)
+    original = FigmaClient.method(:cli_token)
+    FigmaClient.define_singleton_method(:cli_token) { token }
+    yield
+  ensure
+    FigmaClient.define_singleton_method(:cli_token, original)
+  end
+
   test "reads the project's own keys" do
     @project.update!(github_repo: "acme/own", github_token: "pt", figma_token: "ft",
                      figma_read_enabled: true)
@@ -94,6 +102,30 @@ class ProjectCredentialsTest < ActiveSupport::TestCase
 
     assert_not ProjectCredentials.new(@project).figma_configured?
   end
+
+  # The CLI's own key is the fallback, and it has to be the SAME answer the
+  # health check gets: the chips went green off the machine's key while the
+  # .mcp.json the AI ran with had no Figma server in it at all.
+  test "figma falls back to the CLI's token, and is configured exactly when there is one" do
+    @project.update!(figma_read_enabled: true, figma_token: nil)
+
+    with_cli_token("cli-key") do
+      assert_equal "cli-key", ProjectCredentials.new(@project).figma_token
+      assert ProjectCredentials.new(@project).figma_configured?
+    end
+
+    with_cli_token(nil) do
+      assert_nil ProjectCredentials.new(@project).figma_token
+      assert_not ProjectCredentials.new(@project).figma_configured?
+    end
+  end
+
+  test "the project's own figma token wins over the CLI's" do
+    @project.update!(figma_read_enabled: true, figma_token: "own")
+
+    with_cli_token("cli-key") { assert_equal "own", ProjectCredentials.new(@project).figma_token }
+  end
+
 
   test "not configured when creds missing everywhere" do
     @project.update!(github_repo: nil, github_token: nil, figma_token: nil)

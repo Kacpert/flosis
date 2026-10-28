@@ -12,6 +12,14 @@ class ProjectMcpConfigTest < ActiveSupport::TestCase
   end
   teardown { FileUtils.remove_entry(@dir) if File.exist?(@dir) }
 
+  def with_cli_token(token)
+    original = FigmaClient.method(:cli_token)
+    FigmaClient.define_singleton_method(:cli_token) { token }
+    yield
+  ensure
+    FigmaClient.define_singleton_method(:cli_token, original)
+  end
+
   def with_env(vars)
     previous = vars.keys.index_with { |k| ENV[k] }
     vars.each { |k, v| v.nil? ? ENV.delete(k) : ENV[k] = v }
@@ -86,9 +94,9 @@ class ProjectMcpConfigTest < ActiveSupport::TestCase
     assert_equal "700", format("%o", File.stat(@dir).mode & 0o777)
   end
 
-  # Figma is gated on the project's own toggle and token, not on an environment
-  # variable: a project without a token gets no server at all, rather than one
-  # that fails on its first call.
+  # Figma is gated on the project's own toggle and on a token that actually
+  # resolves — the project's, or the one the Claude CLI is configured with. The
+  # health check resolves it the same way, so the chip and the server agree.
   test "wires the Figma server with the project's own token" do
     @project.update!(figma_read_enabled: true, figma_token: "fig-key")
     json = JSON.parse(File.read(ProjectMcpConfig.write!(@project)))
@@ -108,10 +116,18 @@ class ProjectMcpConfigTest < ActiveSupport::TestCase
     assert_not json["mcpServers"].key?("figma")
   end
 
-  test "omits the Figma server when the project has no token of its own" do
+  test "falls back to the CLI's token when the project has none of its own" do
     @project.update!(figma_read_enabled: true, figma_token: nil)
 
-    json = JSON.parse(File.read(ProjectMcpConfig.write!(@project)))
+    json = with_cli_token("cli-key") { JSON.parse(File.read(ProjectMcpConfig.write!(@project))) }
+
+    assert_equal "cli-key", json["mcpServers"]["figma"]["env"]["FIGMA_API_KEY"]
+  end
+
+  test "omits the Figma server when no token resolves anywhere" do
+    @project.update!(figma_read_enabled: true, figma_token: nil)
+
+    json = with_cli_token(nil) { JSON.parse(File.read(ProjectMcpConfig.write!(@project))) }
 
     assert_not json["mcpServers"].key?("figma")
   end

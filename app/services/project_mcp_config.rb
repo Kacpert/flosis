@@ -102,9 +102,10 @@ class ProjectMcpConfig
     }
   end
 
-  # Gated on the project's own token rather than on an environment variable, so
-  # a project that has not set one gets no Figma server at all instead of one
-  # that fails on its first call.
+  # Gated on a token that actually resolves (the project's, else the CLI's), so
+  # a project with none gets no Figma server at all instead of one that fails on
+  # its first call. The health check resolves it the same way, so the chip can
+  # never claim Figma works for a run that was handed no Figma.
   def figma_server
     {
       "command" => "npx",

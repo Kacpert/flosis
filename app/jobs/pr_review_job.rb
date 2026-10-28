@@ -181,6 +181,12 @@ class PrReviewJob < ApplicationJob
   CLI_FAILURE_MARKERS = /\b(401|403|429|invalid authentication|failed to authenticate|api error|credit balance|rate limit|usage limit|overloaded|unauthorized)\b/i
 
   def ai_issues(project, pr, files, mode)
+    codebase = ai_codebase_path(project)
+    if codebase.nil?
+      @last_ai_error = "no codebase checkout for this project"
+      return nil
+    end
+
     prompt = build_prompt(project, pr, files, mode)
     # Read-only Jira alongside the codebase: the prompt carries the ticket and
     # its comments, but a reviewer often needs the epic, a linked issue or a
@@ -189,7 +195,7 @@ class PrReviewJob < ApplicationJob
     mcp_config = (ProjectMcpConfig.write!(project) if project.workspace_dir.present?)
 
     service = ClaudeCliService.new(
-      codebase_path: project.repo_checkout_path,
+      codebase_path: codebase,
       allowed_tools: mcp_config ? ClaudeCliService::REVIEW_TOOLS : nil,
       mcp_config: mcp_config
     )

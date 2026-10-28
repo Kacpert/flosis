@@ -11,6 +11,7 @@ class BugAttributionJobTest < ActiveJob::TestCase
       description: "Exporting a project with >10k time entries crashes with a timeout.",
       jira_created_at: 3.days.ago
     )
+    checkout!(@project)
   end
 
   def with_ai(response)

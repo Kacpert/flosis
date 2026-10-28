@@ -66,6 +66,18 @@ class Project < ApplicationRecord
     File.join(workspace_dir.to_s, name)
   end
 
+  # What the AI jobs may read, which is narrower: the fallback above makes a
+  # project with no folder of its own resolve to the shared elvium tree, and an
+  # answer about somebody else's codebase presented as this project's is worse
+  # than no answer. nil means "skip", not "use the default".
+  def ai_codebase_path
+    return repo_checkout_path if legacy_elvium?
+    return nil if workspace_dir.blank?
+
+    path = repo_checkout_path
+    path if Dir.exist?(path)
+  end
+
   # Tasks in a "design" sprint (sprint name contains "design") — the candidates
   # for the Idea → Brief pipeline.
   def design_sprint_tasks

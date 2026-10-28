@@ -2,12 +2,12 @@
 # writes it to every Jira field configured on the task's project
 # (project.estimation_field_names) — and NEVER any field outside that list.
 #
-# Triggered by estimation_trigger — which the callers below still read off the
-# workspace, while the fields written here come from the project:
+# Triggered by the project's own estimation_trigger, the same project the
+# fields written here come from:
 #   sprint   — JiraSyncService#sync_sprint_assignments, when a task newly
 #              gains a sprint_id on a non-design board sprint
 #   status   — JiraSyncService#sync_issues, when jira_status_name transitions
-#              into workspace.estimation_status_trigger
+#              into the project's estimation_status_trigger
 #   briefed  — BriefCommitsController#commit, on a successful Jira write
 #   manual   — the "Estimate" button (Workshop::IdeasController#estimate)
 class AutoEstimateJob < ApplicationJob
@@ -52,8 +52,11 @@ class AutoEstimateJob < ApplicationJob
   end
 
   def run_ai(task)
+    codebase = ai_codebase_path(task.project)
+    return nil if codebase.nil?
+
     prompt = build_prompt(task)
-    ClaudeCliService.new(codebase_path: task.project.repo_checkout_path).start_session(prompt: prompt)[:response].to_s.tap do |response|
+    ClaudeCliService.new(codebase_path: codebase).start_session(prompt: prompt)[:response].to_s.tap do |response|
       return nil if cli_failed?(response)
     end
   rescue ClaudeCliService::ClaudeCliError => e

@@ -53,7 +53,7 @@ class JiraSyncService
   end
 
   # Clears all sprint assignments, then reassigns from active/future sprints.
-  # AUTO-ESTIMATE (sprint trigger): when workspace.estimation_trigger ==
+  # AUTO-ESTIMATE (sprint trigger): when the project's estimation_trigger ==
   # "sprint", enqueues AutoEstimateJob for any task that NEWLY gains a
   # sprint_id (was nil, now set) on a sprint that is not a "design" sprint —
   # design-sprint tasks (Project#design_sprint_tasks: name contains "design")
@@ -61,7 +61,7 @@ class JiraSyncService
   # Idempotent: a task that already had this sprint_id (unchanged) is not
   # re-enqueued.
   def sync_sprint_assignments
-    trigger_on_sprint = @project.workspace.estimation_trigger == "sprint"
+    trigger_on_sprint = @project.estimation_trigger == "sprint"
 
     @project.tasks.jira_synced.where.not(sprint_id: nil).update_all(sprint_id: nil, sprint_name: nil)
     estimates_enqueued = 0
@@ -117,8 +117,8 @@ class JiraSyncService
   AUTO_ESTIMATE_CAP = 10
 
   def sync_issues
-    trigger_on_status = @project.workspace.estimation_trigger == "status"
-    status_trigger = @project.workspace.estimation_status_trigger
+    trigger_on_status = @project.estimation_trigger == "status"
+    status_trigger = @project.estimation_status_trigger
 
     issues = @client.fetch_issues(@project.external_reference, story_points_field_id: story_points_field_id)
     return if issues.nil?

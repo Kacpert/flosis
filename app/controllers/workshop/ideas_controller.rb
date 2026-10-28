@@ -192,7 +192,7 @@ class Workshop::IdeasController < Workshop::BaseController
     redirect_to workshop_pipeline_path, status: :see_other
   end
 
-  # Manual trigger for the AI auto-estimation engine (workspace.estimation_trigger
+  # Manual trigger for the AI auto-estimation engine (the project's estimation_trigger
   # == "manual" is the button-only path, but this endpoint itself works
   # regardless of the configured trigger — a human explicitly asked for it).
   def estimate

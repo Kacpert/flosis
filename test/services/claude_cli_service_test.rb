@@ -5,6 +5,27 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
     @codebase_path = "/tmp/test-codebase"
   end
 
+  # codebase_path is not a flag. --add-dir was dropped in be2e014, and the only
+  # thing the service does with the path now is run the subprocess in it — so
+  # the directory the CLI is handed is the chdir, and nothing else.
+  def chdir_for(service)
+    captured = nil
+    io = Object.new
+    io.define_singleton_method(:write) { |_| }
+    io.define_singleton_method(:close_write) { }
+    io.define_singleton_method(:read) { "{}" }
+
+    original = IO.method(:popen)
+    IO.define_singleton_method(:popen) do |_cmd, _mode = "r", **opts, &block|
+      captured = opts[:chdir]
+      block.call(io)
+    end
+    service.send(:run_claude, [ "claude" ], "hello")
+    captured
+  ensure
+    IO.define_singleton_method(:popen, original)
+  end
+
   # -- build_command tests --
 
   test "build_command includes resume flag when session_id provided" do
@@ -14,8 +35,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
     assert_kind_of Array, cmd
     assert_includes cmd, "--resume"
     assert_includes cmd, "abc-123"
-    assert_includes cmd, "--add-dir"
-    assert_includes cmd, @codebase_path
+    assert_equal @codebase_path, chdir_for(service)
   end
 
   test "build_command uses array form not string" do
@@ -61,20 +81,16 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
 
   test "uses codebase_path from initializer" do
     service = ClaudeCliService.new(codebase_path: "/custom/path")
-    cmd = service.send(:build_command, streaming: false)
 
-    idx = cmd.index("--add-dir")
-    assert_equal "/custom/path", cmd[idx + 1]
+    assert_equal "/custom/path", chdir_for(service)
   end
 
   test "uses default codebase path from ENV when none provided" do
     original_env = ENV["CHAT_CODEBASE_PATH"]
     begin
       ENV["CHAT_CODEBASE_PATH"] = "/env/codebase"
-      service = ClaudeCliService.new
-      cmd = service.send(:build_command, streaming: false)
-      idx = cmd.index("--add-dir")
-      assert_equal "/env/codebase", cmd[idx + 1]
+
+      assert_equal "/env/codebase", chdir_for(ClaudeCliService.new)
     ensure
       if original_env
         ENV["CHAT_CODEBASE_PATH"] = original_env

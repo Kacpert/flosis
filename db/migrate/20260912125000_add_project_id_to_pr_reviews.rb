@@ -37,6 +37,23 @@ class AddProjectIdToPrReviews < ActiveRecord::Migration[8.1]
   # migration exists to allow. Rolling back then needs a human decision about
   # which review history to drop; it is not something to do silently here.
   def down
+    # Asked before anything is dropped: on MySQL the removal is committed the
+    # moment it runs, so discovering the conflict afterwards would leave the
+    # table with no uniqueness at all and claim_new with nothing to rescue.
+    if column_exists?(:pr_reviews, :project_id)
+      PrReview.reset_column_information
+      conflicts = PrReview.where.not(project_id: nil)
+                          .group(:workspace_id, :pr_number)
+                          .having("COUNT(DISTINCT project_id) > 1").count
+      if conflicts.any?
+        listed = conflicts.keys.first(5).map { |workspace_id, pr_number| "workspace #{workspace_id} PR ##{pr_number}" }
+        raise ActiveRecord::IrreversibleMigration,
+              "#{conflicts.size} pull request(s) are reviewed by more than one project in the same " \
+              "workspace (#{listed.join(', ')}) — workspace-wide uniqueness cannot be restored until " \
+              "one review history per workspace and PR number is chosen and the rest deleted."
+      end
+    end
+
     if index_exists?(:pr_reviews, [ :project_id, :pr_number ], unique: true)
       remove_index :pr_reviews, column: [ :project_id, :pr_number ]
     end

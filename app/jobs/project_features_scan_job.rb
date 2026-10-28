@@ -1,22 +1,21 @@
 require "shellwords"
 
-# Daily: pull the latest master of the elvium checkout, then ask the claude CLI
-# to summarise the current features + architecture, storing it per Jira-connected
-# project in workspaces where Workshop is enabled. The summary feeds the brief
-# conversation. A failed git pull, a CLI error, an auth/quota error printed as
-# text, or an empty result PRESERVES the previous summary — it never blanks it.
+# Daily: for each Jira-connected project in a Workshop workspace, pull the
+# latest master of THAT project's checkout and ask the claude CLI to summarise
+# its features. The summary feeds the brief conversation, so it has to describe
+# the project it is stored on — one shared checkout meant every project's brief
+# was briefed on the same codebase. A project with no checkout of its own is
+# skipped. A failed git pull, a CLI error, an auth/quota error printed as text,
+# or an empty result PRESERVES the previous summary — it never blanks it.
 class ProjectFeaturesScanJob < ApplicationJob
   queue_as :default
 
-  CODEBASE_PATH = ENV.fetch("PR_REVIEW_CODEBASE_PATH", File.expand_path("~/work/elvium")).freeze
   CLI_FAILURE_MARKERS = /\b(401|403|429|invalid authentication|failed to authenticate|api error|credit balance|rate limit|usage limit|overloaded|unauthorized)\b/i
 
   # No project_id → the daily sweep over every Workshop project.
   # With project_id → a single-project refresh (the manual "Refresh" button).
   # Returns true when a single-project scan actually updated the summary.
   def perform(project_id = nil)
-    return unless pull_latest!
-
     if project_id
       project = Project.find_by(id: project_id)
       return false unless project
@@ -35,26 +34,30 @@ class ProjectFeaturesScanJob < ApplicationJob
   # Scans one project and stores the summary, preserving the prior value on any
   # failure (blank/CLI error). Returns true only when a new summary was stored.
   def scan_and_store(project)
-    summary = scan_summary(project)
+    codebase = ai_codebase_path(project)
+    return false if codebase.nil?
+    return false unless pull_latest!(codebase)
+
+    summary = scan_summary(project, codebase)
     return false if summary.blank? # preserve prior on failure
     project.update_columns(features_summary: summary, features_summary_updated_at: Time.current)
     true
   end
 
-  def pull_latest!
-    out = `cd #{CODEBASE_PATH.shellescape} && git pull --ff-only 2>&1`
+  def pull_latest!(codebase)
+    out = `cd #{codebase.shellescape} && git pull --ff-only 2>&1`
     unless $?.success?
-      Rails.logger.warn("[FeaturesScan] git pull failed: #{out}")
+      Rails.logger.warn("[FeaturesScan] git pull failed in #{codebase}: #{out}")
       return false
     end
     true
   rescue StandardError => e
-    Rails.logger.warn("[FeaturesScan] git pull error: #{e.message}")
+    Rails.logger.warn("[FeaturesScan] git pull error in #{codebase}: #{e.message}")
     false
   end
 
-  def scan_summary(project)
-    response = ClaudeCliService.new(codebase_path: CODEBASE_PATH)
+  def scan_summary(project, codebase)
+    response = ClaudeCliService.new(codebase_path: codebase)
                                .start_session(prompt: prompt_for(project))[:response].to_s
     return nil if response.strip.length < 40 || response.match?(CLI_FAILURE_MARKERS)
     response.strip
