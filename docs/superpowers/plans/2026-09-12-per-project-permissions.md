@@ -19,7 +19,7 @@
 - **`%w[]` arrays take no comments.** A `#` line inside one becomes a literal entry. Put prose above the literal.
 - Permission order everywhere in the interface: Automations, Tasks, Reporting, Pricing, Briefing Configuration, Configuration. Briefing Configuration always precedes Configuration.
 - Preset labels are exactly `Project Manager`, `Product Owner`, `Administrator`, `Custom`.
-- Deploy in two releases. Tasks 1 through 17 are release one. Task 18 is release two and only runs after release one is confirmed in production.
+- Deploy in two releases. Tasks 1 through 17 and Task 19 are release one, in that order — 19 explains the permissions and needs the screens from 14 and 15 to exist first. Task 18 is release two and only runs after release one is confirmed in production.
 
 ---
 
@@ -37,15 +37,21 @@
 | `app/views/layouts/_clar_new_project_modal.html.erb` | The New project dialog. |
 | `app/javascript/controllers/permission_switch_controller.js` | Posts a switch change and updates the derived role label without a reload. |
 | `app/javascript/controllers/preset_picker_controller.js` | Role preset buttons set the switches in the invite dialog. |
+| `app/views/workshop/configuration/_permission_legend.html.erb` | What each of the six permissions allows, and what the three preset names add up to. No locals. |
+| `app/views/profiles/_access_card.html.erb` | A person's own access, per project, in the HR design system. |
+| `app/models/concerns/estimation_settings.rb` | The AI estimation settings and their MySQL-safe normalization, shared while both the workspace and the project carry the columns. |
+| `app/controllers/workshop/projects_controller.rb` | Creates a project from the switcher's dialog. Workshop-side, so it needs no HR account. |
 
 **Modified files, grouped by what they are responsible for**
 
 - Authorization: `app/controllers/concerns/authorization.rb`, `app/controllers/concerns/workspace_scoped.rb`, `app/models/user.rb`, `app/models/workspace_membership.rb`, `app/models/project_membership.rb`.
 - Workshop gates: `app/controllers/workshop/*.rb`, `app/controllers/jira_tasks_controller.rb`, `app/controllers/jira_controller.rb`, `app/controllers/chat_sessions_controller.rb`, `app/controllers/brief_chat_sessions_controller.rb`, `app/controllers/breakdown_chat_sessions_controller.rb`, `app/controllers/brief_commits_controller.rb`, `app/controllers/task_breakdowns_controller.rb`, `app/controllers/task_drafts_controller.rb`, `app/controllers/workshop_controller.rb`.
 - Credentials: `app/services/project_credentials.rb`, `app/services/project_mcp_config.rb`, `app/services/figma_client.rb`, `app/services/github_client.rb`, `app/jobs/integration_health_job.rb`, `app/jobs/pr_review_job.rb`, `app/jobs/pr_review_check_job.rb`.
-- Views: `app/views/workshop/configuration/*`, `app/views/layouts/_clar_topbar.html.erb`, `app/views/layouts/_clar_sidebar.html.erb`, `app/views/workshop/reports/_metrics.html.erb`, `app/views/workshop/reports/_dev_table.html.erb`, `app/helpers/clar_helper.rb`.
+- The AI jobs' working directory: `app/jobs/alert_rule_run_job.rb`, `app/jobs/bug_attribution_job.rb`, `app/jobs/auto_estimate_job.rb`, `app/jobs/backfill_delivered_estimates_job.rb` — each drops its own `CODEBASE_PATH` for the checkout of the project it was handed (Task 11c).
+- Explaining the permissions: `app/models/permission_preset.rb` gains `LABELS` and `DESCRIPTIONS`, and they are the only source of that copy anywhere in the product (Task 14 Step 0).
+- Views: `app/views/workshop/configuration/*`, `app/views/layouts/_clar_topbar.html.erb`, `app/views/layouts/_clar_sidebar.html.erb`, `app/views/workshop/reports/_metrics.html.erb`, `app/views/workshop/reports/_dev_table.html.erb`, `app/views/profiles/show.html.erb`, `app/views/workshop/process/_estimate_tab.html.erb`, `app/helpers/clar_helper.rb`.
 
-**HR controllers are deliberately not in this list.** `require_admin!`, `require_employee!` and `require_product!` keep their names and gain new bodies, so `holiday_requests_controller.rb`, `timesheets_controller.rb`, `clients_controller.rb`, `projects_controller.rb`, `workspace_members_controller.rb`, `feedback_meetings_controller.rb`, `tags_controller.rb`, `timers_controller.rb`, `time_entries_controller.rb`, `holiday_balance_entries_controller.rb`, `project_memberships_controller.rb`, `workspace_settings_controller.rb`, `discord_reminder_recipients_controller.rb` and the four `reports/*` controllers are untouched.
+**HR controllers are deliberately not in this list.** `require_admin!`, `require_employee!` and `require_product!` keep their names and gain new bodies, so `holiday_requests_controller.rb`, `timesheets_controller.rb`, `clients_controller.rb`, `projects_controller.rb` (HR's — the Workshop gets its own in Task 17), `workspace_members_controller.rb`, `feedback_meetings_controller.rb`, `tags_controller.rb`, `timers_controller.rb`, `time_entries_controller.rb`, `holiday_balance_entries_controller.rb`, `project_memberships_controller.rb`, `workspace_settings_controller.rb`, `discord_reminder_recipients_controller.rb` and the four `reports/*` controllers are untouched.
 
 ---
 
@@ -166,7 +172,7 @@ end
 Run: `bin/rails test test/models/permission_preset_test.rb`
 Expected: PASS, 7 runs
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add app/models/permission_preset.rb test/models/permission_preset_test.rb
@@ -962,7 +968,7 @@ end
 Run: `bin/rails test test/models/product_access_test.rb test/controllers/permission_gates_test.rb`
 Expected: PASS. Tabs in Task 6 and 8 finish the Product Owner cases if they still fail here.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add app/controllers/concerns/authorization.rb app/controllers/concerns/workspace_scoped.rb \
@@ -1746,7 +1752,32 @@ workspace_client_elvium:
 git rm test/models/client_role_test.rb test/controllers/client_access_test.rb
 ```
 
-- [ ] **Step 3: Add the scoping test that replaces them**
+- [ ] **Step 3: Cover the flag-only administrator**
+
+After Task 7, promoting someone makes a workspace admin whose old `role`
+column still reads `employee`. That combination is now the ordinary case for
+anyone promoted through the interface, and nothing isolates it end to end. Add
+to `test/controllers/permission_gates_test.rb`:
+
+```ruby
+  # A person promoted through the HR directory carries workspace_admin without
+  # ever having had an admin ROLE. Everything that used to ask the role has to
+  # answer for them too — available_projects is the one that bit us.
+  test "an administrator by flag alone sees every project" do
+    workspace_memberships(:two_employee).update!(workspace_admin: true)
+    ProjectMembership.where(user: @user).destroy_all
+
+    get new_time_entry_path
+
+    assert_response :success
+    assert_select "select#time_entry_project_id option", minimum: 2
+  end
+```
+
+Confirm the select's id against the markup before relying on it; Task 7's
+`time_hr_access_test.rb` uses the same selector and is a good reference.
+
+- [ ] **Step 4: Add the scoping test that replaces them**
 
 ```ruby
 # test/controllers/project_scoping_test.rb
@@ -1777,7 +1808,7 @@ class ProjectScopingTest < ActionDispatch::IntegrationTest
 end
 ```
 
-- [ ] **Step 4: Fix the setups in the eight remaining test files**
+- [ ] **Step 5: Fix the setups in the eight remaining test files**
 
 Each sets a role to arrange a case. Translate as follows, leaving the assertions alone:
 
@@ -1808,7 +1839,7 @@ roles, and the membership it builds only needs `time_hr_access`.
 | `membership.update!(role: :client)` | `project_membership.update!(PermissionPreset.attributes_for("Project Manager").merge(automations: false, reporting: false))` |
 | `membership.update!(role: :workspace_client)` | `project_membership.update!(PermissionPreset.attributes_for("Product Owner"))` |
 
-- [ ] **Step 5: Run every test touched so far**
+- [ ] **Step 6: Run every test touched so far**
 
 Run each file separately — the local `pg` gem segfaults on the full suite:
 
@@ -1824,7 +1855,7 @@ done
 
 Expected: no `FAILED:` lines
 
-- [ ] **Step 6: Delete the old model, now that nothing calls it**
+- [ ] **Step 7: Delete the old model, now that nothing calls it**
 
 Every caller is gone as of Task 8, so remove the predicates in one sweep.
 
@@ -1837,14 +1868,18 @@ From `app/models/workspace_membership.rb`: the `enum :role, ...` declaration and
 From `app/controllers/concerns/workspace_scoped.rb`: `redirect_clients_to_jira`, its `before_action`, the `CLIENT_ALLOWED_PREFIXES` and `CLIENT_ALLOWED_EXACT_PATHS` constants, and the `client_role?` branch of `product_landing_path`, which becomes:
 
 ```ruby
-  # Landing path for a product. The Workshop's landing is the pipeline; a
-  # person holding only Tasks is redirected on from there by the ordinary gate.
+  # Landing path for a product. For the Workshop that is whichever page this
+  # person can actually open — see workshop_landing_path, added in Task 6 to
+  # fix an infinite redirect. Returning the pipeline unconditionally would send
+  # someone who lacks Tasks to a page that immediately refuses them.
   def product_landing_path(product = current_product)
     return time_entries_path unless product&.to_sym == :workshop
 
-    workshop_pipeline_path
+    workshop_landing_path
   end
 ```
+
+**Do not replace the whole method from memory.** Remove only the `client_role?` line; `workshop_landing_path` must stay as the return.
 
 Then confirm nothing survives:
 
@@ -1854,7 +1889,7 @@ grep -rn 'admin_or_owner?\|client_role?\|workspace_client\|at_least_employee?\|c
 
 Expected: no output.
 
-- [ ] **Step 7: Re-run every test touched so far**
+- [ ] **Step 8: Re-run every test touched so far**
 
 Repeat the loop from Step 5. Expected: no `FAILED:` lines.
 
@@ -2215,6 +2250,358 @@ git commit -m "feat: credentials, health checks and PR review resolve per projec
 
 ---
 
+### Task 11b: Stop the backfill fanning one repo out to every project
+
+Task 10's backfill copies the workspace's single configuration down to **every** project.
+On the real production database that means one GitHub repo (`elviumcom/elvium`) and
+`pr_review_enabled: true` land on all 13 projects, 12 of which have no Jira key and no
+repo of their own. After Task 11 points `PrReviewCheckJob` at
+`Project.active.where(pr_review_enabled: true)`, that is 13 pollers against one repository
+every 7 minutes, and up to 13 AI reviews queued for the same pull request — the exact
+token burn that was fixed by hand a fortnight ago, reintroduced by a migration. The same
+fan-out turns one Figma health check into 13.
+
+Verified against a copy of the production database, not inferred: workspace 1 holds
+`github_repo = elviumcom/elvium`, `pr_review_enabled = 1`, `figma_read_enabled = 1`; all 13
+of its projects hold `github_repo = NULL`; and exactly one project (Elvium, id 1) has
+`external_type = "jira"`.
+
+Fix it with a new corrective migration rather than by editing Task 10's, which has already
+run on every developer database: a forward-only correction is honest about the history and
+is safe to run on a database that never saw the mistake.
+
+**Files:**
+- Create: `db/migrate/20260912123500_narrow_project_configuration_fanout.rb`
+- Test: `test/migrations/narrow_project_configuration_fanout_test.rb`
+
+**Interfaces:**
+- Consumes: the columns and the backfill from Task 10.
+- Produces: nothing new. It only removes values that should not have been copied.
+
+- [ ] **Step 1: Write the failing test**
+
+```ruby
+# test/migrations/narrow_project_configuration_fanout_test.rb
+require "test_helper"
+require Rails.root.join("db/migrate/20260912123500_narrow_project_configuration_fanout.rb")
+
+# The settings that cost money or make outbound calls belong to the one project
+# the integration was really about. Everything else keeps what it inherited.
+class NarrowProjectConfigurationFanoutTest < ActiveSupport::TestCase
+  setup do
+    @workspace = workspaces(:one)
+    @workspace.update!(github_repo: "acme/app", pr_review_enabled: true, figma_read_enabled: true)
+    # jira_project is the workspace's only external_type: "jira" project.
+    @primary = projects(:jira_project)
+    @other = projects(:plain_project)
+
+    [ @primary, @other ].each do |project|
+      project.update_columns(github_repo: "acme/app", pr_review_enabled: true, figma_read_enabled: true)
+    end
+  end
+
+  test "the Jira project keeps the repo and the polling" do
+    NarrowProjectConfigurationFanout.new.up
+
+    @primary.reload
+    assert_equal "acme/app", @primary.github_repo
+    assert @primary.pr_review_enabled
+    assert @primary.figma_read_enabled
+  end
+
+  test "every other project loses the copied repo and stops polling" do
+    NarrowProjectConfigurationFanout.new.up
+
+    @other.reload
+    assert_nil @other.github_repo
+    assert_not @other.pr_review_enabled
+    assert_not @other.figma_read_enabled
+  end
+
+  test "a value the project set for itself is left alone" do
+    @other.update_columns(github_repo: "acme/its-own")
+
+    NarrowProjectConfigurationFanout.new.up
+
+    assert_equal "acme/its-own", @other.reload.github_repo
+  end
+
+  test "with no single Jira project nothing is designated and nothing is cleared" do
+    @primary.update_columns(external_type: nil)
+
+    NarrowProjectConfigurationFanout.new.up
+
+    assert_equal "acme/app", @other.reload.github_repo
+    assert_equal "acme/app", @primary.reload.github_repo
+  end
+end
+```
+
+The last case is the conservative half of the rule and matters more than the others: where
+the migration cannot tell which project owns the integration, it must change nothing and
+leave the decision to a person. Check whether `projects(:other_jira_project)` also carries
+`external_type: "jira"` in the same workspace — if it does, the first two cases have no
+single primary either, and you must set its `external_type` to nil in `setup` and say so in
+your report.
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `bin/rails test test/migrations/narrow_project_configuration_fanout_test.rb`
+Expected: FAIL — `LoadError`, the migration file does not exist.
+
+- [ ] **Step 3: Write the migration**
+
+```ruby
+# db/migrate/20260912123500_narrow_project_configuration_fanout.rb
+
+# The previous migration copied the workspace's settings to every project. For
+# most columns that is right: each project starts where the workspace was and
+# diverges from there. For the ones that make outbound calls it is wrong — one
+# GitHub repo copied onto thirteen projects means thirteen pollers on the same
+# repository and thirteen AI reviews of the same pull request.
+#
+# Those settings go to the project the integration was actually about: the
+# workspace's single Jira project. Where that is ambiguous this migration
+# changes nothing, because a person can answer it in Configuration and a
+# migration cannot.
+class NarrowProjectConfigurationFanout < ActiveRecord::Migration[8.1]
+  NARROWED = %i[github_repo github_token pr_review_enabled pr_review_prompt
+                pr_poll_minutes pr_polled_at figma_read_enabled].freeze
+
+  def up
+    Project.reset_column_information
+    Workspace.reset_column_information
+    defaults = Project.column_defaults
+
+    say_with_time "narrowing per-project integration settings to one project each" do
+      Workspace.find_each do |workspace|
+        candidates = workspace.projects.where(external_type: "jira")
+        next unless candidates.count == 1
+
+        primary = candidates.first
+        workspace.projects.where.not(id: primary.id).find_each do |project|
+          # Only take back what the backfill put there. Anything a person has
+          # since set for this project is theirs.
+          cleared = NARROWED.filter_map do |column|
+            copied = workspace.read_attribute(column)
+            next if copied.nil?
+            next unless project.read_attribute(column) == copied
+
+            [ column, defaults[column.to_s] ]
+          end.to_h
+
+          project.update_columns(cleared) if cleared.any?
+        end
+      end
+    end
+  end
+
+  # Forward-only: restoring a value we deliberately removed would recreate the
+  # fan-out it exists to undo.
+  def down; end
+end
+```
+
+`pr_review_enabled` and `figma_read_enabled` are NOT NULL with default `false`, so writing
+the column default is what "stop polling" means for them; `github_repo` and `github_token`
+are nullable and their default is nil. Confirm both claims against `db/schema.rb` before
+you trust the `defaults` lookup, and if any NARROWED column's default is not what you want
+written, say so rather than special-casing it silently.
+
+- [ ] **Step 4: Run the test**
+
+Run: `bin/rails test test/migrations/narrow_project_configuration_fanout_test.rb`
+Expected: PASS, 4 runs
+
+- [ ] **Step 5: Migrate and commit**
+
+```bash
+bin/rails db:migrate
+git add db/migrate/20260912123500_narrow_project_configuration_fanout.rb db/schema.rb \
+  test/migrations/narrow_project_configuration_fanout_test.rb
+git commit -m "fix: integration settings land on one project, not on every project in the workspace"
+```
+
+---
+
+### Task 11c: PR review and the AI jobs act on the project they were given
+
+Task 11 moved PR review onto the project. Two things it depends on stayed workspace-shaped,
+and both were found by the Task 11 implementer reading past its own brief:
+
+1. **`pr_reviews` is keyed on the workspace.** The table carries a unique index on
+   `[workspace_id, pr_number]`. With PR review per project, two enabled projects in one
+   workspace collide on any pull-request number they happen to share: the second project's
+   PR is skipped permanently, or a follow-up comment is posted against the wrong repository.
+   Task 11b makes exactly one project per workspace enabled on the day this ships, so the
+   collision is latent — and the first person to switch PR review on for a second project
+   trips it with no error anywhere.
+2. **Five AI jobs chdir into one hard-coded checkout.** `PrReviewJob`, `AlertRuleRunJob`,
+   `BugAttributionJob`, `AutoEstimateJob` and `BackfillDeliveredEstimatesJob` each define
+   `CODEBASE_PATH = ENV.fetch("PR_REVIEW_CODEBASE_PATH", File.expand_path("~/work/elvium"))`
+   and pass it to `ClaudeCliService`. Every one of them already holds the project it is
+   working on, and `Project#repo_checkout_path` already resolves the right directory per
+   project — including the grandfathered `~/work/elvium` for the legacy project. So a second
+   client's pull request would today be reviewed against Elvium's source tree, by a job that
+   knows perfectly well which project it is reviewing.
+
+**Files:**
+- Create: `db/migrate/20260912125000_add_project_id_to_pr_reviews.rb`
+- Modify: `app/models/pr_review.rb`, `app/models/project.rb`, `app/jobs/pr_review_job.rb`, `app/jobs/pr_review_check_job.rb`, `app/jobs/alert_rule_run_job.rb`, `app/jobs/bug_attribution_job.rb`, `app/jobs/auto_estimate_job.rb`, `app/jobs/backfill_delivered_estimates_job.rb`
+- Test: `test/jobs/pr_review_check_job_test.rb` (extended), `test/jobs/codebase_path_test.rb` (new)
+
+**Interfaces:**
+- Consumes: `Project#repo_checkout_path` (already in the tree), the per-project PR-review columns from Task 10, the project-scoped jobs from Task 11.
+- Produces: `PrReview#project`, `Project#pr_reviews`.
+
+- [ ] **Step 1: Write the failing tests**
+
+```ruby
+# test/jobs/codebase_path_test.rb
+require "test_helper"
+
+# Five jobs used to chdir into one machine-wide checkout. Each of them is
+# handed a project, and each project resolves its own directory — so a second
+# client's code is never read out of the first client's tree.
+class CodebasePathTest < ActiveSupport::TestCase
+  JOBS = [ PrReviewJob, AlertRuleRunJob, BugAttributionJob, AutoEstimateJob,
+           BackfillDeliveredEstimatesJob ].freeze
+
+  test "no job carries its own machine-wide codebase constant any more" do
+    JOBS.each do |job|
+      assert_not job.const_defined?(:CODEBASE_PATH, false),
+                 "#{job} still defines CODEBASE_PATH"
+    end
+  end
+
+  test "a project resolves its own checkout" do
+    project = projects(:jira_project)
+    project.update_columns(workspace_dir: "/tmp/clients/9/9", github_repo: "acme/partner-portal")
+
+    assert_equal "/tmp/clients/9/9/partner-portal", project.repo_checkout_path
+  end
+end
+```
+
+```ruby
+# test/jobs/pr_review_check_job_test.rb — add this case
+
+  # The table used to be unique on [workspace_id, pr_number]. Two projects in
+  # one workspace reviewing a PR with the same number is the ordinary case once
+  # PR review is per project, and the loser used to be skipped in silence.
+  test "two projects in one workspace can each review their own PR number" do
+    first = projects(:jira_project)
+    second = projects(:plain_project)
+
+    one = PrReview.create!(project: first, workspace: first.workspace, pr_number: 42)
+    two = PrReview.create!(project: second, workspace: second.workspace, pr_number: 42)
+
+    assert_not_equal one.id, two.id
+  end
+```
+
+- [ ] **Step 2: Run them to verify they fail**
+
+Run: `bin/rails test test/jobs/codebase_path_test.rb test/jobs/pr_review_check_job_test.rb`
+Expected: the constant case fails (all five are still defined), and the two-projects case
+fails on the unique index.
+
+- [ ] **Step 3: Key pr_reviews on the project**
+
+```ruby
+# db/migrate/20260912125000_add_project_id_to_pr_reviews.rb
+
+# A PR review belongs to the project whose repository the pull request is in.
+# The workspace column stays: it is what the Process page still groups by, and
+# Task 13 is explicit that pr_reviews does not move off the workspace.
+class AddProjectIdToPrReviews < ActiveRecord::Migration[8.1]
+  def up
+    unless column_exists?(:pr_reviews, :project_id)
+      add_column :pr_reviews, :project_id, :bigint
+      add_index :pr_reviews, :project_id
+    end
+
+    PrReview.reset_column_information
+
+    # Every existing row was written by the one workspace-wide reviewer, so it
+    # belongs to whichever project now carries that workspace's repository.
+    PrReview.where(project_id: nil).find_each do |review|
+      owner = Project.where(workspace_id: review.workspace_id)
+                     .where(pr_review_enabled: true).order(:id).first ||
+              Project.where(workspace_id: review.workspace_id).order(:id).first
+      review.update_columns(project_id: owner.id) if owner
+    end
+
+    # The old uniqueness was the bug: swap it for the project-scoped one, and
+    # keep a plain index on the workspace for the Process page's grouping.
+    if index_exists?(:pr_reviews, [ :workspace_id, :pr_number ], unique: true)
+      remove_index :pr_reviews, column: [ :workspace_id, :pr_number ]
+    end
+    unless index_exists?(:pr_reviews, [ :project_id, :pr_number ], unique: true)
+      add_index :pr_reviews, [ :project_id, :pr_number ], unique: true
+    end
+  end
+
+  def down
+    if index_exists?(:pr_reviews, [ :project_id, :pr_number ], unique: true)
+      remove_index :pr_reviews, column: [ :project_id, :pr_number ]
+    end
+    unless index_exists?(:pr_reviews, [ :workspace_id, :pr_number ], unique: true)
+      add_index :pr_reviews, [ :workspace_id, :pr_number ], unique: true
+    end
+    remove_column :pr_reviews, :project_id if column_exists?(:pr_reviews, :project_id)
+  end
+end
+```
+
+`belongs_to :project, optional: true` on `PrReview`, `has_many :pr_reviews, dependent: :nullify`
+on `Project`. Then find every `find_or_initialize_by` / `find_by` on `PrReview` keyed by
+workspace and pr_number — grep `PrReview` across `app/` — and key it by project and
+pr_number instead, keeping `workspace_id` populated on create. Report every call site you
+changed.
+
+**The down migration can only restore the old unique index if the rows still satisfy it.**
+If two projects in one workspace have reviewed the same PR number by then, it raises. Say
+so in a comment rather than silently de-duplicating someone's review history.
+
+- [ ] **Step 4: Each job uses the checkout of the project it was given**
+
+Delete `CODEBASE_PATH` from all five jobs and pass `project.repo_checkout_path` to
+`ClaudeCliService` instead. Each job already has the project in hand:
+
+| Job | Where the project comes from |
+| --- | --- |
+| `PrReviewJob` | the `project` local already used at `:189` for the MCP config |
+| `PrReviewCheckJob` | the project it iterates (Task 11) |
+| `AlertRuleRunJob` | the `project` local already used at `:86` |
+| `BugAttributionJob` | `Project.find_by(id: project_id)` at `:33` |
+| `AutoEstimateJob` | `task.project` — it already reaches for `task.project.workspace` at `:31` |
+| `BackfillDeliveredEstimatesJob` | `Project.find_by(id: project_id)` at `:23` |
+
+Read each site before changing it. If any job turns out NOT to hold a project where it
+builds the service, stop and report rather than threading one through — that would be a
+design change, not this fix.
+
+`PR_REVIEW_CODEBASE_PATH` is read nowhere else after this. Grep for it, and if it is set in
+`.env.production` leave the variable alone — removing it from the server is a deploy step,
+not a code change. Note it in your report.
+
+- [ ] **Step 5: Run the tests**
+
+Run: `bin/rails test test/jobs/codebase_path_test.rb test/jobs/pr_review_check_job_test.rb test/jobs/pr_review_job_test.rb test/jobs/alert_rule_run_job_test.rb test/jobs/bug_attribution_job_test.rb test/jobs/auto_estimate_job_test.rb`
+Expected: PASS. Any of those files that does not exist, skip and say so. Also grep `test/`
+for `CODEBASE_PATH` and `PR_REVIEW_CODEBASE_PATH` and run every file that hits.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add db/migrate/20260912125000_add_project_id_to_pr_reviews.rb db/schema.rb \
+  app/models/pr_review.rb app/models/project.rb app/jobs test/jobs
+git commit -m "fix: a PR review is keyed on its project, and each AI job reads that project's checkout"
+```
+
+---
+
 ### Task 12: Discord webhooks belong to a project
 
 **Files:**
@@ -2237,12 +2624,18 @@ class AddProjectIdToDiscordWebhooks < ActiveRecord::Migration[8.1]
       add_index :discord_webhooks, :project_id
     end
 
-    # Existing webhooks belong to whichever project came first in their
-    # workspace — there was no finer answer to give before this column.
+    # A webhook goes to the project whose alert rules actually post to it. Only
+    # when nothing references it is there no better answer than the first
+    # project in its workspace. Guessing by workspace order would otherwise be
+    # able to hand a webhook to a project whose alert rules then could not see
+    # it in their own dropdown.
     DiscordWebhook.reset_column_information
     DiscordWebhook.where(project_id: nil).find_each do |webhook|
-      first = Project.where(workspace_id: webhook.workspace_id).order(:id).first
-      webhook.update_columns(project_id: first.id) if first
+      used_by = AlertRule.where(discord_webhook_id: webhook.id)
+                         .group(:project_id).order(Arel.sql("COUNT(*) DESC")).limit(1).pluck(:project_id).first
+      fallback = Project.where(workspace_id: webhook.workspace_id).order(:id).first&.id
+      target = used_by || fallback
+      webhook.update_columns(project_id: target) if target
     end
   end
 
@@ -2271,9 +2664,38 @@ end
 
 In `app/controllers/workshop/discord_webhooks_controller.rb`, replace `current_workspace.discord_webhooks` with `current_workshop_project.discord_webhooks` throughout. In `app/controllers/workshop/configuration_controller.rb`, change `load_integrations_tab` to read `@discord_webhooks = current_workshop_project&.discord_webhooks&.order(:channel_name) || DiscordWebhook.none`.
 
+- [ ] **Step 3b: Check no alert rule is left pointing at an invisible webhook**
+
+An `AlertRule` belongs to a project and names a `discord_webhook`. Once webhooks are
+per project, a rule on project A holding a webhook that now belongs to project B would
+render a dropdown that does not contain its own current value — and saving the form would
+silently blank it. Step 1's backfill makes that impossible for existing rows, so this step
+only has to prove it and keep it that way:
+
+```ruby
+# test/models/discord_webhook_test.rb — new file
+require "test_helper"
+
+# A rule can only post to a webhook on its own project. If this ever stops
+# being true, the alert form silently drops the channel it was posting to.
+class DiscordWebhookTest < ActiveSupport::TestCase
+  test "no alert rule points at a webhook belonging to another project" do
+    mismatched = AlertRule.joins(:discord_webhook)
+                          .where.not(discord_webhooks: { project_id: nil })
+                          .where("discord_webhooks.project_id != alert_rules.project_id")
+
+    assert_empty mismatched.to_a
+  end
+end
+```
+
+Then scope the webhook options in the alert-rule form to
+`current_workshop_project.discord_webhooks` — find the form by grepping for
+`discord_webhook_id` under `app/views`, and report what you changed.
+
 - [ ] **Step 4: Run the test**
 
-Run: `bin/rails db:migrate && bin/rails test test/controllers/workshop/discord_webhooks_controller_test.rb`
+Run: `bin/rails db:migrate && bin/rails test test/controllers/workshop/discord_webhooks_controller_test.rb test/models/discord_webhook_test.rb`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -2288,12 +2710,124 @@ git commit -m "feat: a Discord webhook belongs to a project, not to the whole wo
 ### Task 13: Configuration edits the project
 
 **Files:**
-- Modify: `app/controllers/workshop/configuration_controller.rb`, `app/controllers/workshop/process_controller.rb`, `app/controllers/workspace_settings_controller.rb`, `app/views/workspace_settings/show.html.erb`, `app/views/workshop/configuration/_integrations_tab.html.erb`, `_ai_tab.html.erb`, `_manage_github.html.erb`, `_manage_figma.html.erb`
-- Test: `test/controllers/workshop/configuration_controller_test.rb` (extended)
+- Create: `app/models/concerns/estimation_settings.rb`
+- Modify: `app/models/project.rb`, `app/models/workspace.rb`, `app/jobs/auto_estimate_job.rb`, `app/controllers/workshop/configuration_controller.rb`, `app/controllers/workshop/process_controller.rb`, `app/controllers/workspace_settings_controller.rb`, `app/helpers/clar_helper.rb`, `app/views/workspace_settings/show.html.erb`, `app/views/workshop/configuration/_integrations_tab.html.erb`, `_ai_tab.html.erb`, `_manage_github.html.erb`, `_manage_figma.html.erb`, `app/views/workshop/process/_estimate_tab.html.erb`
+- Test: `test/controllers/workshop/configuration_controller_test.rb` (extended), `test/helpers/clar_helper_integration_chips_test.rb` (rewritten), `test/models/estimation_settings_test.rb` (new)
 
 **Interfaces:**
 - Consumes: Tasks 10 through 12.
 - Produces: no new interface. Every form on the page posts to the project.
+
+- [ ] **Step 0: Move the estimation reader, not just the column**
+
+Task 10 copied `estimation_field_names` and `estimation_trigger` onto `projects`, but the
+code that makes those columns safe to read stayed on `Workspace`:
+
+- `Workspace#estimation_field_names` overrides the attribute to normalize it. MySQL hands a
+  `:json` column back as a raw JSON **String** where PostgreSQL parses it to an Array, and
+  MySQL cannot carry a JSON column default at all — so the `["AI estimation"]` default also
+  lives in that method, not in the schema.
+- Without it, `Project#estimation_field_names` returns `nil` for the common production case
+  (the AI tab deletes the key when no box is ticked), and `@estimation_field_names.each` in
+  `workshop/process/_estimate_tab.html.erb` is a 500. On MySQL it returns a String and
+  `names - Workspace::ESTIMATION_FIELD_OPTIONS` in `_ai_tab.html.erb` is a 500.
+- `AutoEstimateJob:74` still reads `workspace.estimation_field_names`, a column Task 18
+  drops.
+
+Extract the behaviour into a concern both models include, rather than copying thirty lines:
+
+```ruby
+# app/models/concerns/estimation_settings.rb
+
+# The AI estimation settings, shared while they live on both the workspace and
+# the project. MySQL (production) carries no JSON column default and hands a
+# :json column back as a raw String where PostgreSQL parses it to an Array, so
+# the default and the normalization both have to live in Ruby — and in exactly
+# one place, or the two models disagree about what "no fields chosen" means.
+module EstimationSettings
+  extend ActiveSupport::Concern
+
+  DEFAULT_ESTIMATION_FIELD_NAME = "AI estimation".freeze
+
+  ESTIMATION_FIELD_OPTIONS = [
+    "AI estimation",
+    "Story point estimate",
+    "T-shirt size",
+    "Confidence (1–5)"
+  ].freeze
+
+  ESTIMATION_TRIGGERS = {
+    "sprint" => "Added to a Development sprint",
+    "status" => "Status changes to “Ready for dev”",
+    "briefed" => "AI actions = Briefed",
+    "manual" => "Manually, on request"
+  }.freeze
+
+  def estimation_field_names
+    value = super
+    if value.is_a?(String)
+      value = value.blank? ? nil : (JSON.parse(value) rescue value)
+    end
+    Array(value).reject { |v| v.nil? || v == "" }.presence || [ DEFAULT_ESTIMATION_FIELD_NAME ]
+  end
+
+  def estimation_trigger_label
+    ESTIMATION_TRIGGERS[estimation_trigger] || estimation_trigger
+  end
+end
+```
+
+Include it in `Project` and in `Workspace`, and delete from `app/models/workspace.rb` the
+now-duplicated `ESTIMATION_FIELD_OPTIONS`, `ESTIMATION_TRIGGERS`,
+`estimation_field_names`, `estimation_trigger_label` and the private
+`normalize_field_names`. Read the file first: `DEFAULT_ESTIMATION_FIELD_NAME` is declared
+there too, and other code may reference `Workspace::DEFAULT_ESTIMATION_FIELD_NAME` — grep
+before deleting, and keep a reference working if anything needs it (a constant assigned to
+the concern's is fine).
+
+Point `AutoEstimateJob` at the project. Read it first to see what it already has in hand:
+if it holds a task or a project, use that; if it only holds a workspace, take the project
+from the record it is estimating. Say in your report which it was.
+
+In the two views, `Workspace::ESTIMATION_FIELD_OPTIONS` and `Workspace::ESTIMATION_TRIGGERS`
+become `EstimationSettings::ESTIMATION_FIELD_OPTIONS` and `::ESTIMATION_TRIGGERS`.
+
+```ruby
+# test/models/estimation_settings_test.rb
+require "test_helper"
+
+# The two shapes production actually returns: MySQL's raw JSON string, and the
+# NULL that the AI tab writes whenever every box is unticked.
+class EstimationSettingsTest < ActiveSupport::TestCase
+  test "a raw JSON string normalizes to an array" do
+    project = projects(:jira_project)
+    project.update_columns(estimation_field_names: nil)
+    project.estimation_field_names = nil
+    project.write_attribute(:estimation_field_names, '["Story point estimate"]')
+
+    assert_equal [ "Story point estimate" ], project.estimation_field_names
+  end
+
+  test "nothing chosen falls back to the one default field" do
+    project = projects(:jira_project)
+    project.update_columns(estimation_field_names: nil)
+
+    assert_equal [ EstimationSettings::DEFAULT_ESTIMATION_FIELD_NAME ],
+                 project.reload.estimation_field_names
+  end
+
+  test "the workspace still answers the same way while it holds the column" do
+    workspaces(:one).update_columns(estimation_field_names: nil)
+
+    assert_equal [ EstimationSettings::DEFAULT_ESTIMATION_FIELD_NAME ],
+                 workspaces(:one).reload.estimation_field_names
+  end
+end
+```
+
+The first case writes through `write_attribute` to simulate what MySQL hands back on
+PostgreSQL. If the `:json` attribute type casts it before the override sees it, say so and
+assert the same thing the way the adapter actually allows — do not delete the case.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2426,17 +2960,79 @@ column that no longer exists is worse than no form. Workspace Settings keeps
 its name, the Workshop and Clients feature toggles, and the Discord channel
 used by the HR time-logging reminders.
 
+- [ ] **Step 5b: Point the topbar chips at the project**
+
+`ClarHelper#integration_chips` still reads `Current.workspace`'s status columns.
+`IntegrationHealthJob` stopped writing those in Task 11, so without this the chips freeze
+at whatever they said the day release one shipped — the exact failure the chips were built
+to prevent. The chips are a Workshop topbar element and the Workshop is per project now, so
+every one of the four reads the project:
+
+```ruby
+  def integration_chips
+    project = current_workshop_project
+    return [] unless project
+
+    [
+      chip("Jira", configured: project.jira_connected?,
+                   ok: project.jira_status_ok, error: project.jira_status_error),
+      chip("GitHub", configured: project.github_repo.present?,
+                     ok: project.github_status_ok, error: project.github_status_error),
+      chip("Discord", configured: project.discord_webhooks.any?, ok: nil, error: nil,
+                      unchecked_note: "not health-checked"),
+      chip("Figma", configured: project.figma_read_enabled?,
+                    ok: project.figma_status_ok, error: project.figma_status_error)
+    ]
+  end
+```
+
+Returning `[]` with no project is deliberate: the alternative is four grey chips claiming
+nothing is connected, on a screen where nothing is selected. Read
+`app/views/layouts/_clar_topbar.html.erb:57` and confirm an empty array renders nothing
+rather than an empty wrapper.
+
+Also repoint `github_connection_problem?` in `app/controllers/concerns/authorization.rb` —
+Task 5 deliberately left it on the workspace with a comment saying Task 11 would move it,
+and Task 11 moved the writer without the reader. It becomes:
+
+```ruby
+  def github_connection_problem?
+    project = current_workshop_project
+    project&.github_token.present? && project.github_status_ok == false
+  end
+```
+
+`test/helpers/clar_helper_integration_chips_test.rb` **already exists** with five cases, and
+every one of them breaks here: they set up `workspaces(:one)` and stub
+`current_workshop_project` to nil, which under the new helper means no chips at all. Rewrite
+it against a project and **keep all five cases** — each encodes a lesson worth keeping:
+
+1. a working integration is on and not broken
+2. a failing integration is broken and says why on hover (this is the expired-Figma-token
+   case the chips were built for)
+3. an integration nobody configured is neither on nor broken
+4. configured but never checked reads as connected, not as broken
+5. Discord admits it is not health-checked
+
+Stub `current_workshop_project` to return `projects(:jira_project)` instead of nil, move the
+status columns onto that project, and for case 5 give the project a `discord_webhook` rather
+than setting the workspace's `discord_channel_id`. Add a sixth case for the new branch: with
+no project selected the helper returns an empty list rather than four grey chips.
+Build the chips through the helper; do not reimplement `chip`.
+
 - [ ] **Step 6: Run the tests**
 
-Run: `bin/rails test test/controllers/workshop/configuration_controller_test.rb test/controllers/workspace_settings_controller_test.rb`
+Run: `bin/rails test test/controllers/workshop/configuration_controller_test.rb test/controllers/workspace_settings_controller_test.rb test/helpers/clar_helper_integration_chips_test.rb test/models/estimation_settings_test.rb`
 Expected: PASS. If the workspace-settings test asserts on the GitHub section, delete those cases — the section is gone by design.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add app/controllers/workshop app/controllers/workspace_settings_controller.rb \
-  app/views/workshop/configuration app/views/workspace_settings config/routes.rb \
-  test/controllers
+  app/controllers/concerns/authorization.rb app/helpers/clar_helper.rb \
+  app/models/concerns/estimation_settings.rb app/models/project.rb app/models/workspace.rb \
+  app/jobs/auto_estimate_job.rb app/views/workshop app/views/workspace_settings config/routes.rb \
+  test/controllers test/helpers test/models/estimation_settings_test.rb
 git commit -m "feat: Configuration reads and writes the project it is showing"
 ```
 
@@ -2454,6 +3050,71 @@ git commit -m "feat: Configuration reads and writes the project it is showing"
 **Interfaces:**
 - Consumes: `ProjectMembership#apply_preset`, `#role_label`, `permission_role_badge`, `require_permission!(:configuration)`.
 - Produces: routes `workshop_project_members_path` (POST), `workshop_project_member_path(id)` (PATCH, DELETE). PATCH accepts `{ permission: <name>, value: "1"|"0" }` and renders the updated row as a Turbo Stream.
+- Produces: `PermissionPreset::LABELS` and `PermissionPreset::DESCRIPTIONS`, the only place in the product where a permission is named and explained. Task 15 and Task 19 both read them.
+
+- [ ] **Step 0: Name and explain the six switches, once**
+
+`briefing_config.to_s.humanize` reads "Briefing config", and the product calls it
+**Briefing Configuration** everywhere. More importantly, a column of six switches with
+one-word headers tells nobody what they do. Both the name and the explanation belong in
+one place, because the grid, the invite dialog, the locked tabs and the profile page all
+have to say the same thing.
+
+Add to `app/models/permission_preset.rb`, below `PERMISSIONS`:
+
+```ruby
+  # The display name of each switch. Not `humanize` — the product calls
+  # briefing_config "Briefing Configuration", and that wording is the user's.
+  LABELS = {
+    automations: "Automations",
+    tasks: "Tasks",
+    reporting: "Reporting",
+    pricing: "Pricing",
+    briefing_config: "Briefing Configuration",
+    configuration: "Configuration"
+  }.freeze
+
+  # What each switch actually unlocks, in the words of the person reading the
+  # screen: what they can reach, and what they can change there. This is the
+  # only copy the product has for its own permissions — the Users grid, the
+  # invite dialog, the locked Configuration tabs and the profile page all read
+  # it, so changing a sentence here changes it everywhere it is explained.
+  DESCRIPTIONS = {
+    automations: "See and run the AI agents and alerts, and edit their prompts.",
+    tasks: "Open the task board, read tickets and work on their briefs.",
+    reporting: "Open Reporting: delivered work, velocity and time spent.",
+    pricing: "See money — hourly rates, cost and revenue wherever they appear.",
+    briefing_config: "Edit the Briefing tab: ticket statuses, Jira fields and the brief template.",
+    configuration: "Edit integration keys and AI settings, and manage who is on this project."
+  }.freeze
+
+  def self.label(permission)
+    LABELS.fetch(permission.to_sym)
+  end
+
+  def self.description(permission)
+    DESCRIPTIONS.fetch(permission.to_sym)
+  end
+```
+
+Add to `test/models/permission_preset_test.rb`:
+
+```ruby
+  # A switch nobody can explain is a switch nobody should ship. If a seventh
+  # permission is ever added, this fails until it has a name and a sentence.
+  test "every permission has a name and an explanation" do
+    PermissionPreset::PERMISSIONS.each do |permission|
+      assert PermissionPreset.label(permission).present?, "#{permission} has no label"
+      assert PermissionPreset.description(permission).present?, "#{permission} has no description"
+    end
+
+    assert_equal "Briefing Configuration", PermissionPreset.label(:briefing_config)
+  end
+```
+
+Run: `bin/rails test test/models/permission_preset_test.rb` — it must fail on the missing
+`label` method before you add the constants.
+
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2607,10 +3268,11 @@ end
     <div data-controller="permission-switch"
          data-permission-switch-url-value="<%= workshop_project_member_path(membership) %>"
          data-permission-switch-permission-value="<%= permission %>"
-         title="<%= permission.to_s.humanize %>">
+         class="clar-tip w-fit"
+         data-tip="<%= PermissionPreset.label(permission) %> &mdash; <%= PermissionPreset.description(permission) %>">
       <button type="button" role="switch"
               aria-checked="<%= locked || membership[permission] %>"
-              aria-label="<%= permission.to_s.humanize %> for <%= membership.user.name %>"
+              aria-label="<%= PermissionPreset.label(permission) %> for <%= membership.user.name %>: <%= PermissionPreset.description(permission) %>"
               class="flex items-center bg-transparent border-0 p-0 <%= locked ? 'cursor-default opacity-50' : 'cursor-pointer' %>"
               <%= "disabled" if locked %>
               data-action="permission-switch#toggle">
@@ -2663,7 +3325,12 @@ end
          style="grid-template-columns: minmax(200px,1.4fr) 120px repeat(6, minmax(72px,1fr)) 36px">
       <span>USER</span><span>ROLE</span>
       <% PermissionPreset::PERMISSIONS.each do |permission| %>
-        <span class="leading-[1.3] whitespace-pre-line"><%= permission.to_s.humanize.upcase.sub(" ", "\n") %></span>
+        <%# The header is the first place anyone asks "what is this column?", so
+            it carries the explanation rather than only the name. %>
+        <span class="clar-tip leading-[1.3] whitespace-pre-line w-fit"
+              data-tip="<%= PermissionPreset.description(permission) %>">
+          <%= PermissionPreset.label(permission).upcase.sub(" ", "\n") %>
+        </span>
       <% end %>
       <span></span>
     </div>
@@ -2671,14 +3338,58 @@ end
     <%= render partial: "workshop/configuration/user_row", collection: @members, as: :membership %>
   </div></div>
 
-  <div class="py-3 px-5 text-[11.5px] clar-text-faint">
-    Defaults by role &mdash; Project Manager: Automations, Tasks, Reporting.
-    Product Owner: those plus Briefing Configuration. Administrator: everything.
-    Adjust per person here.
-  </div>
+  <%= render "permission_legend" %>
 </div>
 
 <%= render "invite_modal" %>
+```
+
+**Create `app/views/workshop/configuration/_permission_legend.html.erb` in this same
+step.** The grid is six unlabelled toggles unless the screen says what they mean, and this
+partial is the sentence-level answer. It takes no locals and reads no instance variable, so
+it stays a statement of the rules rather than of one project's state:
+
+```erb
+<%# app/views/workshop/configuration/_permission_legend.html.erb %>
+<%# What the six switches mean and what the three names add up to. No locals:
+    this explains the rules, not one project's state. Task 19 says the same
+    thing to the person themselves on the profile page, in that page's own
+    design system, from the same two constants. %>
+<div class="border-t border-[color:var(--border)] py-4 px-5 grid gap-5 md:grid-cols-2">
+  <div>
+    <div class="text-[10.5px] font-bold tracking-[.5px] clar-text-faint mb-2">WHAT EACH PERMISSION ALLOWS</div>
+    <dl class="space-y-1.5">
+      <% PermissionPreset::PERMISSIONS.each do |permission| %>
+        <div class="flex gap-2 text-[11.5px] leading-[1.45]">
+          <dt class="font-semibold clar-text-text whitespace-nowrap min-w-[130px]"><%= PermissionPreset.label(permission) %></dt>
+          <dd class="clar-text-faint"><%= PermissionPreset.description(permission) %></dd>
+        </div>
+      <% end %>
+    </dl>
+  </div>
+
+  <div>
+    <div class="text-[10.5px] font-bold tracking-[.5px] clar-text-faint mb-2">THE THREE ROLE NAMES</div>
+    <dl class="space-y-1.5">
+      <% PermissionPreset::PRESETS.each do |label, permissions| %>
+        <div class="flex gap-2 text-[11.5px] leading-[1.45]">
+          <dt class="font-semibold clar-text-text whitespace-nowrap min-w-[130px]"><%= label %></dt>
+          <dd class="clar-text-faint">
+            <%= permissions.map { |permission| PermissionPreset.label(permission) }.to_sentence %>
+          </dd>
+        </div>
+      <% end %>
+      <div class="flex gap-2 text-[11.5px] leading-[1.45]">
+        <dt class="font-semibold clar-text-text whitespace-nowrap min-w-[130px]">Custom</dt>
+        <dd class="clar-text-faint">Any other combination. The name follows the switches, so it changes as you flip them.</dd>
+      </div>
+    </dl>
+    <p class="text-[11.5px] clar-text-faint mt-2.5 leading-[1.45]">
+      Permissions are set per project, and an invitation is per project too. Workspace
+      administrators hold all six everywhere and cannot be removed from a single project.
+    </p>
+  </div>
+</div>
 ```
 
 **Create `app/views/workshop/configuration/_invite_modal.html.erb` as an empty file in this same step.** Task 15 fills it. Without it every render of the Users tab raises a missing-partial error for the length of one task.
@@ -2688,7 +3399,26 @@ Change `load_users_tab` in the configuration controller to:
 ```ruby
   def load_users_tab
     project = current_workshop_project
-    @members = project.project_memberships.includes(:user).joins(:user).order("users.name")
+    # No project selected means nothing to list. The method in the tree guards
+    # this today and the grid must keep doing so, or the tab 500s on a fresh
+    # session before a project has been picked.
+    unless project
+      @members = []
+      @addable_users = User.none
+      return
+    end
+
+    rows = project.project_memberships.includes(:user).joins(:user).order("users.name")
+
+    # A workspace admin holds every permission here whether or not anyone ever
+    # added them to this project. Reading project_memberships alone would leave
+    # the person with the most power over the project as the one name missing
+    # from its access list, so append them as unsaved rows.
+    admins = current_workspace.workspace_memberships.where(workspace_admin: true)
+                              .includes(:user).map(&:user)
+    missing = admins - rows.map(&:user)
+    @members = rows.to_a + missing.map { |user| project.project_memberships.new(user: user) }
+
     # People who already have an account in this workspace but are not on this
     # project — the "Add from other project" list.
     @addable_users = User.joins(:workspace_memberships)
@@ -2697,6 +3427,12 @@ Change `load_users_tab` in the configuration controller to:
                          .order(:name)
   end
 ```
+
+Those appended records are UNSAVED, so the row partial must not assume a
+persisted id. In `_user_row.html.erb` use
+`dom_id(membership.persisted? ? membership : membership.user)`, and render the
+delete control only `if membership.persisted?`. An admin's row is locked
+anyway, so nothing is lost.
 
 - [ ] **Step 7: Write the switch controller**
 
@@ -2750,6 +3486,7 @@ Expected: PASS, 5 runs
 bin/rails tailwindcss:build
 git add app/controllers/workshop/project_members_controller.rb app/views/workshop/configuration \
   app/javascript/controllers/permission_switch_controller.js config/routes.rb \
+  app/models/permission_preset.rb test/models/permission_preset_test.rb \
   app/assets/builds test/controllers/workshop/project_members_controller_test.rb
 git commit -m "feat: Configuration > Users is a grid of per-project permission switches"
 ```
@@ -2908,19 +3645,15 @@ Expected: FAIL — `create` handles `user_ids` only
     <div class="clar-card p-0">
       <% PermissionPreset::PERMISSIONS.each_with_index do |permission, i| %>
         <div class="flex items-center justify-between gap-3 py-2.5 px-3 <%= 'border-t border-[color:var(--border)]' if i.positive? %>">
+          <%# Every row explains itself. Whoever is inviting is deciding what this
+              person will be able to see, and three of six hints is not a decision. %>
           <div>
-            <div class="text-[13px] font-semibold clar-text-text"><%= permission.to_s.humanize %></div>
-            <% if permission == :configuration %>
-              <div class="text-[11px] clar-text-faint">Administrators only by default</div>
-            <% elsif permission == :briefing_config %>
-              <div class="text-[11px] clar-text-faint">Product Owners and Administrators by default</div>
-            <% elsif permission == :pricing %>
-              <div class="text-[11px] clar-text-faint">Rates, cost and revenue in this project</div>
-            <% end %>
+            <div class="text-[13px] font-semibold clar-text-text"><%= PermissionPreset.label(permission) %></div>
+            <div class="text-[11px] clar-text-faint leading-[1.4]"><%= PermissionPreset.description(permission) %></div>
           </div>
           <button type="button" role="switch" aria-checked="false"
                   class="flex items-center bg-transparent border-0 p-0 cursor-pointer"
-                  aria-label="<%= permission.to_s.humanize %>"
+                  aria-label="<%= PermissionPreset.label(permission) %>: <%= PermissionPreset.description(permission) %>"
                   data-preset-picker-target="switch" data-permission="<%= permission %>"
                   data-action="preset-picker#toggle">
             <span class="clar-toggle-sm"><span class="knob"></span></span>
@@ -3065,6 +3798,19 @@ class ProjectSwitcherTest < ActionDispatch::IntegrationTest
     assert_match "acme/survey-platform", response.body
   end
 
+  # The switcher is the only screen that lists every project at once, so it is
+  # the cheapest place to answer "what am I in each of these?".
+  test "each project shows the viewer's own role in it" do
+    workspace_memberships(:two_employee).update!(workspace_admin: false)
+    project_memberships(:two_elvium).update!(PermissionPreset.attributes_for("Product Owner"))
+    sign_in_as(users(:two))
+
+    get workshop_pipeline_path
+
+    assert_response :success
+    assert_match "Product Owner", response.body
+  end
+
   test "only a workspace admin is offered a new project" do
     sign_in_as(users(:one))
     get workshop_pipeline_path
@@ -3084,6 +3830,13 @@ Expected: FAIL — the switcher renders names only
 
 - [ ] **Step 3: Rewrite the switcher menu**
 
+The dropdown in the tree already shows the client's name and the Jira key under each
+project. Do not drop that to make room for the team and the repo — prefer the new field and
+fall back to the old one, so no project's subtitle gets emptier than it is today. The
+switcher also gains the viewer's own role name per project: this is the one place where
+every project is listed side by side, so it is where "what am I in each of these?" is
+cheapest to answer.
+
 In `app/views/layouts/_clar_topbar.html.erb`, replace the body of the project dropdown with:
 
 ```erb
@@ -3092,14 +3845,18 @@ In `app/views/layouts/_clar_topbar.html.erb`, replace the body of the project dr
 </div>
 
 <% workshop_projects.each do |project| %>
+  <% badge_class, badge_label = permission_role_badge(ProjectAccess.new(current_user, project)) %>
   <%= button_to switch_workshop_project_path, params: { project_id: project.id },
         class: "flex items-start gap-2.5 w-full py-2 px-2.5 rounded-lg text-left hover:bg-[color:var(--surface-2)]" do %>
     <span class="flex-1 min-w-0">
       <span class="block font-semibold text-[13.5px] clar-text-text truncate"><%= project.name %></span>
       <span class="block text-[11.5px] clar-text-faint truncate">
-        <%= [ project.team, project.github_repo ].compact_blank.join(" · ") %>
+        <%# The new fields when they are filled in, the old ones while they are not. %>
+        <%= [ project.team.presence || project.client&.name,
+              project.github_repo.presence || project.external_reference ].compact_blank.join(" · ") %>
       </span>
     </span>
+    <span class="clar-badge <%= badge_class %> flex-none whitespace-nowrap"><%= badge_label %></span>
     <% if project == current_workshop_project %>
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="clar-text-text flex-none mt-0.5"><path d="M20 6L9 17l-5-5"/></svg>
     <% end %>
@@ -3121,10 +3878,14 @@ In `app/views/layouts/_clar_topbar.html.erb`, replace the body of the project dr
 <%= render "layouts/clar_new_project_modal" if workspace_admin? %>
 ```
 
+The dropdown panel is `w-[300px]` in the tree. A name, a subtitle, a role badge and a tick
+do not fit in 300px — widen it to `w-[360px]` in the same file and check the three-line
+case (long project name, long subtitle, "Administrator" badge) does not wrap into a mess.
+
 - [ ] **Step 4: Run the test**
 
 Run: `bin/rails test test/controllers/project_switcher_test.rb`
-Expected: the first test passes; the second passes once Task 17 supplies the modal partial. Create the partial as an empty file now so the render resolves.
+Expected: the first two tests pass; the third passes once Task 17 supplies the modal partial. Create the partial as an empty file now so the render resolves.
 
 - [ ] **Step 5: Commit**
 
@@ -3139,9 +3900,9 @@ git commit -m "feat: the project switcher names the team and repo it is swapping
 ### Task 17: Creating a project
 
 **Files:**
-- Create: `app/services/project_creator.rb`
-- Modify: `app/controllers/projects_controller.rb`, `app/views/layouts/_clar_new_project_modal.html.erb`, `config/routes.rb`
-- Test: `test/services/project_creator_test.rb`
+- Create: `app/services/project_creator.rb`, `app/controllers/workshop/projects_controller.rb`
+- Modify: `app/views/layouts/_clar_new_project_modal.html.erb`, `config/routes.rb`
+- Test: `test/services/project_creator_test.rb`, `test/controllers/workshop/projects_controller_test.rb`
 
 **Interfaces:**
 - Consumes: the project configuration columns from Task 10 (read directly as `source[column]`, not through `ProjectCredentials`), `PermissionPreset`, `ProjectMembership#apply_preset`.
@@ -3205,6 +3966,15 @@ class ProjectCreatorTest < ActiveSupport::TestCase
     assert_equal "Product Owner", membership.role_label
   end
 
+  # `color` is validated present and hex-formatted and the dialog never asks for
+  # one, so without this the very first create raises RecordInvalid.
+  test "a project gets a colour nobody else in the workspace is using" do
+    project = create
+
+    assert_match(/\A#[0-9A-Fa-f]{6}\z/, project.color)
+    assert_not_includes @workspace.projects.where.not(id: project.id).pluck(:color), project.color
+  end
+
   test "someone outside the workspace is not added" do
     outsider = User.create!(name: "Outsider", email_address: "out@example.com",
                             password: "x" * 12, password_confirmation: "x" * 12)
@@ -3254,6 +4024,7 @@ class ProjectCreator
 
   def call
     project = @workspace.projects.new(@attributes)
+    project.color ||= next_colour
     copy_credentials_into(project)
 
     project.save!
@@ -3262,6 +4033,15 @@ class ProjectCreator
   end
 
   private
+
+  # `color` is validated present and hex-formatted, and the dialog does not ask
+  # for one — so the service takes the first swatch the workspace is not already
+  # using, and cycles once every swatch is taken.
+  def next_colour
+    taken = @workspace.projects.pluck(:color)
+    Project::PROJECT_COLORS.find { |colour| taken.exclude?(colour) } ||
+      Project::PROJECT_COLORS[@workspace.projects.count % Project::PROJECT_COLORS.size]
+  end
 
   def copy_credentials_into(project)
     CREDENTIALS.each do |integration, columns|
@@ -3302,17 +4082,28 @@ end
 
 - [ ] **Step 4: Add the create path**
 
+The existing `ProjectsController` is HR's, and its first `before_action` is
+`require_product!(:time_hr)`. Hanging the Workshop's create action there would make
+creating a Workshop project require an HR account — the opposite of the split this plan
+exists to draw. It gets its own controller in the Workshop namespace, where `require_admin!`
+(now `workspace_admin?` — verified at `app/controllers/concerns/authorization.rb:94`) is the
+only gate it needs.
+
 ```ruby
-# config/routes.rb — beside the existing workshop routes
-  post "workshop/projects", to: "projects#create_workshop_project", as: :create_workshop_project
+# config/routes.rb — inside the existing `namespace :workshop do` block
+    resources :projects, only: [ :create ]
 ```
 
 ```ruby
-# app/controllers/projects_controller.rb — add the action; require_admin! already guards it
+# app/controllers/workshop/projects_controller.rb
 
-  # The new-project dialog. Creates the project, switches to it, and lands on
-  # its Configuration, which is where the person is going anyway.
-  def create_workshop_project
+# The new-project dialog in the project switcher. Creating a project is the
+# workspace-wide privilege, not a per-project permission: there is no project
+# yet for a permission to sit on.
+class Workshop::ProjectsController < Workshop::BaseController
+  before_action :require_admin!
+
+  def create
     project = ProjectCreator.new(
       workspace: current_workspace,
       attributes: params.require(:project).permit(:name, :team, :github_repo).merge(external_type: "jira"),
@@ -3321,12 +4112,50 @@ end
       preset: params[:preset]
     ).call
 
+    # Land on the new project's Configuration: it has no keys yet, and that is
+    # where the person was heading next anyway.
     session[:workshop_project_id] = project.id
     redirect_to workshop_configuration_path(tab: "integrations"),
                 flash: { clar_toast: "#{project.name} created." }
   rescue ActiveRecord::RecordInvalid => e
-    redirect_back fallback_location: workshop_pipeline_path, alert: e.record.errors.full_messages.to_sentence
+    redirect_back fallback_location: workshop_pipeline_path,
+                  alert: e.record.errors.full_messages.to_sentence
   end
+end
+```
+
+Read `app/controllers/workshop/base_controller.rb` first and confirm which session key holds
+the selected project — the line above assumes `session[:workshop_project_id]`. If it is
+named something else, use the real one and say so in your report.
+
+```ruby
+# test/controllers/workshop/projects_controller_test.rb
+require "test_helper"
+
+# Creating a project is the workspace privilege. Holding every permission on
+# one project must not be enough to create another.
+class Workshop::ProjectsControllerTest < ActionDispatch::IntegrationTest
+  test "a workspace admin creates a project and lands on its configuration" do
+    workspace_memberships(:one_owner).update!(workspace_admin: true)
+    sign_in_as(users(:one))
+
+    assert_difference "Project.count", 1 do
+      post workshop_projects_path, params: { project: { name: "Partner Portal" } }
+    end
+
+    assert_redirected_to workshop_configuration_path(tab: "integrations")
+  end
+
+  test "an administrator on one project cannot create another" do
+    workspace_memberships(:one_owner).update!(workspace_admin: false)
+    project_memberships(:one_elvium).update!(PermissionPreset.attributes_for("Administrator"))
+    sign_in_as(users(:one))
+
+    assert_no_difference "Project.count" do
+      post workshop_projects_path, params: { project: { name: "Partner Portal" } }
+    end
+  end
+end
 ```
 
 - [ ] **Step 5: Write the dialog**
@@ -3343,7 +4172,7 @@ end
 <div class="clar-modal-overlay hidden" data-clar-modal-target="panel"
      data-clar-modal-panel-id-value="new-project" data-action="click->clar-modal#close">
   <div class="clar-modal max-w-[620px]" data-action="click->clar-modal#stopPropagation">
-  <%= form_with url: create_workshop_project_path, method: :post, class: "space-y-4" do |f| %>
+  <%= form_with url: workshop_projects_path, method: :post, class: "space-y-4" do |f| %>
     <h2 class="text-[18px] font-bold clar-text-text">New project</h2>
     <p class="text-[13px] clar-text-muted">
       Each project has its own integrations, AI settings, briefing context and users.
@@ -3392,11 +4221,25 @@ end
         </label>
       <% end %>
     </div>
-    <%= hidden_field_tag :preset, "Project Manager" %>
-    <p class="text-[11.5px] clar-text-faint">
-      Selected people get the Project Manager defaults: Automations, Tasks, Reporting.
-      Adjust them afterwards in Configuration &rsaquo; Users.
-    </p>
+    <label class="block text-[11.5px] font-bold clar-text-faint">WHAT THOSE PEOPLE MAY DO HERE</label>
+    <%= select_tag :preset,
+          options_for_select(PermissionPreset::PRESETS.keys, PermissionPreset::LEAST_PRIVILEGED),
+          class: "clar-input w-full" %>
+    <div class="clar-card p-3 space-y-1">
+      <%# Spelled out rather than named: whoever creates the project is deciding
+          what a group of people will be able to see in it. %>
+      <% PermissionPreset::PRESETS.each do |label, permissions| %>
+        <div class="text-[11.5px] leading-[1.45]">
+          <span class="font-semibold clar-text-text"><%= label %></span>
+          <span class="clar-text-faint">
+            &mdash; <%= permissions.map { |permission| PermissionPreset.label(permission) }.to_sentence %>
+          </span>
+        </div>
+      <% end %>
+      <div class="text-[11.5px] clar-text-faint leading-[1.45] pt-0.5">
+        Each person's switches can be tuned afterwards in Configuration &rsaquo; Users.
+      </div>
+    </div>
 
     <div class="flex justify-end gap-2">
       <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
@@ -3409,16 +4252,265 @@ end
 
 - [ ] **Step 6: Run the tests**
 
-Run: `bin/rails test test/services/project_creator_test.rb test/controllers/project_switcher_test.rb`
-Expected: PASS, 7 runs
+Run: `bin/rails test test/services/project_creator_test.rb test/controllers/workshop/projects_controller_test.rb test/controllers/project_switcher_test.rb`
+Expected: PASS — 6 in the creator test, 2 in the controller test, 3 in the switcher test
 
 - [ ] **Step 7: Commit**
 
 ```bash
 bin/rails tailwindcss:build
-git add app/services/project_creator.rb app/controllers/projects_controller.rb \
-  app/views/layouts config/routes.rb app/assets/builds test/services/project_creator_test.rb
+git add app/services/project_creator.rb app/controllers/workshop/projects_controller.rb \
+  app/views/layouts config/routes.rb app/assets/builds test/services/project_creator_test.rb \
+  test/controllers/workshop/projects_controller_test.rb
 git commit -m "feat: create a project, reusing the keys and people of an existing one"
+```
+
+---
+
+### Task 19: Who can see what, in plain words
+
+The switches now decide six different things, and nobody outside Configuration can see
+their own. Two screens have to answer out loud: the locked Configuration tab must say what
+it would take to open it, and every person must be able to read their own access without
+asking an administrator to check. Both read `PermissionPreset::LABELS` and `DESCRIPTIONS`
+from Task 14 — the copy is shared, the markup is not, because the profile page renders in
+the HR design system (`m3-*`, `layouts/application`) and Configuration renders in the
+Workshop one (`clar-*`, `layouts/workshop`).
+
+**Files:**
+- Modify: `app/services/project_access.rb`, `app/controllers/profiles_controller.rb`, `app/views/profiles/show.html.erb`, `app/views/workshop/configuration/show.html.erb`
+- Create: `app/views/profiles/_access_card.html.erb`
+- Test: `test/controllers/profiles_access_test.rb` (new), `test/controllers/workshop/configuration_controller_test.rb`
+
+**Interfaces:**
+- Consumes: `PermissionPreset::LABELS`, `PermissionPreset::DESCRIPTIONS`, `PermissionPreset.label`, `PermissionPreset.description` (Task 14), `ProjectAccess#granted`, `#role_label`, `#workspace_admin?` (Task 3), `TAB_PERMISSIONS` (Task 8).
+- Produces: `ProjectAccess#project`, `@access_rows` on the profile page.
+
+- [ ] **Step 1: Write the failing test**
+
+```ruby
+# test/controllers/profiles_access_test.rb
+require "test_helper"
+
+# The profile page is the one page everyone reaches — including someone holding
+# no permission at all, who is sent here by workshop_landing_path. So it is
+# where "what am I allowed to see?" has to be answerable without asking an
+# administrator to open Configuration and read a row of toggles aloud.
+class ProfilesAccessTest < ActionDispatch::IntegrationTest
+  test "a member reads their own role name and what each permission allows" do
+    project_memberships(:two_elvium).update!(PermissionPreset.attributes_for("Project Manager"))
+    sign_in_as(users(:two))
+
+    get profile_path
+
+    assert_response :success
+    assert_match projects(:jira_project).name, response.body
+    assert_match "Project Manager", response.body
+    # The explanation, not only the switch name.
+    assert_match PermissionPreset.description(:reporting), response.body
+  end
+
+  test "an administrator is told the privilege is workspace-wide" do
+    workspace_memberships(:one_owner).update!(workspace_admin: true)
+    sign_in_as(users(:one))
+
+    get profile_path
+
+    assert_response :success
+    assert_match "Administrator", response.body
+    assert_match "every project in this workspace", response.body
+    # Reaches a project they hold no membership row on.
+    assert_match projects(:other_jira_project).name, response.body
+  end
+
+  test "someone with no project says so instead of showing an empty table" do
+    workspace_memberships(:two_employee).update!(workspace_admin: false)
+    project_memberships(:two_elvium).destroy!
+    sign_in_as(users(:two))
+
+    get profile_path
+
+    assert_response :success
+    assert_match "not on any project", response.body
+  end
+
+  test "a person sees only their own projects" do
+    workspace_memberships(:client_membership).update!(workspace_admin: false)
+    sign_in_as(users(:client_user))
+
+    get profile_path
+
+    assert_response :success
+    assert_match projects(:jira_project).name, response.body
+    assert_no_match projects(:other_jira_project).name, response.body
+  end
+end
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `bin/rails test test/controllers/profiles_access_test.rb`
+Expected: FAIL — the profile page renders but contains no role name, so the first
+assertion fails on `Project Manager` being absent.
+
+- [ ] **Step 3: Let a ProjectAccess name its own project**
+
+In `app/services/project_access.rb`, add below `initialize`:
+
+```ruby
+  # The screens that list access rows need to name the project each row is
+  # about, and they should not have to carry it alongside.
+  attr_reader :project
+```
+
+- [ ] **Step 4: Load the rows**
+
+In `app/controllers/profiles_controller.rb`:
+
+```ruby
+  def show
+    @access_rows = access_rows
+  end
+```
+
+and in a `private` section at the bottom:
+
+```ruby
+  # One row per project this person can reach, each able to answer what they
+  # may do there. A workspace admin reaches every project without a membership
+  # row, so their list comes from the workspace rather than from memberships.
+  def access_rows
+    return [] unless current_workspace
+
+    projects = if workspace_admin?
+      current_workspace.projects.order(:name)
+    else
+      current_workspace.projects
+                       .where(id: ProjectMembership.where(user_id: current_user.id).select(:project_id))
+                       .order(:name)
+    end
+
+    projects.map { |project| ProjectAccess.new(current_user, project) }
+  end
+```
+
+`ProfilesController` includes `WorkspaceScoped` already, and `workspace_admin?` comes from
+`Authorization` via `ApplicationController` — confirm both by reading, not by assuming.
+
+- [ ] **Step 5: Write the access card**
+
+```erb
+<%# app/views/profiles/_access_card.html.erb %>
+<%# "What am I allowed to see?", answered per project. This page is in the HR
+    design system, so it restates the Configuration legend in m3 markup rather
+    than rendering it — the sentences come from PermissionPreset either way, so
+    the two screens cannot drift apart in what they claim. %>
+<div class="m3-card-elevated p-6">
+  <h2 class="text-lg font-semibold mb-1" style="color: var(--color-on-surface)">Your access</h2>
+  <p class="text-sm mb-4" style="color: var(--color-on-surface-variant)">
+    <% if workspace_admin? %>
+      You are a workspace administrator: you hold all six permissions in every project in
+      this workspace, and you cannot be removed from a single one.
+    <% else %>
+      Permissions are set per project. To change them, ask an administrator &mdash; they
+      are on each project's Configuration &rsaquo; Users.
+    <% end %>
+  </p>
+
+  <% if @access_rows.empty? %>
+    <p class="text-sm" style="color: var(--color-on-surface-variant)">
+      You are not on any project yet.
+      <% if current_membership&.time_hr_access? %>
+        You do have access to Time &amp; HR, where you log your own hours and holidays.
+      <% end %>
+    </p>
+  <% else %>
+    <div class="space-y-4">
+      <% @access_rows.each do |access| %>
+        <div class="rounded-xl p-4" style="border: 1px solid var(--color-outline-variant)">
+          <div class="flex items-baseline justify-between gap-3 mb-3">
+            <span class="font-semibold" style="color: var(--color-on-surface)"><%= access.project.name %></span>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                  style="background: var(--color-secondary-container); color: var(--color-on-secondary-container)">
+              <%= access.role_label %>
+            </span>
+          </div>
+
+          <dl class="space-y-2">
+            <% PermissionPreset::PERMISSIONS.each do |permission| %>
+              <% held = access.can?(permission) %>
+              <div class="flex gap-3 text-sm <%= "opacity-45" unless held %>">
+                <dt class="flex items-center gap-2 font-medium shrink-0" style="width: 11rem; color: var(--color-on-surface)">
+                  <%# A tick or a dash, so the state survives being read without colour. %>
+                  <span aria-hidden="true"><%= held ? "&#10003;".html_safe : "&ndash;".html_safe %></span>
+                  <span><%= PermissionPreset.label(permission) %></span>
+                  <span class="sr-only"><%= held ? "allowed" : "not allowed" %></span>
+                </dt>
+                <dd style="color: var(--color-on-surface-variant)"><%= PermissionPreset.description(permission) %></dd>
+              </div>
+            <% end %>
+          </dl>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>
+```
+
+- [ ] **Step 6: Put the card on the page**
+
+In `app/views/profiles/show.html.erb`, render `<%= render "access_card" %>` immediately
+after the closing tag of the "Personal Information" card and before "Change Password" —
+inside the `max-w-2xl` wrapper but **outside** the `form_with` block, because it is not
+part of the form being submitted. Read the file and place it by structure, not by line
+number.
+
+- [ ] **Step 7: The locked tab says what would open it**
+
+In `app/views/workshop/configuration/show.html.erb`, the locked branch currently says only
+"Missing permission — ask an administrator". Name the permission and what it is for:
+
+```erb
+      <% needed = Workshop::ConfigurationController::TAB_PERMISSIONS[tab] %>
+      <span class="clar-tab clar-tip inline-flex items-center gap-1.5 cursor-not-allowed opacity-60"
+            data-tip="Needs the <%= PermissionPreset.label(needed) %> permission &mdash; <%= PermissionPreset.description(needed) %>"
+            aria-label="<%= label %>: needs the <%= PermissionPreset.label(needed) %> permission"
+            tabindex="0" aria-disabled="true">
+```
+
+Keep the padlock svg and the `<%= label %>` that follow it exactly as they are.
+
+Add to `test/controllers/workshop/configuration_controller_test.rb`:
+
+```ruby
+  # A padlock with no reason beside it sends the person to ask an administrator
+  # a question the screen could have answered.
+  test "a locked tab names the permission it needs" do
+    workspace_memberships(:one_owner).update!(workspace_admin: false)
+    project_memberships(:one_elvium).update!(PermissionPreset.attributes_for("Product Owner"))
+    sign_in_as(users(:one))
+
+    get workshop_configuration_path(tab: "briefing")
+
+    assert_response :success
+    assert_match "Needs the Configuration permission", response.body
+  end
+```
+
+- [ ] **Step 8: Run the tests**
+
+Run: `bin/rails test test/controllers/profiles_access_test.rb test/controllers/workshop/configuration_controller_test.rb`
+Expected: PASS, 4 runs in the first file and the existing count plus one in the second.
+
+- [ ] **Step 9: Build the stylesheet and commit**
+
+```bash
+bin/rails tailwindcss:build
+git add app/services/project_access.rb app/controllers/profiles_controller.rb \
+  app/views/profiles app/views/workshop/configuration/show.html.erb \
+  app/assets/builds test/controllers/profiles_access_test.rb \
+  test/controllers/workshop/configuration_controller_test.rb
+git commit -m "feat: every person can read their own per-project access in plain words"
 ```
 
 ---
@@ -3432,7 +4524,7 @@ git commit -m "feat: create a project, reusing the keys and people of an existin
 **Files:**
 - Create: `db/migrate/20260913120000_drop_legacy_role_columns.rb`
 - Delete: `test/migrations/backfill_per_project_permissions_test.rb`
-- Modify: `test/fixtures/workspace_memberships.yml`
+- Modify: `app/controllers/workspaces_controller.rb`, `app/models/workspace.rb`, `test/fixtures/workspace_memberships.yml`, `test/controllers/workspaces_controller_test.rb`
 
 **Interfaces:**
 - Consumes: everything.
@@ -3452,7 +4544,40 @@ grep -rn 'workspace\.\(github_token\|github_repo\|pr_review_enabled\|pr_review_p
 
 Expected: no hits on `WorkspaceMembership` from the first, and no output at all from the second.
 
-- [ ] **Step 2: Write the migration**
+- [ ] **Step 2: Replace the last raw reader of the role column**
+
+`app/controllers/workspaces_controller.rb` still asks
+`workspace_memberships.exists?(role: 3)` — the legacy client value, read as a
+raw integer since Task 9 removed the enum. Dropping the column below makes that
+line raise, so it has to go first. Its intent was "a restricted, admin-managed
+account lives in one workspace and must not create or switch workspaces", which
+the new model can state without naming a role:
+
+```ruby
+  # A restricted account — no HR access and no workspace privilege anywhere —
+  # is managed by an administrator and belongs to one workspace, so it must not
+  # create or switch workspaces. Replaces the old check on the `client` role,
+  # whose column this release drops.
+  def block_restricted_accounts
+    memberships = current_user&.workspace_memberships
+    return if memberships.blank?
+    return if memberships.where(workspace_admin: true).exists?
+    return if memberships.where(time_hr_access: true).exists?
+
+    redirect_to jira_tasks_path, alert: "Your account is managed by an administrator."
+  end
+```
+
+Rename the `before_action` to match. `test/controllers/workspaces_controller_test.rb`
+already exists — Task 9's second fix round wrote it, precisely so this replacement would
+have something to keep green. Read it first: it currently proves that
+`users(:client_user)` (whose membership carries the legacy `role: 3`) is bounced and that
+`users(:one)` is not. The new predicate does not look at `role` at all, so rewrite the
+arrangement to express the same persona in the new terms — no HR access and no workspace
+privilege — and keep both directions. The fixtures lose their `role:` line in Step 4, so an
+arrangement that still sets it will not even load.
+
+- [ ] **Step 3: Write the migration**
 
 ```ruby
 # db/migrate/20260913120000_drop_legacy_role_columns.rb
@@ -3482,6 +4607,9 @@ class DropLegacyRoleColumns < ActiveRecord::Migration[8.1]
     end
   end
 
+  # Nothing in MEMBERSHIP_COLUMNS or WORKSPACE_COLUMNS may still be read when
+  # this runs — Step 1's greps are how you know, and they are not optional.
+
   # Deliberately irreversible: restoring the columns would restore empty ones,
   # which is worse than refusing, because it looks like it worked.
   def down
@@ -3490,11 +4618,26 @@ class DropLegacyRoleColumns < ActiveRecord::Migration[8.1]
 end
 ```
 
-- [ ] **Step 3: Clean the fixtures**
+- [ ] **Step 3b: Take the estimation reader off the workspace**
 
-Remove the `role:` and `workshop_access:` lines from all four entries in `test/fixtures/workspace_memberships.yml`, and delete `test/migrations/backfill_per_project_permissions_test.rb`, which reads them.
+Task 13 gave both `Workspace` and `Project` the `EstimationSettings` concern, whose
+`estimation_field_names` calls `super`. Once this migration drops the workspace's column
+that `super` has no attribute to read and every `Workspace#estimation_field_names` call
+raises. Remove `include EstimationSettings` from `app/models/workspace.rb`, and grep for
+`Workspace::ESTIMATION` and `workspace.estimation_` to confirm nothing reaches for it any
+more — Step 1's second grep should already have caught any such reader, so a hit here means
+Step 1 was not run honestly.
 
-- [ ] **Step 4: Run the whole suite on the server**
+- [ ] **Step 4: Clean the fixtures**
+
+Remove the `role:` and `workshop_access:` lines from every entry in
+`test/fixtures/workspace_memberships.yml`, and delete
+`test/migrations/backfill_per_project_permissions_test.rb`, which reads them. Then grep
+`test/` for `role:` inside workspace-membership arrangements and for `workshop_access` —
+any test still setting either will fail to load, and the fix is to express the persona as
+`time_hr_access` plus `workspace_admin` plus the project switches.
+
+- [ ] **Step 5: Run the whole suite on the server**
 
 The local `pg` gem segfaults on a full run, so verify there:
 
@@ -3504,10 +4647,11 @@ ssh <production host> 'cd <app path>/current && bash -lc "RAILS_ENV=test rbenv e
 
 Expected: no failures
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrate/20260913120000_drop_legacy_role_columns.rb db/schema.rb test
+git add db/migrate/20260913120000_drop_legacy_role_columns.rb db/schema.rb \
+  app/controllers/workspaces_controller.rb app/models/workspace.rb test
 git commit -m "refactor: drop the workspace role and its copies of the project configuration"
 ```
 
@@ -3515,7 +4659,13 @@ git commit -m "refactor: drop the workspace role and its copies of the project c
 
 ## Deploying
 
-Release one is Tasks 1 through 17.
+Release one is Tasks 1 through 17 — including 11b and 11c — then Task 19.
+
+**Before deploying, drain the queue.** `PrReviewJob` changed signature: it used to be
+handed a workspace id and is now handed a project id. A job already enqueued when the deploy
+lands would read a workspace id as a project id and review the wrong repository, or nothing.
+Deploy right after a five-minute tick with nothing claimed, which this app's deploys need
+anyway because the restart kills a running automation.
 
 1. Push first — `cap deploy` reads the git remote, not the working copy.
 2. `bundle exec cap production deploy`

@@ -46,14 +46,44 @@ create projects and run the HR module.
 Six permissions, per user, per project. Order is the order they appear in the
 interface; Briefing Configuration precedes Configuration.
 
-| Permission | Column | Default when inviting |
-| --- | --- | --- |
-| Automations | `automations` | on |
-| Tasks | `tasks` | on |
-| Reporting | `reporting` | on |
-| Pricing | `pricing` | off |
-| Briefing Configuration | `briefing_config` | off |
-| Configuration | `configuration` | off |
+| Permission | Column | Default when inviting | What the interface says it allows |
+| --- | --- | --- | --- |
+| Automations | `automations` | on | See and run the AI agents and alerts, and edit their prompts. |
+| Tasks | `tasks` | on | Open the task board, read tickets and work on their briefs. |
+| Reporting | `reporting` | on | Open Reporting: delivered work, velocity and time spent. |
+| Pricing | `pricing` | off | See money — hourly rates, cost and revenue wherever they appear. |
+| Briefing Configuration | `briefing_config` | off | Edit the Briefing tab: ticket statuses, Jira fields and the brief template. |
+| Configuration | `configuration` | off | Edit integration keys and AI settings, and manage who is on this project. |
+
+The fourth column is not documentation of the interface — it **is** the
+interface. `PermissionPreset::LABELS` and `PermissionPreset::DESCRIPTIONS` hold
+exactly these strings, and every screen that mentions a permission reads them
+from there: the Users grid's column headers and switches, the legend under the
+grid, the invite and add-from-project dialogs, the New project dialog, the
+locked Configuration tab's tooltip, and each person's own access card on their
+profile. One sentence per permission, in one place, so no two screens can come
+to disagree about what a switch does.
+
+Six switches labelled with one word each would be a worse interface than the
+role dropdown they replace: the dropdown at least implied what it meant. Naming
+the switch is not enough — a person deciding someone else's access needs to
+read what they are about to grant, and a person who cannot see a page needs to
+read what would open it.
+
+### Everyone can read their own access
+
+A person who is not an administrator cannot open Configuration, so they cannot
+see their own row in the Users grid. Their profile page therefore carries an
+"Your access" card: one block per project they can reach, the derived role name
+for that project, and all six permissions ticked or dashed with the same
+sentence from `DESCRIPTIONS`. The profile page is also where someone holding no
+permission at all lands, so the empty case says they are on no project yet
+rather than rendering an empty table.
+
+A locked Configuration tab names the permission it needs and what that
+permission is for, instead of saying "missing permission". The tab stays visible
+and padlocked: that it exists, and why it is shut, is more use than a tab that
+silently is not there.
 
 `Pricing` governs hourly rates, cost and revenue inside a project. It is
 separate from `Reporting` because `Reporting` is granted by default, and
