@@ -2,7 +2,7 @@
     this explains the rules, not one project's state. Task 19 says the same
     thing to the person themselves on the profile page, in that page's own
     design system, from the same two constants. %>
-<div class="border-t border-[color:var(--border)] py-4 px-5 grid gap-5 md:grid-cols-2">
+<div data-permission-legend class="border-t border-[color:var(--border)] py-4 px-5 grid gap-5 md:grid-cols-2">
   <div>
     <div class="text-[10.5px] font-bold tracking-[.5px] clar-text-faint mb-2">WHAT EACH PERMISSION ALLOWS</div>
     <dl class="space-y-1.5">
@@ -27,8 +27,18 @@
         </div>
       <% end %>
       <div class="flex gap-2 text-[11.5px] leading-[1.45]">
-        <dt class="font-semibold clar-text-text whitespace-nowrap min-w-[130px]">Custom</dt>
+        <dt class="font-semibold clar-text-text whitespace-nowrap min-w-[130px]"><%= PermissionPreset::CUSTOM %></dt>
         <dd class="clar-text-faint">Any other combination. The name follows the switches, so it changes as you flip them.</dd>
+      </div>
+      <%# The commonest row on the grid, and the one most often misread: most
+          of the staff hold one. Whoever opens this tab to ask why a colleague
+          sees nothing needs the answer here, not from an administrator. %>
+      <div class="flex gap-2 text-[11.5px] leading-[1.45]">
+        <dt class="font-semibold clar-text-text whitespace-nowrap min-w-[130px]"><%= PermissionPreset::NONE %></dt>
+        <dd class="clar-text-faint">
+          Every switch off. Their hours and hourly rate attach to this project, and they
+          have no Workshop access here &mdash; turn a switch on to give them some.
+        </dd>
       </div>
     </dl>
     <p class="text-[11.5px] clar-text-faint mt-2.5 leading-[1.45]">

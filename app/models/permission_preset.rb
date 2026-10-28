@@ -3,7 +3,8 @@
 #
 # A role is NOT stored anywhere. The switches are the truth and the name is
 # read back off them, so flipping one switch simply moves the label — possibly
-# to "Custom", which is a legitimate state rather than an error.
+# to "Custom", or to "No access" once the last one is off, both of which are
+# legitimate states rather than errors.
 module PermissionPreset
   # Interface order, used by every view that renders the switches. Briefing
   # Configuration precedes Configuration.
@@ -43,6 +44,14 @@ module PermissionPreset
   }.freeze
 
   CUSTOM = "Custom".freeze
+
+  # Not a preset and not a combination somebody chose: every switch off. The
+  # row exists so an HR-only employee's hours and hourly rate attach to a
+  # project, and reading it as "Custom" told eight people's managers that
+  # someone had tuned it for them. Deliberately not in PRESETS — it is not a
+  # role anybody is offered, and no dialog should hand it out as a button.
+  NONE = "No access".freeze
+
   LEAST_PRIVILEGED = "Project Manager".freeze
 
   def self.label(permission)
@@ -53,10 +62,13 @@ module PermissionPreset
     DESCRIPTIONS.fetch(permission.to_sym)
   end
 
-  # The name for a granted set, or "Custom" when it matches no preset. Callers
-  # pass whatever order and type they happen to have.
+  # The name for a granted set: a preset's name, NONE when nothing is granted
+  # at all, else "Custom". Callers pass whatever order and type they happen to
+  # have.
   def self.label_for(granted)
     wanted = Array(granted).map(&:to_sym).uniq.sort
+    return NONE if wanted.empty?
+
     PRESETS.each { |label, permissions| return label if permissions.sort == wanted }
     CUSTOM
   end

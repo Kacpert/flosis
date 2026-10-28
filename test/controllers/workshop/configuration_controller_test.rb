@@ -90,6 +90,27 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_select ".clar-badge-muted", /Custom/
   end
 
+  # Eight of the fifteen people on production hold an all-off row: it is there
+  # so their hours and their hourly rate attach to a project, and "Custom" told
+  # their managers somebody had chosen that combination for them.
+  test "users tab reads a row granting nothing as No access, and the legend says what such a row means" do
+    row = project_memberships(:client_elvium)
+    row.update!(PermissionPreset::PERMISSIONS.index_with(false))
+
+    get workshop_configuration_path(tab: "users")
+
+    assert_response :success
+    assert_select "#project_membership_#{row.id}" do
+      assert_select ".clar-badge-muted", PermissionPreset::NONE
+    end
+    # Scoped to the legend: the grid prints this label too, so the body alone
+    # cannot say whether the explanation reached the page.
+    assert_select "[data-permission-legend]" do
+      assert_select "dt", text: PermissionPreset::NONE
+      assert_select "dd", /hours and hourly rate attach to this project/
+    end
+  end
+
   # Inviting is per project now, so the header opens the Workshop's own dialog
   # instead of sending the admin to HR's workspace-wide invite screen.
   test "users tab invites from the Workshop, not from HR" do

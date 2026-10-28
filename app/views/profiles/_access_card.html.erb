@@ -15,11 +15,20 @@
   </p>
 
   <% if @access_rows.empty? %>
-    <p class="text-sm" style="color: var(--color-on-surface-variant)">
-      <%# An administrator holds every permission on every project, so for them
-          an empty card is a fact about the workspace, not about their standing
-          in it. %>
-      <%= workspace_admin? ? "There are no projects in this workspace yet." : "You are not on any project yet." %>
+    <p class="text-sm" data-access-empty style="color: var(--color-on-surface-variant)">
+      <%# Three different facts, and saying the wrong one is worse than saying
+          nothing. An administrator holds every permission on every project, so
+          for them an empty card is about the workspace. Someone holding only
+          all-off rows IS on their projects — most of the staff are in exactly
+          that position — and only lacks Workshop standing there. %>
+      <% if workspace_admin? %>
+        There are no projects in this workspace yet.
+      <% elsif @memberships_without_access %>
+        Your hours and hourly rate attach to the projects you are on, but none of them
+        gives you any Workshop access yet.
+      <% else %>
+        You are not on any project yet.
+      <% end %>
       <% if current_membership&.time_hr_access? %>
         You do have access to Time &amp; HR, where you log your own hours and holidays.
       <% end %>

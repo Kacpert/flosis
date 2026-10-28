@@ -16,6 +16,15 @@ class ClarHelperRoleBadgeTest < ActionView::TestCase
     assert_equal "Custom", permission_role_badge(membership).last
   end
 
+  # The eight people holding an all-off row are not a tuned combination and not
+  # a role: the badge must not dress them in the colour the roles wear.
+  test "a row that grants nothing reads No access, in the muted colour" do
+    klass, label = permission_role_badge(project_memberships(:workspace_client_internal))
+
+    assert_equal PermissionPreset::NONE, label
+    assert_equal "clar-badge-muted", klass
+  end
+
   test "an administrator badge is the warning colour" do
     membership = project_memberships(:two_elvium)
     membership.update!(PermissionPreset.attributes_for("Administrator"))

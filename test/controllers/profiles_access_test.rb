@@ -72,6 +72,30 @@ class ProfilesAccessTest < ActionDispatch::IntegrationTest
     assert_match "not on any project", response.body
   end
 
+  # Eight of the fifteen people on production hold nothing but all-off rows, so
+  # "you are not on any project yet" was false for more than half the staff:
+  # they are on their projects, they just hold no Workshop permission there.
+  test "someone whose every membership grants nothing is told that, not that they are on no project" do
+    workspace_memberships(:workspace_client_membership).update!(workspace_admin: false)
+    project_memberships(:workspace_client_elvium).update!(PermissionPreset::PERMISSIONS.index_with(false))
+    sign_in_as(users(:workspace_client_user))
+
+    get profile_path
+
+    assert_response :success
+    # No row: the Workshop cannot be scoped to a project granting nothing.
+    assert_select "[data-access-project]", false
+    # The card's own paragraph, not the body: the layout prints project names
+    # and role labels of its own accord.
+    assert_select "[data-access-empty]" do |paragraph|
+      text = paragraph.first.text
+      assert_match(/hours and hourly rate attach/, text)
+      assert_no_match(/not on any project/, text)
+      # The sentence that tells them where they CAN work has to survive.
+      assert_match(/Time & HR/, text)
+    end
+  end
+
   # "You hold all six permissions in every project in this workspace" followed
   # by "you are not on any project" reads as a contradiction. For an admin the
   # empty case is about the workspace, not about them.

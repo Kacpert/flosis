@@ -146,7 +146,8 @@ module ClarHelper
 
   # Configuration > Users: [badge_class, label] for a project membership or a
   # ProjectAccess. The label is derived from the switches, so a set matching no
-  # preset reads "Custom" rather than being rounded to the nearest role.
+  # preset reads "Custom", and a row with every switch off reads "No access",
+  # rather than either being rounded to the nearest role.
   def permission_role_badge(holder)
     permission_badge_for(holder.role_label)
   end
@@ -158,7 +159,7 @@ module ClarHelper
   def permission_badge_for(label)
     klass = case label
             when "Administrator" then "clar-badge-warn"
-            when "Custom" then "clar-badge-muted"
+            when PermissionPreset::CUSTOM, PermissionPreset::NONE then "clar-badge-muted"
             else "clar-badge-primary"
             end
     [ klass, label ]

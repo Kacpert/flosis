@@ -1,8 +1,9 @@
 require "test_helper"
 
 # A role is a name read off the switches, never a stored value. These pin the
-# derivation down, including the case that matters most: a set matching no
-# preset is "Custom", which is a normal state and not an error.
+# derivation down, including the two cases that matter most: a set matching no
+# preset is "Custom", and nothing granted at all is "No access" — both normal
+# states rather than errors, and they must not be confused for each other.
 class PermissionPresetTest < ActiveSupport::TestCase
   test "names the three presets" do
     assert_equal "Project Manager", PermissionPreset.label_for(%i[automations tasks reporting])
@@ -18,10 +19,18 @@ class PermissionPresetTest < ActiveSupport::TestCase
     assert_equal "Project Manager", PermissionPreset.label_for(%w[automations tasks reporting])
   end
 
-  test "anything else is Custom, including nothing at all" do
+  test "anything else is Custom" do
     assert_equal "Custom", PermissionPreset.label_for(%i[tasks])
-    assert_equal "Custom", PermissionPreset.label_for([])
     assert_equal "Custom", PermissionPreset.label_for(%i[automations tasks reporting pricing])
+  end
+
+  # "Custom" claims someone deliberately tuned a combination. An all-off row
+  # claims the opposite — nobody has granted anything, and the row is there so
+  # an HR-only employee's hours and rate attach to a project.
+  test "nothing granted is its own label, not Custom" do
+    assert_equal "No access", PermissionPreset.label_for([])
+    assert_equal PermissionPreset::NONE, PermissionPreset.label_for(nil)
+    assert_not_equal PermissionPreset::CUSTOM, PermissionPreset.label_for([])
   end
 
   test "Briefing Configuration precedes Configuration in the interface order" do
