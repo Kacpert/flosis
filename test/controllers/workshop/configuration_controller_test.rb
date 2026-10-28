@@ -65,6 +65,22 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_select ".clar-badge-primary", /Product Owner/
   end
 
+  # The locked reading wins over the row's own columns: an administrator holds
+  # all six by the workspace flag, so the grid must not read their switches
+  # back and call them a Project Manager.
+  test "an administrator's row reads as Administrator whatever its switches say" do
+    admin_row = project_memberships(:one_elvium)
+    admin_row.update!(PermissionPreset.attributes_for("Project Manager"))
+
+    get workshop_configuration_path(tab: "users")
+
+    assert_response :success
+    assert_select "#project_membership_#{admin_row.id}" do
+      assert_select ".clar-badge-warn", /Administrator/
+      assert_select "[role=switch][aria-checked=true]", 6
+    end
+  end
+
   test "users tab shows a muted Custom badge for a permission set matching no preset" do
     project_memberships(:two_elvium).update!(pricing: true) # off every preset
 
@@ -126,8 +142,20 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "the add-from-another-project dialog offers a chip per person off this project" do
+  # Stimulus only claims a target whose closest clar-modal element IS the
+  # controller's own, so a panel rendered one line past the closing </div> is
+  # markup that exists and a button that does nothing. "The panel is on the
+  # page" cannot tell the two apart; "the panel is inside the scope" can.
+  test "both dialogs sit inside the clar-modal element, or no trigger can open them" do
+    get workshop_configuration_path(tab: "users")
+
+    assert_response :success
+    assert_select '[data-controller~="clar-modal"] [data-clar-modal-target="panel"]', 2
+  end
+
+  test "the add-from-another-project dialog offers a chip per person on another project" do
     project_memberships(:client_elvium).destroy!
+    projects(:plain_project).project_memberships.create!(user: users(:client_user), hourly_rate_cents: 0)
 
     get workshop_configuration_path(tab: "users")
 
@@ -135,6 +163,24 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-clar-modal-panel-id-value=?]", "add-existing" do
       assert_select "input[name=?][value=?]", "user_ids[]", users(:client_user).id.to_s
     end
+  end
+
+  # The HR and Workshop directories are separate on purpose: an employee with
+  # an account and no project was kept out of the Workshop, and one project's
+  # Configuration holder must not be able to put them in it — nor be shown the
+  # whole staff directory on the way.
+  test "the add dialog does not offer an employee who is on no project" do
+    hr_only = User.create!(name: "Nora Payroll", email_address: "nora@acme.io",
+                           password: "password", password_confirmation: "password")
+    @workspace.workspace_memberships.create!(user: hr_only, time_hr_access: true, workspace_admin: false)
+
+    get workshop_configuration_path(tab: "users")
+
+    assert_response :success
+    assert_select "input[name=?][value=?]", "user_ids[]", hr_only.id.to_s, false,
+                  "someone with no project at all is not 'on another project'"
+    assert_no_match(/Nora Payroll/, response.body,
+                    "the dialog must not disclose the staff directory")
   end
 
   test "someone holding Briefing but not Configuration is blocked from the users tab" do

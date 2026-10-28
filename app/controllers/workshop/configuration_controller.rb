@@ -233,11 +233,21 @@ class Workshop::ConfigurationController < Workshop::BaseController
     missing = admins - rows.map(&:user)
     @members = rows.to_a + missing.map { |user| project.project_memberships.new(user: user) }
 
-    # People who already have an account in this workspace but are not on this
-    # project — the "Add from other project" list.
-    @addable_users = User.joins(:workspace_memberships)
-                         .where(workspace_memberships: { workspace_id: current_workspace.id })
+    # Which rows render locked, answered once here instead of by a
+    # ProjectAccess per row: the grid is built from this very fact, and asking
+    # again cost a workspace_memberships query for every person on screen.
+    @admin_user_ids = admins.map(&:id)
+
+    # People who already have an account in ANOTHER project of this workspace.
+    # Not everyone in the workspace: an employee holding HR access and no
+    # project was deliberately kept out of the Workshop, and a project
+    # membership is exactly what would let them in. Administrators are left out
+    # too — ProjectMembersController refuses to give them a row.
+    @addable_users = User.joins(:project_memberships)
+                         .where(project_memberships: { project_id: current_workspace.projects.select(:id) })
                          .where.not(id: @members.map(&:user_id))
+                         .where.not(id: @admin_user_ids)
+                         .distinct
                          .order(:name)
   end
 end

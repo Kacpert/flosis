@@ -148,7 +148,14 @@ module ClarHelper
   # ProjectAccess. The label is derived from the switches, so a set matching no
   # preset reads "Custom" rather than being rounded to the nearest role.
   def permission_role_badge(holder)
-    label = holder.role_label
+    permission_badge_for(holder.role_label)
+  end
+
+  # The same badge from a role name alone, for the Users grid's administrator
+  # rows: their access is the workspace flag, so there is no row to read the
+  # switches off and no reason to spend a query establishing what the loader
+  # already said.
+  def permission_badge_for(label)
     klass = case label
             when "Administrator" then "clar-badge-warn"
             when "Custom" then "clar-badge-muted"

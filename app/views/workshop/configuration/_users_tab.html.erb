@@ -32,10 +32,18 @@
       <span></span>
     </div>
 
-    <%= render partial: "workshop/configuration/user_row", collection: @members, as: :membership %>
+    <%# A row at a time rather than a collection render, because each one needs
+        its own `locked` and the loader is the only place that knows it. %>
+    <% @members.each do |membership| %>
+      <%= render "workshop/configuration/user_row", membership: membership,
+            locked: @admin_user_ids.include?(membership.user_id) %>
+    <% end %>
   </div></div>
 
   <%= render "permission_legend" %>
-</div>
 
-<%= render "invite_modal" %>
+  <%# Inside the element, not after it: Stimulus claims a target only where
+      closest('[data-controller~="clar-modal"]') is this very controller, so a
+      panel one line below the closing tag is markup no trigger can reach. %>
+  <%= render "invite_modal" %>
+</div>

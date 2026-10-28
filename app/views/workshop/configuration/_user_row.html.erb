@@ -1,9 +1,11 @@
-<%# access = ProjectAccess so a workspace admin reads as all six switches even
-    on the appended rows, which are UNSAVED and therefore have no id to route
-    or to name a DOM node with. %>
-<% access = ProjectAccess.new(membership.user, current_workshop_project) %>
-<% locked = access.workspace_admin? %>
-<% badge_class, badge_label = permission_role_badge(locked ? access : membership) %>
+<%# locked comes in as a local: whoever renders this row already knows which
+    users are workspace admins, and a ProjectAccess per row spent a
+    workspace_memberships query establishing it again — twice for an admin,
+    since the badge asked a second time. A locked row reads as every switch on,
+    which is what the flag grants; the rows it describes are also UNSAVED, so
+    they have no id to route or to name a DOM node with. %>
+<% badge_class, badge_label = permission_badge_for(
+     PermissionPreset.label_for(locked ? PermissionPreset::PERMISSIONS : membership.granted)) %>
 <div id="<%= dom_id(membership.persisted? ? membership : membership.user) %>"
      class="grid items-center gap-3 py-3 px-5 border-b border-[color:var(--border)]"
      style="grid-template-columns: minmax(200px,1.4fr) 120px repeat(6, minmax(72px,1fr)) 36px">
