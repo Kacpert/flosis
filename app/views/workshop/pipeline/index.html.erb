@@ -5,7 +5,10 @@
     <h1 class="clar-h1">Create Tasks</h1>
     <p class="clar-sub">Turn rough ideas and unclear tickets into implementation-ready Jira tasks. The AI reads the repo first, then helps you shape them.</p>
   </div>
-  <% if can?(:configuration) %>
+  <%# The shortcut opens Configuration's Briefing tab, which costs
+      :briefing_config — the one tab a Product Owner holds. Asking for
+      :configuration hid it from exactly the people it is for. %>
+  <% if can?(:briefing_config) %>
     <%= link_to workshop_configuration_path(tab: "briefing"),
           title: "Briefing setup — personas & app feature list",
           class: "clar-btn !text-[12px] !py-1.5 !px-3 flex-none whitespace-nowrap mt-1" do %>

@@ -188,6 +188,30 @@ class PermissionGatesTest < ActionDispatch::IntegrationTest
     assert_response :success, "the landing path must be a page this person can open"
   end
 
+  # The shortcut on Create Tasks opens Configuration's Briefing tab, which is
+  # governed by :briefing_config — the one tab a Product Owner holds. Gating
+  # the link on :configuration hid it from exactly the people whose tab it is,
+  # while the tab itself opened fine if they typed the url.
+  test "the Briefing setup shortcut follows the tab it opens, not Configuration" do
+    with_permissions("Product Owner")
+    assert @membership.reload.briefing_config, "arrangement: a Product Owner holds Briefing Configuration"
+    assert_not @membership.configuration, "arrangement: and does not hold Configuration"
+
+    get workshop_pipeline_path
+
+    assert_response :success
+    assert_select "a[href=?]", workshop_configuration_path(tab: "briefing"), 1
+  end
+
+  test "someone without Briefing Configuration does not get the shortcut" do
+    with_permissions("Project Manager")
+
+    get workshop_pipeline_path
+
+    assert_response :success
+    assert_select "a[href=?]", workshop_configuration_path(tab: "briefing"), 0
+  end
+
   # A person promoted through the HR directory carries workspace_admin without
   # ever having had an admin ROLE. Everything that used to ask the role has to
   # answer for them too — available_projects is the one that bit us.
