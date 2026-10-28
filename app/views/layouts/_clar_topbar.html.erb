@@ -18,7 +18,11 @@
     <span class="clar-wordmark">Flos<span class="dotless">&#305;</span>s</span>
   </div>
 
-  <div class="relative" data-controller="clar-dropdown">
+  <%# Two controllers on one element: the dropdown owns the menu, and the
+      clar-modal scope has to hold both the "New project" trigger inside the
+      menu and the dialog itself, which sits outside the panel so closing the
+      menu doesn't take the dialog with it. %>
+  <div class="relative" data-controller="clar-dropdown clar-modal">
     <button type="button" data-action="click->clar-dropdown#toggle"
             class="flex items-center gap-2 h-8 px-2.5 rounded-[8px] border cursor-pointer"
             style="border-color: var(--border); background: var(--surface-2); color: var(--text);">
@@ -30,22 +34,49 @@
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
     </button>
 
-    <div data-clar-dropdown-target="panel" class="hidden absolute top-10 left-0 w-[300px] clar-card clar-fade" style="box-shadow: var(--shadow-lg); padding: 6px; z-index: 50;">
+    <%# A name, a subtitle, a role badge and the tick don't fit the 300px the
+        menu used to be. %>
+    <div data-clar-dropdown-target="panel" class="hidden absolute top-10 left-0 w-[360px] clar-card clar-fade" style="box-shadow: var(--shadow-lg); padding: 6px; z-index: 50;">
       <div class="text-[10.5px] font-bold tracking-wide px-2.5 pt-2 pb-1 clar-text-faint" style="letter-spacing: .6px;">SWITCH PROJECT &middot; SWAPS EVERYTHING</div>
+      <%# One query for the whole menu rather than a membership lookup per row:
+          everyone but a workspace admin is only shown projects they hold a row
+          on, and the admin's privilege is global, so ProjectAccess answers for
+          them off the workspace membership without touching this table. %>
+      <% switcher_memberships = workspace_admin? ? {} : current_user.project_memberships.index_by(&:project_id) %>
       <% workshop_projects.each do |project| %>
+        <% badge_class, badge_label = permission_role_badge(switcher_memberships[project.id] || ProjectAccess.new(current_user, project)) %>
         <%= button_to switch_workshop_project_path, params: { project_id: project.id }, method: :post,
-              class: "flex items-center justify-between w-full px-2.5 py-2.5 rounded-lg border-0 text-left #{'bg-black/[.03]' if project == current_workshop_project}",
+              class: "flex items-start gap-2.5 w-full px-2.5 py-2.5 rounded-lg border-0 text-left #{'bg-black/[.03]' if project == current_workshop_project}",
               style: project == current_workshop_project ? "background: var(--surface-2);" : "background: transparent;" do %>
-          <div class="flex flex-col gap-0.5 text-left">
-            <span class="font-semibold text-[13.5px]"><%= project.name %></span>
-            <span class="text-[11.5px] clar-text-faint"><%= [project.client&.name, project.external_reference].compact.join(" · ") %></span>
+          <div class="flex flex-col gap-0.5 flex-1 min-w-0 text-left">
+            <span class="font-semibold text-[13.5px] truncate"><%= project.name %></span>
+            <%# The new fields once they are filled in, the old ones while they
+                are not — no project's subtitle gets emptier than it was. %>
+            <span class="text-[11.5px] clar-text-faint truncate">
+              <%= [project.team.presence || project.client&.name,
+                   project.github_repo.presence || project.external_reference].compact_blank.join(" · ") %>
+            </span>
           </div>
+          <span class="clar-badge <%= badge_class %> flex-none whitespace-nowrap mt-0.5"><%= badge_label %></span>
           <% if project == current_workshop_project %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="flex-none mt-1"><path d="M20 6L9 17l-5-5"/></svg>
           <% end %>
         <% end %>
       <% end %>
+
+      <% if workspace_admin? %>
+        <div class="mt-1.5 pt-1.5 border-t" style="border-color: var(--border);">
+          <button type="button" class="flex items-center gap-2.5 w-full px-2.5 py-2.5 rounded-lg border-0 text-left font-semibold text-[13px] clar-text-primary cursor-pointer"
+                  style="background: transparent;"
+                  data-action="clar-modal#open" data-clar-modal-id-param="new-project">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            New project
+          </button>
+        </div>
+      <% end %>
     </div>
+
+    <%= render "layouts/clar_new_project_modal" if workspace_admin? %>
   </div>
 
   <div class="flex items-center gap-[7px]">

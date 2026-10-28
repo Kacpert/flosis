@@ -69,7 +69,9 @@ class TwoProductUxSmokeTest < ActionDispatch::IntegrationTest
     # Task 2.3 redesign: the two entry points are now clar-modal-opening cards
     # on the Create Tasks pipeline landing (modals themselves land in Phase 3).
     assert_select "h1", "Create Tasks"
-    assert_select "button[data-action=?]", "clar-modal#open", count: 2
+    # Scoped to the page: the top-bar switcher now carries a clar-modal trigger
+    # of its own ("New project"), which is not an entry point on this page.
+    assert_select "main button[data-action=?]", "clar-modal#open", count: 2
     assert_match "New idea", response.body
     assert_match "Existing Jira task", response.body
     # the project context still lives in the top-bar switcher
