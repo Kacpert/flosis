@@ -75,7 +75,7 @@ class PrReviewJobTest < ActiveJob::TestCase
 
     assert_equal 4, fake.captured[:comments].size
     assert_equal "🤖 Automated AI review", fake.captured[:body]
-    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    review = PrReview.find_by(project: @project, pr_number: 7)
     assert_equal "abc", review.last_reviewed_sha
     assert review.initial_done
   end
@@ -93,7 +93,7 @@ class PrReviewJobTest < ActiveJob::TestCase
       end
     end
 
-    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    review = PrReview.find_by(project: @project, pr_number: 7)
     assert_equal "DEV-836 thing", review.pr_title
     assert_equal "octocat", review.pr_author
     assert_equal "dev-836-thing", review.pr_branch
@@ -108,7 +108,7 @@ class PrReviewJobTest < ActiveJob::TestCase
       end
     end
 
-    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    review = PrReview.find_by(project: @project, pr_number: 7)
     assert_equal "looks_good", review.outcome
     assert_equal 0, review.comment_count
   end
@@ -123,13 +123,13 @@ class PrReviewJobTest < ActiveJob::TestCase
       end
     end
 
-    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    review = PrReview.find_by(project: @project, pr_number: 7)
     assert_equal "comments", review.outcome
     assert_equal 3, review.comment_count
   end
 
   test "followup caps at 2 comments" do
-    PrReview.create!(workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true)
+    PrReview.create!(project: @project, workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true)
     fake = fake_github(pr: pr_payload(sha: "new"), commits: [ { "sha" => "new" } ])
     ai = [ 1, 2, 3 ].map { |i| { "path" => "a.rb", "line" => i, "comment" => "c#{i}" } }.to_json
 
@@ -140,11 +140,11 @@ class PrReviewJobTest < ActiveJob::TestCase
     end
 
     assert_equal 2, fake.captured[:comments].size
-    assert_equal "new", PrReview.find_by(workspace: @workspace, pr_number: 7).last_reviewed_sha
+    assert_equal "new", PrReview.find_by(project: @project, pr_number: 7).last_reviewed_sha
   end
 
   test "does NOT re-post a comment already present on the PR (dedup across pushes)" do
-    PrReview.create!(workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true)
+    PrReview.create!(project: @project, workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true)
     # The PR already has this exact comment from a previous review.
     existing = [ { "path" => "a.rb", "line" => 5, "body" => "Wire the toggle into both tabs." } ]
     fake = fake_github(pr: pr_payload(sha: "new"), commits: [ { "sha" => "new" } ], existing_comments: existing)
@@ -165,7 +165,7 @@ class PrReviewJobTest < ActiveJob::TestCase
   end
 
   test "when every issue was already posted, posts the no-issues review (no spam)" do
-    PrReview.create!(workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true)
+    PrReview.create!(project: @project, workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true)
     existing = [ { "path" => "a.rb", "line" => 5, "body" => "Same old comment." } ]
     fake = fake_github(pr: pr_payload(sha: "new"), commits: [ { "sha" => "new" } ], existing_comments: existing)
     ai = [ { "path" => "a.rb", "line" => 5, "comment" => "Same old comment." } ].to_json
@@ -201,7 +201,7 @@ class PrReviewJobTest < ActiveJob::TestCase
       end
     end
     assert_equal "🤖 No issues found 👍", fake.captured[:body]
-    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    review = PrReview.find_by(project: @project, pr_number: 7)
     assert_not_nil review, "a sound PR must be marked reviewed, not retried forever"
     assert_equal "abc", review.last_reviewed_sha
   end
@@ -213,7 +213,7 @@ class PrReviewJobTest < ActiveJob::TestCase
         PrReviewJob.perform_now(@project.id, 7, "initial")
       end
     end
-    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    review = PrReview.find_by(project: @project, pr_number: 7)
     assert_nil review.reviewed_at, "CLI failure must not mark the PR reviewed"
     assert_nil review.last_reviewed_sha
     assert_empty fake.captured
@@ -237,7 +237,7 @@ class PrReviewJobTest < ActiveJob::TestCase
         PrReviewJob.perform_now(@project.id, 7, "initial")
       end
     end
-    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    review = PrReview.find_by(project: @project, pr_number: 7)
     assert_nil review.reviewed_at, "auth failure must not mark reviewed"
     assert_empty fake.captured, "auth failure must not post a review"
     assert_equal 1, review.attempts
@@ -264,7 +264,7 @@ class PrReviewJobTest < ActiveJob::TestCase
     assert_match(/app\/models\/user\.rb:42/, fake.attempts.last[:body])
     assert_match(/drops the transaction/, fake.attempts.last[:body])
 
-    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    review = PrReview.find_by(project: @project, pr_number: 7)
     assert_equal "abc", review.last_reviewed_sha, "the fallback counts as posted"
     assert_equal "comments", review.outcome
   end
@@ -278,7 +278,7 @@ class PrReviewJobTest < ActiveJob::TestCase
       end
     end
 
-    review = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    review = PrReview.find_by(project: @project, pr_number: 7)
     assert_nil review.reviewed_at, "nothing reached the PR, so it is not reviewed"
     assert_nil review.last_reviewed_sha
     assert_equal 1, review.attempts, "it costs a retry and comes back with a backoff"
@@ -290,11 +290,11 @@ class PrReviewJobTest < ActiveJob::TestCase
 
     with_github(fake) { with_ai("[]") { PrReviewJob.perform_now(@project.id, 7, "initial") } }
 
-    assert_nil PrReview.find_by(workspace: @workspace, pr_number: 7).reviewed_at
+    assert_nil PrReview.find_by(project: @project, pr_number: 7).reviewed_at
   end
 
   test "a successful review clears the retry state left by earlier failures" do
-    record = PrReview.create!(workspace: @workspace, pr_number: 7)
+    record = PrReview.create!(project: @project, workspace: @workspace, pr_number: 7)
     record.record_failure!("abc", "Claude CLI not found")
 
     with_github(fake_github(pr: pr_payload(sha: "abc"))) do

@@ -12,8 +12,6 @@
 class AutoEstimateJob < ApplicationJob
   queue_as :default
 
-  CODEBASE_PATH = ENV.fetch("PR_REVIEW_CODEBASE_PATH", File.expand_path("~/work/elvium"))
-
   # Same idea as PrReviewJob::CLI_FAILURE_MARKERS: the Claude CLI prints
   # auth/quota/transport failures as plain text instead of raising, so a
   # failure must not be mistaken for "no estimate" and silently dropped vs.
@@ -55,7 +53,7 @@ class AutoEstimateJob < ApplicationJob
 
   def run_ai(task)
     prompt = build_prompt(task)
-    ClaudeCliService.new(codebase_path: CODEBASE_PATH).start_session(prompt: prompt)[:response].to_s.tap do |response|
+    ClaudeCliService.new(codebase_path: task.project.repo_checkout_path).start_session(prompt: prompt)[:response].to_s.tap do |response|
       return nil if cli_failed?(response)
     end
   rescue ClaudeCliService::ClaudeCliError => e

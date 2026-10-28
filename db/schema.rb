@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_12_123500) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_12_125000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -372,10 +372,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_123500) do
     t.integer "pr_number", null: false
     t.string "pr_title"
     t.string "pr_url"
+    t.bigint "project_id"
     t.datetime "reviewed_at"
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
-    t.index ["workspace_id", "pr_number"], name: "index_pr_reviews_on_workspace_id_and_pr_number", unique: true
+    t.index ["project_id", "pr_number"], name: "index_pr_reviews_on_project_id_and_pr_number", unique: true
+    t.index ["project_id"], name: "index_pr_reviews_on_project_id"
     t.index ["workspace_id"], name: "index_pr_reviews_on_workspace_id"
   end
 

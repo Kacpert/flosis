@@ -12,7 +12,6 @@
 class BackfillDeliveredEstimatesJob < ApplicationJob
   queue_as :default
 
-  CODEBASE_PATH = ENV.fetch("PR_REVIEW_CODEBASE_PATH", File.expand_path("~/work/elvium"))
   MIN_GAP = 3
   MAX_GAP = 10
 
@@ -31,7 +30,7 @@ class BackfillDeliveredEstimatesJob < ApplicationJob
 
     issues.each_with_index do |di, i|
       begin
-        score = estimate(di, model: model)
+        score = estimate(di, project, model: model)
         if score
           di.update_column(:ai_estimate_points, (score / 2.0).round)
           Rails.logger.info("[BackfillDeliveredEstimates] #{i + 1}/#{issues.size} #{di.jira_key} score=#{score} -> #{di.ai_estimate_points}")
@@ -51,11 +50,11 @@ class BackfillDeliveredEstimatesJob < ApplicationJob
   private
 
   # Returns the raw 1–100 score for a delivered issue, or nil on failure.
-  def estimate(di, model: nil)
+  def estimate(di, project, model: nil)
     ticket = "Ticket #{di.jira_key}: #{di.title}\n#{di.description}"
     prompt = AutoEstimateJob.rubric_prompt(ticket)
 
-    response = ClaudeCliService.new(codebase_path: CODEBASE_PATH, model: model)
+    response = ClaudeCliService.new(codebase_path: project.repo_checkout_path, model: model)
                                .start_session(prompt: prompt)[:response].to_s
     return nil if response.match?(CLI_FAILURE_MARKERS) || response.strip.length < 20
 

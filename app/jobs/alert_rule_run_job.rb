@@ -14,8 +14,6 @@
 class AlertRuleRunJob < ApplicationJob
   queue_as :default
 
-  CODEBASE_PATH = ENV.fetch("PR_REVIEW_CODEBASE_PATH", File.expand_path("~/work/elvium"))
-
   CLI_FAILURE_MARKERS = /\b(401|403|429|invalid authentication|failed to authenticate|api error|credit balance|rate limit|usage limit|overloaded|unauthorized)\b/i
 
   def perform(alert_rule_id)

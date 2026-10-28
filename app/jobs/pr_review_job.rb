@@ -2,7 +2,6 @@ class PrReviewJob < ApplicationJob
   queue_as :default
 
   CAPS = { "initial" => 4, "followup" => 2 }.freeze
-  CODEBASE_PATH = ENV.fetch("PR_REVIEW_CODEBASE_PATH", File.expand_path("~/work/elvium"))
 
   # The full PR-review prompt template used when a project hasn't customized
   # its own (Project#pr_review_prompt blank). Configurable from Configuration
@@ -80,8 +79,9 @@ class PrReviewJob < ApplicationJob
     head_sha = pr.dig("head", "sha")
     files = github.pull_request_files(pr_number)
 
-    record = PrReview.find_or_initialize_by(workspace_id: project.workspace_id, pr_number: pr_number)
+    record = PrReview.find_or_initialize_by(project_id: project.id, pr_number: pr_number)
     record.update!(
+      workspace_id: project.workspace_id,
       pr_title: pr["title"],
       pr_author: pr.dig("user", "login"),
       pr_branch: pr.dig("head", "ref"),
@@ -156,7 +156,7 @@ class PrReviewJob < ApplicationJob
   # in any of these states is no longer listed by open_pull_requests (or is
   # skipped as a draft), so this does not re-trigger an AI review.
   def release_claim(project, pr_number, mode)
-    record = PrReview.find_by(workspace_id: project.workspace_id, pr_number: pr_number)
+    record = PrReview.find_by(project_id: project.id, pr_number: pr_number)
     return unless record
     if record.reviewed_at.nil?
       record.destroy
@@ -189,7 +189,7 @@ class PrReviewJob < ApplicationJob
     mcp_config = (ProjectMcpConfig.write!(project) if project.workspace_dir.present?)
 
     service = ClaudeCliService.new(
-      codebase_path: CODEBASE_PATH,
+      codebase_path: project.repo_checkout_path,
       allowed_tools: mcp_config ? ClaudeCliService::REVIEW_TOOLS : nil,
       mcp_config: mcp_config
     )

@@ -9,6 +9,9 @@ class Project < ApplicationRecord
   has_many :members, through: :project_memberships, source: :user
   has_many :alert_rules, dependent: :destroy
   has_many :bug_attributions, dependent: :destroy
+  # A review that outlives its project is a stray row; deleting it would erase
+  # the workspace's review history the Process page reports on.
+  has_many :pr_reviews, dependent: :nullify
 
   enum :budget_type, { no_budget: 0, money: 1, hours: 2 }
 

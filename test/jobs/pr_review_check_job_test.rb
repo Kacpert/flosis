@@ -2,8 +2,8 @@ require "test_helper"
 
 class PrReviewCheckJobTest < ActiveJob::TestCase
   setup do
-    # PR review is now configured per project; the reviews themselves are still
-    # recorded against the workspace.
+    # PR review is configured per project, and so is the review row — the
+    # workspace is kept on it only for the Process page's grouping.
     @project = projects(:jira_project)
     @project.update!(github_token: "t", github_repo: "acme/widgets", pr_review_enabled: true)
     @workspace = @project.workspace
@@ -39,7 +39,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
         end
       end
     end
-    claim = PrReview.find_by(workspace: @workspace, pr_number: 7)
+    claim = PrReview.find_by(project: @project, pr_number: 7)
     assert_equal "abc", claim.enqueued_sha
     assert_nil claim.reviewed_at, "claim is not yet reviewed"
   end
@@ -52,11 +52,11 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
         assert_no_enqueued_jobs(only: PrReviewJob) { PrReviewCheckJob.perform_now }
       end
     end
-    assert_equal 1, PrReview.where(workspace: @workspace, pr_number: 7).count
+    assert_equal 1, PrReview.where(project: @project, pr_number: 7).count
   end
 
   test "enqueues followup when head SHA changed" do
-    PrReview.create!(workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true, reviewed_at: Time.current)
+    PrReview.create!(project: @project, workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true, reviewed_at: Time.current)
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
       fake = fake_github(prs: [ pr(7, "new") ])
       with_github(fake) do
@@ -68,7 +68,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
   end
 
   test "skips unchanged PR" do
-    PrReview.create!(workspace: @workspace, pr_number: 7, last_reviewed_sha: "same", initial_done: true)
+    PrReview.create!(project: @project, workspace: @workspace, pr_number: 7, last_reviewed_sha: "same", initial_done: true)
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
       with_github(fake_github(prs: [ pr(7, "same") ])) do
         assert_no_enqueued_jobs(only: PrReviewJob) { PrReviewCheckJob.perform_now }
@@ -146,7 +146,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
   # one PR. A failure now costs a bounded number of retries per head SHA.
 
   test "does not re-enqueue a failed review while its backoff is still running" do
-    record = PrReview.create!(workspace: @workspace, pr_number: 7)
+    record = PrReview.create!(project: @project, workspace: @workspace, pr_number: 7)
     travel_to(Time.zone.local(2026, 6, 15, 10, 0)) { record.record_failure!("abc", "Claude CLI not found") }
 
     travel_to Time.zone.local(2026, 6, 15, 10, 10) do
@@ -157,7 +157,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
   end
 
   test "retries a failed review once its backoff has elapsed" do
-    record = PrReview.create!(workspace: @workspace, pr_number: 7)
+    record = PrReview.create!(project: @project, workspace: @workspace, pr_number: 7)
     travel_to(Time.zone.local(2026, 6, 15, 10, 0)) { record.record_failure!("abc", "Claude CLI not found") }
 
     travel_to Time.zone.local(2026, 6, 15, 10, 20) do
@@ -171,7 +171,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
   end
 
   test "stops retrying the same SHA after the attempt budget is spent" do
-    record = PrReview.create!(workspace: @workspace, pr_number: 7)
+    record = PrReview.create!(project: @project, workspace: @workspace, pr_number: 7)
     PrReview::MAX_ATTEMPTS.times { record.record_failure!("abc", "boom") }
 
     travel_to Time.zone.local(2026, 6, 20, 10, 0) do # far past every backoff
@@ -182,7 +182,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
   end
 
   test "new commits revive a PR that had exhausted its retries" do
-    record = PrReview.create!(workspace: @workspace, pr_number: 7)
+    record = PrReview.create!(project: @project, workspace: @workspace, pr_number: 7)
     PrReview::MAX_ATTEMPTS.times { record.record_failure!("abc", "boom") }
 
     travel_to Time.zone.local(2026, 6, 20, 10, 0) do
@@ -195,7 +195,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
   end
 
   test "a failed followup keeps the earlier review and retries as a followup" do
-    record = PrReview.create!(workspace: @workspace, pr_number: 7, last_reviewed_sha: "old",
+    record = PrReview.create!(project: @project, workspace: @workspace, pr_number: 7, last_reviewed_sha: "old",
                               initial_done: true, reviewed_at: Time.current, outcome: "comments")
     travel_to(Time.zone.local(2026, 6, 15, 10, 0)) { record.record_failure!("new", "boom") }
 
@@ -212,7 +212,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
 
   test "re-claims a PR whose review job died mid-flight (stale claim)" do
     travel_to(Time.zone.local(2026, 6, 15, 7, 0)) do
-      PrReview.create!(workspace: @workspace, pr_number: 7, enqueued_sha: "abc")
+      PrReview.create!(project: @project, workspace: @workspace, pr_number: 7, enqueued_sha: "abc")
     end
 
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
@@ -239,5 +239,18 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
         assert_no_enqueued_jobs(only: PrReviewJob) { PrReviewCheckJob.perform_now }
       end
     end
+  end
+
+  # The table used to be unique on [workspace_id, pr_number]. Two projects in
+  # one workspace reviewing a PR with the same number is the ordinary case once
+  # PR review is per project, and the loser used to be skipped in silence.
+  test "two projects in one workspace can each review their own PR number" do
+    first = projects(:jira_project)
+    second = projects(:plain_project)
+
+    one = PrReview.create!(project: first, workspace: first.workspace, pr_number: 42)
+    two = PrReview.create!(project: second, workspace: second.workspace, pr_number: 42)
+
+    assert_not_equal one.id, two.id
   end
 end

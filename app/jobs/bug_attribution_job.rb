@@ -25,8 +25,6 @@
 class BugAttributionJob < ApplicationJob
   queue_as :default
 
-  CODEBASE_PATH = ENV.fetch("PR_REVIEW_CODEBASE_PATH", File.expand_path("~/work/elvium"))
-
   CLI_FAILURE_MARKERS = /\b(401|403|429|invalid authentication|failed to authenticate|api error|credit balance|rate limit|usage limit|overloaded|unauthorized)\b/i
 
   def perform(project_id, jira_key)
@@ -85,7 +83,7 @@ class BugAttributionJob < ApplicationJob
 
   def run_ai(project, jira_key, bug)
     prompt = build_prompt(project, jira_key, bug)
-    ClaudeCliService.new(codebase_path: CODEBASE_PATH).start_session(prompt: prompt)[:response].to_s.tap do |response|
+    ClaudeCliService.new(codebase_path: project.repo_checkout_path).start_session(prompt: prompt)[:response].to_s.tap do |response|
       return nil if cli_failed?(response)
     end
   rescue ClaudeCliService::ClaudeCliError => e

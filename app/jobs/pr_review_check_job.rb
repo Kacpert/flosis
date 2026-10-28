@@ -8,8 +8,8 @@
 # failure released the claim and the next poll ran a full Claude review again —
 # production burned 212 reviews on a single PR that way.
 #
-# The repo, the token and the poll interval are the project's; a PrReview row is
-# still keyed by workspace, which is the only scope that table has.
+# The repo, the token and the poll interval are the project's, and so is the
+# PrReview row: two projects in one workspace can each have a PR number 7.
 class PrReviewCheckJob < ApplicationJob
   queue_as :default
 
@@ -45,7 +45,7 @@ class PrReviewCheckJob < ApplicationJob
   def check_pull_request(project, pr)
     number = pr["number"]
     head_sha = pr.dig("head", "sha")
-    record = PrReview.find_by(workspace_id: project.workspace_id, pr_number: number)
+    record = PrReview.find_by(project_id: project.id, pr_number: number)
 
     return claim_new(project, number, head_sha) if record.nil?
 
@@ -68,11 +68,12 @@ class PrReviewCheckJob < ApplicationJob
   end
 
   # Atomically CLAIM an unseen PR by inserting its row first. The unique
-  # [workspace_id, pr_number] index means a concurrent check (or a manual run)
+  # [project_id, pr_number] index means a concurrent check (or a manual run)
   # loses the race and is skipped, so we never post two initial reviews for the
   # same PR. enqueued_sha records what we're reviewing.
   def claim_new(project, number, head_sha)
-    PrReview.create!(workspace_id: project.workspace_id, pr_number: number, enqueued_sha: head_sha)
+    PrReview.create!(project_id: project.id, workspace_id: project.workspace_id,
+                     pr_number: number, enqueued_sha: head_sha)
     PrReviewJob.perform_later(project.id, number, "initial")
   rescue ActiveRecord::RecordNotUnique
     nil

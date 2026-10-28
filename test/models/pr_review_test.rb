@@ -6,10 +6,21 @@ class PrReviewTest < ActiveSupport::TestCase
     assert r.valid?
   end
 
-  test "pr_number unique per workspace" do
-    PrReview.create!(workspace: workspaces(:one), pr_number: 7)
-    dup = PrReview.new(workspace: workspaces(:one), pr_number: 7)
+  test "pr_number unique per project" do
+    project = projects(:jira_project)
+    PrReview.create!(project: project, workspace: project.workspace, pr_number: 7)
+    dup = PrReview.new(project: project, workspace: project.workspace, pr_number: 7)
     assert_not dup.valid?
+  end
+
+  # Two clients' repositories number their pull requests independently.
+  test "the same pr_number on another project in the same workspace is allowed" do
+    first = projects(:jira_project)
+    second = projects(:plain_project)
+    PrReview.create!(project: first, workspace: first.workspace, pr_number: 7)
+    other = PrReview.new(project: second, workspace: second.workspace, pr_number: 7)
+
+    assert other.valid?
   end
 
   # ---- retry budget ------------------------------------------------------

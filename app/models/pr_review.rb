@@ -1,7 +1,10 @@
 class PrReview < ApplicationRecord
   belongs_to :workspace
+  # Two projects in one workspace routinely see the same pull-request number in
+  # their own repositories, so the project is what a review is unique per.
+  belongs_to :project, optional: true
 
-  validates :pr_number, presence: true, uniqueness: { scope: :workspace_id }
+  validates :pr_number, presence: true, uniqueness: { scope: :project_id }
 
   # ---- retry budget -----------------------------------------------------
   # Every AI review costs real tokens, so a review that fails is retried a
