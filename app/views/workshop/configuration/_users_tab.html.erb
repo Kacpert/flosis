@@ -1,23 +1,41 @@
-<div class="clar-card p-0 overflow-hidden">
-  <div class="flex items-center justify-between py-3.5 px-5 border-b border-[color:var(--border)]">
-    <span class="font-bold text-[14px] clar-text-text">Users</span>
-    <%= link_to new_workspace_member_path, target: "_blank", rel: "noopener", class: "clar-btn clar-btn-primary no-underline" do %>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-      Invite
-    <% end %>
+<%# One clar-modal scope wraps the header triggers and both dialogs: the
+    controller resolves which panel to open from data-clar-modal-id-param. %>
+<div class="clar-card p-0 overflow-hidden" data-controller="clar-modal">
+  <div class="flex items-center justify-between gap-2.5 py-3.5 px-5 border-b border-[color:var(--border)]">
+    <div>
+      <span class="font-bold text-[14px] clar-text-text">Users</span>
+      <span class="text-[12px] clar-text-faint ml-2">
+        <%= pluralize(@members.size, "person") %> in <%= current_workshop_project.name %> &middot; invited separately per project
+      </span>
+    </div>
+    <div class="flex gap-2">
+      <button type="button" class="clar-btn" data-action="clar-modal#open"
+              data-clar-modal-id-param="add-existing"
+              <%= "disabled" if @addable_users.empty? %>>Add from other project</button>
+      <button type="button" class="clar-btn clar-btn-primary" data-action="clar-modal#open"
+              data-clar-modal-id-param="invite">Invite</button>
+    </div>
   </div>
 
-  <% @members.each do |membership| %>
-    <% badge_class, badge_label = permission_role_badge(membership) %>
-    <div class="flex items-center gap-3.5 py-3.5 px-5 border-b border-[color:var(--border)] last:border-b-0">
-      <span class="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-none <%= clar_avatar_bg_class(membership.user.name) %>">
-        <%= clar_initials(membership.user.name) %>
-      </span>
-      <div class="flex-1 min-w-0">
-        <div class="font-semibold text-[13.5px] clar-text-text truncate"><%= membership.user.name %></div>
-        <div class="text-[11.5px] clar-text-faint truncate"><%= membership.user.email_address %></div>
-      </div>
-      <span class="clar-badge <%= badge_class %> whitespace-nowrap"><%= badge_label %></span>
+  <div class="overflow-x-auto"><div class="min-w-[980px]">
+    <div class="grid items-center gap-3 py-2.5 px-5 border-b border-[color:var(--border)] bg-[color:var(--surface-2)] text-[10.5px] font-bold tracking-[.5px] clar-text-faint"
+         style="grid-template-columns: minmax(200px,1.4fr) 120px repeat(6, minmax(72px,1fr)) 36px">
+      <span>USER</span><span>ROLE</span>
+      <% PermissionPreset::PERMISSIONS.each do |permission| %>
+        <%# The header is the first place anyone asks "what is this column?", so
+            it carries the explanation rather than only the name. %>
+        <span class="clar-tip leading-[1.3] whitespace-pre-line w-fit"
+              data-tip="<%= PermissionPreset.description(permission) %>">
+          <%= PermissionPreset.label(permission).upcase.sub(" ", "\n") %>
+        </span>
+      <% end %>
+      <span></span>
     </div>
-  <% end %>
+
+    <%= render partial: "workshop/configuration/user_row", collection: @members, as: :membership %>
+  </div></div>
+
+  <%= render "permission_legend" %>
 </div>
+
+<%= render "invite_modal" %>

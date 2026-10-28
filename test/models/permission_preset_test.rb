@@ -42,4 +42,15 @@ class PermissionPresetTest < ActiveSupport::TestCase
     assert_equal PermissionPreset.attributes_for("Project Manager"),
                  PermissionPreset.attributes_for("Wizard")
   end
+
+  # A switch nobody can explain is a switch nobody should ship. If a seventh
+  # permission is ever added, this fails until it has a name and a sentence.
+  test "every permission has a name and an explanation" do
+    PermissionPreset::PERMISSIONS.each do |permission|
+      assert PermissionPreset.label(permission).present?, "#{permission} has no label"
+      assert PermissionPreset.description(permission).present?, "#{permission} has no description"
+    end
+
+    assert_equal "Briefing Configuration", PermissionPreset.label(:briefing_config)
+  end
 end

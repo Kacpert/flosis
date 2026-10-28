@@ -212,10 +212,32 @@ class Workshop::ConfigurationController < Workshop::BaseController
   # access on THIS project — permission_role_badge reads role_label off these,
   # which only a ProjectMembership (or ProjectAccess) can answer.
   def load_users_tab
-    @members = if current_workshop_project
-      current_workshop_project.project_memberships.includes(:user).joins(:user).order("users.name")
-    else
-      ProjectMembership.none
+    project = current_workshop_project
+    # No project selected means nothing to list. The method in the tree guards
+    # this today and the grid must keep doing so, or the tab 500s on a fresh
+    # session before a project has been picked.
+    unless project
+      @members = []
+      @addable_users = User.none
+      return
     end
+
+    rows = project.project_memberships.includes(:user).joins(:user).order("users.name")
+
+    # A workspace admin holds every permission here whether or not anyone ever
+    # added them to this project. Reading project_memberships alone would leave
+    # the person with the most power over the project as the one name missing
+    # from its access list, so append them as unsaved rows.
+    admins = current_workspace.workspace_memberships.where(workspace_admin: true)
+                              .includes(:user).map(&:user)
+    missing = admins - rows.map(&:user)
+    @members = rows.to_a + missing.map { |user| project.project_memberships.new(user: user) }
+
+    # People who already have an account in this workspace but are not on this
+    # project — the "Add from other project" list.
+    @addable_users = User.joins(:workspace_memberships)
+                         .where(workspace_memberships: { workspace_id: current_workspace.id })
+                         .where.not(id: @members.map(&:user_id))
+                         .order(:name)
   end
 end

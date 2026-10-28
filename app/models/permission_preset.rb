@@ -9,6 +9,31 @@ module PermissionPreset
   # Configuration precedes Configuration.
   PERMISSIONS = %i[automations tasks reporting pricing briefing_config configuration].freeze
 
+  # The display name of each switch. Not `humanize` — the product calls
+  # briefing_config "Briefing Configuration", and that wording is the user's.
+  LABELS = {
+    automations: "Automations",
+    tasks: "Tasks",
+    reporting: "Reporting",
+    pricing: "Pricing",
+    briefing_config: "Briefing Configuration",
+    configuration: "Configuration"
+  }.freeze
+
+  # What each switch actually unlocks, in the words of the person reading the
+  # screen: what they can reach, and what they can change there. This is the
+  # only copy the product has for its own permissions — the Users grid, the
+  # invite dialog, the locked Configuration tabs and the profile page all read
+  # it, so changing a sentence here changes it everywhere it is explained.
+  DESCRIPTIONS = {
+    automations: "See and run the AI agents and alerts, and edit their prompts.",
+    tasks: "Open the task board, read tickets and work on their briefs.",
+    reporting: "Open Reporting: delivered work, velocity and time spent.",
+    pricing: "See money — hourly rates, cost and revenue wherever they appear.",
+    briefing_config: "Edit the Briefing tab: ticket statuses, Jira fields and the brief template.",
+    configuration: "Edit integration keys and AI settings, and manage who is on this project."
+  }.freeze
+
   # Pricing is deliberately off by default. Reporting is on by default, so
   # folding the two together would show every Project Manager the team's rates.
   PRESETS = {
@@ -19,6 +44,14 @@ module PermissionPreset
 
   CUSTOM = "Custom".freeze
   LEAST_PRIVILEGED = "Project Manager".freeze
+
+  def self.label(permission)
+    LABELS.fetch(permission.to_sym)
+  end
+
+  def self.description(permission)
+    DESCRIPTIONS.fetch(permission.to_sym)
+  end
 
   # The name for a granted set, or "Custom" when it matches no preset. Callers
   # pass whatever order and type they happen to have.

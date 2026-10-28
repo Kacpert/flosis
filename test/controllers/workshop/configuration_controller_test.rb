@@ -74,11 +74,29 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_select ".clar-badge-muted", /Custom/
   end
 
-  test "users tab Invite button links to the HR invite screen in a new tab" do
+  # Inviting is per project now, so the header opens the Workshop's own dialog
+  # instead of sending the admin to HR's workspace-wide invite screen.
+  test "users tab invites from the Workshop, not from HR" do
     get workshop_configuration_path(tab: "users")
 
     assert_response :success
-    assert_select "a[href=?][target=?]", new_workspace_member_path, "_blank", /Invite/
+    assert_select "button[data-clar-modal-id-param=?]", "invite", /Invite/
+    assert_select "a[href=?]", new_workspace_member_path, false
+  end
+
+  # The grid is six unlabelled toggles unless the screen says what they mean.
+  # PermissionPreset::LABELS/DESCRIPTIONS is the only copy there is, so this
+  # pins that it actually reaches the page.
+  test "users tab names and explains every permission" do
+    get workshop_configuration_path(tab: "users")
+
+    assert_response :success
+    PermissionPreset::PERMISSIONS.each do |permission|
+      assert_select "body", /#{Regexp.escape(PermissionPreset.description(permission))}/
+    end
+    assert_select "body", /Briefing Configuration/
+    # Not `humanize`, which reads "Briefing config" — see PermissionPreset::LABELS.
+    assert_no_match(/Briefing config\b/, response.body)
   end
 
   test "someone holding Briefing but not Configuration is blocked from the users tab" do

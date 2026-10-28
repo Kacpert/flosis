@@ -122,6 +122,7 @@ Rails.application.routes.draw do
     post "configuration/verify_jira_fields", to: "configuration#verify_jira_fields", as: :verify_jira_fields_configuration
     post "configuration/refresh_features", to: "configuration#refresh_features", as: :refresh_features_configuration
     resources :discord_webhooks, only: [ :create, :destroy ]
+    resources :project_members, only: [ :create, :update, :destroy ]
   end
 
   # Jira integration

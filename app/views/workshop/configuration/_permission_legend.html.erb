@@ -1,0 +1,39 @@
+<%# What the six switches mean and what the three names add up to. No locals:
+    this explains the rules, not one project's state. Task 19 says the same
+    thing to the person themselves on the profile page, in that page's own
+    design system, from the same two constants. %>
+<div class="border-t border-[color:var(--border)] py-4 px-5 grid gap-5 md:grid-cols-2">
+  <div>
+    <div class="text-[10.5px] font-bold tracking-[.5px] clar-text-faint mb-2">WHAT EACH PERMISSION ALLOWS</div>
+    <dl class="space-y-1.5">
+      <% PermissionPreset::PERMISSIONS.each do |permission| %>
+        <div class="flex gap-2 text-[11.5px] leading-[1.45]">
+          <dt class="font-semibold clar-text-text whitespace-nowrap min-w-[130px]"><%= PermissionPreset.label(permission) %></dt>
+          <dd class="clar-text-faint"><%= PermissionPreset.description(permission) %></dd>
+        </div>
+      <% end %>
+    </dl>
+  </div>
+
+  <div>
+    <div class="text-[10.5px] font-bold tracking-[.5px] clar-text-faint mb-2">THE THREE ROLE NAMES</div>
+    <dl class="space-y-1.5">
+      <% PermissionPreset::PRESETS.each do |label, permissions| %>
+        <div class="flex gap-2 text-[11.5px] leading-[1.45]">
+          <dt class="font-semibold clar-text-text whitespace-nowrap min-w-[130px]"><%= label %></dt>
+          <dd class="clar-text-faint">
+            <%= permissions.map { |permission| PermissionPreset.label(permission) }.to_sentence %>
+          </dd>
+        </div>
+      <% end %>
+      <div class="flex gap-2 text-[11.5px] leading-[1.45]">
+        <dt class="font-semibold clar-text-text whitespace-nowrap min-w-[130px]">Custom</dt>
+        <dd class="clar-text-faint">Any other combination. The name follows the switches, so it changes as you flip them.</dd>
+      </div>
+    </dl>
+    <p class="text-[11.5px] clar-text-faint mt-2.5 leading-[1.45]">
+      Permissions are set per project, and an invitation is per project too. Workspace
+      administrators hold all six everywhere and cannot be removed from a single project.
+    </p>
+  </div>
+</div>

@@ -1,0 +1,54 @@
+<%# access = ProjectAccess so a workspace admin reads as all six switches even
+    on the appended rows, which are UNSAVED and therefore have no id to route
+    or to name a DOM node with. %>
+<% access = ProjectAccess.new(membership.user, current_workshop_project) %>
+<% locked = access.workspace_admin? %>
+<% badge_class, badge_label = permission_role_badge(locked ? access : membership) %>
+<div id="<%= dom_id(membership.persisted? ? membership : membership.user) %>"
+     class="grid items-center gap-3 py-3 px-5 border-b border-[color:var(--border)]"
+     style="grid-template-columns: minmax(200px,1.4fr) 120px repeat(6, minmax(72px,1fr)) 36px">
+  <div class="flex items-center gap-3 min-w-0">
+    <span class="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-none <%= clar_avatar_bg_class(membership.user.name) %>">
+      <%= clar_initials(membership.user.name) %>
+    </span>
+    <div class="min-w-0">
+      <div class="font-semibold text-[13.5px] clar-text-text truncate"><%= membership.user.name %></div>
+      <div class="text-[11.5px] clar-text-faint truncate"><%= membership.user.email_address %></div>
+    </div>
+  </div>
+
+  <span class="clar-badge <%= badge_class %> whitespace-nowrap w-fit"><%= badge_label %></span>
+
+  <%# clar-toggle-sm paints the track, and its on-state is selected from the
+      PARENT — so aria-checked lives on the button, not on the span. %>
+  <% PermissionPreset::PERMISSIONS.each do |permission| %>
+    <div data-controller="permission-switch"
+         data-permission-switch-url-value="<%= workshop_project_member_path(membership) if membership.persisted? %>"
+         data-permission-switch-permission-value="<%= permission %>"
+         class="clar-tip w-fit"
+         data-tip="<%= PermissionPreset.label(permission) %> &mdash; <%= PermissionPreset.description(permission) %>">
+      <button type="button" role="switch"
+              aria-checked="<%= locked || membership[permission] %>"
+              aria-label="<%= PermissionPreset.label(permission) %> for <%= membership.user.name %>: <%= PermissionPreset.description(permission) %>"
+              class="flex items-center bg-transparent border-0 p-0 <%= locked ? 'cursor-default opacity-50' : 'cursor-pointer' %>"
+              <%= "disabled" if locked %>
+              data-action="permission-switch#toggle">
+        <span class="clar-toggle-sm"><span class="knob"></span></span>
+      </button>
+    </div>
+  <% end %>
+
+  <% if locked || !membership.persisted? %>
+    <span class="clar-tip clar-text-faint opacity-30 flex p-1.5"
+          data-tip="An administrator's access does not come from this project">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </span>
+  <% else %>
+    <%= button_to workshop_project_member_path(membership), method: :delete,
+          form: { data: { turbo_confirm: "Remove #{membership.user.name} from #{current_workshop_project.name}?" } },
+          class: "bg-transparent border-0 cursor-pointer clar-text-faint flex p-1.5 rounded-[7px]",
+          aria: { label: "Remove #{membership.user.name}" } do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    <% end %>
+  <% end %>
+</div>
