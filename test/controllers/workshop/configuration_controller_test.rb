@@ -99,6 +99,44 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/Briefing config\b/, response.body)
   end
 
+  # Both dialogs sit in the Users card's single clar-modal scope and are told
+  # apart only by their panel id, so a wrong id is a button that opens the
+  # other dialog. Each one is also where someone decides what a new person
+  # will be able to see, which is why all six sentences have to be in both.
+  test "users tab renders both dialogs, each explaining all six permissions" do
+    get workshop_configuration_path(tab: "users")
+
+    assert_response :success
+
+    assert_select "[data-clar-modal-panel-id-value=?]", "invite" do
+      assert_select "input[name=?]", "email_address"
+      PermissionPreset::PRESETS.each_key do |preset|
+        assert_select "[data-preset-picker-name-param=?]", preset
+      end
+      PermissionPreset::PERMISSIONS.each do |permission|
+        assert_select "[aria-label=?]",
+                      "#{PermissionPreset.label(permission)}: #{PermissionPreset.description(permission)}"
+      end
+    end
+
+    assert_select "[data-clar-modal-panel-id-value=?]", "add-existing" do
+      assert_select "input[name=?]", "email_address", false,
+                    "adding someone who already has an account must not ask for an address"
+      assert_select "[data-permission]", 6
+    end
+  end
+
+  test "the add-from-another-project dialog offers a chip per person off this project" do
+    project_memberships(:client_elvium).destroy!
+
+    get workshop_configuration_path(tab: "users")
+
+    assert_response :success
+    assert_select "[data-clar-modal-panel-id-value=?]", "add-existing" do
+      assert_select "input[name=?][value=?]", "user_ids[]", users(:client_user).id.to_s
+    end
+  end
+
   test "someone holding Briefing but not Configuration is blocked from the users tab" do
     project_memberships(:two_elvium).update!(PermissionPreset.attributes_for("Product Owner"))
     sign_out

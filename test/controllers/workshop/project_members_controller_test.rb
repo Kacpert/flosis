@@ -58,4 +58,36 @@ class Workshop::ProjectMembersControllerTest < ActionDispatch::IntegrationTest
       delete workshop_project_member_path(admin_membership)
     end
   end
+
+  test "inviting an unknown address creates the account and the membership" do
+    assert_difference [ "User.count", "ProjectMembership.count" ], 1 do
+      post workshop_project_members_path, params: {
+        name: "Dana Liu", email_address: "dana@acme.io", preset: "Product Owner"
+      }
+    end
+
+    membership = ProjectMembership.joins(:user).find_by(users: { email_address: "dana@acme.io" })
+    assert_equal "Product Owner", membership.role_label
+    assert_not membership.user.can_access_time_hr?(workspaces(:one)),
+               "a Workshop invitation must not hand out an HR account"
+  end
+
+  test "inviting a known address adds them without a second account" do
+    assert_no_difference "User.count" do
+      post workshop_project_members_path, params: {
+        name: "Whatever", email_address: users(:client_user).email_address, preset: "Project Manager"
+      }
+    end
+  end
+
+  test "adding people from another project applies the chosen preset" do
+    project_memberships(:client_elvium).destroy!
+
+    post workshop_project_members_path, params: {
+      user_ids: [ users(:client_user).id ], preset: "Project Manager"
+    }
+
+    membership = ProjectMembership.find_by(user: users(:client_user), project: projects(:jira_project))
+    assert_equal "Project Manager", membership.role_label
+  end
 end

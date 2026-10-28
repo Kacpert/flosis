@@ -1,0 +1,131 @@
+<%# The two ways someone lands on this project: an invitation by address, or a
+    pick from the people who already have an account here. Both panels sit in
+    the Users card's one clar-modal scope and are told apart by
+    data-clar-modal-panel-id-value, which the controller matches against the
+    trigger's data-clar-modal-id-param. %>
+<% default_preset = "Product Owner" %>
+
+<%# The role buttons and the six switches are the same question in both
+    dialogs, so they are captured once and rendered into each form. Each form
+    gets its own preset-picker instance, and the fields are only ever submitted
+    from the panel that is open. %>
+<% picker = capture do %>
+  <label class="clar-field-label">ROLE</label>
+  <div class="flex gap-2 mb-1.5">
+    <% PermissionPreset::PRESETS.each_key do |preset| %>
+      <button type="button" class="clar-btn flex-1 <%= "clar-btn-primary" if preset == default_preset %>"
+              data-preset-picker-target="button" data-action="preset-picker#pick"
+              data-preset-picker-name-param="<%= preset %>">
+        <%= preset %>
+      </button>
+    <% end %>
+  </div>
+  <div class="text-[11px] clar-text-faint mb-4">
+    A role only sets the switches below. Change any of them and the role reads Custom.
+  </div>
+
+  <%# No id: two panels render this block, and a repeated id is a repeated id
+      even when only one of them is on screen. %>
+  <%= hidden_field_tag :preset, default_preset, id: nil, data: { preset_picker_target: "value" } %>
+
+  <label class="clar-field-label">PERMISSIONS IN <%= current_workshop_project.name.upcase %></label>
+  <div class="clar-card p-0">
+    <% PermissionPreset::PERMISSIONS.each_with_index do |permission, i| %>
+      <%# Every row carries its own sentence. Whoever is inviting is deciding
+          what this person will be able to see, and a switch labelled only
+          "Pricing" is not enough to decide that on. %>
+      <div class="flex items-center justify-between gap-3 py-2.5 px-3.5 <%= "border-t border-[color:var(--border)]" if i.positive? %>">
+        <div>
+          <div class="text-[13px] font-semibold clar-text-text"><%= PermissionPreset.label(permission) %></div>
+          <div class="text-[11px] clar-text-faint leading-[1.4]"><%= PermissionPreset.description(permission) %></div>
+        </div>
+        <button type="button" role="switch" aria-checked="false"
+                class="flex items-center bg-transparent border-0 p-0 cursor-pointer flex-none"
+                aria-label="<%= PermissionPreset.label(permission) %>: <%= PermissionPreset.description(permission) %>"
+                data-preset-picker-target="switch" data-permission="<%= permission %>"
+                data-action="preset-picker#toggle">
+          <span class="clar-toggle-sm"><span class="knob"></span></span>
+        </button>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="invite"
+     data-action="click->clar-modal#close">
+  <div class="clar-modal p-5.5 max-w-[540px] max-h-[calc(100vh-48px)] overflow-y-auto"
+       data-controller="preset-picker" data-preset-picker-presets-value="<%= PermissionPreset::PRESETS.to_json %>"
+       data-action="click->clar-modal#stopPropagation">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="text-lg font-bold clar-text-text m-0">Invite to <%= current_workshop_project.name %></h2>
+      <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <p class="text-[13px] leading-normal clar-text-muted mb-4.5">
+      An invitation is to this project only, and it carries no access to Time &amp; HR.
+      Add them to another project from that project's own Configuration.
+    </p>
+
+    <%= form_with url: workshop_project_members_path, method: :post, data: { turbo: false } do %>
+      <label class="clar-field-label">NAME <span class="clar-text-danger">*</span></label>
+      <%= text_field_tag :name, nil, required: true, placeholder: "e.g. Dana Liu", class: "clar-input mb-4" %>
+
+      <label class="clar-field-label">EMAIL <span class="clar-text-danger">*</span></label>
+      <%= email_field_tag :email_address, nil, required: true, placeholder: "dana@acme.io", class: "clar-input mb-4" %>
+
+      <%= picker %>
+
+      <div class="mt-5 flex items-center justify-end gap-2.5">
+        <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+        <%= submit_tag "Send invitation", class: "clar-btn clar-btn-primary" %>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="add-existing"
+     data-action="click->clar-modal#close">
+  <div class="clar-modal p-5.5 max-w-[540px] max-h-[calc(100vh-48px)] overflow-y-auto"
+       data-controller="preset-picker" data-preset-picker-presets-value="<%= PermissionPreset::PRESETS.to_json %>"
+       data-action="click->clar-modal#stopPropagation">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="text-lg font-bold clar-text-text m-0">Add to <%= current_workshop_project.name %></h2>
+      <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <p class="text-[13px] leading-normal clar-text-muted mb-4.5">
+      People who already have an account here but are not on this project. They keep
+      whatever they hold elsewhere &mdash; these switches apply to this project only.
+    </p>
+
+    <%= form_with url: workshop_project_members_path, method: :post, data: { turbo: false } do %>
+      <label class="clar-field-label">WHO TO ADD</label>
+      <div class="flex flex-wrap gap-1.5 mb-4">
+        <% @addable_users.each do |user| %>
+          <%# The chip paints its own selected state from the checkbox it
+              wraps, so this needs no controller of its own. The three
+              utilities spell out .clar-chip-active rather than naming it: a
+              component class in @layer components cannot be put behind a
+              Tailwind variant, so has-[:checked]:clar-chip-active would
+              compile to nothing. %>
+          <label class="clar-chip cursor-pointer has-[:checked]:border-[color:var(--primary)] has-[:checked]:bg-[color:var(--primary-soft)] has-[:checked]:text-[color:var(--primary)]">
+            <%= check_box_tag "user_ids[]", user.id, false, class: "sr-only", id: "add_user_#{user.id}" %>
+            <%= user.name %>
+          </label>
+        <% end %>
+        <% if @addable_users.empty? %>
+          <div class="text-[12px] clar-text-faint">Everyone with an account here is already on this project.</div>
+        <% end %>
+      </div>
+
+      <%= picker %>
+
+      <div class="mt-5 flex items-center justify-end gap-2.5">
+        <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+        <%= submit_tag "Add to project", class: "clar-btn clar-btn-primary" %>
+      </div>
+    <% end %>
+  </div>
+</div>
