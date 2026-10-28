@@ -33,6 +33,11 @@ class Project < ApplicationRecord
 
   scope :active, -> { where(archived: false) }
   scope :archived, -> { where(archived: true) }
+  # The projects that appear in Flosis. A Time & HR project exists so hours
+  # have somewhere to land; it only reaches the Workshop when someone says so
+  # (Time & HR -> the project -> "Show this project in Flosis"). Time tracking
+  # never consults this — see WorkspaceScoped#available_projects.
+  scope :in_workshop, -> { where(show_in_workshop: true) }
 
   def jira_connected?
     external_type == "jira"

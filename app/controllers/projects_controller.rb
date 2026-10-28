@@ -86,6 +86,7 @@ class ProjectsController < ApplicationController
   def project_params
     params.require(:project).permit(:name, :client_id, :color, :currency,
                                     :budget_type, :budget_cents, :budget_hours,
-                                    :external_type, :external_reference, :context_info)
+                                    :external_type, :external_reference, :context_info,
+                                    :show_in_workshop)
   end
 end

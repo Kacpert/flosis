@@ -4,8 +4,11 @@ class TaskBreakdownsUpdateJiraTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:one)
     @workspace.update!(workshop_enabled: true)
+    # show_in_workshop explicitly: the column defaults to false because most
+    # projects are born in Time & HR, and this test works a ticket on the
+    # board — which only a Flosis project has.
     @project = @workspace.projects.create!(name: "UJ", color: "#666666",
-      external_type: "jira", external_reference: "UJ",
+      external_type: "jira", external_reference: "UJ", show_in_workshop: true,
       jira_ai_actions_field_id: "customfield_10050")
     @task = @project.tasks.create!(name: "UJ-1 Thing", external_type: "jira", external_reference: "UJ-1")
     @task.task_drafts.create!(source: TaskDraft::BREAKDOWN_SOURCE,

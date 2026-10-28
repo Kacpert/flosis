@@ -29,7 +29,9 @@ class ProfilesAccessTest < ActionDispatch::IntegrationTest
     assert_match "every project in this workspace", response.body
     # The row SET, not the page text: the timer bar names every active project
     # to an admin, so a name in the body proves nothing about this card.
-    assert_select "[data-access-project]", workspaces(:one).projects.active.count
+    # `.in_workshop` as well: the card promises Workshop access, and a project
+    # kept out of Flosis has none to promise — the timer still offers it.
+    assert_select "[data-access-project]", workspaces(:one).projects.active.in_workshop.count
     # Reaches a project they hold no membership row on.
     assert_select "[data-access-project=?]", projects(:other_jira_project).id.to_s
   end

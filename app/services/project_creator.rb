@@ -69,6 +69,14 @@ class ProjectCreator
     # return a ticket.
     project.external_type = "jira" if project.jira_site.present? && project.external_reference.present?
 
+    # The column defaults to false, because most projects are born in Time & HR
+    # as somewhere for hours to land. This one was created from the Flosis
+    # dialog, so it is a Workshop project by definition — without this it would
+    # vanish from the switcher the moment it was created. An explicit attribute
+    # still wins, so a caller can create a hidden project on purpose.
+    project.show_in_workshop = true unless @attributes.key?(:show_in_workshop) ||
+                                           @attributes.key?("show_in_workshop")
+
     # One transaction: a membership that cannot be saved used to leave the
     # project behind while the caller was told the create had failed.
     @workspace.transaction do

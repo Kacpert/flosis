@@ -108,8 +108,15 @@ module WorkspaceScoped
   # review. It made a project created with "Set up later" unreachable by any
   # url, and left a workspace holding no Jira project with no openable Workshop
   # page at all — so the dialog that creates projects was itself out of reach.
+  #
+  # `.in_workshop` is the last filter here and applies to the admin too: a
+  # project that says it does not belong in Flosis does not belong in anyone's
+  # switcher. Time tracking is deliberately unaffected — available_projects
+  # below does not consult it, because an HR stub exists precisely so hours can
+  # attach to it. Hiding every project leaves no openable Workshop page, and
+  # the way back is Time & HR -> the project, which lists them all.
   def workshop_projects
-    scope = current_workspace.projects.active
+    scope = current_workspace.projects.active.in_workshop
     return scope.order(:name) if workspace_admin?
 
     scope.joins(:project_memberships)

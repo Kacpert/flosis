@@ -71,8 +71,12 @@ module Authorization
 
   # Jira projects the current user may WORK in. Admins see every one; everyone
   # else sees the projects where their membership grants Tasks.
+  #
+  # `.in_workshop` for the same reason as WorkspaceScoped#workshop_projects: a
+  # project kept out of Flosis must not offer a board to work tickets on, even
+  # if it still carries Jira credentials from before it was hidden.
   def visible_jira_projects
-    scope = current_workspace.projects.active.where(external_type: "jira")
+    scope = current_workspace.projects.active.in_workshop.where(external_type: "jira")
     return scope.order(:name) if workspace_admin?
 
     scope.joins(:project_memberships)

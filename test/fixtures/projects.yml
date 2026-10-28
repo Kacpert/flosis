@@ -5,12 +5,14 @@ jira_project:
   currency: USD
   external_type: jira
   external_reference: ELV
+  show_in_workshop: true
 
 plain_project:
   name: Internal
   workspace: one
   color: "#EF4444"
   currency: USD
+  show_in_workshop: true
 
 other_jira_project:
   name: SecretProject
@@ -19,3 +21,14 @@ other_jira_project:
   currency: USD
   external_type: jira
   external_reference: SEC
+  show_in_workshop: true
+
+# A Time & HR stub: somewhere for hours to land, deliberately kept out of
+# Flosis. Hours attach to it like any other project; the Workshop never offers
+# it.
+hr_only_project:
+  name: Bookkeeping
+  workspace: one
+  color: "#F59E0B"
+  currency: USD
+  show_in_workshop: false

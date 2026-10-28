@@ -68,6 +68,20 @@
   </div>
 
   <div class="space-y-1">
+    <label class="flex items-start gap-3 cursor-pointer">
+      <%= f.check_box :show_in_workshop, class: "m3-checkbox mt-0.5" %>
+      <span>
+        <span class="text-sm font-medium" style="color: var(--color-on-surface)">Show this project in Flosis</span>
+        <span class="block text-xs" style="color: var(--color-on-surface-variant)">
+          Off by default. A project only needs to be on here if people run AI agents, work tickets
+          or read reporting for it. Logging time works either way — this never hides a project from
+          the timer or the timesheet.
+        </span>
+      </span>
+    </label>
+  </div>
+
+  <div class="space-y-1">
     <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Project context (for AI briefing)</label>
     <%= f.text_area :context_info, rows: 6, class: "m3-text-field w-full",
           placeholder: "Who the users are, the main architecture, and the goal — e.g. 'ATS + HR app; goal: …'" %>
