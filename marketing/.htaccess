@@ -1,3 +1,11 @@
+# Hostido 403s ~26 crawlers account-wide by default (ClaudeBot, GPTBot,
+# PerplexityBot, Applebot, AhrefsBot, …) to save server load. This site is
+# static, so that reason doesn't apply — and a marketing page AI crawlers can't
+# read is invisible in their answers. Hostido's documented opt-out:
+# https://hostido.pl/baza-wiedzy/wpis/154/jak-odblokowac-nietypowe-boty-na-stronie
+UnsetEnv bot_deny
+SecRuleRemoveById 10000
+
 RewriteEngine On
 
 # Force HTTPS. The document root this replaces had the same rule — dropping it

@@ -74,6 +74,26 @@ class LandingPageTest < ActiveSupport::TestCase
     end
   end
 
+  # The share preview (LinkedIn, Slack, X…) is declared as an absolute URL in a
+  # <meta content>, which the href/src walk above never sees — an export shipped
+  # og-image.png references with no file, so every shared link had no image.
+  test "the social preview image is shipped at the size the page declares" do
+    [ LIGHT, DARK ].each do |page|
+      html = read(page)
+      urls = html.scan(/<meta\s+(?:property|name)="(?:og|twitter):image"\s+content="https:\/\/flosis\.com(\/[^"]+)"/i).flatten.uniq
+      assert urls.any?, "#{page} declares no og:image / twitter:image on flosis.com"
+
+      urls.each do |ref|
+        asset = Rails.root.join("marketing#{ref}")
+        assert File.exist?(asset), "#{page} declares #{ref} as its share preview, but marketing#{ref} does not exist"
+
+        width, height = File.binread(asset, 8, 16).unpack("NN") # PNG IHDR
+        declared = %w[width height].map { |d| html[/property="og:image:#{d}" content="(\d+)"/, 1].to_i }
+        assert_equal declared, [ width, height ], "#{ref} is #{width}×#{height}, but #{page} declares #{declared.join('×')}"
+      end
+    end
+  end
+
   # / and /dark.html serve the same page in two themes. Without a canonical they
   # compete as duplicate content.
   test "both themes canonicalise to the light page" do
