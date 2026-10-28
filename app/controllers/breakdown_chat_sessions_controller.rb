@@ -142,11 +142,12 @@ class BreakdownChatSessionsController < ApplicationController
   end
 
   # Configuration -> Integrations -> Figma toggle (Task 9.2, figma_read_enabled):
-  # only instruct the AI to read Figma frames when the workspace has opted in.
-  # Mirrors ChatSessionsController#figma_instructions_section (refine chat);
-  # kept as a separate copy since each controller's paragraph reads differently.
+  # only instruct the AI to read Figma frames when THIS project has opted in.
+  # Mirrors ChatSessionsController#figma_instructions_section (refine chat),
+  # including its gate — the same predicate ProjectMcpConfig writes the server
+  # on; kept as a separate copy since each paragraph reads differently.
   def figma_instructions_section
-    return "" unless @task.project.workspace.figma_read_enabled
+    return "" unless ProjectCredentials.new(@task.project).figma_configured?
 
     "- **Figma links.** For every Figma URL in the description/comments, call BOTH `mcp__figma__get_figma_data` (node tree) AND `mcp__figma__download_figma_images` (then `Read` the PNGs). Visual scope (number of screens, states, components) drives the estimate. **Note which frame/screen belongs to which flow** (e.g. which frames are the Manager view vs the Employee view) — you'll attach the relevant Figma link to the sub-task that builds those screens. A Figma URL can point at a specific frame via `?node-id=...`; preserve that node-id when a slice maps to a specific frame, otherwise use the file URL."
   end

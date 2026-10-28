@@ -16,13 +16,38 @@ class AddProjectIdToDiscordWebhooks < ActiveRecord::Migration[8.1]
     # project in its workspace. Guessing by workspace order would otherwise be
     # able to hand a webhook to a project whose alert rules then could not see
     # it in their own dropdown.
+    #
+    # Webhooks were workspace-wide before this, so one channel can be shared by
+    # rules in several projects. Those get a copy of the row per project — same
+    # channel, same url — and their rules are repointed at it. Assigning the
+    # majority project and leaving it at that would leave the other projects'
+    # rules holding a webhook their own form does not list: the alert keeps
+    # firing, but opening and saving that rule silently blanks the channel.
+    #
+    # Ordered so a run that dies part-way is safe to repeat: the copies and the
+    # repointing happen first, and the original's project_id — the only thing
+    # this loop selects on — is written last.
     DiscordWebhook.reset_column_information
     DiscordWebhook.where(project_id: nil).find_each do |webhook|
-      used_by = AlertRule.where(discord_webhook_id: webhook.id)
-                         .group(:project_id).order(Arel.sql("COUNT(*) DESC")).limit(1).pluck(:project_id).first
-      fallback = Project.where(workspace_id: webhook.workspace_id).order(:id).first&.id
-      target = used_by || fallback
-      webhook.update_columns(project_id: target) if target
+      rules_per_project = AlertRule.where(discord_webhook_id: webhook.id)
+                                   .where.not(project_id: nil).group(:project_id).count
+
+      if rules_per_project.empty?
+        fallback = Project.where(workspace_id: webhook.workspace_id).order(:id).first&.id
+        webhook.update_columns(project_id: fallback) if fallback
+        next
+      end
+
+      majority = rules_per_project.max_by { |_project_id, count| count }.first
+
+      (rules_per_project.keys - [ majority ]).each do |project_id|
+        copy = DiscordWebhook.find_or_create_by!(workspace_id: webhook.workspace_id, project_id: project_id,
+                                                 channel_name: webhook.channel_name, url: webhook.url)
+        AlertRule.where(discord_webhook_id: webhook.id, project_id: project_id)
+                 .update_all(discord_webhook_id: copy.id)
+      end
+
+      webhook.update_columns(project_id: majority)
     end
   end
 

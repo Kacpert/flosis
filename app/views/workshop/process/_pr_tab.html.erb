@@ -1,4 +1,4 @@
-<% if current_workspace.pr_review_enabled? %>
+<% if current_workshop_project&.pr_review_enabled? %>
   <div class="flex items-center justify-between mb-3.5">
     <div class="flex gap-[18px]">
       <div>
@@ -17,7 +17,7 @@
     <%# Status pill — a bordered surface chip, not the interactive .clar-chip. %>
     <div class="inline-flex items-center gap-[7px] text-[12px] clar-text-muted border clar-divider rounded-[8px] px-[11px] py-[7px] bg-[color:var(--surface)]">
       <span class="w-1.5 h-1.5 rounded-full bg-[var(--success)]"></span>
-      Polling every <%= @poll_minutes %> min &middot; last <%= clar_time_ago(current_workspace.pr_polled_at) || "never" %>
+      Polling every <%= @poll_minutes %> min &middot; last <%= clar_time_ago(current_workshop_project.pr_polled_at) || "never" %>
     </div>
   </div>
 
@@ -80,7 +80,7 @@
   </div>
 <% else %>
   <div class="clar-card p-8 text-center max-w-md mx-auto">
-    <p class="clar-text-muted text-[14px] leading-relaxed">AI PR reviews are turned off for this workspace.</p>
+    <p class="clar-text-muted text-[14px] leading-relaxed">AI PR reviews are turned off for this project.</p>
     <% if respond_to?(:workshop_configuration_path) %>
       <%= link_to "Go to Configuration", workshop_configuration_path, class: "clar-btn clar-btn-primary clar-btn-block mt-4 no-underline" %>
     <% else %>

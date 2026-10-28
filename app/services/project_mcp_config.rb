@@ -60,17 +60,29 @@ class ProjectMcpConfig
   def config_hash
     servers = {}
     servers["github"] = github_server if @creds.github_configured?
-    servers["jira"] = jira_server if @creds.jira_configured?
+    servers["jira"] = jira_server if jira_configured?
     servers["figma"] = figma_server if @creds.figma_configured?
     servers["lit"] = lit_server if lit_configured?
     { "mcpServers" => servers }
   end
 
-  # Lit is one shared instance, keyed from the app's own environment — there is
-  # nothing per-project to resolve, so its presence is simply whether the key
-  # is configured at all.
+  # jira_connected? as well as jira_configured?: the domain, login and token
+  # all fall back to the environment, which is set on the server, so a project
+  # with no Jira of its own still answers "configured" — and would be handed a
+  # server pointed at somebody else's Jira, which the model then reads because
+  # the tool is there. IntegrationHealthJob#check_jira gates the same way.
+  def jira_configured?
+    @project.jira_connected? && @creds.jira_configured?
+  end
+
+  # Lit is ONE shared instance (Elvium's), keyed from the app's own
+  # environment, and its tools write into it. Only the project that is that
+  # app may have them: handing them to every project let another client's
+  # automation post translations into Elvium. legacy_elvium? is this branch's
+  # established "this project is the Elvium checkout" predicate; the eventual
+  # answer is a per-project Lit toggle alongside the other integrations.
   def lit_configured?
-    ENV["LIT_AI_API_KEY"].present?
+    ENV["LIT_AI_API_KEY"].present? && @project.legacy_elvium?
   end
 
   # Two calls, no more: post translation suggestions and ask Lit to re-scan for

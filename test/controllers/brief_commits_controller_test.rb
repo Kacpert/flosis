@@ -3,9 +3,10 @@ require "test_helper"
 class BriefCommitsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:one)
-    @workspace.update!(workshop_enabled: true, jira_ai_actions_field_id: "customfield_10050")
+    @workspace.update!(workshop_enabled: true)
     @project = @workspace.projects.create!(name: "BCM", color: "#333333",
-      external_type: "jira", external_reference: "BCM")
+      external_type: "jira", external_reference: "BCM",
+      jira_ai_actions_field_id: "customfield_10050")
     @task = @project.tasks.create!(name: "BCM-1 Thing", external_type: "jira", external_reference: "BCM-1")
     @brief = Brief.create!(task: @task, workspace: @workspace, version: 1, content: "concept")
     sign_in_as(users(:one)) # admin

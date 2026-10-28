@@ -20,6 +20,14 @@ class ProjectMcpConfigTest < ActiveSupport::TestCase
     FigmaClient.define_singleton_method(:cli_token, original)
   end
 
+  # legacy_elvium? compares workspace_dir against the real ~/work/elvium, and
+  # write! would mkdir/chmod whatever that resolves to — never the developer's
+  # actual Elvium checkout. Stub the predicate instead.
+  def as_legacy_elvium(project)
+    project.define_singleton_method(:legacy_elvium?) { true }
+    project
+  end
+
   def with_env(vars)
     previous = vars.keys.index_with { |k| ENV[k] }
     vars.each { |k, v| v.nil? ? ENV.delete(k) : ENV[k] = v }
@@ -68,7 +76,7 @@ class ProjectMcpConfigTest < ActiveSupport::TestCase
   # — it gets our own two-call server.
   test "wires the Lit server when a key is configured, with the key in its env" do
     with_env("LIT_AI_API_KEY" => "lit-key", "LIT_API_BASE" => "https://lit.test") do
-      json = JSON.parse(File.read(ProjectMcpConfig.write!(@project)))
+      json = JSON.parse(File.read(ProjectMcpConfig.write!(as_legacy_elvium(@project))))
       lit = json["mcpServers"]["lit"]
 
       assert_not_nil lit, "server key must be exactly 'lit' so tool names match AUTOMATION_TOOLS"
@@ -82,10 +90,49 @@ class ProjectMcpConfigTest < ActiveSupport::TestCase
 
   test "omits the Lit server when no key is configured" do
     with_env("LIT_AI_API_KEY" => nil) do
+      json = JSON.parse(File.read(ProjectMcpConfig.write!(as_legacy_elvium(@project))))
+
+      assert_not json["mcpServers"].key?("lit")
+    end
+  end
+
+  # Lit is Elvium's own translation system, reached with one shared key from
+  # the environment. Writing the server for every project handed another
+  # client's automation the tools to post into it.
+  test "omits the Lit server for a project that is not the Elvium checkout" do
+    with_env("LIT_AI_API_KEY" => "lit-key") do
       json = JSON.parse(File.read(ProjectMcpConfig.write!(@project)))
 
       assert_not json["mcpServers"].key?("lit")
     end
+  end
+
+  # jira_site / jira_email / jira_api_token all fall back to the environment,
+  # which is set on the server. So every project used to get a Jira server
+  # pointed at the one Jira instance there, whoever the project belongs to.
+  test "omits the Jira server for a project that is not a Jira project, environment or not" do
+    plain = projects(:plain_project)
+    plain.update!(workspace_dir: @dir, jira_site: nil, jira_email: nil, jira_api_token: nil)
+
+    json = with_env("JIRA_DOMAIN" => "acme.atlassian.net", "JIRA_EMAIL" => "e@x.com",
+                    "JIRA_API_TOKEN" => "env-token") do
+      JSON.parse(File.read(ProjectMcpConfig.write!(plain)))
+    end
+
+    assert_not plain.jira_connected?
+    assert_not json["mcpServers"].key?("jira"), "a non-Jira project must get no Jira server"
+  end
+
+  # GitHub resolves from the project's own columns only — no environment
+  # fallback — so the empty case needs no extra gate.
+  test "omits the GitHub server for a project with no repo of its own, environment or not" do
+    @project.update!(github_repo: nil, github_token: nil)
+
+    json = with_env("GITHUB_PERSONAL_ACCESS_TOKEN" => "env-token", "GITHUB_TOKEN" => "env-token") do
+      JSON.parse(File.read(ProjectMcpConfig.write!(@project)))
+    end
+
+    assert_not json["mcpServers"].key?("github")
   end
 
   test "file is chmod 600 and dir 700" do

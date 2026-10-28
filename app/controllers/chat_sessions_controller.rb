@@ -182,12 +182,12 @@ class ChatSessionsController < ApplicationController
   end
 
   # Configuration -> Integrations -> Figma toggle (Task 9.2, figma_read_enabled):
-  # only instruct the AI to read Figma frames when the workspace has opted in.
-  # Access itself is a server-side MCP config either way — this toggle purely
-  # controls whether Details Gathering tells the AI to use it. Returns "" when
+  # only instruct the AI to read Figma frames when THIS project has opted in.
+  # Gated on the very predicate ProjectMcpConfig writes the figma server on, so
+  # the prompt can never name a tool the run was not handed. Returns "" when
   # disabled so the investigation list simply omits the Figma bullet.
   def figma_instructions_section
-    return "" unless @task.project.workspace.figma_read_enabled
+    return "" unless ProjectCredentials.new(@task.project).figma_configured?
 
     <<~FIGMA.strip
       - **Figma links.** If the ticket description or any comment contains a Figma URL (figma.com/design/... or figma.com/file/...), you have access to a Figma MCP server with an authenticated read-only token. For **every** Figma URL you must do BOTH:

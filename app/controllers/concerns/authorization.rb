@@ -10,9 +10,12 @@ module Authorization
   private
 
   # True when a GitHub token is configured but the last health check failed —
-  # drives the admin-only error banner.
+  # drives the admin-only error banner. Reads the project without selecting
+  # one: this runs on every page in the HR layout, and a predicate that writes
+  # to the session would make viewing a timesheet set the viewer's Workshop
+  # project.
   def github_connection_problem?
-    project = current_workshop_project
+    project = resolved_workshop_project
     project&.github_token.present? && project.github_status_ok == false
   end
 

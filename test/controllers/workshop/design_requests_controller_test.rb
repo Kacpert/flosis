@@ -11,7 +11,7 @@ class Workshop::DesignRequestsControllerTest < ActionDispatch::IntegrationTest
 
   # Minimal fake JiraWriter recording calls, same shape used elsewhere in the
   # suite (see JiraWriterTest's fake_client) — stubs the instance method so the
-  # controller's `JiraWriter.new(workspace: ...).sync_design_links(...)` call
+  # controller's `JiraWriter.new.sync_design_links(...)` call
   # never reaches the network.
   def stub_sync_design_links(result = { ok: true })
     calls = []

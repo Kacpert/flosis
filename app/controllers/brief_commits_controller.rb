@@ -13,7 +13,7 @@ class BriefCommitsController < ApplicationController
     task = Task.where(project: current_workspace.projects).find(params[:jira_task_id])
     brief = task.briefs.find(params[:id])
 
-    result = JiraWriter.new(workspace: current_workspace).commit_brief(brief)
+    result = JiraWriter.new.commit_brief(brief)
 
     if result[:ok]
       brief.mark_briefed!

@@ -15,6 +15,16 @@ class PrReviewCheckJob < ApplicationJob
 
   WINDOW = (9...20) # 09:00–19:59 local
 
+  # The cron floor: this job itself only fires every ~7 minutes, so a smaller
+  # per-project setting cannot make us poll more often. Public because the
+  # Process page has to promise the interval we will actually honour.
+  POLL_FLOOR_MINUTES = 7
+
+  # The interval a project is really polled at, whatever its slider says.
+  def self.effective_poll_minutes(project)
+    [ POLL_FLOOR_MINUTES, project&.pr_poll_minutes.to_i ].max
+  end
+
   def perform
     return unless WINDOW.cover?(Time.current.hour)
 
@@ -84,13 +94,9 @@ class PrReviewCheckJob < ApplicationJob
     nil
   end
 
-  # Effective poll interval is max(7, project.pr_poll_minutes) — 7 minutes is
-  # the cron floor (this job itself only runs every ~7 min), so a smaller
-  # setting can't make us poll more often than the cron actually fires.
   def due?(project)
     return true if project.pr_polled_at.nil?
 
-    interval = [ 7, project.pr_poll_minutes ].max.minutes
-    project.pr_polled_at <= Time.current - interval
+    project.pr_polled_at <= Time.current - self.class.effective_poll_minutes(project).minutes
   end
 end

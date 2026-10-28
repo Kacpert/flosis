@@ -444,4 +444,34 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
       JiraSyncService.new(@project, client: mock_client).sync_issues
     end
   end
+  # Configuration's "Verify fields" writes the PROJECT's three field-id
+  # columns. A cache on the workspace is one the repair button cannot reach,
+  # and two projects in one workspace can sit on different Jira sites.
+  test "the story-points and AI-estimation field ids are cached on the project" do
+    @project.update!(jira_story_points_field_id: nil, jira_ai_estimation_field_id: nil)
+    workspace = @project.workspace
+    workspace.update!(jira_story_points_field_id: nil, jira_ai_estimation_field_id: nil)
+
+    JiraSyncService.new(@project, client: stub_client(@jira_issues, done_issues: @done_issues)).sync
+
+    assert_equal "customfield_10040", @project.reload.jira_story_points_field_id
+    assert_equal "customfield_10178", @project.jira_ai_estimation_field_id
+    assert_nil workspace.reload.jira_story_points_field_id
+    assert_nil workspace.jira_ai_estimation_field_id
+  end
+
+  test "a field id already cached on the project is used instead of re-resolving" do
+    @project.update!(jira_story_points_field_id: "customfield_project")
+    @project.workspace.update!(jira_story_points_field_id: "customfield_workspace")
+    seen = []
+    client = stub_client(@jira_issues)
+    client.define_singleton_method(:fetch_issues) do |_key, story_points_field_id: nil|
+      seen << story_points_field_id
+      []
+    end
+
+    JiraSyncService.new(@project, client: client).sync_issues
+
+    assert_equal [ "customfield_project" ], seen
+  end
 end

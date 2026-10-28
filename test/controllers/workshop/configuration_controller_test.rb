@@ -196,6 +196,37 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Briefing settings saved/, flash[:clar_toast])
   end
 
+  # The personas were wiped by a request that never mentioned them, and the
+  # toast said it had saved.
+  test "PATCH update to the briefing tab with no project key refuses and keeps the personas" do
+    @project.update!(briefing_personas: "Recruiters and admins.")
+
+    patch workshop_configuration_path, params: { tab: "briefing" }
+
+    assert_response :bad_request
+    assert_equal "Recruiters and admins.", @project.reload.briefing_personas
+    refute_match(/Briefing settings saved/, flash[:clar_toast].to_s)
+  end
+
+  test "PATCH update to the briefing tab reports a failed save instead of toasting success" do
+    original = Project.instance_method(:update)
+    Project.define_method(:update) do |*_args|
+      errors.add(:base, "Briefing personas could not be stored")
+      false
+    end
+
+    begin
+      patch workshop_configuration_path, params: {
+        project: { briefing_personas: "Recruiters." }, tab: "briefing"
+      }
+    ensure
+      Project.define_method(:update, original)
+    end
+
+    assert_match(/could not be stored/, flash[:alert])
+    refute_match(/Briefing settings saved/, flash[:clar_toast].to_s)
+  end
+
   test "the Briefing tab shows the personas field, the feature-summary card, and a Refresh button" do
     @project.update!(briefing_personas: "Recruiters and admins.",
                      features_summary: "Users can post jobs and review candidates.",

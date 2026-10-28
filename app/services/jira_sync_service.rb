@@ -150,13 +150,14 @@ class JiraSyncService
   private
 
   # Resolves + caches the Jira custom field id used for story points on the
-  # project's workspace (mirrors JiraWriter#ai_actions_field_id's caching).
+  # project (mirrors JiraWriter#ai_actions_field_id's caching). The project is
+  # where Configuration's "Verify fields" writes, so this is the only column a
+  # wrong id can be repaired in.
   def story_points_field_id
-    workspace = @project.workspace
-    return workspace.jira_story_points_field_id if workspace.jira_story_points_field_id.present?
+    return @project.jira_story_points_field_id if @project.jira_story_points_field_id.present?
 
     id = @client.resolve_story_points_field
-    workspace.update_column(:jira_story_points_field_id, id) if id.present?
+    @project.update_column(:jira_story_points_field_id, id) if id.present?
     id
   end
 
@@ -183,15 +184,14 @@ class JiraSyncService
     end
   end
 
-  # The Jira "AI estimation" custom field id (cached on the workspace). This is
-  # the field AutoEstimateJob writes to and Reporting reads (via
-  # delivered_issues.ai_estimate_points).
+  # The Jira "AI estimation" custom field id (cached on the project, the same
+  # column AutoEstimateJob caches on). This is the field AutoEstimateJob writes
+  # to and Reporting reads (via delivered_issues.ai_estimate_points).
   def ai_estimate_field_id
-    workspace = @project.workspace
-    return workspace.jira_ai_estimation_field_id if workspace.jira_ai_estimation_field_id.present?
+    return @project.jira_ai_estimation_field_id if @project.jira_ai_estimation_field_id.present?
 
     id = @client.fetch_field_id(EstimationSettings::DEFAULT_ESTIMATION_FIELD_NAME)
-    workspace.update_column(:jira_ai_estimation_field_id, id) if id.present?
+    @project.update_column(:jira_ai_estimation_field_id, id) if id.present?
     id
   end
 

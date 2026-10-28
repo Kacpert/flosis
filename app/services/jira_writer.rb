@@ -9,8 +9,7 @@ class JiraWriter
   SPEC_VALUE = "Added specification and branch".freeze
   DETAILED_VALUE = "Detailed".freeze
 
-  def initialize(workspace:, client: JiraClient.new)
-    @workspace = workspace
+  def initialize(client: JiraClient.new)
     @client = client
   end
 
@@ -38,7 +37,7 @@ class JiraWriter
     # The description write above is what matters. Setting the "AI actions" field
     # is a nice-to-have — if only that fails (e.g. the field's option names don't
     # match), the push still SUCCEEDED; surface a soft warning, don't fail.
-    action = set_ai_action(key, BRIEFED_VALUE)
+    action = set_ai_action(task.project, key, BRIEFED_VALUE)
     { ok: true, key: key, url: url, warning: action[:ok] ? nil : action[:error] }
   end
 
@@ -68,7 +67,7 @@ class JiraWriter
 
     # AI-actions field is best-effort — a failure there must not fail the push
     # (the description saved fine). Surface it as a soft warning instead.
-    action = set_ai_action(key, DETAILED_VALUE)
+    action = set_ai_action(task.project, key, DETAILED_VALUE)
     draft.update!(pushed_at: Time.current)
     { ok: true, key: key, warning: action[:ok] ? nil : action[:error] }
   end
@@ -84,7 +83,7 @@ class JiraWriter
     res = @client.update_issue_description(issue_key: task.external_reference, description_text: text)
     return res unless res[:ok]
 
-    field_id = ai_actions_field_id
+    field_id = ai_actions_field_id(task.project)
     return { ok: false, error: "Couldn't find the '#{AI_ACTION_FIELD_NAME}' field in Jira" } if field_id.blank?
 
     action = @client.add_ai_action(issue_key: task.external_reference, field_id: field_id, value: SPEC_VALUE)
@@ -123,11 +122,14 @@ class JiraWriter
     res[:ok] ? { ok: true } : { ok: false, error: res[:error] }
   end
 
-  def ai_actions_field_id
-    return @workspace.jira_ai_actions_field_id if @workspace.jira_ai_actions_field_id.present?
+  # The id is the PROJECT's: Configuration's "Verify fields" writes that
+  # column, and a cache the repair button cannot reach is a cache that stays
+  # wrong. Self-healing only covers a blank value, never a stale one.
+  def ai_actions_field_id(project)
+    return project.jira_ai_actions_field_id if project.jira_ai_actions_field_id.present?
 
     id = @client.fetch_field_id(AI_ACTION_FIELD_NAME)
-    @workspace.update_column(:jira_ai_actions_field_id, id) if id.present?
+    project.update_column(:jira_ai_actions_field_id, id) if id.present?
     id
   end
 
@@ -150,8 +152,8 @@ class JiraWriter
 
   # Sets the "AI actions" field on the given issue to `value`. Shared by
   # commit_brief (BRIEFED_VALUE) and commit_detail (DETAILED_VALUE).
-  def set_ai_action(issue_key, value)
-    field_id = ai_actions_field_id
+  def set_ai_action(project, issue_key, value)
+    field_id = ai_actions_field_id(project)
     return { ok: false, error: "Couldn't find the '#{AI_ACTION_FIELD_NAME}' field in Jira" } if field_id.blank?
 
     action = @client.add_ai_action(issue_key: issue_key, field_id: field_id, value: value)

@@ -8,6 +8,7 @@ module WorkspaceScoped
     helper_method :available_projects
     helper_method :current_product
     helper_method :current_workshop_project
+    helper_method :resolved_workshop_project
     helper_method :workshop_projects
   end
 
@@ -105,10 +106,21 @@ module WorkspaceScoped
   # visible Jira project. Persists the resolved id.
   def current_workshop_project
     return @current_workshop_project if defined?(@current_workshop_project)
-    projects = workshop_projects
-    chosen = projects.find_by(id: session[:workshop_project_id]) || projects.first
+
+    chosen = resolved_workshop_project
     session[:workshop_project_id] = chosen&.id
     @current_workshop_project = chosen
+  end
+
+  # The same resolution WITHOUT choosing: nothing is written to the session.
+  # For callers that merely want to look — the admin GitHub banner is a layout
+  # gate on every page in the HR layout, and viewing a timesheet must not
+  # decide which project the Workshop opens on.
+  def resolved_workshop_project
+    return @resolved_workshop_project if defined?(@resolved_workshop_project)
+
+    projects = workshop_projects
+    @resolved_workshop_project = projects.find_by(id: session[:workshop_project_id]) || projects.first
   end
 
   # Projects this person may book time against. A workspace admin sees every

@@ -4,8 +4,11 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:one)
     @workspace.update!(workshop_enabled: true, pr_review_enabled: true, pr_poll_minutes: 5, pr_polled_at: 1.minute.ago)
+    @project = projects(:jira_project)
+    @project.update!(pr_review_enabled: true, pr_polled_at: 1.minute.ago)
     sign_in_as(users(:one)) # admin/owner
     post switch_product_path, params: { product: "workshop" }
+    post switch_workshop_project_path, params: { project_id: @project.id }
   end
 
   test "renders the PR tab with stats trio, feed rows, and polling chip" do
@@ -49,13 +52,41 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /The AI never approves or merges/
   end
 
-  test "empty state when pr_review_enabled is off" do
-    @workspace.update!(pr_review_enabled: false)
+  # The switch and the poll timestamp the poller actually writes are the
+  # project's. Reading the workspace's showed the dashboard to every project in
+  # a workspace whose flag was ever on, with "last never" forever.
+  test "the dashboard follows the project's switch even when the workspace's is off" do
+    @workspace.update!(pr_review_enabled: false, pr_polled_at: nil)
+    @project.update!(pr_review_enabled: true, pr_polled_at: 3.minutes.ago)
 
     get workshop_process_path
 
     assert_response :success
+    assert_select "body", /reviewed today/
+    assert_select "body", /last 3 min ago/
+  end
+
+  test "empty state when the project's reviews are off, whatever the workspace says" do
+    @workspace.update!(pr_review_enabled: true)
+    @project.update!(pr_review_enabled: false)
+
+    get workshop_process_path
+
+    assert_response :success
+    assert_select "body", /AI PR reviews are turned off/
     assert_select "body", /Configuration/
+  end
+
+  # The chip used to print the raw setting while PrReviewCheckJob floors the
+  # interval, so a project set to 1 read "every 1 min" and was polled every 7.
+  test "the polling chip prints the interval the poller will honour, not the raw setting" do
+    @project.update!(pr_poll_minutes: 1)
+
+    get workshop_process_path
+
+    assert_response :success
+    assert_select "body", /Polling every 7 min/
+    assert_no_match(/Polling every 1 min/, response.body)
   end
 
   test "renders the AI Estimate tab with summary card and recently-estimated tasks" do

@@ -51,28 +51,45 @@ class BreakdownChatSessionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   # Task 9.2: the Figma instruction paragraph is gated by the Configuration ->
-  # Integrations "Figma" toggle (workspace.figma_read_enabled). Enabled
-  # preserves today's behavior; disabled must not instruct the AI to read Figma.
-  test "build_initial_prompt includes the Figma instructions when figma_read_enabled is true" do
-    @task.project.workspace.update!(figma_read_enabled: true)
+  # Integrations "Figma" toggle, which is the PROJECT's. Same predicate
+  # ProjectMcpConfig writes the server on, so the prompt cannot name a tool the
+  # run was not given.
+  def figma_prompt
     controller = BreakdownChatSessionsController.new
     controller.instance_variable_set(:@task, @task)
     def controller.params; {}; end
-
-    prompt = controller.send(:build_initial_prompt)
-
-    assert_includes prompt, "Figma links."
+    controller.send(:build_initial_prompt)
   end
 
-  test "build_initial_prompt omits the Figma instructions when figma_read_enabled is false" do
-    @task.project.workspace.update!(figma_read_enabled: false)
-    controller = BreakdownChatSessionsController.new
-    controller.instance_variable_set(:@task, @task)
-    def controller.params; {}; end
+  test "build_initial_prompt includes the Figma instructions when the project reads Figma" do
+    @task.project.update!(figma_read_enabled: true, figma_token: "fig-key")
 
-    prompt = controller.send(:build_initial_prompt)
+    assert_includes figma_prompt, "Figma links."
+  end
+
+  test "build_initial_prompt omits the Figma instructions when the project does not read Figma" do
+    @task.project.update!(figma_read_enabled: false)
+
+    prompt = figma_prompt
 
     refute_includes prompt, "Figma links."
     refute_includes prompt, "mcp__figma__get_figma_data"
+  end
+
+  test "build_initial_prompt ignores the workspace's own Figma column" do
+    @task.project.workspace.update!(figma_read_enabled: true)
+    @task.project.update!(figma_read_enabled: false, figma_token: "fig-key")
+
+    refute_includes figma_prompt, "mcp__figma__get_figma_data"
+  end
+
+  test "build_initial_prompt omits the Figma instructions when no token resolves" do
+    @task.project.update!(figma_read_enabled: true, figma_token: nil)
+    original = FigmaClient.method(:cli_token)
+    FigmaClient.define_singleton_method(:cli_token) { nil }
+
+    refute_includes figma_prompt, "mcp__figma__get_figma_data"
+  ensure
+    FigmaClient.define_singleton_method(:cli_token, original)
   end
 end

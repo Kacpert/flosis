@@ -3,9 +3,10 @@ require "test_helper"
 class TaskBreakdownsUpdateJiraTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:one)
-    @workspace.update!(workshop_enabled: true, jira_ai_actions_field_id: "customfield_10050")
+    @workspace.update!(workshop_enabled: true)
     @project = @workspace.projects.create!(name: "UJ", color: "#666666",
-      external_type: "jira", external_reference: "UJ")
+      external_type: "jira", external_reference: "UJ",
+      jira_ai_actions_field_id: "customfield_10050")
     @task = @project.tasks.create!(name: "UJ-1 Thing", external_type: "jira", external_reference: "UJ-1")
     @task.task_drafts.create!(source: TaskDraft::BREAKDOWN_SOURCE,
       content: { needs_breakdown: false, total_points: 2, subtasks: [] }.to_json)

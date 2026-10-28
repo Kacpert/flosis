@@ -15,7 +15,7 @@ class Workshop::ProcessController < Workshop::BaseController
       @reviewed_today_count = today_reviews.count
       @comments_count = today_reviews.where(outcome: "comments").count
       @looks_good_count = today_reviews.where(outcome: "looks_good").count
-      @poll_minutes = current_workshop_project&.pr_poll_minutes || 7
+      @poll_minutes = PrReviewCheckJob.effective_poll_minutes(current_workshop_project)
     when "estimate"
       load_estimate_tab
     when "alerts"

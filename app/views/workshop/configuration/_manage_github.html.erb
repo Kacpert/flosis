@@ -55,13 +55,17 @@
         </div>
       </div>
 
-      <div class="p-3.5 border-t border-[color:var(--border)] flex items-center justify-between gap-2.5">
-        <%= button_to "Test connection", workshop_test_github_configuration_path, method: :post, class: "clar-btn", form: { data: { turbo: false } } %>
-        <div class="flex gap-2.5">
-          <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
-          <%= f.submit "Save changes", class: "clar-btn clar-btn-primary" %>
-        </div>
+      <div class="p-3.5 border-t border-[color:var(--border)] flex items-center justify-end gap-2.5">
+        <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+        <%= f.submit "Save changes", class: "clar-btn clar-btn-primary" %>
       </div>
     <% end %>
+
+    <%# The connection test is a separate post, so it lives outside the
+        credential form — HTML forbids nested forms, and a button_to inside
+        this one became a submit button for the credentials themselves. %>
+    <div class="p-3.5 border-t border-[color:var(--border)] flex items-center gap-2.5">
+      <%= button_to "Test connection", workshop_test_github_configuration_path, method: :post, class: "clar-btn", form: { data: { turbo: false } } %>
+    </div>
   </div>
 </div>

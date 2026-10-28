@@ -5,7 +5,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     @workspace = workspaces(:one)
     @project = @workspace.projects.create!(name: "JW", color: "#111111",
       external_type: "jira", external_reference: "JW")
-    @workspace.update!(jira_ai_actions_field_id: "customfield_10050")
+    @project.update!(jira_ai_actions_field_id: "customfield_10050")
   end
 
   # Minimal fake client recording calls.
@@ -25,7 +25,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     task = @project.tasks.create!(name: "Idea")
     brief = Brief.create!(task: task, workspace: @workspace, version: 1, content: "concept")
     c = fake_client
-    res = JiraWriter.new(workspace: @workspace, client: c).commit_brief(brief)
+    res = JiraWriter.new(client: c).commit_brief(brief)
     assert res[:ok], res.inspect
     assert_equal 1, c.calls[:create]
     assert_equal 0, c.calls[:update]
@@ -38,7 +38,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     task = @project.tasks.create!(name: "JW-7 Existing", external_type: "jira", external_reference: "JW-7")
     brief = Brief.create!(task: task, workspace: @workspace, version: 1, content: "concept")
     c = fake_client
-    res = JiraWriter.new(workspace: @workspace, client: c).commit_brief(brief)
+    res = JiraWriter.new(client: c).commit_brief(brief)
     assert res[:ok]
     assert_equal 0, c.calls[:create]
     assert_equal 1, c.calls[:update]
@@ -51,7 +51,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     brief = Brief.create!(task: task, workspace: @workspace, version: 1, content: "concept")
     c = fake_client(action: { ok: false, error: "Issue saved but couldn't set 'AI actions': 400 Bad Request" })
 
-    res = JiraWriter.new(workspace: @workspace, client: c).commit_brief(brief)
+    res = JiraWriter.new(client: c).commit_brief(brief)
 
     assert res[:ok], "push must succeed even when the AI-actions field write fails"
     assert_match(/AI actions/, res[:warning])
@@ -62,7 +62,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detailed text")
     c = fake_client(action: { ok: false, error: "couldn't set 'AI actions': 400" })
 
-    res = JiraWriter.new(workspace: @workspace, client: c).commit_detail(draft)
+    res = JiraWriter.new(client: c).commit_detail(draft)
 
     assert res[:ok]
     assert_match(/AI actions/, res[:warning])
@@ -73,17 +73,58 @@ class JiraWriterTest < ActiveSupport::TestCase
     task = @project.tasks.create!(name: "JW-7 Existing", external_type: "jira", external_reference: "JW-7")
     brief = Brief.create!(task: task, workspace: @workspace, version: 1, content: "x")
     c = fake_client(update: { ok: false, error: "403 Forbidden" })
-    res = JiraWriter.new(workspace: @workspace, client: c).commit_brief(brief)
+    res = JiraWriter.new(client: c).commit_brief(brief)
     assert_not res[:ok]
     assert_equal "403 Forbidden", res[:error]
   end
 
-  test "missing field id is discovered and cached on the workspace" do
-    @workspace.update!(jira_ai_actions_field_id: nil)
+  test "missing field id is discovered and cached on the project" do
+    @project.update!(jira_ai_actions_field_id: nil)
     task = @project.tasks.create!(name: "JW-7 Existing", external_type: "jira", external_reference: "JW-7")
     brief = Brief.create!(task: task, workspace: @workspace, version: 1, content: "x")
-    JiraWriter.new(workspace: @workspace, client: fake_client).commit_brief(brief)
-    assert_equal "customfield_10050", @workspace.reload.jira_ai_actions_field_id
+    JiraWriter.new(client: fake_client).commit_brief(brief)
+    assert_equal "customfield_10050", @project.reload.jira_ai_actions_field_id
+    assert_nil @workspace.reload.jira_ai_actions_field_id, "the workspace column is nobody's cache any more"
+  end
+
+  # Configuration's "Verify fields" writes projects.jira_ai_actions_field_id.
+  # While the writer read the workspace's copy, that button could not repair a
+  # wrong-but-present id: it wrote one column and the push read another.
+  test "the cached field id is the task's project's, not the workspace's" do
+    @workspace.update!(jira_ai_actions_field_id: "customfield_workspace")
+    @project.update!(jira_ai_actions_field_id: "customfield_project")
+    task = @project.tasks.create!(name: "JW-20 Existing", external_type: "jira", external_reference: "JW-20")
+    brief = Brief.create!(task: task, workspace: @workspace, version: 1, content: "x")
+    c = fake_client
+
+    JiraWriter.new(client: c).commit_brief(brief)
+
+    assert_equal "customfield_project", c.calls[:action][:field_id]
+  end
+
+  test "commit_breakdown reads the field id off the task's project too" do
+    @workspace.update!(jira_ai_actions_field_id: "customfield_workspace")
+    @project.update!(jira_ai_actions_field_id: "customfield_project")
+    task = @project.tasks.create!(name: "JW-21 Existing", external_type: "jira", external_reference: "JW-21")
+    task.task_drafts.create!(source: TaskDraft::BREAKDOWN_SOURCE,
+      content: { needs_breakdown: false, total_points: 3, strategy: "small", subtasks: [] }.to_json)
+    c = fake_client
+
+    JiraWriter.new(client: c).commit_breakdown(task)
+
+    assert_equal "customfield_project", c.calls[:action][:field_id]
+  end
+
+  test "commit_detail reads the field id off the task's project too" do
+    @workspace.update!(jira_ai_actions_field_id: "customfield_workspace")
+    @project.update!(jira_ai_actions_field_id: "customfield_project")
+    task = @project.tasks.create!(name: "JW-22 Existing", external_type: "jira", external_reference: "JW-22")
+    draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detailed text")
+    c = fake_client
+
+    JiraWriter.new(client: c).commit_detail(draft)
+
+    assert_equal "customfield_project", c.calls[:action][:field_id]
   end
 
   test "commit_breakdown updates description and sets the spec AI action" do
@@ -91,7 +132,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     task.task_drafts.create!(source: TaskDraft::BREAKDOWN_SOURCE,
       content: { needs_breakdown: false, total_points: 3, strategy: "small", subtasks: [] }.to_json)
     c = fake_client
-    res = JiraWriter.new(workspace: @workspace, client: c).commit_breakdown(task)
+    res = JiraWriter.new(client: c).commit_breakdown(task)
     assert res[:ok], res.inspect
     assert_equal 1, c.calls[:update]
     assert_equal "Added specification and branch", c.calls[:action][:value]
@@ -99,7 +140,7 @@ class JiraWriterTest < ActiveSupport::TestCase
 
   test "commit_breakdown fails when there is no breakdown" do
     task = @project.tasks.create!(name: "JW-9 Existing", external_type: "jira", external_reference: "JW-9")
-    res = JiraWriter.new(workspace: @workspace, client: fake_client).commit_breakdown(task)
+    res = JiraWriter.new(client: fake_client).commit_breakdown(task)
     assert_not res[:ok]
   end
 
@@ -107,7 +148,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     task = @project.tasks.create!(name: "JW-11 Existing", external_type: "jira", external_reference: "JW-11")
     draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detailed text")
     c = fake_client
-    res = JiraWriter.new(workspace: @workspace, client: c).commit_detail(draft)
+    res = JiraWriter.new(client: c).commit_detail(draft)
 
     assert res[:ok], res.inspect
     assert_equal 1, c.calls[:update]
@@ -120,7 +161,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     task = @project.tasks.create!(name: "Local idea")
     draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detailed text")
     c = fake_client
-    res = JiraWriter.new(workspace: @workspace, client: c).commit_detail(draft)
+    res = JiraWriter.new(client: c).commit_detail(draft)
 
     assert res[:ok], res.inspect
     assert_equal 1, c.calls[:create], "must create the issue for a local task"
@@ -135,7 +176,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     local_project = @workspace.projects.create!(name: "NoJira", color: "#222222")
     task = local_project.tasks.create!(name: "Local idea")
     draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detailed text")
-    res = JiraWriter.new(workspace: @workspace, client: fake_client).commit_detail(draft)
+    res = JiraWriter.new(client: fake_client).commit_detail(draft)
 
     assert_not res[:ok]
     assert_equal "Project is not linked to Jira", res[:error]
@@ -146,7 +187,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     task = @project.tasks.create!(name: "JW-12 Existing", external_type: "jira", external_reference: "JW-12")
     draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detailed text")
     c = fake_client(update: { ok: false, error: "403 Forbidden" })
-    res = JiraWriter.new(workspace: @workspace, client: c).commit_detail(draft)
+    res = JiraWriter.new(client: c).commit_detail(draft)
 
     assert_not res[:ok]
     assert_equal "403 Forbidden", res[:error]
@@ -174,7 +215,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     html = '<h4>Summary</h4><p>Hello <b>world</b></p><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>'
     brief = Brief.create!(task: task, workspace: @workspace, version: 1, content: html)
     c = capturing_client
-    res = JiraWriter.new(workspace: @workspace, client: c).commit_brief(brief)
+    res = JiraWriter.new(client: c).commit_brief(brief)
 
     assert res[:ok], res.inspect
     text = c.captured[:update][:description_text]
@@ -189,7 +230,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     html = "<p>Some <i>rich</i> concept</p>"
     brief = Brief.create!(task: task, workspace: @workspace, version: 1, content: html)
     c = capturing_client
-    res = JiraWriter.new(workspace: @workspace, client: c).commit_brief(brief)
+    res = JiraWriter.new(client: c).commit_brief(brief)
 
     assert res[:ok], res.inspect
     text = c.captured[:create][:description_text]
@@ -202,7 +243,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     html = "<p>Detailed <strong>plan</strong></p>"
     draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: html)
     c = capturing_client
-    res = JiraWriter.new(workspace: @workspace, client: c).commit_detail(draft)
+    res = JiraWriter.new(client: c).commit_detail(draft)
 
     assert res[:ok], res.inspect
     text = c.captured[:update][:description_text]
@@ -215,7 +256,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     markdown = "## Foo\n\nSome plain text with *emphasis* and no tags."
     draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: markdown)
     c = capturing_client
-    res = JiraWriter.new(workspace: @workspace, client: c).commit_detail(draft)
+    res = JiraWriter.new(client: c).commit_detail(draft)
 
     assert res[:ok], res.inspect
     assert_equal markdown, c.captured[:update][:description_text]
@@ -232,7 +273,7 @@ class JiraWriterTest < ActiveSupport::TestCase
       { "name" => "Empty & error states", "url" => "https://figma.com/file/b" },
     ]
 
-    res = JiraWriter.new(workspace: @workspace, client: c).sync_design_links(task, links)
+    res = JiraWriter.new(client: c).sync_design_links(task, links)
 
     assert res[:ok], res.inspect
     text = c.captured[:update][:description_text]
@@ -247,7 +288,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     task = @project.tasks.create!(name: "JW-31 Existing", external_type: "jira", external_reference: "JW-31",
       description: "Original text")
     c = capturing_client
-    writer = JiraWriter.new(workspace: @workspace, client: c)
+    writer = JiraWriter.new(client: c)
     links = [{ "name" => "Frame 1", "url" => "https://figma.com/file/a" }]
 
     writer.sync_design_links(task, links)
@@ -262,7 +303,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     task = @project.tasks.create!(name: "JW-32 Existing", external_type: "jira", external_reference: "JW-32",
       description: "Original text")
     c = capturing_client
-    writer = JiraWriter.new(workspace: @workspace, client: c)
+    writer = JiraWriter.new(client: c)
 
     writer.sync_design_links(task, [{ "name" => "Frame 1", "url" => "https://figma.com/file/a" }])
     writer.sync_design_links(task, [
@@ -279,7 +320,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     task = @project.tasks.create!(name: "JW-33 Existing", external_type: "jira", external_reference: "JW-33",
       description: "Original text")
     c = capturing_client
-    writer = JiraWriter.new(workspace: @workspace, client: c)
+    writer = JiraWriter.new(client: c)
 
     writer.sync_design_links(task, [{ "name" => "Frame 1", "url" => "https://figma.com/file/a" }])
     res = writer.sync_design_links(task, [])
@@ -294,7 +335,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     task = @project.tasks.create!(name: "Local idea", description: "Local text")
     c = capturing_client
 
-    res = JiraWriter.new(workspace: @workspace, client: c).sync_design_links(task,
+    res = JiraWriter.new(client: c).sync_design_links(task,
       [{ "name" => "Frame 1", "url" => "https://figma.com/file/a" }])
 
     assert res[:ok], res.inspect
@@ -307,7 +348,7 @@ class JiraWriterTest < ActiveSupport::TestCase
       description: "Original text")
     c = capturing_client(update: { ok: false, error: "403 Forbidden" })
 
-    res = JiraWriter.new(workspace: @workspace, client: c).sync_design_links(task,
+    res = JiraWriter.new(client: c).sync_design_links(task,
       [{ "name" => "Frame 1", "url" => "https://figma.com/file/a" }])
 
     assert_not res[:ok]

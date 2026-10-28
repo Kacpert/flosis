@@ -65,4 +65,44 @@ class Workshop::ConfigurationIntegrationsTest < ActionDispatch::IntegrationTest
     assert_equal "acme/repo", @project.github_repo
     assert_equal "gh-secret", @project.github_token
   end
+  # fetch(..., []) permitted nothing, wrote nothing, and still toasted
+  # "Integration settings saved" — one forgotten hidden_field_tag away from a
+  # form that silently does nothing.
+  test "an unknown integration saves nothing and says so" do
+    @project.update!(jira_site: "keep.atlassian.net")
+
+    patch workshop_configuration_path(tab: "integrations"), params: {
+      integration: "slack",
+      project: { jira_site: "changed.atlassian.net" }
+    }
+
+    assert_equal "keep.atlassian.net", @project.reload.jira_site
+    assert_match(/Unknown integration/, flash[:alert])
+    refute_match(/Integration settings saved/, flash[:clar_toast].to_s)
+  end
+
+  test "a save with no integration named saves nothing and says so" do
+    @project.update!(jira_site: "keep.atlassian.net")
+
+    patch workshop_configuration_path(tab: "integrations"), params: {
+      project: { jira_site: "changed.atlassian.net" }
+    }
+
+    assert_equal "keep.atlassian.net", @project.reload.jira_site
+    assert_match(/Unknown integration/, flash[:alert])
+    refute_match(/Integration settings saved/, flash[:clar_toast].to_s)
+  end
+
+  # button_to renders its own <form>. Inside the credentials form the browser
+  # drops it and the button becomes a submit button for the OUTER form, so
+  # "Test connection" PATCHed the credentials instead of running the health
+  # check. An HTML parser drops it the same way, which is what this asserts:
+  # the form is only findable once it is a sibling. The Jira modal keeps its
+  # two buttons outside the credential form for this reason.
+  test "the GitHub connection test posts its own form, not the credentials one" do
+    get workshop_configuration_path(tab: "integrations")
+
+    assert_response :success
+    assert_select "form[action=?]", workshop_test_github_configuration_path
+  end
 end

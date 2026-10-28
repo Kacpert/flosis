@@ -137,8 +137,16 @@ class Workshop::ConfigurationController < Workshop::BaseController
                 alert: "You don't have permission to open that tab."
   end
 
+  # An unnamed or unrecognised integration permits no field at all, so the
+  # update is a no-op — and `project.update({})` returns true, which used to
+  # toast "Integration settings saved" over a form that saved nothing.
   def save_integration(project)
-    fields = INTEGRATION_FIELDS.fetch(params[:integration].to_s, [])
+    fields = INTEGRATION_FIELDS[params[:integration].to_s]
+    unless fields
+      flash[:alert] = "Unknown integration #{params[:integration].to_s.inspect} — nothing was saved."
+      return
+    end
+
     save_project_fields(project, fields, "Integration settings saved")
     ProjectMcpConfig.write!(project) if project.workspace_dir.present?
   end
@@ -157,10 +165,16 @@ class Workshop::ConfigurationController < Workshop::BaseController
     end
   end
 
+  # require(:project) rather than dig: a request carrying no project key used to
+  # write nil over the stored personas and report success.
   def save_briefing(project)
-    personas = params.dig(:project, :briefing_personas).to_s.strip.presence
-    project.update(briefing_personas: personas)
-    flash[:clar_toast] = "Briefing settings saved"
+    personas = params.require(:project)[:briefing_personas].to_s.strip.presence
+
+    if project.update(briefing_personas: personas)
+      flash[:clar_toast] = "Briefing settings saved"
+    else
+      flash[:alert] = project.errors.full_messages.to_sentence
+    end
   end
 
   def redirect_with(alert, tab)

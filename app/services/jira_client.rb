@@ -130,7 +130,7 @@ class JiraClient
   # Finds the custom field id for Jira's story-points field ("Story point
   # estimate" on team-managed/next-gen projects, "Story Points" on
   # company-managed/classic projects) via the existing #fetch_field_id lookup.
-  # Caching (on workspace.jira_story_points_field_id) is the caller's
+  # Caching (on projects.jira_story_points_field_id) is the caller's
   # responsibility — mirrors how JiraWriter caches jira_ai_actions_field_id.
   def resolve_story_points_field
     fetch_field_id("Story point estimate") || fetch_field_id("Story Points")
