@@ -1,0 +1,119 @@
+<%# The New project dialog, rendered inside the switcher's clar-modal scope —
+    the trigger lives in the dropdown panel and this dialog outside it, so
+    closing the menu doesn't take the dialog with it. A panel rendered as a
+    SIBLING of that scope is never claimed as a target and the trigger then
+    does nothing at all, in silence. %>
+<% sources = current_workspace.projects.active.order(:name) %>
+<%# The same set the Add-to-project dialog offers, and for the same two reasons.
+    An employee with HR access and no project was deliberately kept out of the
+    Workshop, and a project membership is exactly what would let them in. And a
+    row for an administrator holds nothing today — they already have everything
+    everywhere — but it grants all six the day the flag comes off, and
+    Configuration refuses to delete it while it is on. %>
+<% addable = current_workspace.users
+                              .joins(:project_memberships)
+                              .where(project_memberships: { project_id: current_workspace.projects.select(:id) })
+                              .where.not(id: current_workspace.workspace_memberships.where(workspace_admin: true).select(:user_id))
+                              .distinct.order(:name) %>
+<% integrations = [ [ "jira", "Jira Cloud", "API token + site" ],
+                    [ "github", "GitHub", "Personal access token" ],
+                    [ "discord", "Discord", "Webhook URLs" ],
+                    [ "figma", "Figma", "Read token" ],
+                    [ "ai", "AI provider", "Claude API key" ] ] %>
+
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel"
+     data-clar-modal-panel-id-value="new-project" data-action="click->clar-modal#close">
+  <div class="clar-modal p-5.5 max-w-[620px] max-h-[calc(100vh-48px)] overflow-y-auto"
+       data-action="click->clar-modal#stopPropagation">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="text-lg font-bold clar-text-text m-0">New project</h2>
+      <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <p class="text-[13px] leading-normal clar-text-muted mb-4.5">
+      Each project has its own integrations, AI settings, briefing context and users.
+      Reuse keys from an existing project where they&rsquo;re the same.
+    </p>
+
+    <%= form_with url: workshop_projects_path, method: :post, data: { turbo: false } do %>
+      <label class="clar-field-label">PROJECT NAME <span class="clar-text-danger">*</span></label>
+      <%= text_field_tag "project[name]", nil, required: true, placeholder: "e.g. Partner Portal",
+            class: "clar-input mb-4" %>
+
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label class="clar-field-label">TEAM</label>
+          <%= text_field_tag "project[team]", nil, placeholder: "e.g. Apps team", class: "clar-input" %>
+        </div>
+        <div>
+          <label class="clar-field-label">GITHUB REPO</label>
+          <%= text_field_tag "project[github_repo]", nil, placeholder: "acme/partner-portal",
+                class: "clar-input" %>
+        </div>
+      </div>
+
+      <label class="clar-field-label">INTEGRATIONS &amp; AI KEYS</label>
+      <div class="clar-card p-0 mb-4">
+        <% integrations.each_with_index do |(key, label, hint), i| %>
+          <div class="flex items-center justify-between gap-3 py-2.5 px-3.5 <%= "border-t border-[color:var(--border)]" if i.positive? %>">
+            <div>
+              <div class="text-[13px] font-semibold clar-text-text"><%= label %></div>
+              <div class="text-[11px] clar-text-faint"><%= hint %></div>
+            </div>
+            <%# A key is COPIED, not shared: rotating it later means visiting
+                each project, which is the price of deleting a project never
+                becoming a question about another project's keys.
+
+                Discord owns no column on the project — its webhooks are rows
+                added afterwards from Configuration — so it is the one row with
+                nothing to reuse. %>
+            <% options = [ [ "Set up later", "" ] ] %>
+            <% options += sources.map { |source| [ "Reuse key from #{source.name}", source.id ] } unless key == "discord" %>
+            <%= select_tag "reuse_from[#{key}]", options_for_select(options),
+                  class: "clar-select !w-[230px] flex-none text-[12.5px]" %>
+          </div>
+        <% end %>
+      </div>
+
+      <label class="clar-field-label">USERS FROM OTHER PROJECTS</label>
+      <div class="flex flex-wrap gap-1.5 mb-4">
+        <% addable.each do |user| %>
+          <%# Same self-painting chip as the Add-to-project dialog: the three
+              utilities spell out .clar-chip-active because a component class in
+              @layer components cannot be put behind a Tailwind variant. %>
+          <label class="clar-chip cursor-pointer has-[:checked]:border-[color:var(--primary)] has-[:checked]:bg-[color:var(--primary-soft)] has-[:checked]:text-[color:var(--primary)]">
+            <%= check_box_tag "user_ids[]", user.id, false, class: "sr-only",
+                  id: "new_project_user_#{user.id}" %>
+            <%= user.name %>
+          </label>
+        <% end %>
+      </div>
+
+      <label class="clar-field-label">WHAT THOSE PEOPLE MAY DO HERE</label>
+      <%= select_tag :preset,
+            options_for_select(PermissionPreset::PRESETS.keys, PermissionPreset::LEAST_PRIVILEGED),
+            class: "clar-select mb-2.5" %>
+      <div class="clar-card p-3">
+        <%# Spelled out rather than named: whoever creates the project is
+            deciding what a group of people will be able to see in it. %>
+        <% PermissionPreset::PRESETS.each do |label, permissions| %>
+          <div class="text-[11.5px] leading-[1.45]">
+            <span class="font-semibold clar-text-text"><%= label %></span>
+            <span class="clar-text-faint">
+              &mdash; <%= permissions.map { |permission| PermissionPreset.label(permission) }.to_sentence %>
+            </span>
+          </div>
+        <% end %>
+        <div class="text-[11.5px] clar-text-faint leading-[1.45] pt-1">
+          Each person&rsquo;s switches can be tuned afterwards in Configuration &rsaquo; Users.
+        </div>
+      </div>
+
+      <div class="mt-5 flex items-center justify-end gap-2.5">
+        <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+        <%= submit_tag "Create project", class: "clar-btn clar-btn-primary" %>
+      </div>
+    <% end %>
+  </div>
+</div>

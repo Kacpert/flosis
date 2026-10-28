@@ -123,6 +123,7 @@ Rails.application.routes.draw do
     post "configuration/refresh_features", to: "configuration#refresh_features", as: :refresh_features_configuration
     resources :discord_webhooks, only: [ :create, :destroy ]
     resources :project_members, only: [ :create, :update, :destroy ]
+    resources :projects, only: [ :create ]
   end
 
   # Jira integration

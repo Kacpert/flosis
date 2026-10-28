@@ -60,4 +60,68 @@ class ProjectSwitcherTest < ActionDispatch::IntegrationTest
     get workshop_pipeline_path
     assert_no_match "New project", response.body
   end
+
+  # A panel that is not a DESCENDANT of the element carrying the clar-modal
+  # controller is never claimed as a target, so the trigger does nothing at all
+  # and says nothing about it. Asserting the panel merely exists passes in
+  # exactly that state.
+  test "the new-project dialog sits inside the modal controller's scope" do
+    sign_in_as(users(:one))
+    get workshop_pipeline_path
+
+    assert_select '[data-controller~="clar-modal"] ' \
+                  '[data-clar-modal-target="panel"][data-clar-modal-panel-id-value="new-project"]'
+  end
+
+  # Whoever creates the project is deciding what a group of people will be able
+  # to see in it, so the dialog spells each preset out instead of naming it.
+  test "the new-project dialog says what each preset grants" do
+    sign_in_as(users(:one))
+    get workshop_pipeline_path
+
+    PermissionPreset::PRESETS.each do |label, permissions|
+      assert_match label, response.body
+      assert_match permissions.map { |permission| PermissionPreset.label(permission) }.to_sentence,
+                   response.body
+    end
+  end
+
+  # Keys are copied from a project the person picks, and Discord owns no column
+  # on a project — its webhooks are rows added afterwards — so that one row has
+  # nothing to offer but "Set up later".
+  test "the new-project dialog offers the workspace's projects as key sources" do
+    sign_in_as(users(:one))
+    get workshop_pipeline_path
+
+    assert_select 'select[name="reuse_from[jira]"] option', text: "Reuse key from Elvium"
+    assert_select 'select[name="reuse_from[discord]"] option', 1
+  end
+
+  # The chips say "users from other projects", and that is also the rule: an
+  # employee with HR access and no project was deliberately kept out of the
+  # Workshop, and the screen that creates projects must not be the way back in.
+  test "the new-project dialog offers only people already on a project" do
+    hr_only = User.create!(name: "Nora Payroll", email_address: "nora@acme.io",
+                           password: "password", password_confirmation: "password")
+    workspaces(:one).workspace_memberships.create!(user: hr_only, time_hr_access: true,
+                                                   workspace_admin: false)
+    sign_in_as(users(:one))
+
+    get workshop_pipeline_path
+
+    assert_select 'input[name="user_ids[]"][value=?]', users(:two).id.to_s
+    assert_no_match(/Nora Payroll/, response.body,
+                    "the dialog must not disclose the staff directory")
+  end
+
+  # An administrator's row holds nothing while the flag is on, grants all six
+  # the day it comes off, and Configuration refuses to delete it in the
+  # meantime — so the mistake of ticking one has no undo.
+  test "the new-project dialog does not offer an administrator a row" do
+    sign_in_as(users(:one))
+
+    get workshop_pipeline_path
+
+    assert_select 'input[name="user_ids[]"][value=?]', users(:one).id.to_s, false
+  end
 end

@@ -150,7 +150,12 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     get workshop_configuration_path(tab: "users")
 
     assert_response :success
-    assert_select '[data-controller~="clar-modal"] [data-clar-modal-target="panel"]', 2
+    # Named rather than counted: the top bar's own New project dialog is a
+    # third panel on this page, inside the project switcher's clar-modal scope.
+    assert_select '[data-controller~="clar-modal"] ' \
+                  '[data-clar-modal-target="panel"][data-clar-modal-panel-id-value="invite"]', 1
+    assert_select '[data-controller~="clar-modal"] ' \
+                  '[data-clar-modal-target="panel"][data-clar-modal-panel-id-value="add-existing"]', 1
   end
 
   test "the add-from-another-project dialog offers a chip per person on another project" do
