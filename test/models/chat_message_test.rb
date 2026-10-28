@@ -27,4 +27,21 @@ class ChatMessageTest < ActiveSupport::TestCase
   test "ordered scope returns messages in chronological order" do
     assert_equal chat_messages(:greeting), chat_sessions(:one).chat_messages.ordered.first
   end
+
+  # A question and its answer can land in the same instant, and created_at alone
+  # then leaves the transcript's order to the engine — whatever the rows happen
+  # to come back as. Touching the middle message moves its row, which is enough
+  # to shuffle an untied ORDER BY on either engine.
+  test "ordered breaks a created_at tie on id so a transcript keeps its sequence" do
+    session = chat_sessions(:one)
+    session.chat_messages.destroy_all
+    instant = Time.current
+    first, second, third = %w[user assistant user].map.with_index do |role, i|
+      session.chat_messages.create!(role: role, content: "message #{i}",
+                                    created_at: instant, updated_at: instant)
+    end
+    second.update_columns(content: "message 1 (edited)")
+
+    assert_equal [first, second, third], session.chat_messages.ordered.to_a
+  end
 end

@@ -11,7 +11,14 @@ class DesignRequest < ApplicationRecord
   # MySQL JSON columns cannot carry a DB default (unlike Postgres jsonb), so
   # the [] default lives here instead of the migration — keeps dev/test
   # (Postgres) and prod (MySQL) behaving identically.
-  attribute :links, default: []
+  #
+  # The :json type is stated rather than inherited from the column, because
+  # MariaDB reports a JSON column as `longtext CHECK (json_valid(links))` and
+  # Rails types that :text. A text type serialises the array with to_s, so the
+  # UPDATE carried Ruby inspect syntax and json_valid() rejected it — nobody
+  # could deliver designs on production, while Postgres (which reports the
+  # column :json) never showed it.
+  attribute :links, :json, default: []
 
   # MySQL can also hand a :json column back as a raw JSON *string* (Postgres
   # parses it to an Array). Normalize to an Array so views iterating links

@@ -61,8 +61,14 @@ module WorkspaceScoped
   # person can actually open — see workshop_landing_path. Returning the
   # pipeline unconditionally would send someone who lacks Tasks to a page that
   # immediately refuses them.
+  #
+  # No product at all is the same question workshop_landing_path answers for
+  # someone holding no permission, so it gets the same answer: the profile,
+  # gated by neither product. Time & HR was the old answer, and
+  # require_employee! bounced them straight back to root.
   def product_landing_path(product = current_product)
-    return time_entries_path unless product&.to_sym == :workshop
+    return profile_path unless product
+    return time_entries_path unless product.to_sym == :workshop
 
     workshop_landing_path
   end

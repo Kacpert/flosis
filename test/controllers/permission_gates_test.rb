@@ -173,6 +173,21 @@ class PermissionGatesTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  # Neither product: no HR access, and a membership that grants nothing is not
+  # Workshop access either. root sent them to Time & HR, require_employee! sent
+  # them back to root, and the browser gave up with too many redirects. Follow
+  # the chain wherever it goes rather than counting hops — the point is that it
+  # ends on a page, not that it ends in one step.
+  test "someone with no product at all lands on a page instead of looping" do
+    workspace_memberships(:two_employee).update!(time_hr_access: false)
+    @membership.update!(PermissionPreset::PERMISSIONS.index_with(false))
+
+    get root_path
+    5.times { break unless response.redirect?; follow_redirect! }
+
+    assert_response :success, "the landing path must be a page this person can open"
+  end
+
   # A person promoted through the HR directory carries workspace_admin without
   # ever having had an admin ROLE. Everything that used to ask the role has to
   # answer for them too — available_projects is the one that bit us.

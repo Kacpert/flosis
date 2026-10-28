@@ -53,6 +53,25 @@ class DesignRequestTest < ActiveSupport::TestCase
     assert_equal links, dr.links
   end
 
+  # The column has to hold JSON, not a Ruby inspect of the array. Production is
+  # MariaDB, where a JSON column is reported as `longtext CHECK (json_valid())`
+  # and so types as :text — a text type serialises the array with to_s, fat
+  # arrows and all, and the check constraint rejects the UPDATE. Reading the
+  # column raw is what makes this bite there; Postgres reports the same column
+  # :json, which is why delivering designs worked everywhere except production.
+  test "deliver! stores links as JSON in the column, not as a Ruby-inspected string" do
+    dr = DesignRequest.create!(task: @task, requester: @requester, designer: @designer)
+    links = [{ "name" => "Figma frame 1", "url" => "https://figma.com/file/abc" }]
+
+    dr.deliver!(links)
+
+    raw = DesignRequest.connection.select_value(
+      "SELECT links FROM design_requests WHERE id = #{dr.id}"
+    )
+    assert_equal links, JSON.parse(raw.to_s),
+      "the stored column must be parseable JSON on every engine"
+  end
+
   test "cancel! transitions to cancelled" do
     dr = DesignRequest.create!(task: @task, requester: @requester, designer: @designer)
 
