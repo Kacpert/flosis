@@ -66,6 +66,35 @@ class ProjectSwitcherTest < ActionDispatch::IntegrationTest
                   switch_workshop_project_path, projects(:plain_project).id.to_s
   end
 
+  # Selecting a project makes it current_workshop_project, and every can? on it
+  # is read off that project's row — so offering a project whose row grants
+  # nothing hands the viewer a context in which each page refuses them in turn.
+  # workspace_client_user works in Elvium and merely books hours against
+  # Internal, which is the ordinary production shape for a second project.
+  test "a project where the viewer holds nothing is not offered" do
+    sign_in_as(users(:workspace_client_user))
+
+    get workshop_pipeline_path
+
+    assert_response :success
+    assert_select 'form[action=?] input[name="project_id"][value=?]',
+                  switch_workshop_project_path, projects(:jira_project).id.to_s
+    assert_select 'form[action=?] input[name="project_id"][value=?]',
+                  switch_workshop_project_path, projects(:plain_project).id.to_s, false,
+                  "a row with every switch off is a place to book hours, not a place to work"
+  end
+
+  test "a single permission is enough for the project to be offered" do
+    project_memberships(:workspace_client_internal).update!(reporting: true)
+    sign_in_as(users(:workspace_client_user))
+
+    get workshop_pipeline_path
+
+    assert_response :success
+    assert_select 'form[action=?] input[name="project_id"][value=?]',
+                  switch_workshop_project_path, projects(:plain_project).id.to_s
+  end
+
   test "only a workspace admin is offered a new project" do
     sign_in_as(users(:one))
     get workshop_pipeline_path

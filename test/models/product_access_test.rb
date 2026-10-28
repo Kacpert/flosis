@@ -39,6 +39,27 @@ class ProductAccessTest < ActiveSupport::TestCase
     assert @user.reload.can_access_workshop?(@workspace)
   end
 
+  # Eight of production's fifteen people are left holding nothing but a row of
+  # this shape: an employee who never had Workshop access, whose project row
+  # exists so their hours and their rate attach to a project. Reading it as
+  # somewhere to work put a Workshop in their product switcher whose every page
+  # refused them and whose landing page is the profile they were already on.
+  test "a project row that grants nothing is not somewhere to work" do
+    user = users(:workspace_client_user)
+    project_memberships(:workspace_client_elvium).destroy!
+
+    assert_not user.reload.can_access_workshop?(@workspace),
+               "the only row left grants not one of the six"
+  end
+
+  test "one permission is enough to be somewhere to work" do
+    user = users(:workspace_client_user)
+    project_memberships(:workspace_client_elvium).destroy!
+    project_memberships(:workspace_client_internal).update!(tasks: true)
+
+    assert user.reload.can_access_workshop?(@workspace)
+  end
+
   test "both accesses means both products" do
     @membership.update!(time_hr_access: true)
 

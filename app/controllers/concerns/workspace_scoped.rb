@@ -89,9 +89,12 @@ module WorkspaceScoped
   # left current_workshop_project unresolvable for anyone holding Automations,
   # Reporting or Configuration but not Tasks: their membership would never
   # match, so can?() saw no project at all and always answered false,
-  # regardless of what they were actually granted. This scope is any
-  # membership at all — the individual page still asks for the permission it
-  # needs once a project is selected.
+  # regardless of what they were actually granted. This scope is any membership
+  # that grants SOMETHING — the individual page still asks for the permission
+  # it needs once a project is selected. Not existence alone: a row with all
+  # six switches off is how an HR-only employee's hours attach to a project,
+  # and offering that project made it current_workshop_project, where every
+  # page refused them in turn.
   #
   # No `external_type: "jira"` filter either. That one dated from when the
   # Workshop was Jira-shaped; under per-project configuration a project with no
@@ -105,6 +108,7 @@ module WorkspaceScoped
 
     scope.joins(:project_memberships)
          .where(project_memberships: { user_id: current_user&.id })
+         .merge(ProjectMembership.granting_anything)
          .order(:name)
   end
 

@@ -9,6 +9,16 @@ class ProjectMembership < ApplicationRecord
   # role name is derived from them (see PermissionPreset).
   PERMISSIONS = PermissionPreset::PERMISSIONS
 
+  # Rows that actually grant something. A row with all six switches off is what
+  # the backfill leaves an HR-only employee holding — the row is there so their
+  # hours and their hourly rate attach to a project, not because they work in
+  # its Workshop. Existence alone therefore answers no access question: it put
+  # a Workshop in eight people's product switcher whose every page refused
+  # them, and their projects in a switcher where every `can?` said false.
+  scope :granting_anything, -> {
+    where(PERMISSIONS.map { |permission| arel_table[permission].eq(true) }.reduce(:or))
+  }
+
   # Whose access must never come from a row here: a workspace admin's. They
   # already hold everything in every project off the workspace flag, so the row
   # grants nothing while the flag is on, hands over whatever preset it carries

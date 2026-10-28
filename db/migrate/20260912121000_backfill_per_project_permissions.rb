@@ -33,6 +33,11 @@ class BackfillPerProjectPermissions < ActiveRecord::Migration[8.1]
 
   private
 
+  # An employee who never had Workshop access keeps their rows with every
+  # switch off. Such a row means "this person's hours and rate attach to this
+  # project", not "this person works in this project's Workshop" — eight of the
+  # fifteen people on production land here, and nothing downstream may read the
+  # row's existence as access (see ProjectMembership.granting_anything).
   def employee_permissions(membership)
     return [] unless membership.read_attribute(:workshop_access)
 

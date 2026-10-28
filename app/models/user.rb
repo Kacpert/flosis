@@ -43,9 +43,10 @@ class User < ApplicationRecord
   # ---- Product access (Time & HR / Workshop) ---------------------------
   # The app is two products sharing one database. HR access is a flag on the
   # workspace membership. Workshop access is having somewhere to work: at least
-  # one project. Keeping them on different facts is what makes the product
-  # switcher honest — it appears exactly when an account exists in both places,
-  # rather than when two checkboxes on one form happen to agree.
+  # one project where the row grants something. Keeping them on different facts
+  # is what makes the product switcher honest — it appears exactly when an
+  # account exists in both places, rather than when two checkboxes on one form
+  # happen to agree.
 
   def can_access_time_hr?(workspace)
     membership_for(workspace)&.time_hr_access || false
@@ -55,7 +56,8 @@ class User < ApplicationRecord
     return false unless workspace
     return true if workspace_admin?(workspace)
 
-    project_memberships.joins(:project)
+    project_memberships.granting_anything
+                       .joins(:project)
                        .where(projects: { workspace_id: workspace.id, archived: false })
                        .exists?
   end

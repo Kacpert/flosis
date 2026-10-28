@@ -4693,4 +4693,16 @@ anyway because the restart kills a running automation.
 4. Turn Pricing on for the person who was a `workspace_client`, in Configuration › Users. The backfill leaves it off by design.
 5. Watch the log for `IntegrationHealthJob`, which now iterates projects rather than workspaces, and confirm the topbar chips still read green.
 
+**A production database is built by `db:migrate`, never `db:schema:load`.** `db/schema.rb` is
+generated from the development PostgreSQL database and carries two statements no MySQL adapter
+accepts: `enable_extension "pg_catalog.plpgsql"` (line 15) and `t.jsonb "config"` in
+`create_table "integrations"` (line 294 — `CreateIntegrations` declares `t.json`, so the `jsonb`
+is the development database having drifted; on production the column is `longtext`). So
+`db:schema:load` — and therefore `db:prepare`, which falls back to it for an empty database —
+fails outright against production's adapter. Nothing is broken today because production has
+always been built by the migration chain; the constraint is that it must stay that way, and that
+no deploy script may reach for `db:prepare`. Making the file portable is not the fix: it is
+regenerated from PostgreSQL by the next migration, and the `enable_extension` line comes back
+every time.
+
 Release two is Task 18, deployed the same way once release one is trusted.

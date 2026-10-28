@@ -206,15 +206,16 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     sign_in_as(users(:two))
     post switch_product_path, params: { product: "workshop" }
 
-    # require_configuration_access! denies via product_landing_path, which for
-    # the Workshop product is workshop_landing_path — with every permission
-    # off, that resolves to the profile page, not any Workshop route.
+    # Their one row now grants nothing, which is no Workshop access at all, so
+    # the refusal comes from require_product! and lands on Time & HR — the
+    # product they do hold. It used to be workshop_landing_path's profile page,
+    # reached through a Workshop they could not use a single page of.
     get workshop_configuration_path
-    assert_redirected_to profile_path
+    assert_redirected_to time_entries_path
 
     before = @project.reload.pr_poll_minutes
     patch workshop_configuration_path, params: { project: { pr_poll_minutes: 25 }, tab: "ai" }
-    assert_redirected_to profile_path
+    assert_redirected_to time_entries_path
     assert_equal before, @project.reload.pr_poll_minutes, "must not persist"
   end
 
@@ -433,14 +434,16 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     sign_in_as(users(:two))
     post switch_product_path, params: { product: "workshop" }
 
+    # Time & HR, not the profile page: a row granting nothing is no Workshop
+    # access, so require_product! refuses before any permission is asked for.
     get workshop_configuration_path(tab: "integrations")
-    assert_redirected_to profile_path
+    assert_redirected_to time_entries_path
 
     post workshop_test_github_configuration_path
-    assert_redirected_to profile_path
+    assert_redirected_to time_entries_path
 
     post workshop_verify_jira_fields_configuration_path
-    assert_redirected_to profile_path
+    assert_redirected_to time_entries_path
   end
 
   test "POST test_github runs the health check, persists status on the project, and toasts" do

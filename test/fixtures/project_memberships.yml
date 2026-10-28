@@ -54,3 +54,20 @@ workspace_client_elvium:
   pricing: false
   briefing_config: true
   configuration: false
+
+# Every switch off, which is what the backfill leaves an employee who never had
+# Workshop access holding: the row is here so their hours and their hourly rate
+# attach to the project, and it grants no Workshop standing in it at all. Eight
+# of the fifteen people on production hold nothing but rows of this shape, and
+# anyone who works in one project and merely books hours against another holds
+# one beside their real row — as this person does.
+workspace_client_internal:
+  project: plain_project
+  user: workspace_client_user
+  hourly_rate_cents: 8000
+  automations: false
+  tasks: false
+  reporting: false
+  pricing: false
+  briefing_config: false
+  configuration: false
