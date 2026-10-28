@@ -125,8 +125,17 @@ class Workshop::ConfigurationController < Workshop::BaseController
     can?(:configuration) ? "ai" : "briefing"
   end
 
+  # What a tab costs, with a default, so an unpriced tab lands on the strictest
+  # permission rather than on nil. The padlock in the view reads it through
+  # here instead of indexing TAB_PERMISSIONS itself: two readings of the same
+  # constant is how the lock and the gate come to disagree.
+  def tab_permission(tab)
+    TAB_PERMISSIONS.fetch(tab, :configuration)
+  end
+  helper_method :tab_permission
+
   def tab_permitted?(tab)
-    can?(TAB_PERMISSIONS.fetch(tab, :configuration))
+    can?(tab_permission(tab))
   end
   helper_method :tab_permitted?
 

@@ -16,7 +16,10 @@
 
   <% if @access_rows.empty? %>
     <p class="text-sm" style="color: var(--color-on-surface-variant)">
-      You are not on any project yet.
+      <%# An administrator holds every permission on every project, so for them
+          an empty card is a fact about the workspace, not about their standing
+          in it. %>
+      <%= workspace_admin? ? "There are no projects in this workspace yet." : "You are not on any project yet." %>
       <% if current_membership&.time_hr_access? %>
         You do have access to Time &amp; HR, where you log your own hours and holidays.
       <% end %>
@@ -24,7 +27,11 @@
   <% else %>
     <div class="space-y-4">
       <% @access_rows.each do |access| %>
-        <div class="rounded-xl p-4" style="border: 1px solid var(--color-outline-variant)">
+        <%# The id, not the name: the surrounding layout prints project names of
+            its own (the project switcher, the timer bar), so only a hook that
+            belongs to this card can tell a test what the card itself claims. %>
+        <div class="rounded-xl p-4" data-access-project="<%= access.project.id %>"
+             style="border: 1px solid var(--color-outline-variant)">
           <div class="flex items-baseline justify-between gap-3 mb-3">
             <span class="font-semibold" style="color: var(--color-on-surface)"><%= access.project.name %></span>
             <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
@@ -36,8 +43,13 @@
           <dl class="space-y-2">
             <% PermissionPreset::PERMISSIONS.each do |permission| %>
               <% held = access.can?(permission) %>
-              <div class="flex gap-3 text-sm <%= "opacity-45" unless held %>">
-                <dt class="flex items-center gap-2 font-medium shrink-0" style="width: 11rem; color: var(--color-on-surface)">
+              <%# A row you do not hold is muted by colour alone, not dimmed:
+                  the sentence explaining a permission you lack is the one you
+                  need in order to ask for it, and opacity dropped it below the
+                  AA contrast floor in every theme. %>
+              <div class="flex gap-3 text-sm">
+                <dt class="flex items-center gap-2 font-medium shrink-0"
+                    style="width: 11rem; color: var(--color-on-surface<%= "-variant" unless held %>)">
                   <%# A tick or a dash, so the state survives being read without colour. %>
                   <span aria-hidden="true"><%= held ? "&#10003;".html_safe : "&ndash;".html_safe %></span>
                   <span><%= PermissionPreset.label(permission) %></span>

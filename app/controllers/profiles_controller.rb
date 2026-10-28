@@ -35,19 +35,21 @@ class ProfilesController < ApplicationController
   private
 
   # One row per project this person can reach, each able to answer what they
-  # may do there. A workspace admin reaches every project without a membership
-  # row, so their list comes from the workspace rather than from memberships.
+  # may do there. workshop_projects and not the workspace's own projects: every
+  # permission on this card is enforced against current_workshop_project, which
+  # comes from that scope, so any other row set promises access no Workshop
+  # screen can be pointed at — an archived project most of all.
   def load_access_rows
     return @access_rows = [] unless current_workspace
 
-    projects = if workspace_admin?
-      current_workspace.projects.order(:name)
-    else
-      current_workspace.projects
-                       .where(id: ProjectMembership.where(user_id: current_user.id).select(:project_id))
-                       .order(:name)
-    end
+    # The admin privilege is workspace-wide, so it is answered once here and
+    # handed to every row — the way the Users grid hands `locked` to its row
+    # partial. Asking per row cost a workspace_memberships query seven times
+    # over for each project on the card.
+    admin = workspace_admin?
 
-    @access_rows = projects.map { |project| ProjectAccess.new(current_user, project) }
+    @access_rows = workshop_projects.map do |project|
+      ProjectAccess.new(current_user, project, workspace_admin: admin)
+    end
   end
 end

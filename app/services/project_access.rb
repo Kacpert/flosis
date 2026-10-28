@@ -6,9 +6,15 @@
 # Everyone else holds precisely the switches on their row, and nothing at all
 # without one.
 class ProjectAccess
-  def initialize(user, project)
+  # The admin privilege is one fact per workspace, not per project. A screen
+  # building a row per project looks it up once and hands it in; left out, this
+  # object asks for itself. Not memoised here on purpose — membership_for is the
+  # hottest path in the authorization code and must stay answerable twice in a
+  # request, which is exactly what the Users grid relies on when it flips a row.
+  def initialize(user, project, workspace_admin: nil)
     @user = user
     @project = project
+    @workspace_admin = workspace_admin
   end
 
   # The screens that list access rows need to name the project each row is
@@ -16,6 +22,7 @@ class ProjectAccess
   attr_reader :project
 
   def workspace_admin?
+    return @workspace_admin unless @workspace_admin.nil?
     return false unless @user && @project&.workspace
 
     @user.workspace_admin?(@project.workspace)

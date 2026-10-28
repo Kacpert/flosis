@@ -263,6 +263,14 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_match "Needs the Configuration permission", response.body
   end
 
+  # The padlock reads the permission through the same accessor the gate uses, so
+  # a tab added to the view's list alone still names a real permission instead
+  # of nil — which PermissionPreset.label would have turned into a 500 on the
+  # whole page, where tab_permitted? merely refuses the tab.
+  test "a tab nobody priced costs the Configuration permission, not nothing" do
+    assert_equal :configuration, Workshop::ConfigurationController.new.send(:tab_permission, "audit_log")
+  end
+
   # test_github and verify_jira_fields are Integrations-tab writes but used to
   # be gated only by the page (:configuration OR :briefing_config), not by the
   # tab. A Product Owner (briefing_config only, sees Integrations locked)
