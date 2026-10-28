@@ -14,6 +14,15 @@
 class AlertRuleRunJob < ApplicationJob
   queue_as :default
 
+  # One run per rule at a time. AlertRulesDispatchJob re-checks every 5 minutes
+  # and last_run_at only moves when a run ends, so a run longer than that got a
+  # second, parallel run — started from the memory as it was before the first
+  # one saved, so it redid the first one's work (QA notes posted twice on twelve
+  # tickets). While a rule is running, further enqueues of it are dropped; once
+  # it finishes, last_run_at is current and the rule is no longer due. The
+  # duration only bounds a lock whose run was killed mid-way.
+  limits_concurrency to: 1, key: ->(alert_rule_id) { alert_rule_id }, duration: 1.hour, on_conflict: :discard
+
   CLI_FAILURE_MARKERS = /\b(401|403|429|invalid authentication|failed to authenticate|api error|credit balance|rate limit|usage limit|overloaded|unauthorized)\b/i
 
   def perform(alert_rule_id)
@@ -22,8 +31,8 @@ class AlertRuleRunJob < ApplicationJob
 
     response = run_ai(rule)
 
-    if response.nil?
-      record_error_run(rule)
+    if response.is_a?(Hash)
+      record_error_run(rule, detail: response[:error])
       return
     end
 
@@ -70,8 +79,8 @@ class AlertRuleRunJob < ApplicationJob
 
   private
 
-  def record_error_run(rule, summary: "Run failed")
-    rule.alert_runs.create!(fired: false, summary: summary, detail: nil, status: "error", ran_at: Time.current)
+  def record_error_run(rule, summary: "Run failed", detail: nil)
+    rule.alert_runs.create!(fired: false, summary: summary, detail: detail, status: "error", ran_at: Time.current)
     rule.update!(last_run_at: Time.current)
   rescue StandardError => e
     Rails.logger.error("[AlertRuleRunJob] failed to record error run for rule #{rule.id}: #{e.message}")
@@ -95,11 +104,13 @@ class AlertRuleRunJob < ApplicationJob
       mcp_config: (ProjectMcpConfig.path_for(project) if project.workspace_dir.present?)
     )
     service.start_session(prompt: prompt)[:response].to_s.tap do |response|
-      return nil if cli_failed?(response)
+      if cli_failed?(response)
+        return { error: "AI returned an error: #{response.strip.truncate(150).presence || '(empty response)'}" }
+      end
     end
   rescue ClaudeCliService::ClaudeCliError => e
     Rails.logger.error("[AlertRuleRunJob] claude error: #{e.message}")
-    nil
+    { error: "Claude CLI error: #{e.message.truncate(150)}" }
   end
 
   def cli_failed?(response)

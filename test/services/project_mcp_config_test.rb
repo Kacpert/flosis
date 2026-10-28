@@ -73,7 +73,7 @@ class ProjectMcpConfigTest < ActiveSupport::TestCase
 
   # The i18n automation has to POST to Lit. Rather than granting it Bash — which
   # would put SECRET_KEY_BASE and the database password within reach of a prompt
-  # — it gets our own two-call server.
+  # — it gets our own narrow server.
   test "wires the Lit server when a key is configured, with the key in its env" do
     with_env("LIT_AI_API_KEY" => "lit-key", "LIT_API_BASE" => "https://lit.test") do
       json = JSON.parse(File.read(ProjectMcpConfig.write!(as_legacy_elvium(@project))))

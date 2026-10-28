@@ -85,8 +85,8 @@ class ProjectMcpConfig
     ENV["LIT_AI_API_KEY"].present? && @project.legacy_elvium?
   end
 
-  # Two calls, no more: post translation suggestions and ask Lit to re-scan for
-  # keys. The alternative was granting the automation Bash to curl the endpoint,
+  # Three calls, no more: read what Lit serves, post translation suggestions,
+  # and ask Lit to re-scan for keys. The alternative was granting the automation Bash to curl the endpoint,
   # which would hand a prompt the whole environment this process runs with —
   # SECRET_KEY_BASE, the database password, every token. See lib/mcp/lit_server.rb.
   def lit_server

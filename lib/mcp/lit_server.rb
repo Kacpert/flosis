@@ -8,7 +8,7 @@
 # generic tools that can make a POST are Bash and a full HTTP client, and
 # granting either to an automation hands the prompt the app's whole
 # environment — SECRET_KEY_BASE, the database password, every token dotenv
-# loads. So instead of widening the blast radius, this exposes exactly the two
+# loads. So instead of widening the blast radius, this exposes exactly the
 # calls that automation needs and nothing else:
 #
 #   - the URL is built here from LIT_API_BASE; the model cannot choose a host
@@ -34,6 +34,10 @@ module Lit
     # Lit's own documented ceiling. Enforced here as well so a runaway prompt
     # can't fire a 50k-item request at it.
     MAX_SUGGESTIONS = 500
+    # Lit takes 500 keys per lookup, but 500 keys in three locales is more text
+    # than one tool result can carry; prefix lookups page at the same size.
+    MAX_LOOKUP_KEYS = 100
+    LOOKUP_FIELDS = %w[keys prefix locales page].freeze
     # Every field a suggestion may carry; anything else is a mistake worth
     # reporting rather than silently forwarding.
     SUGGESTION_FIELDS = %w[key locale value tags].freeze
@@ -92,18 +96,47 @@ module Lit
         "protocolVersion" => PROTOCOL_VERSION,
         "capabilities" => { "tools" => {} },
         "serverInfo" => SERVER_INFO,
-        "instructions" => "Posts AI translation suggestions to Lit. Suggestions are proposals: " \
-                          "a human accepts them in Lit, nothing goes live automatically."
+        "instructions" => "Reads what Lit serves and posts AI translation suggestions to it. " \
+                          "Lit, not config/locales/*.yml, holds the live translations: look a key up " \
+                          "before proposing. Suggestions are proposals: a human accepts them in Lit, " \
+                          "nothing goes live automatically."
       }
     end
 
     def tools
       [
         {
+          "name" => "lookup_translations",
+          "description" => "Read what Lit serves right now. Lit is the source of truth: translations " \
+                           "made in Lit never reach config/locales/*.yml, so the files cannot tell you " \
+                           "what is translated. Pass up to #{MAX_LOOKUP_KEYS} keys, or a prefix to read that " \
+                           "key and everything below it (#{MAX_LOOKUP_KEYS} per page; `total` says how many " \
+                           "there are). Each locale comes back with its value and a status: missing, " \
+                           "same_as_source (still the English text) or translated (a translation exists).",
+          "inputSchema" => {
+            "type" => "object",
+            "properties" => {
+              "keys" => {
+                "type" => "array", "items" => { "type" => "string" }, "maxItems" => MAX_LOOKUP_KEYS,
+                "description" => "i18n key paths, e.g. talent.profile.export"
+              },
+              "prefix" => { "type" => "string", "description" => "A key namespace, e.g. js.hr.talents" },
+              "locales" => {
+                "type" => "array", "items" => { "type" => "string" },
+                "description" => "Defaults to every locale, e.g. [\"en\", \"da\", \"sv\"]"
+              },
+              "page" => { "type" => "integer", "minimum" => 1, "description" => "For prefix lookups" }
+            }
+          }
+        },
+        {
           "name" => "post_suggestions",
           "description" => "Post translation suggestions to Lit (max #{MAX_SUGGESTIONS} per call). " \
-                           "Returns Lit's own per-key verdict: created, updated, kept_human_edit or " \
-                           "unknown_key. Nothing goes live until a person accepts it in Lit.",
+                           "Returns Lit's own per-key verdict: created, updated, kept_human_edit, " \
+                           "unchanged (identical to what Lit serves, so nothing was stored) or unknown_key, " \
+                           "and how many of the stored ones are corrections. A suggestion for a key that " \
+                           "is already translated lands on Lit's separate Corrected tab. Nothing goes live " \
+                           "until a person accepts it in Lit.",
           "inputSchema" => {
             "type" => "object",
             "required" => [ "suggestions" ],
@@ -142,6 +175,7 @@ module Lit
       args = params["arguments"] || {}
 
       case name
+      when "lookup_translations" then lookup_translations(args)
       when "post_suggestions" then post_suggestions(args)
       when "refresh_keys"     then post("/lit/api/v1/ai/refresh_keys", {})
       else tool_error("Unknown tool: #{name}")
@@ -160,6 +194,32 @@ module Lit
       return tool_error(problems.join("; ")) if problems.any?
 
       post("/lit/api/v1/ai/suggestions", { "provider" => "claude", "suggestions" => suggestions })
+    end
+
+    def lookup_translations(args)
+      unknown = args.keys - LOOKUP_FIELDS
+      return tool_error("unsupported arguments: #{unknown.join(', ')}") if unknown.any?
+
+      keys, prefix, locales, page = args.values_at("keys", "prefix", "locales", "page")
+      return tool_error("pass either keys or prefix") if keys.nil? == prefix.nil?
+      if keys
+        unless keys.is_a?(Array) && keys.any? && keys.all? { |k| k.is_a?(String) && !k.empty? }
+          return tool_error("keys must be a non-empty array of strings")
+        end
+        if keys.size > MAX_LOOKUP_KEYS
+          return tool_error("#{keys.size} keys exceeds the #{MAX_LOOKUP_KEYS} limit — split into batches")
+        end
+      elsif !(prefix.is_a?(String) && !prefix.strip.empty?)
+        return tool_error("prefix must be a non-empty string")
+      end
+      unless locales.nil? || (locales.is_a?(Array) && locales.all?(String))
+        return tool_error("locales must be an array of strings")
+      end
+      return tool_error("page must be a positive integer") unless page.nil? || (page.is_a?(Integer) && page.positive?)
+
+      body = keys ? { "keys" => keys } : { "prefix" => prefix, "limit" => MAX_LOOKUP_KEYS, "page" => page || 1 }
+      body["locales"] = locales if locales
+      post("/lit/api/v1/ai/lookup", body)
     end
 
     def validate(suggestion, index)
@@ -198,7 +258,9 @@ module Lit
         http.request(request)
       end
 
-      text = "HTTP #{response.code}\n#{response.body}"
+      # Net::HTTP returns the body as binary; Lit always answers in UTF-8.
+      body = response.body.to_s.dup.force_encoding(Encoding::UTF_8)
+      text = "HTTP #{response.code}\n#{body}"
       response.is_a?(Net::HTTPSuccess) ? tool_result(text) : tool_error(text)
     rescue StandardError => e
       tool_error("Request to Lit failed: #{e.class}: #{e.message}")

@@ -45,6 +45,7 @@ class ClaudeCliServiceMcpTest < ActiveSupport::TestCase
   end
 
   test "the i18n automation can post to Lit through our own server" do
+    assert_includes ClaudeCliService::AUTOMATION_TOOLS, "mcp__lit__lookup_translations"
     assert_includes ClaudeCliService::AUTOMATION_TOOLS, "mcp__lit__post_suggestions"
     assert_includes ClaudeCliService::AUTOMATION_TOOLS, "mcp__lit__refresh_keys"
   end

@@ -64,9 +64,9 @@ class PrReviewJobTest < ActiveJob::TestCase
       "head" => { "sha" => sha, "ref" => "dev-836-thing" } }
   end
 
-  test "initial review caps at 4 comments and posts a review, recording the SHA" do
+  test "initial review caps at 5 comments and posts a review, recording the SHA" do
     fake = fake_github(pr: pr_payload(sha: "abc"))
-    ai = [ 1, 2, 3, 4, 5 ].map { |i| { "path" => "a.rb", "line" => i, "comment" => "c#{i}" } }.to_json
+    ai = [ 1, 2, 3, 4, 5, 6 ].map { |i| { "path" => "a.rb", "line" => i, "comment" => "c#{i}" } }.to_json
 
     with_github(fake) do
       with_ai(ai) do
@@ -74,7 +74,7 @@ class PrReviewJobTest < ActiveJob::TestCase
       end
     end
 
-    assert_equal 4, fake.captured[:comments].size
+    assert_equal 5, fake.captured[:comments].size
     assert_equal "🤖 Automated AI review", fake.captured[:body]
     review = PrReview.find_by(project: @project, pr_number: 7)
     assert_equal "abc", review.last_reviewed_sha
@@ -129,10 +129,10 @@ class PrReviewJobTest < ActiveJob::TestCase
     assert_equal 3, review.comment_count
   end
 
-  test "followup caps at 2 comments" do
+  test "followup caps at 5 comments" do
     PrReview.create!(project: @project, workspace: @workspace, pr_number: 7, last_reviewed_sha: "old", initial_done: true)
     fake = fake_github(pr: pr_payload(sha: "new"), commits: [ { "sha" => "new" } ])
-    ai = [ 1, 2, 3 ].map { |i| { "path" => "a.rb", "line" => i, "comment" => "c#{i}" } }.to_json
+    ai = [ 1, 2, 3, 4, 5, 6 ].map { |i| { "path" => "a.rb", "line" => i, "comment" => "c#{i}" } }.to_json
 
     with_github(fake) do
       with_ai(ai) do
@@ -140,7 +140,7 @@ class PrReviewJobTest < ActiveJob::TestCase
       end
     end
 
-    assert_equal 2, fake.captured[:comments].size
+    assert_equal 5, fake.captured[:comments].size
     assert_equal "new", PrReview.find_by(project: @project, pr_number: 7).last_reviewed_sha
   end
 
@@ -391,7 +391,7 @@ class PrReviewJobTest < ActiveJob::TestCase
     # No leftover template tokens, and no doubled-blank-line seam.
     refute_includes prompt, "{{", "all substitution tokens must be replaced"
     refute_includes prompt, "\n\n\n", "must not introduce a doubled blank line"
-    assert_includes prompt, "AT MOST 4 items"
+    assert_includes prompt, "AT MOST 5 items"
   end
 
   test "build_prompt uses project.pr_review_prompt (with tokens) when present, still interpolating context" do
@@ -405,7 +405,7 @@ class PrReviewJobTest < ActiveJob::TestCase
     # Dynamic token substitution (ticket context + diff + cap) still works for a custom prompt.
     assert_includes prompt, "No linked Jira ticket."
     assert_includes prompt, "FILE: a.rb"
-    assert_includes prompt, "AT MOST 4 items"
+    assert_includes prompt, "AT MOST 5 items"
     refute_includes prompt, "{{"
   end
 end
