@@ -7,13 +7,10 @@ class GithubClient
   API_BASE = "https://api.github.com".freeze
   TIMEOUT  = 15
 
-  def self.for(workspace)
-    new(token: workspace&.github_token, repo: workspace&.github_repo)
-  end
-
-  # Resolver-backed variant: the project's own repo and token. Leaves the
-  # existing workspace-based `for` untouched — HR's workspace settings page
-  # still tests the workspace's credentials.
+  # The project's own repo and token. There is no workspace-level variant any
+  # more: the workspace stopped carrying credentials when the configuration
+  # moved onto projects, and a shared token was how one client's repository
+  # could be reviewed with another client's key.
   def self.for_project(project)
     creds = ProjectCredentials.new(project)
     new(token: creds.github_token, repo: creds.github_repo)

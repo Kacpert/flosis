@@ -29,13 +29,15 @@ class ProjectCredentialsTest < ActiveSupport::TestCase
     assert creds.figma_configured?
   end
 
-  test "does not borrow the workspace's key" do
+  # There is no workspace key left to borrow; the resolver reads the project
+  # and then ENV, and nothing in between.
+  test "resolves to nothing when the project itself has no key" do
     @project.update!(github_repo: nil, github_token: nil)
-    @workspace.update!(github_repo: "ws/repo", github_token: "workspace-token")
     creds = ProjectCredentials.new(@project)
 
     assert_nil creds.github_token
     assert_nil creds.github_repo
+    assert_not @workspace.respond_to?(:github_token), "the workspace is carrying credentials again"
   end
 
   test "jira falls back to ENV when project is blank" do

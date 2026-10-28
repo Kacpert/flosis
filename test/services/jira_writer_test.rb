@@ -84,14 +84,13 @@ class JiraWriterTest < ActiveSupport::TestCase
     brief = Brief.create!(task: task, workspace: @workspace, version: 1, content: "x")
     JiraWriter.new(client: fake_client).commit_brief(brief)
     assert_equal "customfield_10050", @project.reload.jira_ai_actions_field_id
-    assert_nil @workspace.reload.jira_ai_actions_field_id, "the workspace column is nobody's cache any more"
   end
 
   # Configuration's "Verify fields" writes projects.jira_ai_actions_field_id.
-  # While the writer read the workspace's copy, that button could not repair a
-  # wrong-but-present id: it wrote one column and the push read another.
-  test "the cached field id is the task's project's, not the workspace's" do
-    @workspace.update!(jira_ai_actions_field_id: "customfield_workspace")
+  # While the writer read a workspace-level copy, that button could not repair
+  # a wrong-but-present id: it wrote one column and the push read another. The
+  # workspace copy is gone, so the project's is simply the only one.
+  test "the cached field id is the task's project's" do
     @project.update!(jira_ai_actions_field_id: "customfield_project")
     task = @project.tasks.create!(name: "JW-20 Existing", external_type: "jira", external_reference: "JW-20")
     brief = Brief.create!(task: task, workspace: @workspace, version: 1, content: "x")
@@ -103,7 +102,6 @@ class JiraWriterTest < ActiveSupport::TestCase
   end
 
   test "commit_breakdown reads the field id off the task's project too" do
-    @workspace.update!(jira_ai_actions_field_id: "customfield_workspace")
     @project.update!(jira_ai_actions_field_id: "customfield_project")
     task = @project.tasks.create!(name: "JW-21 Existing", external_type: "jira", external_reference: "JW-21")
     task.task_drafts.create!(source: TaskDraft::BREAKDOWN_SOURCE,
@@ -116,7 +114,6 @@ class JiraWriterTest < ActiveSupport::TestCase
   end
 
   test "commit_detail reads the field id off the task's project too" do
-    @workspace.update!(jira_ai_actions_field_id: "customfield_workspace")
     @project.update!(jira_ai_actions_field_id: "customfield_project")
     task = @project.tasks.create!(name: "JW-22 Existing", external_type: "jira", external_reference: "JW-22")
     draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "detailed text")

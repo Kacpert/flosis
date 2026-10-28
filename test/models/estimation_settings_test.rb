@@ -20,10 +20,10 @@ class EstimationSettingsTest < ActiveSupport::TestCase
                  project.reload.estimation_field_names
   end
 
-  test "the workspace still answers the same way while it holds the column" do
-    workspaces(:one).update_columns(estimation_field_names: nil)
-
-    assert_equal [ EstimationSettings::DEFAULT_ESTIMATION_FIELD_NAME ],
-                 workspaces(:one).reload.estimation_field_names
+  # The workspace held these columns during the transition and answered the
+  # same way. It no longer holds them, and the concern is off it entirely.
+  test "the workspace no longer answers for estimation at all" do
+    assert_not Workspace.include?(EstimationSettings)
+    assert_not Workspace.new.respond_to?(:estimation_field_names)
   end
 end

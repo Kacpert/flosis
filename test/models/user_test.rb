@@ -18,8 +18,7 @@ class UserTest < ActiveSupport::TestCase
   # have anywhere to work — never the retired workshop_access flag.
   def workspace_client_user(workspace, time_hr_access: false)
     user = User.create!(name: "WC", email_address: "wc@example.com", password: "password12")
-    WorkspaceMembership.create!(user: user, workspace: workspace, role: 4,
-                               time_hr_access: time_hr_access, workshop_access: false)
+    WorkspaceMembership.create!(user: user, workspace: workspace, time_hr_access: time_hr_access)
     ProjectMembership.create!(user: user, project: workspace.projects.first)
     user
   end

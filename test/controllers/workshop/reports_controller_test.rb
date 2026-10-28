@@ -87,7 +87,7 @@ class Workshop::ReportsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "cost column and project cost card are hidden from non-admins" do
-    workspace_memberships(:two_employee).update!(time_hr_access: true, workshop_access: true)
+    workspace_memberships(:two_employee).update!(time_hr_access: true)
     delete "/session" # sign out one
     sign_in_as(users(:two))
     post switch_product_path, params: { product: "workshop" }

@@ -9,9 +9,16 @@ class GithubClientForProjectTest < ActiveSupport::TestCase
   end
 
   # Falling back to the workspace would review one client's repo with another
-  # client's token.
-  test "for_project ignores the workspace's creds" do
-    projects(:jira_project).workspace.update!(github_repo: "ws/repo", github_token: "ws_token")
+  # client's token. There is now nothing to fall back TO — the workspace cannot
+  # hold credentials at all — which is a stronger guarantee than the resolver
+  # choosing not to read them, so that is what this pins down.
+  test "a workspace cannot hold credentials for a project to borrow" do
+    assert_not Workspace.column_names.include?("github_token")
+    assert_not Workspace.column_names.include?("github_repo")
+    assert_not GithubClient.respond_to?(:for), "a workspace-wide client is back"
+  end
+
+  test "for_project is not configured when the project itself has nothing" do
     project = projects(:jira_project)
     project.update!(github_repo: nil, github_token: nil)
 

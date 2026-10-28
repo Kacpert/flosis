@@ -51,9 +51,4 @@ class GithubClientTest < ActiveSupport::TestCase
     assert_not client.health_check[:ok]
   end
 
-  test ".for builds from a workspace" do
-    w = workspaces(:one)
-    w.update!(github_token: "t", github_repo: "acme/widgets")
-    assert GithubClient.for(w).configured?
-  end
 end

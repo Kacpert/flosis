@@ -1,34 +1,27 @@
 one_owner:
   user: one
   workspace: one
-  role: 2
   workspace_admin: true
   time_hr_access: true
-  workshop_access: true
 
 two_employee:
   user: two
   workspace: one
-  role: 0
   workspace_admin: false
   time_hr_access: true
-  workshop_access: false
 
 # Was the Jira-only `client` role: now simply a person holding Tasks and
-# nothing else, with no HR account.
+# nothing else, with no HR account and no workspace privilege — which is what
+# makes it a restricted, admin-managed account.
 client_membership:
   user: client_user
   workspace: one
-  role: 3
   workspace_admin: false
   time_hr_access: false
-  workshop_access: false
 
 # Was `workspace_client`: a Product Owner who also logs their own hours.
 workspace_client_membership:
   user: workspace_client_user
   workspace: one
-  role: 4
   workspace_admin: false
   time_hr_access: true
-  workshop_access: true

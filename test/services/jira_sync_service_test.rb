@@ -317,10 +317,9 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
     end
   end
 
-  # The trigger lives on the project now. These leave the workspace set to
-  # something else on purpose: reading the wrong object gives the wrong answer.
-  test "the sprint trigger is read off the project, not the workspace" do
-    @project.workspace.update!(estimation_trigger: "manual")
+  # The trigger lives on the project. The workspace copy these used to set as
+  # a decoy no longer exists, so the project's is the only one there is.
+  test "the sprint trigger is read off the project" do
     @project.update!(estimation_trigger: "sprint")
     jira_boards(:dev_board).jira_sprints.create!(jira_sprint_id: 905, name: "Sprint 29", state: "active",
                                                  start_date: 1.day.ago, end_date: 1.week.from_now)
@@ -371,7 +370,6 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
   end
 
   test "the status trigger and the status it watches are read off the project" do
-    @project.workspace.update!(estimation_trigger: "manual", estimation_status_trigger: "Pending review")
     @project.update!(estimation_trigger: "status", estimation_status_trigger: "Ready for dev")
     task = tasks(:jira_task)
     task.update!(jira_status_name: "In Progress")
@@ -459,24 +457,22 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
     end
   end
   # Configuration's "Verify fields" writes the PROJECT's three field-id
-  # columns. A cache on the workspace is one the repair button cannot reach,
-  # and two projects in one workspace can sit on different Jira sites.
+  # columns. A cache on the workspace was one the repair button could not
+  # reach, and two projects in one workspace can sit on different Jira sites —
+  # which is why the workspace no longer has these columns at all.
   test "the story-points and AI-estimation field ids are cached on the project" do
     @project.update!(jira_story_points_field_id: nil, jira_ai_estimation_field_id: nil)
-    workspace = @project.workspace
-    workspace.update!(jira_story_points_field_id: nil, jira_ai_estimation_field_id: nil)
 
     JiraSyncService.new(@project, client: stub_client(@jira_issues, done_issues: @done_issues)).sync
 
     assert_equal "customfield_10040", @project.reload.jira_story_points_field_id
     assert_equal "customfield_10178", @project.jira_ai_estimation_field_id
-    assert_nil workspace.reload.jira_story_points_field_id
-    assert_nil workspace.jira_ai_estimation_field_id
+    assert_not @project.workspace.respond_to?(:jira_story_points_field_id),
+               "the workspace is caching field ids again"
   end
 
   test "a field id already cached on the project is used instead of re-resolving" do
     @project.update!(jira_story_points_field_id: "customfield_project")
-    @project.workspace.update!(jira_story_points_field_id: "customfield_workspace")
     seen = []
     client = stub_client(@jira_issues)
     client.define_singleton_method(:fetch_issues) do |_key, story_points_field_id: nil|

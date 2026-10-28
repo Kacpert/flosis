@@ -1,8 +1,4 @@
 class Workspace < ApplicationRecord
-  # Still included while the estimation columns live on both models (Task 18
-  # drops the workspace's).
-  include EstimationSettings
-
   has_many :workspace_memberships, dependent: :destroy
   has_many :users, through: :workspace_memberships
   has_many :clients, dependent: :destroy

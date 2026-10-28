@@ -1,75 +1,26 @@
 require "test_helper"
+require Rails.root.join("db/migrate/20260913120000_drop_legacy_role_columns")
 
+# What is left on a workspace once the role and the copied project
+# configuration are gone. The estimation cases moved to
+# ProjectEstimationSettingsTest, against the model that owns those columns now.
 class WorkspaceTest < ActiveSupport::TestCase
   test "clients feature is disabled by default for a new workspace" do
     workspace = Workspace.create!(name: "Fresh Co")
     assert_not workspace.clients_enabled?, "new workspaces should default to clients disabled"
   end
 
-  test "github settings default to nil/false" do
-    w = Workspace.create!(name: "GH Co")
-    assert_nil w.github_token
-    assert_nil w.github_repo
-    assert_not w.pr_review_enabled
-    assert_nil w.github_status_ok
+  # The guard for the release that dropped them: a reader left behind on the
+  # workspace raises in production, where these columns no longer exist.
+  test "the workspace carries no copy of the project configuration" do
+    gone = DropLegacyRoleColumns::WORKSPACE_COLUMNS.map(&:to_s)
+
+    assert_empty gone & Workspace.column_names, "a dropped column came back onto workspaces"
   end
 
-  test "estimation_field_names defaults to AI estimation when nil" do
-    w = Workspace.create!(name: "Estimation Co")
-    assert_equal ["AI estimation"], w.estimation_field_names
-  end
+  test "a membership carries no workspace-wide role" do
+    gone = DropLegacyRoleColumns::MEMBERSHIP_COLUMNS.map(&:to_s)
 
-  test "estimation_field_names returns the stored value when present" do
-    w = Workspace.create!(name: "Estimation Co", estimation_field_names: ["Custom field"])
-    assert_equal ["Custom field"], w.estimation_field_names
-  end
-
-  # On MySQL (production) a :json column can come back from the driver as a
-  # raw JSON *string* rather than a parsed Array, unlike PostgreSQL (dev/test).
-  # The reader normalizes via #normalize_field_names so the views
-  # ("names - ESTIMATION_FIELD_OPTIONS", "names.each") don't 500 with
-  # "undefined method '-'/'each' for a String".
-  test "normalize_field_names parses a raw JSON array string (MySQL) into an Array" do
-    w = Workspace.new(name: "Estimation Co")
-    result = w.send(:normalize_field_names, %q(["AI estimation", "Custom"]))
-
-    assert_kind_of Array, result
-    assert_equal ["AI estimation", "Custom"], result
-    # The exact operations the views perform must not raise on the result:
-    assert_nothing_raised do
-      result - Workspace::ESTIMATION_FIELD_OPTIONS
-      result.each { |n| n }
-    end
-  end
-
-  test "normalize_field_names handles already-parsed Arrays (PostgreSQL)" do
-    w = Workspace.new(name: "Estimation Co")
-    assert_equal ["A", "B"], w.send(:normalize_field_names, ["A", "B"])
-  end
-
-  test "normalize_field_names falls back to the default for nil / blank string / empty array" do
-    w = Workspace.new(name: "Estimation Co")
-    assert_equal ["AI estimation"], w.send(:normalize_field_names, nil)
-    assert_equal ["AI estimation"], w.send(:normalize_field_names, "")
-    assert_equal ["AI estimation"], w.send(:normalize_field_names, "[]")
-    assert_equal ["AI estimation"], w.send(:normalize_field_names, [])
-  end
-
-  test "normalize_field_names tolerates a malformed JSON string without raising" do
-    w = Workspace.new(name: "Estimation Co")
-    assert_nothing_raised do
-      # A non-JSON string should be wrapped, not crash the page.
-      assert_kind_of Array, w.send(:normalize_field_names, "not json")
-    end
-  end
-
-  test "estimation_trigger defaults to manual" do
-    w = Workspace.create!(name: "Estimation Co")
-    assert_equal "manual", w.estimation_trigger
-  end
-
-  test "estimation_status_trigger defaults to Ready for dev" do
-    w = Workspace.create!(name: "Estimation Co")
-    assert_equal "Ready for dev", w.estimation_status_trigger
+    assert_empty gone & WorkspaceMembership.column_names
   end
 end

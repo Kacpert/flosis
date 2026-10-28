@@ -3,7 +3,7 @@ require "test_helper"
 class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:one)
-    @workspace.update!(workshop_enabled: true, pr_review_enabled: true, pr_poll_minutes: 5, pr_polled_at: 1.minute.ago)
+    @workspace.update!(workshop_enabled: true)
     @project = projects(:jira_project)
     @project.update!(pr_review_enabled: true, pr_polled_at: 1.minute.ago)
     sign_in_as(users(:one)) # admin/owner
@@ -54,9 +54,9 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
 
   # The switch and the poll timestamp the poller actually writes are the
   # project's. Reading the workspace's showed the dashboard to every project in
-  # a workspace whose flag was ever on, with "last never" forever.
-  test "the dashboard follows the project's switch even when the workspace's is off" do
-    @workspace.update!(pr_review_enabled: false, pr_polled_at: nil)
+  # a workspace whose flag was ever on, with "last never" forever — the
+  # workspace no longer has one to read.
+  test "the dashboard follows the project's switch" do
     @project.update!(pr_review_enabled: true, pr_polled_at: 3.minutes.ago)
 
     get workshop_process_path
@@ -66,8 +66,7 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /last 3 min ago/
   end
 
-  test "empty state when the project's reviews are off, whatever the workspace says" do
-    @workspace.update!(pr_review_enabled: true)
+  test "empty state when the project's reviews are off" do
     @project.update!(pr_review_enabled: false)
 
     get workshop_process_path
@@ -122,7 +121,7 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "AI Estimate tab shows a search input and each row's estimated-at timestamp" do
-    @workspace.update!(estimation_trigger: "manual")
+    @project.update!(estimation_trigger: "manual")
     task = tasks(:jira_task)
     task.update!(ai_estimate_points: 3, ai_estimated_at: 1.hour.ago)
 

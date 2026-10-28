@@ -40,7 +40,12 @@
   <%# Team overview for admins %>
   <% if workspace_admin? && params[:view] == "team" %>
     <div class="m3-card-outlined overflow-hidden">
-      <% current_workspace.workspace_memberships.where.not(role: 3).includes(:user).order("users.name").each do |membership| %>
+      <%# Everyone who accrues holiday, which HolidayYearlyGrantJob defines as
+          holding Time & HR access. Replaces `where.not(role: 3)` — the legacy
+          client value, whose column this release drops. Same people, stated as
+          what actually makes someone eligible rather than which role they are
+          not. %>
+      <% current_workspace.workspace_memberships.where(time_hr_access: true).includes(:user).order("users.name").each do |membership| %>
         <div class="flex items-center justify-between p-4 border-b" style="border-color: var(--color-outline-variant)">
           <div class="flex items-center gap-3">
             <div class="m3-avatar m3-avatar-sm"><%= membership.user.name.first(2).upcase %></div>

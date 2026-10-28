@@ -184,7 +184,7 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
   # column still said yes, so the prompt told the model to call a Figma server
   # no project had, and the model improvised.
   test "build_initial_prompt ignores the workspace's own Figma column" do
-    @task.project.workspace.update!(figma_read_enabled: true)
+    @task.project.update!(figma_read_enabled: true)
     @task.project.update!(figma_read_enabled: false, figma_token: "fig-key")
 
     refute_includes figma_prompt, "mcp__figma__get_figma_data"

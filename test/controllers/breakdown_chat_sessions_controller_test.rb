@@ -77,7 +77,7 @@ class BreakdownChatSessionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "build_initial_prompt ignores the workspace's own Figma column" do
-    @task.project.workspace.update!(figma_read_enabled: true)
+    @task.project.update!(figma_read_enabled: true)
     @task.project.update!(figma_read_enabled: false, figma_token: "fig-key")
 
     refute_includes figma_prompt, "mcp__figma__get_figma_data"

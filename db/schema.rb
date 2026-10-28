@@ -707,11 +707,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_160000) do
 
   create_table "workspace_memberships", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.integer "role", default: 0, null: false
     t.boolean "time_hr_access", default: true, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
-    t.boolean "workshop_access", default: false, null: false
     t.boolean "workspace_admin", default: false, null: false
     t.bigint "workspace_id", null: false
     t.index ["user_id", "workspace_id"], name: "index_workspace_memberships_on_user_id_and_workspace_id", unique: true
@@ -724,29 +722,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_160000) do
     t.datetime "created_at", null: false
     t.string "discord_channel_id"
     t.string "discord_user_token"
-    t.json "estimation_field_names"
-    t.string "estimation_status_trigger", default: "Ready for dev"
-    t.string "estimation_trigger", default: "manual", null: false
-    t.boolean "figma_read_enabled", default: false, null: false
-    t.datetime "figma_status_checked_at"
-    t.string "figma_status_error"
-    t.boolean "figma_status_ok"
-    t.string "github_repo"
-    t.datetime "github_status_checked_at"
-    t.string "github_status_error"
-    t.boolean "github_status_ok"
-    t.string "github_token"
-    t.string "jira_ai_actions_field_id"
-    t.string "jira_ai_estimation_field_id"
-    t.datetime "jira_status_checked_at"
-    t.string "jira_status_error"
-    t.boolean "jira_status_ok"
-    t.string "jira_story_points_field_id"
     t.string "name", null: false
-    t.integer "pr_poll_minutes", default: 7, null: false
-    t.datetime "pr_polled_at"
-    t.boolean "pr_review_enabled", default: false, null: false
-    t.text "pr_review_prompt"
     t.datetime "updated_at", null: false
     t.boolean "workshop_enabled", default: false, null: false
   end

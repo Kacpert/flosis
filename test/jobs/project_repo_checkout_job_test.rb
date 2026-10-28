@@ -52,7 +52,6 @@ class ProjectRepoCheckoutJobTest < ActiveJob::TestCase
   # project's token is the wrong repo, so a blank field means "do nothing".
   test "does nothing when the project has no github credentials of its own" do
     @project.update!(github_repo: nil, github_token: nil)
-    @project.workspace.update!(github_repo: "acme/app", github_token: "ght")
 
     with_git_capture do |calls|
       assert_nothing_raised { ProjectRepoCheckoutJob.perform_now(@project.id) }

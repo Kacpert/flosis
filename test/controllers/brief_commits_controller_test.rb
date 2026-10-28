@@ -56,10 +56,9 @@ class BriefCommitsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "draft", @brief.reload.status
   end
 
-  # The workspace is left on a different trigger on purpose: reading it rather
-  # than the brief's own project gives the wrong answer.
+  # The trigger is read off the brief's own project. The workspace used to
+  # carry a copy, set here to the opposite value as a decoy; the column is gone.
   test "successful commit enqueues AutoEstimateJob when the project's trigger is briefed" do
-    @workspace.update!(estimation_trigger: "manual")
     @project.update!(estimation_trigger: "briefed")
     stub_writer({ ok: true, key: "BCM-1", url: "u" }) do
       assert_enqueued_with(job: AutoEstimateJob, args: [ @task.id ]) do
@@ -69,7 +68,6 @@ class BriefCommitsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "successful commit does NOT enqueue AutoEstimateJob when the project's trigger is not briefed" do
-    @workspace.update!(estimation_trigger: "briefed")
     @project.update!(estimation_trigger: "manual")
     stub_writer({ ok: true, key: "BCM-1", url: "u" }) do
       assert_no_enqueued_jobs(only: AutoEstimateJob) do

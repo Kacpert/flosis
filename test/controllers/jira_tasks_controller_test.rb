@@ -23,8 +23,9 @@ class JiraTasksControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  # Granted Workshop access means holding a project membership that grants
+  # something — fixture two_elvium gives users(:two) Tasks on this project.
   test "index is shown to an employee granted Workshop access" do
-    users(:two).membership_for(workspaces(:one)).update!(workshop_access: true)
     sign_in_as(users(:two))
     get jira_tasks_path
     assert_response :success

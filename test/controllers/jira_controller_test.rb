@@ -60,11 +60,9 @@ class JiraControllerTest < ActionDispatch::IntegrationTest
   # employees have workshop_access = false, so the picker silently showed
   # nothing and they could not log time against a Jira ticket at all.
   test "an employee without workshop access can still list a project's Jira tasks" do
-    membership = users(:two).membership_for(workspaces(:one))
-    membership.update!(workshop_access: false)
-    # Workshop access is now "has at least one project" (Task 5), not this
-    # retired flag, so the fixture's existing project membership has to go
-    # before this assertion means what it says.
+    # Workshop access is "has at least one project granting something", so
+    # taking the project memberships away is what makes this an employee
+    # without Workshop access.
     ProjectMembership.where(user: users(:two)).destroy_all
     assert_not users(:two).can_access_product?(workspaces(:one), :workshop)
     ProjectMembership.find_or_create_by!(project: @project, user: users(:two))
@@ -87,7 +85,6 @@ class JiraControllerTest < ActionDispatch::IntegrationTest
   # Dropping the Workshop gate must not widen what a user can see: an employee
   # still only reaches Jira projects they are a member of (visible_jira_projects).
   test "an employee who is not a member of the project is refused with JSON, not a redirect" do
-    users(:two).membership_for(workspaces(:one)).update!(workshop_access: false)
     ProjectMembership.where(project: @project, user: users(:two)).destroy_all
     sign_in_as(users(:two))
 
@@ -120,7 +117,6 @@ class JiraControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "projects requires admin" do
-    users(:two).membership_for(workspaces(:one)).update!(workshop_access: true)
     sign_in_as(users(:two))
 
     get jira_projects_path, as: :json
