@@ -18,6 +18,67 @@ class Workshop::ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to workshop_configuration_path(tab: "integrations")
   end
 
+  # The toast says the project was created and the redirect goes to "its"
+  # Configuration — so the switcher has to be standing in it. A switcher scoped
+  # to Jira projects silently fell back to the first project instead, and every
+  # key typed on the page that opened was saved onto that one.
+  test "a project created with no integrations is the one the page then edits" do
+    workspace_memberships(:one_owner).update!(workspace_admin: true)
+    sign_in_as(users(:one))
+
+    post workshop_projects_path, params: { project: { name: "Partner Portal" }, reuse_from: {} }
+    follow_redirect!
+
+    assert_response :success
+    assert_select 'button[data-action="click->clar-dropdown#toggle"] span', text: "Partner Portal"
+  end
+
+  # The dialog that creates projects lives in the Workshop topbar, and
+  # require_project_member! refuses a nil current project even to an admin — so
+  # a workspace holding no Jira project could not open the Workshop at all, and
+  # a new workspace could never get its first project.
+  test "a workspace whose only project has no Jira can still open the Workshop" do
+    workspace_memberships(:one_owner).update!(workspace_admin: true)
+    projects(:jira_project).update!(archived: true)
+    projects(:other_jira_project).update!(archived: true)
+    sign_in_as(users(:one))
+
+    get workshop_pipeline_path
+
+    assert_response :success
+    assert_select 'button[data-action="click->clar-dropdown#toggle"] span', text: "Internal"
+  end
+
+  # The dialog asks for the project key beside the Jira row, and both together
+  # are what make the project a Jira project.
+  test "a project created with reused Jira credentials and a key is a Jira project" do
+    workspace_memberships(:one_owner).update!(workspace_admin: true)
+    projects(:jira_project).update!(jira_site: "acme.atlassian.net", jira_api_token: "jt")
+    sign_in_as(users(:one))
+
+    post workshop_projects_path, params: {
+      project: { name: "Partner Portal", external_reference: "PP" },
+      reuse_from: { "jira" => projects(:jira_project).id }
+    }
+
+    project = Project.order(:id).last
+    assert_equal "PP", project.external_reference
+    assert project.jira_connected?
+  end
+
+  # `params[:reuse_from]&.permit!` permitted whatever arrived, and a scalar made
+  # `permit!` a NoMethodError and the create a 500.
+  test "a reuse_from that is not a hash of integrations is ignored" do
+    workspace_memberships(:one_owner).update!(workspace_admin: true)
+    sign_in_as(users(:one))
+
+    assert_difference "Project.count", 1 do
+      post workshop_projects_path, params: { project: { name: "Partner Portal" }, reuse_from: "1" }
+    end
+
+    assert_redirected_to workshop_configuration_path(tab: "integrations")
+  end
+
   test "an administrator on one project cannot create another" do
     workspace_memberships(:one_owner).update!(workspace_admin: false)
     project_memberships(:one_elvium).update!(PermissionPreset.attributes_for("Administrator"))

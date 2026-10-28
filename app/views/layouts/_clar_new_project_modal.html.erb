@@ -4,17 +4,17 @@
     SIBLING of that scope is never claimed as a target and the trigger then
     does nothing at all, in silence. %>
 <% sources = current_workspace.projects.active.order(:name) %>
-<%# The same set the Add-to-project dialog offers, and for the same two reasons.
-    An employee with HR access and no project was deliberately kept out of the
-    Workshop, and a project membership is exactly what would let them in. And a
-    row for an administrator holds nothing today — they already have everything
-    everywhere — but it grants all six the day the flag comes off, and
-    Configuration refuses to delete it while it is on. %>
-<% addable = current_workspace.users
-                              .joins(:project_memberships)
-                              .where(project_memberships: { project_id: current_workspace.projects.select(:id) })
-                              .where.not(id: current_workspace.workspace_memberships.where(workspace_admin: true).select(:user_id))
-                              .distinct.order(:name) %>
+<%# The same set the Add-to-project dialog offers, and for the same reason: an
+    employee with HR access and no project was deliberately kept out of the
+    Workshop, and a project membership is exactly what would let them in.
+    Administrators are turned away by ProjectMembership.grantable, which is the
+    same refusal ProjectCreator and the Users grid make. %>
+<% addable = ProjectMembership.grantable(
+     current_workspace.users
+                      .joins(:project_memberships)
+                      .where(project_memberships: { project_id: current_workspace.projects.select(:id) }),
+     current_workspace
+   ).distinct.order(:name) %>
 <% integrations = [ [ "jira", "Jira Cloud", "API token + site" ],
                     [ "github", "GitHub", "Personal access token" ],
                     [ "discord", "Discord", "Webhook URLs" ],
@@ -65,13 +65,26 @@
                 each project, which is the price of deleting a project never
                 becoming a question about another project's keys.
 
-                Discord owns no column on the project — its webhooks are rows
-                added afterwards from Configuration — so it is the one row with
-                nothing to reuse. %>
+                Only a project that holds the key in its own column is offered
+                — ProjectCreator.reusable?. Jira, Figma and the AI key all fall
+                back to the machine's environment or the Claude CLI's login, so
+                a project can work perfectly with nothing to lend, and offering
+                it would copy blanks and say nothing. Discord owns no column at
+                all, so it is always the one row with nothing to reuse. %>
             <% options = [ [ "Set up later", "" ] ] %>
-            <% options += sources.map { |source| [ "Reuse key from #{source.name}", source.id ] } unless key == "discord" %>
-            <%= select_tag "reuse_from[#{key}]", options_for_select(options),
-                  class: "clar-select !w-[230px] flex-none text-[12.5px]" %>
+            <% options += sources.select { |source| ProjectCreator.reusable?(source, key) }
+                                 .map { |source| [ "Reuse key from #{source.name}", source.id ] } %>
+            <div class="flex flex-col gap-1.5 w-[230px] flex-none">
+              <%= select_tag "reuse_from[#{key}]", options_for_select(options),
+                    class: "clar-select w-full text-[12.5px]" %>
+              <%# A "jira" project with no key syncs nothing while its health
+                  check still succeeds, so the chip would go green on a project
+                  that can never return a ticket. %>
+              <% if key == "jira" %>
+                <%= text_field_tag "project[external_reference]", nil, placeholder: "PROJECT KEY, e.g. PP",
+                      class: "clar-input clar-mono w-full text-[12.5px]" %>
+              <% end %>
+            </div>
           </div>
         <% end %>
       </div>

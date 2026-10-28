@@ -9,6 +9,23 @@ class ProjectMembership < ApplicationRecord
   # role name is derived from them (see PermissionPreset).
   PERMISSIONS = PermissionPreset::PERMISSIONS
 
+  # Whose access must never come from a row here: a workspace admin's. They
+  # already hold everything in every project off the workspace flag, so the row
+  # grants nothing while the flag is on, hands over whatever preset it carries
+  # the day the flag comes off, and Configuration refuses to delete it in the
+  # meantime — the mistake has no undo. The rule used to live only in a
+  # dialog's `where.not`, so the service created exactly the row the grid
+  # refuses.
+  def self.refused_for?(user, workspace)
+    user.present? && user.workspace_admin?(workspace)
+  end
+
+  # The same rule asked of a set, for the screens and services that pick people
+  # by query rather than one at a time.
+  def self.grantable(users, workspace)
+    users.where.not(id: workspace.workspace_memberships.where(workspace_admin: true).select(:user_id))
+  end
+
   # The switches that are on, in interface order.
   def granted
     PERMISSIONS.select { |permission| self[permission] }

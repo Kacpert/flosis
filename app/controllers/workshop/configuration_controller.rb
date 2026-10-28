@@ -11,7 +11,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
   ].freeze
 
   INTEGRATION_FIELDS = {
-    "jira" => %i[jira_site jira_email jira_api_token],
+    "jira" => %i[jira_site jira_email jira_api_token external_reference],
     "github" => %i[github_repo github_token pr_review_enabled],
     "figma" => %i[figma_token figma_read_enabled]
   }.freeze
@@ -148,6 +148,14 @@ class Workshop::ConfigurationController < Workshop::BaseController
     end
 
     save_project_fields(project, fields, "Integration settings saved")
+    # Same rule as ProjectCreator: a site AND a key are what make a project a
+    # Jira project. This is the only screen that can supply the pair after the
+    # fact, so without this a project created with "Set up later" could never
+    # become one — nothing would ever sync it.
+    if params[:integration].to_s == "jira" && !project.jira_connected? &&
+       project.jira_site.present? && project.external_reference.present?
+      project.update(external_type: "jira")
+    end
     ProjectMcpConfig.write!(project) if project.workspace_dir.present?
   end
 

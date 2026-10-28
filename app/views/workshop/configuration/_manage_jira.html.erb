@@ -32,8 +32,12 @@
             placeholder: project.jira_api_token.present? ? "•••••••••• (leave blank to keep)" : "Not set",
             class: "clar-input mb-4", autocomplete: "off" %>
 
+      <%# Editable, not a read-only box: a project that reused another's Jira
+          credentials has no key of its own, and without one it syncs nothing
+          while its health check still succeeds. %>
       <label class="clar-field-label">PROJECT KEY</label>
-      <div class="clar-input clar-mono mb-4 flex items-center bg-[var(--surface-2)]"><%= project.external_reference.presence || "&mdash;".html_safe %></div>
+      <%= text_field_tag "project[external_reference]", project.external_reference,
+            placeholder: "e.g. ELV", class: "clar-input clar-mono mb-4" %>
 
       <div class="clar-field-label">CUSTOM FIELDS</div>
       <div class="flex flex-col gap-1.5 mb-4">

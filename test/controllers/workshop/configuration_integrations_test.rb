@@ -15,6 +15,48 @@ class Workshop::ConfigurationIntegrationsTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "input[name='project[jira_site]']"
     assert_select "input[name='project[jira_api_token]']"
+    # Scoped to this modal: the topbar's New project dialog carries a field of
+    # the same name, so a bare selector passes without the Jira partial.
+    assert_select "[data-clar-modal-panel-id-value='manage-jira'] input[name='project[external_reference]']"
+  end
+
+  # PROJECT KEY was a read-only box and external_reference was not a permitted
+  # field, so a project that reused Jira credentials could never be given a
+  # board afterwards — it stayed connected to Jira and able to return nothing.
+  test "saving jira persists the project key" do
+    patch workshop_configuration_path(tab: "integrations"), params: {
+      integration: "jira",
+      project: { jira_site: "acme.atlassian.net", jira_email: "e@x.com", external_reference: "PPL" }
+    }
+
+    assert_equal "PPL", @project.reload.external_reference
+  end
+
+  # The point of making the key editable: a project created with "Set up later"
+  # must be able to become a Jira project afterwards. Nothing else in the
+  # Workshop can set external_type, and without it the sync never runs.
+  test "filling in the site and the key makes a project a Jira project" do
+    @project.update!(external_type: nil, external_reference: nil)
+
+    patch workshop_configuration_path(tab: "integrations"), params: {
+      integration: "jira",
+      project: { jira_site: "acme.atlassian.net", jira_email: "e@x.com", external_reference: "PPL" }
+    }
+
+    assert @project.reload.jira_connected?
+  end
+
+  # The pair is what counts, as in ProjectCreator: credentials with no key sync
+  # nothing while the health check still succeeds.
+  test "a site without a key does not make a project a Jira project" do
+    @project.update!(external_type: nil, external_reference: nil)
+
+    patch workshop_configuration_path(tab: "integrations"), params: {
+      integration: "jira",
+      project: { jira_site: "acme.atlassian.net", jira_email: "e@x.com", external_reference: "" }
+    }
+
+    assert_not @project.reload.jira_connected?
   end
 
   test "saving jira creds persists encrypted token to the project" do

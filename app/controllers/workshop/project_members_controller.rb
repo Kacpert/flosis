@@ -43,7 +43,7 @@ class Workshop::ProjectMembersController < Workshop::BaseController
     # grants all six, so this would store a value that is ignored today and
     # takes effect the day the flag comes off. The grid renders these switches
     # disabled, so only a hand-rolled request gets here.
-    return refuse(ADMIN_REFUSAL) if @membership.user.workspace_admin?(current_workspace)
+    return refuse(ADMIN_REFUSAL) if ProjectMembership.refused_for?(@membership.user, current_workspace)
 
     # save rather than save!: a switch that cannot be written is a flash the
     # person can read, not a 500 and a row stuck half-flipped on screen.
@@ -61,7 +61,7 @@ class Workshop::ProjectMembersController < Workshop::BaseController
   def destroy
     # A workspace admin's access comes from the flag, so removing the row would
     # change nothing. Refusing is honest; pretending is not.
-    return refuse(ADMIN_REFUSAL) if @membership.user.workspace_admin?(current_workspace)
+    return refuse(ADMIN_REFUSAL) if ProjectMembership.refused_for?(@membership.user, current_workspace)
 
     name = @membership.user.name
     @membership.destroy
@@ -82,11 +82,13 @@ class Workshop::ProjectMembersController < Workshop::BaseController
 
   # Who this screen will not add, and why in those words. An administrator's
   # row would hold nothing and destroy would then refuse to delete it, so the
-  # mistake has no undo. Someone already here has permissions, and they belong
-  # to the grid rather than to a dialog whose button says "add" — re-running a
-  # preset over them silently grants and revokes in one go.
+  # mistake has no undo — the rule itself lives on ProjectMembership, because
+  # ProjectCreator has to make the same refusal. Someone already here has
+  # permissions, and they belong to the grid rather than to a dialog whose
+  # button says "add" — re-running a preset over them silently grants and
+  # revokes in one go.
   def refusal_for(people)
-    return ADMIN_REFUSAL if people.any? { |user| user.workspace_admin?(current_workspace) }
+    return ADMIN_REFUSAL if people.any? { |user| ProjectMembership.refused_for?(user, current_workspace) }
 
     existing = current_workshop_project.project_memberships.where(user: people).includes(:user).first
     already_on_project(existing.user) if existing

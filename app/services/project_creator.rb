@@ -9,12 +9,38 @@ class ProjectCreator
   # Which columns each integration owns. The repository is deliberately absent
   # from :github — the dialog asks for it directly, and what the person typed
   # must beat what was copied.
+  #
+  # The three cached Jira field ids travel with the Jira credentials: they are a
+  # property of the SITE, so the project that reuses the site already knows
+  # them, and leaving them blank means AI estimation and story-point mirroring
+  # are unconfigured until someone presses "Verify fields".
   CREDENTIALS = {
-    "jira" => %i[jira_site jira_email jira_api_token],
+    "jira" => %i[jira_site jira_email jira_api_token jira_story_points_field_id
+                 jira_ai_estimation_field_id jira_ai_actions_field_id],
     "github" => %i[github_token],
     "figma" => %i[figma_token figma_read_enabled],
     "ai" => %i[anthropic_api_key]
   }.freeze
+
+  # The one column per integration whose absence means "Reuse key from X" would
+  # copy nothing. ProjectCredentials falls back to the machine's environment and
+  # to the Claude CLI's own login, so a project can work perfectly while holding
+  # no key of its own — and offering it as a source copies blanks in silence.
+  # `figma_read_enabled` is deliberately not here: it is a switch, not a key.
+  KEY_COLUMNS = {
+    "jira" => :jira_api_token,
+    "github" => :github_token,
+    "figma" => :figma_token,
+    "ai" => :anthropic_api_key
+  }.freeze
+
+  # Whether this project has anything to lend for this integration. Discord
+  # owns no column at all — its webhooks are rows added afterwards from
+  # Configuration — so it answers false for everyone.
+  def self.reusable?(project, integration)
+    column = KEY_COLUMNS[integration.to_s]
+    column.present? && project[column].present?
+  end
 
   def initialize(workspace:, attributes:, reuse_from: {}, member_ids: [], preset: PermissionPreset::LEAST_PRIVILEGED)
     @workspace = workspace
@@ -36,10 +62,19 @@ class ProjectCreator
     # Jira for this project, and whether the daily features scan writes a
     # codebase summary onto it. So it is set only when the dialog actually gave
     # the project Jira credentials — never as a default for every new project.
-    project.external_type = "jira" if project.jira_site.present?
+    #
+    # And only with a project key as well. Credentials without a key sync
+    # nothing (JiraSyncService has no board to ask about) while the health check
+    # still succeeds, so the chip would go green on a project that can never
+    # return a ticket.
+    project.external_type = "jira" if project.jira_site.present? && project.external_reference.present?
 
-    project.save!
-    add_members(project)
+    # One transaction: a membership that cannot be saved used to leave the
+    # project behind while the caller was told the create had failed.
+    @workspace.transaction do
+      project.save!
+      add_members(project)
+    end
     project
   end
 
@@ -76,11 +111,16 @@ class ProjectCreator
   end
 
   # Scoped to the workspace, so a guessed id cannot pull a stranger's account
-  # onto the project.
+  # onto the project, and run through the same refusal the Users grid makes —
+  # see ProjectMembership.grantable for why an administrator must not hold a
+  # row here.
   def add_members(project)
-    users = User.where(id: @member_ids)
-                .joins(:workspace_memberships)
-                .where(workspace_memberships: { workspace_id: @workspace.id })
+    users = ProjectMembership.grantable(
+      User.where(id: @member_ids)
+          .joins(:workspace_memberships)
+          .where(workspace_memberships: { workspace_id: @workspace.id }),
+      @workspace
+    )
 
     users.find_each do |user|
       project.project_memberships.build(user: user).apply_preset(@preset).save!

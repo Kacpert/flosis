@@ -51,6 +51,21 @@ class ProjectSwitcherTest < ActionDispatch::IntegrationTest
     assert_match "Project Manager", response.body
   end
 
+  # The Workshop stopped being Jira-shaped: a project with no Jira still has
+  # automations, reporting, pricing, users, Discord and PR review. Scoping the
+  # switcher to Jira projects hid every other one — including the ones the
+  # new-project dialog creates when every integration is left for later.
+  test "a project with no Jira is offered in the switcher" do
+    workspace_memberships(:one_owner).update!(workspace_admin: false)
+    sign_in_as(users(:one))
+
+    get workshop_pipeline_path
+
+    assert_response :success
+    assert_select 'form[action=?] input[name="project_id"][value=?]',
+                  switch_workshop_project_path, projects(:plain_project).id.to_s
+  end
+
   test "only a workspace admin is offered a new project" do
     sign_in_as(users(:one))
     get workshop_pipeline_path
@@ -86,15 +101,31 @@ class ProjectSwitcherTest < ActionDispatch::IntegrationTest
     end
   end
 
-  # Keys are copied from a project the person picks, and Discord owns no column
-  # on a project — its webhooks are rows added afterwards — so that one row has
-  # nothing to offer but "Set up later".
-  test "the new-project dialog offers the workspace's projects as key sources" do
+  # Keys are copied from a project the person picks — but only from one that has
+  # a key of its own. Jira, Figma and the AI key all fall back to the machine's
+  # environment or the Claude CLI's login, so a project can work perfectly while
+  # its own columns are blank, and offering it would copy nothing in silence.
+  # Discord owns no column at all: its webhooks are rows added afterwards.
+  test "the new-project dialog offers only projects that hold the key themselves" do
+    projects(:jira_project).update!(jira_api_token: "jt")
     sign_in_as(users(:one))
     get workshop_pipeline_path
 
     assert_select 'select[name="reuse_from[jira]"] option', text: "Reuse key from Elvium"
+    assert_select 'select[name="reuse_from[figma]"] option', 1,
+                  "no project holds a Figma token, so there is nothing to reuse"
     assert_select 'select[name="reuse_from[discord]"] option', 1
+  end
+
+  # Jira credentials with no project key sync nothing — JiraSyncService has no
+  # board to ask about — while the health check still succeeds, so the chip goes
+  # green on a project that can never return a ticket. The row that offers the
+  # credentials asks for the key as well.
+  test "the new-project dialog asks for the Jira project key" do
+    sign_in_as(users(:one))
+    get workshop_pipeline_path
+
+    assert_select 'input[name="project[external_reference]"]'
   end
 
   # The chips say "users from other projects", and that is also the rule: an

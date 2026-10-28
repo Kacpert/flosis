@@ -22,6 +22,30 @@ class Workshop::DesignRequestsControllerTest < ActionDispatch::IntegrationTest
     JiraWriter.define_method(:sync_design_links, orig)
   end
 
+  # A trigger binds to its NEAREST clar-modal ancestor. The strip declared a
+  # scope of its own while rendering its two panels outside it, so the triggers
+  # resolved no panel and "Request from designer" / "Request changes" never
+  # opened anything — in silence, which is how this survived three reviews.
+  # One scope per page is what lets a trigger find its panel.
+  test "the designs strip's triggers and panels share one modal scope" do
+    request = DesignRequest.create!(task: @idea, requester: users(:one), designer: users(:two))
+
+    # Both triggers the strip renders in the header: "Mark delivered" while the
+    # request is out, "Request changes" once designs have landed.
+    [ [ "requested", "deliver-designs" ], [ "delivered", "request-designs" ] ].each do |status, panel|
+      request.update!(status: status)
+
+      get workshop_idea_path(@idea, stage: "details")
+
+      assert_response :success
+      assert_select '[data-controller~="clar-modal"] [data-controller~="clar-modal"]', false,
+                    "a nested scope claims the triggers inside it and none of the panels outside it"
+      assert_select %([data-controller~="clar-modal"] [data-clar-modal-id-param="#{panel}"])
+      assert_select %([data-controller~="clar-modal"] ) +
+                    %([data-clar-modal-target="panel"][data-clar-modal-panel-id-value="#{panel}"])
+    end
+  end
+
   test "create requests designs from a picked designer with an optional note" do
     assert_difference -> { DesignRequest.count }, 1 do
       post workshop_idea_design_request_path(@idea), params: {

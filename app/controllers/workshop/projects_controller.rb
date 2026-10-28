@@ -7,8 +7,8 @@ class Workshop::ProjectsController < Workshop::BaseController
   def create
     project = ProjectCreator.new(
       workspace: current_workspace,
-      attributes: params.require(:project).permit(:name, :team, :github_repo),
-      reuse_from: params[:reuse_from]&.permit!&.to_h,
+      attributes: params.require(:project).permit(:name, :team, :github_repo, :external_reference),
+      reuse_from: reuse_from,
       member_ids: params[:user_ids],
       preset: params[:preset]
     ).call
@@ -21,5 +21,18 @@ class Workshop::ProjectsController < Workshop::BaseController
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: workshop_pipeline_path,
                   alert: e.record.errors.full_messages.to_sentence
+  end
+
+  private
+
+  # Only the integrations whose columns the service actually copies, named
+  # rather than permitted wholesale — and only when the parameter arrived as a
+  # hash at all, since `reuse_from=1` used to make `permit!` a NoMethodError and
+  # the create a 500.
+  def reuse_from
+    posted = params[:reuse_from]
+    return {} unless posted.respond_to?(:permit)
+
+    posted.permit(*ProjectCreator::CREDENTIALS.keys).to_h
   end
 end

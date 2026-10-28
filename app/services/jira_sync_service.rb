@@ -6,6 +6,9 @@ class JiraSyncService
 
   def sync
     return unless @project.jira_connected?
+    # No project key means no board to ask about: JiraClient's fetchers match?
+    # the key and died on nil on every run, rescued and logged by the job.
+    return if @project.external_reference.blank?
 
     sync_boards
     sync_issues

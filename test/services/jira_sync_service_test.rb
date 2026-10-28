@@ -118,6 +118,20 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
     assert_nil local.external_type
   end
 
+  # A project created from reused credentials carried external_type "jira" with
+  # no key of its own, so every run reached JiraClient#fetch_boards(nil) and
+  # died on nil.match? — rescued and logged, so silent noise on every run.
+  test "a Jira project with no project key syncs nothing rather than raising" do
+    @project.update!(external_reference: nil)
+    asked = false
+    client = Class.new do
+      define_method(:fetch_boards) { |_key| asked = true; [] }
+    end.new
+
+    assert_nothing_raised { JiraSyncService.new(@project, client: client).sync }
+    assert_not asked, "the key is missing, so Jira must not be asked anything"
+  end
+
   test "handles empty response gracefully" do
     mock_client = stub_client([])
 

@@ -81,8 +81,8 @@ module WorkspaceScoped
     profile_path
   end
 
-  # The Jira projects forming the Workshop work context: the project switcher,
-  # and via current_workshop_project below, what require_project_member! and
+  # The projects forming the Workshop work context: the project switcher, and
+  # via current_workshop_project below, what require_project_member! and
   # every require_permission! check actually run against. Deliberately NOT
   # visible_jira_projects (Authorization) — that scope is Tasks-specific (the
   # Jira board's "which projects can I work tickets in"), and reusing it here
@@ -92,8 +92,15 @@ module WorkspaceScoped
   # regardless of what they were actually granted. This scope is any
   # membership at all — the individual page still asks for the permission it
   # needs once a project is selected.
+  #
+  # No `external_type: "jira"` filter either. That one dated from when the
+  # Workshop was Jira-shaped; under per-project configuration a project with no
+  # Jira still has automations, reporting, pricing, users, Discord and PR
+  # review. It made a project created with "Set up later" unreachable by any
+  # url, and left a workspace holding no Jira project with no openable Workshop
+  # page at all — so the dialog that creates projects was itself out of reach.
   def workshop_projects
-    scope = current_workspace.projects.active.where(external_type: "jira")
+    scope = current_workspace.projects.active
     return scope.order(:name) if workspace_admin?
 
     scope.joins(:project_memberships)
@@ -103,7 +110,7 @@ module WorkspaceScoped
 
   # The active Workshop project context (a project switcher, like the workspace
   # switcher). Honors the session choice when still visible; else the first
-  # visible Jira project. Persists the resolved id.
+  # visible project. Persists the resolved id.
   def current_workshop_project
     return @current_workshop_project if defined?(@current_workshop_project)
 
