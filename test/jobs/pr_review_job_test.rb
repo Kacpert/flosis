@@ -2,8 +2,11 @@ require "test_helper"
 
 class PrReviewJobTest < ActiveJob::TestCase
   setup do
-    @workspace = workspaces(:one)
-    @workspace.update!(github_token: "t", github_repo: "acme/widgets", pr_review_enabled: true)
+    # PR review is now configured per project; the reviews themselves are still
+    # recorded against the workspace.
+    @project = projects(:jira_project)
+    @project.update!(github_token: "t", github_repo: "acme/widgets", pr_review_enabled: true)
+    @workspace = @project.workspace
   end
 
   # `reviews` decides what create_review returns, call by call: [true] accepts
@@ -31,11 +34,11 @@ class PrReviewJobTest < ActiveJob::TestCase
   end
 
   def with_github(fake)
-    orig = GithubClient.method(:for)
-    GithubClient.define_singleton_method(:for) { |*_a, **_k| fake }
+    orig = GithubClient.method(:for_project)
+    GithubClient.define_singleton_method(:for_project) { |*_a, **_k| fake }
     yield
   ensure
-    GithubClient.define_singleton_method(:for, orig)
+    GithubClient.define_singleton_method(:for_project, orig)
   end
 
   def with_ai(json)
@@ -66,7 +69,7 @@ class PrReviewJobTest < ActiveJob::TestCase
 
     with_github(fake) do
       with_ai(ai) do
-        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+        PrReviewJob.perform_now(@project.id, 7, "initial")
       end
     end
 
@@ -86,7 +89,7 @@ class PrReviewJobTest < ActiveJob::TestCase
     fake = fake_github(pr: pr)
     with_github(fake) do
       with_ai("[]") do
-        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+        PrReviewJob.perform_now(@project.id, 7, "initial")
       end
     end
 
@@ -101,7 +104,7 @@ class PrReviewJobTest < ActiveJob::TestCase
     fake = fake_github(pr: pr_payload(sha: "abc"))
     with_github(fake) do
       with_ai("[]") do
-        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+        PrReviewJob.perform_now(@project.id, 7, "initial")
       end
     end
 
@@ -116,7 +119,7 @@ class PrReviewJobTest < ActiveJob::TestCase
 
     with_github(fake) do
       with_ai(ai) do
-        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+        PrReviewJob.perform_now(@project.id, 7, "initial")
       end
     end
 
@@ -132,7 +135,7 @@ class PrReviewJobTest < ActiveJob::TestCase
 
     with_github(fake) do
       with_ai(ai) do
-        PrReviewJob.perform_now(@workspace.id, 7, "followup")
+        PrReviewJob.perform_now(@project.id, 7, "followup")
       end
     end
 
@@ -153,7 +156,7 @@ class PrReviewJobTest < ActiveJob::TestCase
 
     with_github(fake) do
       with_ai(ai) do
-        PrReviewJob.perform_now(@workspace.id, 7, "followup")
+        PrReviewJob.perform_now(@project.id, 7, "followup")
       end
     end
 
@@ -169,7 +172,7 @@ class PrReviewJobTest < ActiveJob::TestCase
 
     with_github(fake) do
       with_ai(ai) do
-        PrReviewJob.perform_now(@workspace.id, 7, "followup")
+        PrReviewJob.perform_now(@project.id, 7, "followup")
       end
     end
 
@@ -181,7 +184,7 @@ class PrReviewJobTest < ActiveJob::TestCase
     fake = fake_github(pr: pr_payload(sha: "abc"))
     with_github(fake) do
       with_ai("[]") do
-        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+        PrReviewJob.perform_now(@project.id, 7, "initial")
       end
     end
     assert_equal "🤖 No issues found 👍", fake.captured[:body]
@@ -194,7 +197,7 @@ class PrReviewJobTest < ActiveJob::TestCase
     fake = fake_github(pr: pr_payload(sha: "abc"))
     with_github(fake) do
       with_ai("The fix looks correct and minimal. I traced the callers and found no issues.") do
-        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+        PrReviewJob.perform_now(@project.id, 7, "initial")
       end
     end
     assert_equal "🤖 No issues found 👍", fake.captured[:body]
@@ -207,7 +210,7 @@ class PrReviewJobTest < ActiveJob::TestCase
     fake = fake_github(pr: pr_payload(sha: "abc"))
     with_github(fake) do
       with_ai_error do
-        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+        PrReviewJob.perform_now(@project.id, 7, "initial")
       end
     end
     review = PrReview.find_by(workspace: @workspace, pr_number: 7)
@@ -231,7 +234,7 @@ class PrReviewJobTest < ActiveJob::TestCase
     fake = fake_github(pr: pr_payload(sha: "abc"))
     with_github(fake) do
       with_ai("Failed to authenticate. API Error: 401 Invalid authentication credentials") do
-        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+        PrReviewJob.perform_now(@project.id, 7, "initial")
       end
     end
     review = PrReview.find_by(workspace: @workspace, pr_number: 7)
@@ -250,7 +253,7 @@ class PrReviewJobTest < ActiveJob::TestCase
 
     with_github(fake) do
       with_ai(%([{"path": "app/models/user.rb", "line": 42, "comment": "This drops the transaction."}])) do
-        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+        PrReviewJob.perform_now(@project.id, 7, "initial")
       end
     end
 
@@ -271,7 +274,7 @@ class PrReviewJobTest < ActiveJob::TestCase
 
     with_github(fake) do
       with_ai(%([{"path": "a.rb", "line": 1, "comment": "Something."}])) do
-        PrReviewJob.perform_now(@workspace.id, 7, "initial")
+        PrReviewJob.perform_now(@project.id, 7, "initial")
       end
     end
 
@@ -285,7 +288,7 @@ class PrReviewJobTest < ActiveJob::TestCase
   test "a rejected no-issues review is not recorded as posted either" do
     fake = fake_github(pr: pr_payload(sha: "abc"), reviews: [ false ])
 
-    with_github(fake) { with_ai("[]") { PrReviewJob.perform_now(@workspace.id, 7, "initial") } }
+    with_github(fake) { with_ai("[]") { PrReviewJob.perform_now(@project.id, 7, "initial") } }
 
     assert_nil PrReview.find_by(workspace: @workspace, pr_number: 7).reviewed_at
   end
@@ -295,7 +298,7 @@ class PrReviewJobTest < ActiveJob::TestCase
     record.record_failure!("abc", "Claude CLI not found")
 
     with_github(fake_github(pr: pr_payload(sha: "abc"))) do
-      with_ai("[]") { PrReviewJob.perform_now(@workspace.id, 7, "initial") }
+      with_ai("[]") { PrReviewJob.perform_now(@project.id, 7, "initial") }
     end
 
     record.reload
@@ -317,7 +320,7 @@ class PrReviewJobTest < ActiveJob::TestCase
     task.jira_comments.create!(jira_comment_id: "2", author_name: "Bo", body: "Admins only, not recruiters.",
                                jira_created_at: 1.day.ago)
 
-    prompt = PrReviewJob.new.send(:build_prompt, @workspace, pr_payload, [], "initial")
+    prompt = PrReviewJob.new.send(:build_prompt, @project, pr_payload, [], "initial")
 
     assert_includes prompt, "Linked Jira ticket DEV-836"
     assert_includes prompt, "Original description."
@@ -336,7 +339,7 @@ class PrReviewJobTest < ActiveJob::TestCase
                                  body: "comment number #{i}", jira_created_at: (30 - i).days.ago)
     end
 
-    prompt = PrReviewJob.new.send(:build_prompt, @workspace, pr_payload, [], "initial")
+    prompt = PrReviewJob.new.send(:build_prompt, @project, pr_payload, [], "initial")
 
     assert_includes prompt, "the #{PrReviewJob::MAX_TICKET_COMMENTS} most recent of #{PrReviewJob::MAX_TICKET_COMMENTS + 3}"
     assert_not_includes prompt, "comment number 0", "the oldest are dropped"
@@ -346,7 +349,7 @@ class PrReviewJobTest < ActiveJob::TestCase
   test "a ticket with no comments reads exactly as before" do
     tasks(:jira_task).update!(external_reference: "DEV-836")
 
-    prompt = PrReviewJob.new.send(:build_prompt, @workspace, pr_payload, [], "initial")
+    prompt = PrReviewJob.new.send(:build_prompt, @project, pr_payload, [], "initial")
 
     assert_includes prompt, "Linked Jira ticket DEV-836"
     assert_not_includes prompt, "Comments on the ticket"
@@ -369,9 +372,9 @@ class PrReviewJobTest < ActiveJob::TestCase
   end
 
   test "build_prompt with blank pr_review_prompt preserves the original ticket/diff/instructions ORDER" do
-    @workspace.update!(pr_review_prompt: nil)
+    @project.update!(pr_review_prompt: nil)
     job = PrReviewJob.new
-    prompt = job.send(:build_prompt, @workspace, pr_payload, [ { "filename" => "a.rb", "patch" => "@@ -1 +1 @@\n+code" } ], "initial")
+    prompt = job.send(:build_prompt, @project, pr_payload, [ { "filename" => "a.rb", "patch" => "@@ -1 +1 @@\n+code" } ], "initial")
 
     assert_includes prompt, "senior engineer reviewing a GitHub pull request"
     # The pre-9.1 monolithic prompt interleaved the ticket + diff BETWEEN the
@@ -390,11 +393,11 @@ class PrReviewJobTest < ActiveJob::TestCase
     assert_includes prompt, "AT MOST 4 items"
   end
 
-  test "build_prompt uses workspace.pr_review_prompt (with tokens) when present, still interpolating context" do
-    @workspace.update!(pr_review_prompt: "Custom persona: be extremely terse.\n\n{{TICKET}}\n\n{{DIFF}}\n\nAT MOST {{CAP}} items.")
+  test "build_prompt uses project.pr_review_prompt (with tokens) when present, still interpolating context" do
+    @project.update!(pr_review_prompt: "Custom persona: be extremely terse.\n\n{{TICKET}}\n\n{{DIFF}}\n\nAT MOST {{CAP}} items.")
     job = PrReviewJob.new
     files = [ { "filename" => "a.rb", "patch" => "@@ -1 +1 @@\n+code" } ]
-    prompt = job.send(:build_prompt, @workspace, pr_payload, files, "initial")
+    prompt = job.send(:build_prompt, @project, pr_payload, files, "initial")
 
     assert_includes prompt, "Custom persona: be extremely terse."
     refute_includes prompt, "senior engineer reviewing a GitHub pull request"

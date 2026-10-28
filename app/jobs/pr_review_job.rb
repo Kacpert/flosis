@@ -4,8 +4,8 @@ class PrReviewJob < ApplicationJob
   CAPS = { "initial" => 4, "followup" => 2 }.freeze
   CODEBASE_PATH = ENV.fetch("PR_REVIEW_CODEBASE_PATH", File.expand_path("~/work/elvium"))
 
-  # The full PR-review prompt template used when a workspace hasn't customized
-  # its own (Workspace#pr_review_prompt blank). Configurable from Configuration
+  # The full PR-review prompt template used when a project hasn't customized
+  # its own (Project#pr_review_prompt blank). Configurable from Configuration
   # -> AI (Task 9.1); this constant is also the textarea's seed value there.
   # The dynamic context is substituted via the {{TICKET}}/{{DIFF}}/{{CAP}}
   # tokens in build_prompt (double-brace tokens, chosen so they don't collide
@@ -64,23 +64,23 @@ class PrReviewJob < ApplicationJob
      "comment": "<the problem + fix, terse, 1–2 sentences>"}.
   PROMPT
 
-  def perform(workspace_id, pr_number, mode)
-    workspace = Workspace.find_by(id: workspace_id)
-    return unless workspace
+  def perform(project_id, pr_number, mode)
+    project = Project.find_by(id: project_id)
+    return unless project
 
-    github = GithubClient.for(workspace)
+    github = GithubClient.for_project(project)
     return unless github.configured?
 
     pr = github.pull_request(pr_number)
-    return release_claim(workspace, pr_number, mode) unless pr
+    return release_claim(project, pr_number, mode) unless pr
     if pr["draft"] || (pr["state"].present? && pr["state"] != "open")
-      return release_claim(workspace, pr_number, mode)
+      return release_claim(project, pr_number, mode)
     end
 
     head_sha = pr.dig("head", "sha")
     files = github.pull_request_files(pr_number)
 
-    record = PrReview.find_or_initialize_by(workspace_id: workspace.id, pr_number: pr_number)
+    record = PrReview.find_or_initialize_by(workspace_id: project.workspace_id, pr_number: pr_number)
     record.update!(
       pr_title: pr["title"],
       pr_author: pr.dig("user", "login"),
@@ -88,7 +88,7 @@ class PrReviewJob < ApplicationJob
       pr_url: pr["html_url"]
     )
 
-    issues = ai_issues(workspace, pr, files, mode)
+    issues = ai_issues(project, pr, files, mode)
     # The AI step failed to run (CLI/auth/transport). Record the failure against
     # this SHA so PrReviewCheckJob retries it a bounded number of times with a
     # backoff, instead of spending a full review every poll — don't post, don't
@@ -155,8 +155,8 @@ class PrReviewJob < ApplicationJob
   # followup claim keeps the existing review but clears the in-flight SHA. A PR
   # in any of these states is no longer listed by open_pull_requests (or is
   # skipped as a draft), so this does not re-trigger an AI review.
-  def release_claim(workspace, pr_number, mode)
-    record = PrReview.find_by(workspace_id: workspace.id, pr_number: pr_number)
+  def release_claim(project, pr_number, mode)
+    record = PrReview.find_by(workspace_id: project.workspace_id, pr_number: pr_number)
     return unless record
     if record.reviewed_at.nil?
       record.destroy
@@ -180,14 +180,13 @@ class PrReviewJob < ApplicationJob
   # bogus "No issues found" reviews on unreviewed PRs.
   CLI_FAILURE_MARKERS = /\b(401|403|429|invalid authentication|failed to authenticate|api error|credit balance|rate limit|usage limit|overloaded|unauthorized)\b/i
 
-  def ai_issues(workspace, pr, files, mode)
-    prompt = build_prompt(workspace, pr, files, mode)
+  def ai_issues(project, pr, files, mode)
+    prompt = build_prompt(project, pr, files, mode)
     # Read-only Jira alongside the codebase: the prompt carries the ticket and
     # its comments, but a reviewer often needs the epic, a linked issue or a
     # ticket the PR only mentions in passing — and those it has to fetch.
     # Without an MCP config the CLI gets no servers at all (--strict-mcp-config).
-    project = jira_project_for(workspace, prompt)
-    mcp_config = (ProjectMcpConfig.write!(project) if project&.workspace_dir.present?)
+    mcp_config = (ProjectMcpConfig.write!(project) if project.workspace_dir.present?)
 
     service = ClaudeCliService.new(
       codebase_path: CODEBASE_PATH,
@@ -222,18 +221,6 @@ class PrReviewJob < ApplicationJob
     []
   end
 
-  # The project whose Jira credentials the reviewer should use. A workspace can
-  # hold several, so prefer the one the PR's own ticket belongs to and fall back
-  # to the workspace's first Jira project — one repo maps to one Jira project in
-  # practice, and the wrong credentials would just fail to read.
-  def jira_project_for(workspace, prompt)
-    key = prompt[/Linked Jira ticket ([A-Z][A-Z0-9]+-\d+):/, 1]
-    task = key && Task.find_by(external_reference: key)
-    return task.project if task&.project&.workspace_id == workspace.id
-
-    workspace.projects.active.find_by(external_type: "jira")
-  end
-
   # True when the response indicates the CLI failed to run a real review rather
   # than legitimately finding nothing.
   def cli_failed?(response)
@@ -251,13 +238,13 @@ class PrReviewJob < ApplicationJob
   MAX_TICKET_COMMENTS = 12
   COMMENT_LENGTH = 700
 
-  def build_prompt(workspace, pr, files, mode)
+  def build_prompt(project, pr, files, mode)
     key = PrJiraKey.extract(branch: pr.dig("head", "ref"), title: pr["title"], body: pr["body"])
     task = key ? Task.find_by(external_reference: key) : nil
     ticket = task ? ticket_section(key, task) : "No linked Jira ticket."
     cap = CAPS.fetch(mode, 4)
     diff = files.map { |f| "FILE: #{f['filename']}\n#{f['patch']}" }.join("\n\n")
-    template = workspace.pr_review_prompt.presence || DEFAULT_PROMPT
+    template = project.pr_review_prompt.presence || DEFAULT_PROMPT
 
     # Substitute the dynamic context into the (default or custom) template.
     # A custom prompt without the tokens simply won't have them replaced —

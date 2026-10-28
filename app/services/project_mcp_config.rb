@@ -2,11 +2,11 @@ require "json"
 require "fileutils"
 require "rbconfig"
 
-# Writes a per-project .mcp.json wiring the `github` and `jira` stdio MCP
-# servers to that project's resolved credentials. DB is the source of truth;
+# Writes a per-project .mcp.json wiring the `github`, `jira` and `figma` stdio
+# MCP servers to that project's resolved credentials. DB is the source of truth;
 # call write! on integration save and again right before each automation run
 # (self-heals a missing/stale file). Server keys MUST be exactly "github" /
-# "jira" so tool names match ClaudeCliService::AUTOMATION_TOOLS.
+# "jira" / "figma" so tool names match ClaudeCliService::AUTOMATION_TOOLS.
 class ProjectMcpConfig
   FILENAME = ".mcp.json".freeze
   # MCP server binaries. Absolute paths avoid depending on the Solid Queue job's
@@ -61,6 +61,7 @@ class ProjectMcpConfig
     servers = {}
     servers["github"] = github_server if @creds.github_configured?
     servers["jira"] = jira_server if @creds.jira_configured?
+    servers["figma"] = figma_server if @creds.figma_configured?
     servers["lit"] = lit_server if lit_configured?
     { "mcpServers" => servers }
   end
@@ -98,6 +99,17 @@ class ProjectMcpConfig
       "command" => GITHUB_MCP_COMMAND,
       "args" => [ "stdio", "--read-only" ],
       "env" => { "GITHUB_PERSONAL_ACCESS_TOKEN" => @creds.github_token }
+    }
+  end
+
+  # Gated on the project's own token rather than on an environment variable, so
+  # a project that has not set one gets no Figma server at all instead of one
+  # that fails on its first call.
+  def figma_server
+    {
+      "command" => "npx",
+      "args" => [ "-y", "figma-developer-mcp", "--stdio" ],
+      "env" => { "FIGMA_API_KEY" => @creds.figma_token }
     }
   end
 

@@ -86,9 +86,38 @@ class ProjectMcpConfigTest < ActiveSupport::TestCase
     assert_equal "700", format("%o", File.stat(@dir).mode & 0o777)
   end
 
+  # Figma is gated on the project's own toggle and token, not on an environment
+  # variable: a project without a token gets no server at all, rather than one
+  # that fails on its first call.
+  test "wires the Figma server with the project's own token" do
+    @project.update!(figma_read_enabled: true, figma_token: "fig-key")
+    json = JSON.parse(File.read(ProjectMcpConfig.write!(@project)))
+    figma = json["mcpServers"]["figma"]
+
+    assert_not_nil figma, "server key must be exactly 'figma' so tool names match ALLOWED_TOOLS"
+    assert_equal "npx", figma["command"]
+    assert_equal [ "-y", "figma-developer-mcp", "--stdio" ], figma["args"]
+    assert_equal "fig-key", figma["env"]["FIGMA_API_KEY"]
+  end
+
+  test "omits the Figma server when the project never asked the AI to read it" do
+    @project.update!(figma_read_enabled: false, figma_token: "fig-key")
+
+    json = JSON.parse(File.read(ProjectMcpConfig.write!(@project)))
+
+    assert_not json["mcpServers"].key?("figma")
+  end
+
+  test "omits the Figma server when the project has no token of its own" do
+    @project.update!(figma_read_enabled: true, figma_token: nil)
+
+    json = JSON.parse(File.read(ProjectMcpConfig.write!(@project)))
+
+    assert_not json["mcpServers"].key?("figma")
+  end
+
   test "omits a server whose creds do not resolve" do
     @project.update!(github_repo: nil, github_token: nil)
-    @project.workspace.update!(github_repo: nil, github_token: nil)
     path = ProjectMcpConfig.write!(@project)
     json = JSON.parse(File.read(path))
     assert_not json["mcpServers"].key?("github"), "github omitted when unconfigured"

@@ -3,10 +3,10 @@ require "json"
 
 # Just enough Figma to answer "can the AI actually read a frame right now?".
 #
-# The AI reaches Figma through the figma-developer-mcp server, whose token lives
-# in the Claude CLI's own config — NOT in our database, so there is nothing on
-# the workspace to check. This reads the very token that server would use, which
-# is the only way the answer can be true rather than merely plausible.
+# The AI reaches Figma through the figma-developer-mcp server, configured from
+# the project's own token (or the Claude CLI's config, for a project that has
+# not set one). This reads the very token that server would use, which is the
+# only way the answer can be true rather than merely plausible.
 #
 # It matters because that token EXPIRES: Figma personal access tokens are issued
 # with a lifetime, and when one lapses the AI just says it could not open the
@@ -20,6 +20,12 @@ class FigmaClient
 
   def self.for_cli
     new(token: cli_token)
+  end
+
+  # The token the AI would actually use for THIS project. Reading anything else
+  # would prove only that some other token works.
+  def self.for_project(project)
+    new(token: ProjectCredentials.new(project).figma_token || cli_token)
   end
 
   # The API key the figma MCP server is configured with, or nil when Figma isn't

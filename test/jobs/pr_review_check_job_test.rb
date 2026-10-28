@@ -2,8 +2,11 @@ require "test_helper"
 
 class PrReviewCheckJobTest < ActiveJob::TestCase
   setup do
-    @workspace = workspaces(:one)
-    @workspace.update!(github_token: "t", github_repo: "acme/widgets", pr_review_enabled: true)
+    # PR review is now configured per project; the reviews themselves are still
+    # recorded against the workspace.
+    @project = projects(:jira_project)
+    @project.update!(github_token: "t", github_repo: "acme/widgets", pr_review_enabled: true)
+    @workspace = @project.workspace
   end
 
   def fake_github(prs:, health: { ok: true })
@@ -16,11 +19,11 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
   end
 
   def with_github(fake)
-    orig = GithubClient.method(:for)
-    GithubClient.define_singleton_method(:for) { |*_a, **_k| fake }
+    orig = GithubClient.method(:for_project)
+    GithubClient.define_singleton_method(:for_project) { |*_a, **_k| fake }
     yield
   ensure
-    GithubClient.define_singleton_method(:for, orig)
+    GithubClient.define_singleton_method(:for_project, orig)
   end
 
   def pr(number, sha, draft: false)
@@ -31,7 +34,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
       fake = fake_github(prs: [ pr(7, "abc") ])
       with_github(fake) do
-        assert_enqueued_with(job: PrReviewJob, args: [ @workspace.id, 7, "initial" ]) do
+        assert_enqueued_with(job: PrReviewJob, args: [ @project.id, 7, "initial" ]) do
           PrReviewCheckJob.perform_now
         end
       end
@@ -57,7 +60,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
       fake = fake_github(prs: [ pr(7, "new") ])
       with_github(fake) do
-        assert_enqueued_with(job: PrReviewJob, args: [ @workspace.id, 7, "followup" ]) do
+        assert_enqueued_with(job: PrReviewJob, args: [ @project.id, 7, "followup" ]) do
           PrReviewCheckJob.perform_now
         end
       end
@@ -87,50 +90,50 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
         assert_no_enqueued_jobs(only: PrReviewJob) { PrReviewCheckJob.perform_now }
       end
     end
-    @workspace.reload
-    assert_not @workspace.github_status_ok
-    assert_equal "401 Unauthorized", @workspace.github_status_error
+    @project.reload
+    assert_not @project.github_status_ok
+    assert_equal "401 Unauthorized", @project.github_status_error
   end
 
   test "records healthy status" do
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
       with_github(fake_github(prs: [])) { PrReviewCheckJob.perform_now }
     end
-    assert @workspace.reload.github_status_ok
+    assert @project.reload.github_status_ok
   end
 
   test "stamps pr_polled_at on each poll" do
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
       with_github(fake_github(prs: [])) { PrReviewCheckJob.perform_now }
     end
-    assert_equal Time.zone.local(2026, 6, 15, 10, 0), @workspace.reload.pr_polled_at
+    assert_equal Time.zone.local(2026, 6, 15, 10, 0), @project.reload.pr_polled_at
   end
 
-  test "skips a workspace polled less than max(7, pr_poll_minutes) minutes ago" do
+  test "skips a project polled less than max(7, pr_poll_minutes) minutes ago" do
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
-      @workspace.update!(pr_poll_minutes: 5, pr_polled_at: 2.minutes.ago)
+      @project.update!(pr_poll_minutes: 5, pr_polled_at: 2.minutes.ago)
       with_github(fake_github(prs: [ pr(7, "abc") ])) do
         assert_no_enqueued_jobs(only: PrReviewJob) { PrReviewCheckJob.perform_now }
       end
     end
   end
 
-  test "polls a workspace whose pr_polled_at is nil" do
-    @workspace.update!(pr_polled_at: nil)
+  test "polls a project whose pr_polled_at is nil" do
+    @project.update!(pr_polled_at: nil)
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
       with_github(fake_github(prs: [ pr(7, "abc") ])) do
-        assert_enqueued_with(job: PrReviewJob, args: [ @workspace.id, 7, "initial" ]) do
+        assert_enqueued_with(job: PrReviewJob, args: [ @project.id, 7, "initial" ]) do
           PrReviewCheckJob.perform_now
         end
       end
     end
   end
 
-  test "polls a workspace whose pr_polled_at is older than the effective interval" do
+  test "polls a project whose pr_polled_at is older than the effective interval" do
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
-      @workspace.update!(pr_poll_minutes: 3, pr_polled_at: 8.minutes.ago)
+      @project.update!(pr_poll_minutes: 3, pr_polled_at: 8.minutes.ago)
       with_github(fake_github(prs: [ pr(7, "abc") ])) do
-        assert_enqueued_with(job: PrReviewJob, args: [ @workspace.id, 7, "initial" ]) do
+        assert_enqueued_with(job: PrReviewJob, args: [ @project.id, 7, "initial" ]) do
           PrReviewCheckJob.perform_now
         end
       end
@@ -159,7 +162,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
 
     travel_to Time.zone.local(2026, 6, 15, 10, 20) do
       with_github(fake_github(prs: [ pr(7, "abc") ])) do
-        assert_enqueued_with(job: PrReviewJob, args: [ @workspace.id, 7, "initial" ]) do
+        assert_enqueued_with(job: PrReviewJob, args: [ @project.id, 7, "initial" ]) do
           PrReviewCheckJob.perform_now
         end
       end
@@ -184,7 +187,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
 
     travel_to Time.zone.local(2026, 6, 20, 10, 0) do
       with_github(fake_github(prs: [ pr(7, "def") ])) do
-        assert_enqueued_with(job: PrReviewJob, args: [ @workspace.id, 7, "initial" ]) do
+        assert_enqueued_with(job: PrReviewJob, args: [ @project.id, 7, "initial" ]) do
           PrReviewCheckJob.perform_now
         end
       end
@@ -200,7 +203,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
 
     travel_to Time.zone.local(2026, 6, 15, 10, 20) do
       with_github(fake_github(prs: [ pr(7, "new") ])) do
-        assert_enqueued_with(job: PrReviewJob, args: [ @workspace.id, 7, "followup" ]) do
+        assert_enqueued_with(job: PrReviewJob, args: [ @project.id, 7, "followup" ]) do
           PrReviewCheckJob.perform_now
         end
       end
@@ -214,7 +217,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
 
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
       with_github(fake_github(prs: [ pr(7, "abc") ])) do
-        assert_enqueued_with(job: PrReviewJob, args: [ @workspace.id, 7, "initial" ]) do
+        assert_enqueued_with(job: PrReviewJob, args: [ @project.id, 7, "initial" ]) do
           PrReviewCheckJob.perform_now
         end
       end
@@ -230,7 +233,7 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
   end
 
   test "no-op when disabled" do
-    @workspace.update!(pr_review_enabled: false)
+    @project.update!(pr_review_enabled: false)
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
       with_github(fake_github(prs: [ pr(7, "abc") ])) do
         assert_no_enqueued_jobs(only: PrReviewJob) { PrReviewCheckJob.perform_now }

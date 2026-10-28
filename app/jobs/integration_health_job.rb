@@ -1,5 +1,5 @@
 # Asks each integration whether it still works, and records the answer on the
-# workspace so the topbar chips can tell the truth.
+# project so the topbar chips can tell the truth.
 #
 # A chip that goes green on "somebody filled this field in" is worse than no
 # chip: a Figma token expired without a sound, and the first sign of it was the
@@ -7,54 +7,48 @@
 # — tokens expire, get revoked, lose a scope — so something has to keep asking.
 #
 # GitHub keeps its existing per-poll check in PrReviewCheckJob (that one runs
-# far more often); this fills it in too for workspaces where PR review is off.
+# far more often); this fills it in too for projects where PR review is off.
 class IntegrationHealthJob < ApplicationJob
   queue_as :default
 
   def perform
-    Workspace.find_each do |workspace|
-      check_jira(workspace)
-      check_github(workspace)
-      check_figma(workspace)
+    Project.active.find_each do |project|
+      check_jira(project)
+      check_github(project)
+      check_figma(project)
     rescue StandardError => e
-      # One broken workspace must not stop the rest from being checked.
-      Rails.logger.error("[IntegrationHealthJob] workspace #{workspace.id} failed: #{e.message}")
+      # One broken project must not stop the rest from being checked.
+      Rails.logger.error("[IntegrationHealthJob] project #{project.id} failed: #{e.message}")
     end
   end
 
   private
 
-  def check_jira(workspace)
-    project = workspace.projects.active.find_by(external_type: "jira")
-    return unless project
+  def check_jira(project)
+    credentials = ProjectCredentials.new(project)
+    return unless credentials.jira_configured?
 
-    result = JiraClient.new(**jira_credentials(project)).health_check
-    store(workspace, :jira, result)
+    store(project, :jira, JiraClient.new(domain: credentials.jira_site,
+                                         email: credentials.jira_email,
+                                         api_token: credentials.jira_api_token).health_check)
   end
 
-  # Per-project credentials when set, the app-wide ENV otherwise — the same
-  # resolution the rest of the app uses.
-  def jira_credentials(project)
-    creds = ProjectCredentials.new(project)
-    { domain: creds.jira_site, email: creds.jira_email, api_token: creds.jira_api_token }
-  end
-
-  def check_github(workspace)
-    client = GithubClient.for(workspace)
+  def check_github(project)
+    client = GithubClient.for_project(project)
     return unless client.configured?
 
-    store(workspace, :github, client.health_check)
+    store(project, :github, client.health_check)
   end
 
-  def check_figma(workspace)
-    # Only meaningful where the workspace actually asked the AI to read Figma.
-    return unless workspace.figma_read_enabled?
+  def check_figma(project)
+    # Only meaningful where the project actually asked the AI to read Figma.
+    return unless project.figma_read_enabled?
 
-    store(workspace, :figma, FigmaClient.for_cli.health_check)
+    store(project, :figma, FigmaClient.for_project(project).health_check)
   end
 
-  def store(workspace, integration, result)
-    workspace.update_columns(
+  def store(project, integration, result)
+    project.update_columns(
       "#{integration}_status_ok" => result[:ok],
       "#{integration}_status_error" => result[:error],
       "#{integration}_status_checked_at" => Time.current

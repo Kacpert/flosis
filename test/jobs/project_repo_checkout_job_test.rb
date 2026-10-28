@@ -7,8 +7,8 @@ class ProjectRepoCheckoutJobTest < ActiveJob::TestCase
     @project = projects(:jira_project)
     # Point this project's dir at an isolated tmp folder so the clone branch
     # doesn't create real dirs under ~/work/clients.
-    @project.update!(workspace_dir: File.join(@tmp, "checkout"), github_repo: nil, github_token: nil)
-    @project.workspace.update!(github_repo: "acme/app", github_token: "ght")
+    @project.update!(workspace_dir: File.join(@tmp, "checkout"),
+                     github_repo: "acme/app", github_token: "ght")
   end
   teardown { FileUtils.remove_entry(@tmp) if @tmp && File.exist?(@tmp) }
 
@@ -48,8 +48,15 @@ class ProjectRepoCheckoutJobTest < ActiveJob::TestCase
     assert_match "network exploded", @project.repo_checkout_error.to_s
   end
 
-  test "does nothing when github not configured" do
-    @project.workspace.update!(github_repo: nil, github_token: nil)
-    assert_nothing_raised { ProjectRepoCheckoutJob.perform_now(@project.id) }
+  # Only the project's own credentials count: a checkout cloned with another
+  # project's token is the wrong repo, so a blank field means "do nothing".
+  test "does nothing when the project has no github credentials of its own" do
+    @project.update!(github_repo: nil, github_token: nil)
+    @project.workspace.update!(github_repo: "acme/app", github_token: "ght")
+
+    with_git_capture do |calls|
+      assert_nothing_raised { ProjectRepoCheckoutJob.perform_now(@project.id) }
+      assert_empty calls
+    end
   end
 end

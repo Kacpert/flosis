@@ -5,10 +5,10 @@ require "test_helper"
 # client it couldn't open the design — these cover the job that keeps asking.
 class IntegrationHealthJobTest < ActiveJob::TestCase
   setup do
-    @workspace = workspaces(:one)
-    @workspace.update!(github_repo: "acme/widgets", github_token: "t", figma_read_enabled: true)
     @project = projects(:jira_project)
-    @project.update!(jira_site: "acme.atlassian.net", jira_email: "e@x.com", jira_api_token: "jt")
+    @project.update!(github_repo: "acme/widgets", github_token: "t",
+                     figma_read_enabled: true, figma_token: "ft",
+                     jira_site: "acme.atlassian.net", jira_email: "e@x.com", jira_api_token: "jt")
   end
 
   def with_health(jira:, github:, figma:)
@@ -30,12 +30,12 @@ class IntegrationHealthJobTest < ActiveJob::TestCase
       IntegrationHealthJob.perform_now
     end
 
-    @workspace.reload
-    assert @workspace.jira_status_ok
-    assert @workspace.github_status_ok
-    assert @workspace.figma_status_ok
-    assert_not_nil @workspace.figma_status_checked_at
-    assert_nil @workspace.figma_status_error
+    @project.reload
+    assert @project.jira_status_ok
+    assert @project.github_status_ok
+    assert @project.figma_status_ok
+    assert_not_nil @project.figma_status_checked_at
+    assert_nil @project.figma_status_error
   end
 
   test "records the reason a token stopped working" do
@@ -44,33 +44,43 @@ class IntegrationHealthJobTest < ActiveJob::TestCase
       IntegrationHealthJob.perform_now
     end
 
-    @workspace.reload
-    assert_equal false, @workspace.figma_status_ok
-    assert_equal "401 Unauthorized — Token has expired", @workspace.figma_status_error
-    assert @workspace.jira_status_ok, "one broken integration doesn't taint the others"
+    @project.reload
+    assert_equal false, @project.figma_status_ok
+    assert_equal "401 Unauthorized — Token has expired", @project.figma_status_error
+    assert @project.jira_status_ok, "one broken integration doesn't taint the others"
   end
 
-  test "skips Figma when the workspace never asked the AI to read it" do
-    @workspace.update!(figma_read_enabled: false)
+  test "skips Figma when the project never asked the AI to read it" do
+    @project.update!(figma_read_enabled: false)
 
     with_health(jira: { ok: true }, github: { ok: true }, figma: { ok: false, error: "boom" }) do
       IntegrationHealthJob.perform_now
     end
 
-    assert_nil @workspace.reload.figma_status_checked_at, "nothing to report on an integration nobody uses"
+    assert_nil @project.reload.figma_status_checked_at, "nothing to report on an integration nobody uses"
   end
 
-  test "a workspace that raises does not stop the others being checked" do
-    other = workspaces(:two)
+  test "an archived project is left alone" do
+    @project.update!(archived: true)
+
+    with_health(jira: { ok: true }, github: { ok: true }, figma: { ok: true }) do
+      IntegrationHealthJob.perform_now
+    end
+
+    assert_nil @project.reload.jira_status_checked_at
+  end
+
+  test "a project that raises does not stop the others being checked" do
+    other = projects(:plain_project)
     other.update!(github_repo: "acme/other", github_token: "t")
 
-    # Make one workspace explode inside its check. The id is captured here:
+    # Make one project explode inside its check. The id is captured here:
     # inside define_singleton_method `self` is the class, not the test.
-    exploding_id = @workspace.id
-    orig = GithubClient.method(:for)
-    GithubClient.define_singleton_method(:for) do |workspace|
-      raise "boom" if workspace.id == exploding_id
-      orig.call(workspace)
+    exploding_id = @project.id
+    orig = GithubClient.method(:for_project)
+    GithubClient.define_singleton_method(:for_project) do |project|
+      raise "boom" if project.id == exploding_id
+      orig.call(project)
     end
 
     begin
@@ -78,9 +88,9 @@ class IntegrationHealthJobTest < ActiveJob::TestCase
         assert_nothing_raised { IntegrationHealthJob.perform_now }
       end
     ensure
-      GithubClient.define_singleton_method(:for, orig)
+      GithubClient.define_singleton_method(:for_project, orig)
     end
 
-    assert other.reload.github_status_ok, "the second workspace was still checked"
+    assert other.reload.github_status_ok, "the second project was still checked"
   end
 end
