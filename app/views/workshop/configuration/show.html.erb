@@ -17,9 +17,11 @@
       <%# Shown but locked. That it exists, and why it is shut, is more use
           than a tab that silently is not there. The controller refuses it
           server-side too, so this is presentation and not the gate. %>
+      <% needed = Workshop::ConfigurationController::TAB_PERMISSIONS[tab] %>
       <span class="clar-tab clar-tip inline-flex items-center gap-1.5 cursor-not-allowed opacity-60"
-            data-tip="Missing permission &mdash; ask an administrator"
-            aria-label="Missing permission" tabindex="0" aria-disabled="true">
+            data-tip="Needs the <%= PermissionPreset.label(needed) %> permission &mdash; <%= PermissionPreset.description(needed) %>"
+            aria-label="<%= label %>: needs the <%= PermissionPreset.label(needed) %> permission"
+            tabindex="0" aria-disabled="true">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
         <%= label %>
       </span>

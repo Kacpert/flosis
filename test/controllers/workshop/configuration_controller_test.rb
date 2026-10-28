@@ -233,8 +233,8 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_select "span.clar-tab[aria-disabled='true']", text: /Users/ do |tab|
       # data-tip drives the .clar-tip bubble; the native title attribute waited
       # ~1-2s before appearing, which read as nothing happening.
-      assert_match(/Missing permission/, tab.first["data-tip"], "locked tab must say why")
-      assert_match(/Missing permission/, tab.first["aria-label"], "and say it to screen readers")
+      assert_match(/Needs the Configuration permission/, tab.first["data-tip"], "locked tab must say why")
+      assert_match(/needs the Configuration permission/, tab.first["aria-label"], "and say it to screen readers")
     end
 
     # Can manage the tab they hold.
@@ -248,6 +248,19 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     # Nor PATCH it — forbidden server-side, not silently accepted.
     patch workshop_configuration_path, params: { tab: "users" }
     assert_response :forbidden
+  end
+
+  # A padlock with no reason beside it sends the person to ask an administrator
+  # a question the screen could have answered.
+  test "a locked tab names the permission it needs" do
+    workspace_memberships(:one_owner).update!(workspace_admin: false)
+    project_memberships(:one_elvium).update!(PermissionPreset.attributes_for("Product Owner"))
+    sign_in_as(users(:one))
+
+    get workshop_configuration_path(tab: "briefing")
+
+    assert_response :success
+    assert_match "Needs the Configuration permission", response.body
   end
 
   # test_github and verify_jira_fields are Integrations-tab writes but used to

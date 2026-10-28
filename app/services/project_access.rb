@@ -11,6 +11,10 @@ class ProjectAccess
     @project = project
   end
 
+  # The screens that list access rows need to name the project each row is
+  # about, and they should not have to carry it alongside.
+  attr_reader :project
+
   def workspace_admin?
     return false unless @user && @project&.workspace
 

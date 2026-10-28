@@ -1,0 +1,54 @@
+<%# "What am I allowed to see?", answered per project. This page is in the HR
+    design system, so it restates the Configuration legend in m3 markup rather
+    than rendering it — the sentences come from PermissionPreset either way, so
+    the two screens cannot drift apart in what they claim. %>
+<div class="m3-card-elevated p-6">
+  <h2 class="text-lg font-semibold mb-1" style="color: var(--color-on-surface)">Your access</h2>
+  <p class="text-sm mb-4" style="color: var(--color-on-surface-variant)">
+    <% if workspace_admin? %>
+      You are a workspace administrator: you hold all six permissions
+      in every project in this workspace, and you cannot be removed from a single one.
+    <% else %>
+      Permissions are set per project. To change them, ask an administrator &mdash; they
+      are on each project's Configuration &rsaquo; Users.
+    <% end %>
+  </p>
+
+  <% if @access_rows.empty? %>
+    <p class="text-sm" style="color: var(--color-on-surface-variant)">
+      You are not on any project yet.
+      <% if current_membership&.time_hr_access? %>
+        You do have access to Time &amp; HR, where you log your own hours and holidays.
+      <% end %>
+    </p>
+  <% else %>
+    <div class="space-y-4">
+      <% @access_rows.each do |access| %>
+        <div class="rounded-xl p-4" style="border: 1px solid var(--color-outline-variant)">
+          <div class="flex items-baseline justify-between gap-3 mb-3">
+            <span class="font-semibold" style="color: var(--color-on-surface)"><%= access.project.name %></span>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                  style="background: var(--color-secondary-container); color: var(--color-on-secondary-container)">
+              <%= access.role_label %>
+            </span>
+          </div>
+
+          <dl class="space-y-2">
+            <% PermissionPreset::PERMISSIONS.each do |permission| %>
+              <% held = access.can?(permission) %>
+              <div class="flex gap-3 text-sm <%= "opacity-45" unless held %>">
+                <dt class="flex items-center gap-2 font-medium shrink-0" style="width: 11rem; color: var(--color-on-surface)">
+                  <%# A tick or a dash, so the state survives being read without colour. %>
+                  <span aria-hidden="true"><%= held ? "&#10003;".html_safe : "&ndash;".html_safe %></span>
+                  <span><%= PermissionPreset.label(permission) %></span>
+                  <span class="sr-only"><%= held ? "allowed" : "not allowed" %></span>
+                </dt>
+                <dd style="color: var(--color-on-surface-variant)"><%= PermissionPreset.description(permission) %></dd>
+              </div>
+            <% end %>
+          </dl>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>

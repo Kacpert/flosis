@@ -1,6 +1,10 @@
 class ProfilesController < ApplicationController
   include WorkspaceScoped
 
+  # update re-renders :show when the form is refused, and that template needs
+  # the access rows just as much as show itself does.
+  before_action :load_access_rows
+
   def show
   end
 
@@ -26,5 +30,24 @@ class ProfilesController < ApplicationController
     else
       render :show, status: :unprocessable_entity
     end
+  end
+
+  private
+
+  # One row per project this person can reach, each able to answer what they
+  # may do there. A workspace admin reaches every project without a membership
+  # row, so their list comes from the workspace rather than from memberships.
+  def load_access_rows
+    return @access_rows = [] unless current_workspace
+
+    projects = if workspace_admin?
+      current_workspace.projects.order(:name)
+    else
+      current_workspace.projects
+                       .where(id: ProjectMembership.where(user_id: current_user.id).select(:project_id))
+                       .order(:name)
+    end
+
+    @access_rows = projects.map { |project| ProjectAccess.new(current_user, project) }
   end
 end
