@@ -3374,7 +3374,7 @@ it stays a statement of the rules rather than of one project's state:
   </div>
 
   <div>
-    <div class="text-[10.5px] font-bold tracking-[.5px] clar-text-faint mb-2">THE THREE ROLE NAMES</div>
+    <div class="text-[10.5px] font-bold tracking-[.5px] clar-text-faint mb-2">WHAT THE ROLE NAMES MEAN</div>
     <dl class="space-y-1.5">
       <% PermissionPreset::PRESETS.each do |label, permissions| %>
         <div class="flex gap-2 text-[11.5px] leading-[1.45]">
