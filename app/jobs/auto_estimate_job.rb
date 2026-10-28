@@ -1,8 +1,9 @@
 # Produces an AI story-point estimate for a task via the Claude CLI and
-# writes it to every Jira field configured on the workspace
-# (workspace.estimation_field_names) — and NEVER any field outside that list.
+# writes it to every Jira field configured on the task's project
+# (project.estimation_field_names) — and NEVER any field outside that list.
 #
-# Triggered by (workspace.estimation_trigger):
+# Triggered by estimation_trigger — which the callers below still read off the
+# workspace, while the fields written here come from the project:
 #   sprint   — JiraSyncService#sync_sprint_assignments, when a task newly
 #              gains a sprint_id on a non-design board sprint
 #   status   — JiraSyncService#sync_issues, when jira_status_name transitions
@@ -26,7 +27,6 @@ class AutoEstimateJob < ApplicationJob
 
     return if skip?(task, force: force)
 
-    workspace = task.project.workspace
     response = run_ai(task)
     return if response.nil? # CLI failed to run — do not save, do not crash
 
@@ -34,7 +34,7 @@ class AutoEstimateJob < ApplicationJob
     return if estimate.nil? # garbage / no block / not a valid number — no estimate this run
 
     task.update!(ai_estimate_points: estimate[:points], ai_estimated_at: Time.current)
-    write_to_jira(task, workspace, estimate[:points])
+    write_to_jira(task, task.project, estimate[:points])
   end
 
   private
@@ -65,12 +65,12 @@ class AutoEstimateJob < ApplicationJob
     response.match?(CLI_FAILURE_MARKERS) || response.strip.length < 20
   end
 
-  def write_to_jira(task, workspace, points)
+  def write_to_jira(task, project, points)
     return if task.external_reference.blank?
 
     client = JiraClient.new
-    Array(workspace.estimation_field_names).each do |field_name|
-      field_id = field_id_for(workspace, client, field_name)
+    Array(project.estimation_field_names).each do |field_name|
+      field_id = field_id_for(project, client, field_name)
       next if field_id.blank?
 
       client.set_number_field(issue_key: task.external_reference, field_id: field_id, value: points)
@@ -78,17 +78,17 @@ class AutoEstimateJob < ApplicationJob
   end
 
   # Resolves + caches the Jira custom field id for the given field name.
-  # The workspace has a single cache column (jira_ai_estimation_field_id) for
+  # The project has a single cache column (jira_ai_estimation_field_id) for
   # the primary/default "AI estimation" field, mirroring
   # JiraWriter#ai_actions_field_id's caching pattern; any additional
   # configured field names are resolved fresh each run (still cheap — a
   # single GET /field call).
-  def field_id_for(workspace, client, field_name)
-    if field_name == Workspace::DEFAULT_ESTIMATION_FIELD_NAME
-      return workspace.jira_ai_estimation_field_id if workspace.jira_ai_estimation_field_id.present?
+  def field_id_for(project, client, field_name)
+    if field_name == EstimationSettings::DEFAULT_ESTIMATION_FIELD_NAME
+      return project.jira_ai_estimation_field_id if project.jira_ai_estimation_field_id.present?
 
       id = client.fetch_field_id(field_name)
-      workspace.update_column(:jira_ai_estimation_field_id, id) if id.present?
+      project.update_column(:jira_ai_estimation_field_id, id) if id.present?
       return id
     end
 

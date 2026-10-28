@@ -190,7 +190,7 @@ class JiraSyncService
     workspace = @project.workspace
     return workspace.jira_ai_estimation_field_id if workspace.jira_ai_estimation_field_id.present?
 
-    id = @client.fetch_field_id(Workspace::DEFAULT_ESTIMATION_FIELD_NAME)
+    id = @client.fetch_field_id(EstimationSettings::DEFAULT_ESTIMATION_FIELD_NAME)
     workspace.update_column(:jira_ai_estimation_field_id, id) if id.present?
     id
   end

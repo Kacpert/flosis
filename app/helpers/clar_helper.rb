@@ -79,18 +79,22 @@ module ClarHelper
   # Discord has no health check: a webhook URL is write-only, so there is
   # nothing to ask it. It reports configured-or-not, and says so on hover
   # rather than implying it was verified.
+  #
+  # Nothing selected means nothing to report: four grey chips claiming no
+  # integration is connected would be a lie about a screen with no project on it.
   def integration_chips
-    workspace = Current.workspace
+    project = current_workshop_project
+    return [] unless project
 
     [
-      chip("Jira", configured: current_workshop_project&.jira_connected?,
-                   ok: workspace.jira_status_ok, error: workspace.jira_status_error),
-      chip("GitHub", configured: workspace.github_repo.present?,
-                     ok: workspace.github_status_ok, error: workspace.github_status_error),
-      chip("Discord", configured: workspace.discord_channel_id.present?, ok: nil, error: nil,
+      chip("Jira", configured: project.jira_connected?,
+                   ok: project.jira_status_ok, error: project.jira_status_error),
+      chip("GitHub", configured: project.github_repo.present?,
+                     ok: project.github_status_ok, error: project.github_status_error),
+      chip("Discord", configured: project.discord_webhooks.any?, ok: nil, error: nil,
                       unchecked_note: "not health-checked"),
-      chip("Figma", configured: workspace.figma_read_enabled?,
-                    ok: workspace.figma_status_ok, error: workspace.figma_status_error)
+      chip("Figma", configured: project.figma_read_enabled?,
+                    ok: project.figma_status_ok, error: project.figma_status_error)
     ]
   end
 

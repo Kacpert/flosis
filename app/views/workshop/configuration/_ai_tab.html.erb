@@ -15,7 +15,7 @@
   <div class="clar-card p-4.5">
     <div class="font-bold text-[14px] clar-text-text mb-1">PR review prompt</div>
     <div class="text-[12.5px] clar-text-muted mb-3">Instructions the AI follows when reviewing pull requests.</div>
-    <textarea name="workspace[pr_review_prompt]" rows="6" class="clar-textarea clar-mono !text-[12.5px] !leading-[1.6] resize-y"
+    <textarea name="project[pr_review_prompt]" rows="6" class="clar-textarea clar-mono !text-[12.5px] !leading-[1.6] resize-y"
               data-action="change->auto-save#save"><%= @pr_review_prompt %></textarea>
   </div>
 
@@ -27,7 +27,7 @@
         <span class="text-[30px] font-bold clar-text-text" data-clar-poll-minutes-value><%= @poll_minutes %></span>
         <span class="text-[13px] clar-text-faint">minutes</span>
       </div>
-      <input type="range" min="1" max="30" step="1" name="workspace[pr_poll_minutes]" value="<%= @poll_minutes %>"
+      <input type="range" min="1" max="30" step="1" name="project[pr_poll_minutes]" value="<%= @poll_minutes %>"
              class="w-full mt-3 accent-[var(--primary)]"
              oninput="this.closest('.clar-card').querySelector('[data-clar-poll-minutes-value]').textContent = this.value"
              data-action="change->auto-save#save">
@@ -44,18 +44,18 @@
       <div class="text-[12px] clar-text-faint mb-1.5">Jira field(s) to write</div>
       <div data-controller="clar-field-chip">
         <div class="flex flex-wrap gap-1.5 mb-1.5" data-clar-field-chip-target="list">
-          <% Workspace::ESTIMATION_FIELD_OPTIONS.each do |field_name| %>
+          <% EstimationSettings::ESTIMATION_FIELD_OPTIONS.each do |field_name| %>
             <% checked = @estimation_field_names.include?(field_name) %>
             <label class="clar-chip cursor-pointer <%= 'clar-chip-active' if checked %>">
-              <input type="checkbox" name="workspace[estimation_field_names][]" value="<%= field_name %>"
+              <input type="checkbox" name="project[estimation_field_names][]" value="<%= field_name %>"
                      class="sr-only" <%= "checked" if checked %>
                      data-action="change->auto-save#save">
               <%= field_name %>
             </label>
           <% end %>
-          <% (@estimation_field_names - Workspace::ESTIMATION_FIELD_OPTIONS).each do |field_name| %>
+          <% (@estimation_field_names - EstimationSettings::ESTIMATION_FIELD_OPTIONS).each do |field_name| %>
             <label class="clar-chip clar-chip-active cursor-pointer">
-              <input type="checkbox" name="workspace[estimation_field_names][]" value="<%= field_name %>"
+              <input type="checkbox" name="project[estimation_field_names][]" value="<%= field_name %>"
                      class="sr-only" checked
                      data-action="change->auto-save#save">
               <%= field_name %>
@@ -73,9 +73,9 @@
 
       <div class="text-[12px] clar-text-faint mb-1.5">Estimate a story when&hellip;</div>
       <div class="flex flex-col gap-1.5">
-        <% Workspace::ESTIMATION_TRIGGERS.each do |value, label| %>
+        <% EstimationSettings::ESTIMATION_TRIGGERS.each do |value, label| %>
           <label class="flex items-center gap-2.5 text-[13px] font-medium text-left px-2.5 py-2 rounded-[9px] border cursor-pointer <%= @estimation_trigger == value ? 'border-[color:var(--primary)] bg-[var(--primary-soft)]' : 'border-[color:var(--border)]' %> clar-text-text">
-            <input type="radio" name="workspace[estimation_trigger]" value="<%= value %>" <%= "checked" if @estimation_trigger == value %>
+            <input type="radio" name="project[estimation_trigger]" value="<%= value %>" <%= "checked" if @estimation_trigger == value %>
                    class="accent-[var(--primary)]" data-action="change->auto-save#save">
             <%= label %>
           </label>

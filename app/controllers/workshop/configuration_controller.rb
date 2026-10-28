@@ -5,6 +5,22 @@
 class Workshop::ConfigurationController < Workshop::BaseController
   TABS = %w[integrations ai briefing users].freeze
 
+  AI_FIELDS = %i[
+    pr_review_prompt pr_poll_minutes pr_review_enabled
+    estimation_trigger estimation_status_trigger figma_read_enabled anthropic_api_key
+  ].freeze
+
+  INTEGRATION_FIELDS = {
+    "jira" => %i[jira_site jira_email jira_api_token],
+    "github" => %i[github_repo github_token pr_review_enabled],
+    "figma" => %i[figma_token figma_read_enabled]
+  }.freeze
+
+  # A blank secret means "leave it alone", never "erase it" — the forms render
+  # secrets as empty fields, so submitting the page untouched must not wipe the
+  # keys.
+  SECRETS = %i[jira_api_token github_token figma_token anthropic_api_key].freeze
+
   # What each tab costs. Briefing is the one a Product Owner holds, which is
   # why this is a per-tab map and not a single gate on the page.
   TAB_PERMISSIONS = {
@@ -28,28 +44,27 @@ class Workshop::ConfigurationController < Workshop::BaseController
   end
 
   def update
-    tab = TABS.include?(params[:tab]) ? params[:tab] : "ai"
+    tab = requested_tab
     return head :forbidden unless tab_permitted?(tab)
 
+    project = current_workshop_project
+    return redirect_with("No project selected.", tab) unless project
+
     case tab
-    when "ai"
-      update_ai_settings
-    when "briefing"
-      update_briefing_settings
-    when "integrations"
-      update_integrations_settings
+    when "ai" then save_project_fields(project, AI_FIELDS, "AI settings saved")
+    when "integrations" then save_integration(project)
+    when "briefing" then save_briefing(project)
     end
 
     redirect_to workshop_configuration_path(tab: tab)
   end
 
-  # Duplicated from WorkspaceSettingsController#test_github (HR's Workspace
-  # Settings) rather than reused — the HR-BOUNDARY constraint for this task
-  # forbids touching HR's controller/route. Same 5-line body, different
-  # redirect target and flash key (clar_toast vs notice).
   def test_github
-    result = GithubClient.for(current_workspace).health_check
-    current_workspace.update_columns(
+    project = current_workshop_project
+    return redirect_with("No project selected.", "integrations") unless project
+
+    result = GithubClient.for_project(project).health_check
+    project.update_columns(
       github_status_ok: result[:ok],
       github_status_error: result[:error],
       github_status_checked_at: Time.current
@@ -65,8 +80,11 @@ class Workshop::ConfigurationController < Workshop::BaseController
   # existing cached id) since this action exists specifically to let an admin
   # re-verify/refresh the mapping.
   def verify_jira_fields
+    project = current_workshop_project
+    return redirect_with("No project selected.", "integrations") unless project
+
     client = JiraClient.new
-    current_workspace.update!(
+    project.update!(
       jira_ai_actions_field_id: client.fetch_field_id("AI actions"),
       jira_ai_estimation_field_id: client.fetch_field_id("AI estimation"),
       jira_story_points_field_id: client.fetch_field_id("Story point estimate") || client.fetch_field_id("Story Points")
@@ -119,54 +137,45 @@ class Workshop::ConfigurationController < Workshop::BaseController
                 alert: "You don't have permission to open that tab."
   end
 
-  def update_integrations_settings
-    return save_jira_integration if params[:integration] == "jira"
-
-    save_workspace_integration # existing github_repo/token/toggles path (legacy)
+  def save_integration(project)
+    fields = INTEGRATION_FIELDS.fetch(params[:integration].to_s, [])
+    save_project_fields(project, fields, "Integration settings saved")
+    ProjectMcpConfig.write!(project) if project.workspace_dir.present?
   end
 
-  # Per-project Jira credentials (Task 9). Secrets are encrypted on the project;
-  # a blank token preserves the existing one. Regenerates the project's .mcp.json
-  # so automations pick up the new creds immediately. GitHub creds stay on the
-  # workspace (legacy PrReviewJob path); ProjectCredentials falls back to the
-  # workspace for github, so per-project automations still get a working token.
-  def save_jira_integration
-    project = current_workshop_project
-    return flash[:alert] = "No project selected." unless project
-    attrs = params.require(:project).permit(:jira_site, :jira_email, :jira_api_token)
-    attrs.delete(:jira_api_token) if attrs[:jira_api_token].blank?
+  def save_project_fields(project, fields, notice)
+    attrs = params.require(:project).permit(*fields, estimation_field_names: []).to_h.symbolize_keys
+    SECRETS.each { |secret| attrs.delete(secret) if attrs[secret].blank? }
+
+    names = Array(attrs[:estimation_field_names]).map { |n| n.to_s.strip }.reject(&:blank?)
+    names.any? ? attrs[:estimation_field_names] = names : attrs.delete(:estimation_field_names)
+
     if project.update(attrs)
-      ProjectMcpConfig.write!(project) if project.workspace_dir.present?
-      flash[:clar_toast] = "Jira settings saved"
+      flash[:clar_toast] = notice
     else
       flash[:alert] = project.errors.full_messages.to_sentence
     end
   end
 
-  # Legacy workspace-level integration save (unchanged behavior) — GitHub repo/
-  # token + PR-review toggle live on the workspace.
-  def save_workspace_integration
-    attrs = integrations_settings_params
-    attrs.delete(:github_token) if attrs[:github_token].blank?
-    if current_workspace.update(attrs)
-      flash[:clar_toast] = "Integration settings saved"
-    else
-      flash[:alert] = current_workspace.errors.full_messages.to_sentence
-    end
+  def save_briefing(project)
+    personas = params.dig(:project, :briefing_personas).to_s.strip.presence
+    project.update(briefing_personas: personas)
+    flash[:clar_toast] = "Briefing settings saved"
   end
 
-  def integrations_settings_params
-    params.require(:workspace).permit(
-      :github_repo, :github_token, :pr_review_enabled, :figma_read_enabled
-    )
+  def redirect_with(alert, tab)
+    flash[:alert] = alert
+    redirect_to workshop_configuration_path(tab: tab)
   end
 
   def load_ai_tab
-    @estimation_board_name = current_workshop_project&.name
-    @estimation_field_names = current_workspace.estimation_field_names
-    @estimation_trigger = current_workspace.estimation_trigger
-    @pr_review_prompt = current_workspace.pr_review_prompt.presence || PrReviewJob::DEFAULT_PROMPT
-    @poll_minutes = current_workspace.pr_poll_minutes
+    project = current_workshop_project
+    @estimation_board_name = project&.name
+    @estimation_field_names = project&.estimation_field_names ||
+                              [ EstimationSettings::DEFAULT_ESTIMATION_FIELD_NAME ]
+    @estimation_trigger = project&.estimation_trigger
+    @pr_review_prompt = project&.pr_review_prompt.presence || PrReviewJob::DEFAULT_PROMPT
+    @poll_minutes = project&.pr_poll_minutes || 7
   end
 
   # Briefing tab: the two inputs (per-project) that feed the briefing PO chat —
@@ -194,43 +203,5 @@ class Workshop::ConfigurationController < Workshop::BaseController
     else
       ProjectMembership.none
     end
-  end
-
-  def update_ai_settings
-    attrs = ai_settings_params
-
-    field_names = Array(attrs[:estimation_field_names]).map(&:to_s).map(&:strip).reject(&:blank?)
-    if field_names.any?
-      attrs[:estimation_field_names] = field_names
-    else
-      attrs.delete(:estimation_field_names)
-    end
-
-    if current_workspace.update(attrs)
-      flash[:clar_toast] = "AI settings saved"
-    else
-      flash[:alert] = current_workspace.errors.full_messages.to_sentence
-    end
-  end
-
-  # briefing_personas lives on the project, not the workspace.
-  def update_briefing_settings
-    personas = params.dig(:workspace, :briefing_personas)
-    if current_workshop_project&.update(briefing_personas: personas.to_s.strip.presence)
-      flash[:clar_toast] = "Briefing settings saved"
-    else
-      flash[:alert] = "No project selected."
-    end
-  end
-
-  def ai_settings_params
-    params.require(:workspace).permit(
-      :pr_review_prompt,
-      :pr_poll_minutes,
-      :estimation_trigger,
-      :estimation_status_trigger,
-      :figma_read_enabled,
-      estimation_field_names: []
-    )
   end
 end

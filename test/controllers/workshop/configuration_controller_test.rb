@@ -105,10 +105,10 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     get workshop_configuration_path
     assert_redirected_to profile_path
 
-    before = workspaces(:one).reload.pr_poll_minutes
-    patch workshop_configuration_path, params: { workspace: { pr_poll_minutes: 25 }, tab: "ai" }
+    before = @project.reload.pr_poll_minutes
+    patch workshop_configuration_path, params: { project: { pr_poll_minutes: 25 }, tab: "ai" }
     assert_redirected_to profile_path
-    assert_equal before, workspaces(:one).reload.pr_poll_minutes, "must not persist"
+    assert_equal before, @project.reload.pr_poll_minutes, "must not persist"
   end
 
   test "someone holding Briefing manages that tab, but Integrations/Users render locked and refuse server-side too" do
@@ -131,7 +131,7 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     end
 
     # Can manage the tab they hold.
-    patch workshop_configuration_path, params: { tab: "briefing", workspace: { briefing_personas: "Recruiters." } }
+    patch workshop_configuration_path, params: { tab: "briefing", project: { briefing_personas: "Recruiters." } }
     assert_equal "Recruiters.", @project.reload.briefing_personas
 
     # But cannot even reach the users tab — bounced to the tab they hold.
@@ -164,7 +164,7 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
 
   test "PATCH update persists AI settings and toasts" do
     patch workshop_configuration_path, params: {
-      workspace: {
+      project: {
         pr_review_prompt: "Custom prompt text for reviews.",
         pr_poll_minutes: 15,
         estimation_trigger: "status",
@@ -176,18 +176,18 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     }
 
     assert_redirected_to workshop_configuration_path(tab: "ai")
-    @workspace.reload
-    assert_equal "Custom prompt text for reviews.", @workspace.pr_review_prompt
-    assert_equal 15, @workspace.pr_poll_minutes
-    assert_equal "status", @workspace.estimation_trigger
-    assert_equal [ "Story point estimate", "Confidence (1–5)" ], @workspace.estimation_field_names
-    assert_equal true, @workspace.figma_read_enabled
+    @project.reload
+    assert_equal "Custom prompt text for reviews.", @project.pr_review_prompt
+    assert_equal 15, @project.pr_poll_minutes
+    assert_equal "status", @project.estimation_trigger
+    assert_equal [ "Story point estimate", "Confidence (1–5)" ], @project.estimation_field_names
+    assert_equal true, @project.figma_read_enabled
     assert_match(/AI settings saved/, flash[:clar_toast])
   end
 
   test "PATCH update saves briefing_personas onto the current workshop project" do
     patch workshop_configuration_path, params: {
-      workspace: { briefing_personas: "  Recruiters posting jobs; Admins configuring.  " },
+      project: { briefing_personas: "  Recruiters posting jobs; Admins configuring.  " },
       tab: "briefing"
     }
 
@@ -205,7 +205,7 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".clar-tab.clar-tab-active", /Briefing/
-    assert_select "textarea[name='workspace[briefing_personas]']", /Recruiters and admins\./
+    assert_select "textarea[name='project[briefing_personas]']", /Recruiters and admins\./
     assert_select "body", /what the app already does/i
     assert_select "body", /Users can post jobs and review candidates\./
     assert_select "form[action='#{workshop_refresh_features_configuration_path}']"
@@ -215,7 +215,7 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     get workshop_configuration_path(tab: "ai")
 
     assert_response :success
-    assert_select "textarea[name='workspace[briefing_personas]']", false
+    assert_select "textarea[name='project[briefing_personas]']", false
   end
 
   test "refresh_features enqueues a single-project scan and toasts" do
@@ -228,21 +228,20 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "PATCH update rejects a blank estimation_field_names array" do
-    original = @workspace.estimation_field_names
+    @project.update!(estimation_field_names: [ "Story point estimate" ])
 
     patch workshop_configuration_path, params: {
-      workspace: { estimation_field_names: [ "" ] },
+      project: { estimation_field_names: [ "" ] },
       tab: "ai"
     }
 
-    @workspace.reload
-    assert_equal original, @workspace.estimation_field_names
+    assert_equal [ "Story point estimate" ], @project.reload.estimation_field_names
   end
 
   # ---- Integrations tab (Task 9.2) ----------------------------------------
 
   test "integrations tab renders the 4 cards with live status/detail" do
-    @workspace.update!(
+    @project.update!(
       github_repo: "acme/survey-platform", github_token: "ghp_abcd1234a3f1",
       github_status_ok: true, github_status_checked_at: 2.hours.ago,
       pr_review_enabled: true, figma_read_enabled: true
@@ -285,45 +284,44 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to profile_path
   end
 
-  test "POST test_github runs the health check, persists status, and toasts" do
-    @workspace.update!(github_token: "t", github_repo: "acme/widgets")
+  test "POST test_github runs the health check, persists status on the project, and toasts" do
+    @project.update!(github_token: "t", github_repo: "acme/widgets")
     fake = Object.new
     fake.define_singleton_method(:health_check) { { ok: true } }
-    orig = GithubClient.method(:for)
-    GithubClient.define_singleton_method(:for) { |*_a, **_k| fake }
+    orig = GithubClient.method(:for_project)
+    GithubClient.define_singleton_method(:for_project) { |*_a, **_k| fake }
 
     post workshop_test_github_configuration_path
 
     assert_redirected_to workshop_configuration_path(tab: "integrations")
-    @workspace.reload
-    assert @workspace.github_status_ok
+    assert @project.reload.github_status_ok
     assert_match(/GitHub connection OK/, flash[:clar_toast])
   ensure
-    GithubClient.define_singleton_method(:for, orig)
+    GithubClient.define_singleton_method(:for_project, orig)
   end
 
   test "POST test_github stores the error when the health check fails" do
-    @workspace.update!(github_token: "t", github_repo: "acme/widgets")
+    @project.update!(github_token: "t", github_repo: "acme/widgets")
     fake = Object.new
     fake.define_singleton_method(:health_check) { { ok: false, error: "401 Unauthorized" } }
-    orig = GithubClient.method(:for)
-    GithubClient.define_singleton_method(:for) { |*_a, **_k| fake }
+    orig = GithubClient.method(:for_project)
+    GithubClient.define_singleton_method(:for_project) { |*_a, **_k| fake }
 
     post workshop_test_github_configuration_path
 
-    @workspace.reload
-    assert_not @workspace.github_status_ok
-    assert_equal "401 Unauthorized", @workspace.github_status_error
+    @project.reload
+    assert_not @project.github_status_ok
+    assert_equal "401 Unauthorized", @project.github_status_error
     assert_match(/GitHub connection failed/, flash[:clar_toast])
   ensure
-    GithubClient.define_singleton_method(:for, orig)
+    GithubClient.define_singleton_method(:for_project, orig)
   end
 
   test "POST verify_jira_fields resolves and caches the 3 field ids and toasts" do
     ENV["JIRA_DOMAIN"] = "acme.atlassian.net"
     ENV["JIRA_EMAIL"] = "a@example.com"
     ENV["JIRA_API_TOKEN"] = "tok"
-    @workspace.update!(jira_ai_actions_field_id: nil, jira_ai_estimation_field_id: nil, jira_story_points_field_id: nil)
+    @project.update!(jira_ai_actions_field_id: nil, jira_ai_estimation_field_id: nil, jira_story_points_field_id: nil)
 
     fake = Object.new
     fake.define_singleton_method(:fetch_field_id) do |name|
@@ -335,48 +333,69 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     post workshop_verify_jira_fields_configuration_path
 
     assert_redirected_to workshop_configuration_path(tab: "integrations")
-    @workspace.reload
-    assert_equal "customfield_1", @workspace.jira_ai_actions_field_id
-    assert_equal "customfield_2", @workspace.jira_ai_estimation_field_id
-    assert_equal "customfield_3", @workspace.jira_story_points_field_id
+    @project.reload
+    assert_equal "customfield_1", @project.jira_ai_actions_field_id
+    assert_equal "customfield_2", @project.jira_ai_estimation_field_id
+    assert_equal "customfield_3", @project.jira_story_points_field_id
     assert_match(/fields verified/i, flash[:clar_toast])
   ensure
     JiraClient.define_singleton_method(:new, orig)
   end
 
   test "PATCH update persists GitHub modal fields and a blank token keeps the existing one" do
-    @workspace.update!(github_repo: "acme/old", github_token: "existing-token", pr_review_enabled: false)
+    @project.update!(github_repo: "acme/old", github_token: "existing-token", pr_review_enabled: false)
 
     patch workshop_configuration_path, params: {
-      workspace: { github_repo: "acme/new-repo", github_token: "", pr_review_enabled: true },
-      tab: "integrations"
+      tab: "integrations", integration: "github",
+      project: { github_repo: "acme/new-repo", github_token: "", pr_review_enabled: true }
     }
 
-    @workspace.reload
-    assert_equal "acme/new-repo", @workspace.github_repo
-    assert_equal "existing-token", @workspace.github_token, "blank token must not wipe the existing one"
-    assert_equal true, @workspace.pr_review_enabled
+    @project.reload
+    assert_equal "acme/new-repo", @project.github_repo
+    assert_equal "existing-token", @project.github_token, "blank token must not wipe the existing one"
+    assert_equal true, @project.pr_review_enabled
   end
 
   test "PATCH update persists a non-blank GitHub token (rotate)" do
-    @workspace.update!(github_token: "old-token")
+    @project.update!(github_token: "old-token")
 
     patch workshop_configuration_path, params: {
-      workspace: { github_token: "brand-new-token" },
-      tab: "integrations"
+      tab: "integrations", integration: "github", project: { github_token: "brand-new-token" }
     }
 
-    assert_equal "brand-new-token", @workspace.reload.github_token
+    assert_equal "brand-new-token", @project.reload.github_token
   end
 
-  test "PATCH update persists figma_read_enabled from the integrations tab" do
-    @workspace.update!(figma_read_enabled: false)
+  test "PATCH update persists the Figma token and toggle, and a blank token keeps the stored one" do
+    @project.update!(figma_read_enabled: false, figma_token: "figd_keep-me")
 
     patch workshop_configuration_path, params: {
-      workspace: { figma_read_enabled: true },
-      tab: "integrations"
+      tab: "integrations", integration: "figma",
+      project: { figma_read_enabled: true, figma_token: "" }
     }
 
-    assert_equal true, @workspace.reload.figma_read_enabled
+    @project.reload
+    assert_equal true, @project.figma_read_enabled
+    assert_equal "figd_keep-me", @project.figma_token, "blank token must not wipe the existing one"
+  end
+
+  test "the AI tab saves onto the project, not the workspace" do
+    patch workshop_configuration_path, params: {
+      tab: "ai", project: { pr_poll_minutes: 21, pr_review_prompt: "Be brief." }
+    }
+
+    assert_equal 21, @project.reload.pr_poll_minutes
+    assert_equal "Be brief.", @project.pr_review_prompt
+  end
+
+  test "a blank secret preserves the one already stored" do
+    @project.update!(github_token: "keep-me")
+
+    patch workshop_configuration_path, params: {
+      tab: "integrations", integration: "github", project: { github_repo: "acme/new", github_token: "" }
+    }
+
+    assert_equal "keep-me", @project.reload.github_token
+    assert_equal "acme/new", @project.github_repo
   end
 end

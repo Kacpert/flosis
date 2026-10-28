@@ -19,7 +19,7 @@ export default class extends Controller {
       const label = document.createElement("label")
       label.className = "clar-chip clar-chip-active cursor-pointer has-[:checked]:clar-chip-active"
       label.innerHTML = `
-        <input type="checkbox" name="workspace[estimation_field_names][]" value="${this.#escape(value)}" checked class="sr-only">
+        <input type="checkbox" name="project[estimation_field_names][]" value="${this.#escape(value)}" checked class="sr-only">
         <span>${this.#escape(value)}</span>
       `
       this.listTarget.appendChild(label)

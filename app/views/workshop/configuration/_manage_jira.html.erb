@@ -20,24 +20,24 @@
     <%= hidden_field_tag :integration, "jira" %>
     <div class="p-5">
       <label class="clar-field-label">SITE URL</label>
-      <%= text_field_tag "project[jira_site]", current_workshop_project&.jira_site.presence || ENV["JIRA_DOMAIN"],
+      <%= text_field_tag "project[jira_site]", project.jira_site.presence || ENV["JIRA_DOMAIN"],
             placeholder: "your-company.atlassian.net", class: "clar-input mb-4" %>
 
       <label class="clar-field-label">EMAIL</label>
-      <%= text_field_tag "project[jira_email]", current_workshop_project&.jira_email.presence || ENV["JIRA_EMAIL"],
+      <%= text_field_tag "project[jira_email]", project.jira_email.presence || ENV["JIRA_EMAIL"],
             placeholder: "you@example.com", class: "clar-input mb-4", autocomplete: "off" %>
 
       <label class="clar-field-label">API TOKEN</label>
       <%= password_field_tag "project[jira_api_token]", nil,
-            placeholder: current_workshop_project&.jira_api_token.present? ? "•••••••••• (leave blank to keep)" : "Not set",
+            placeholder: project.jira_api_token.present? ? "•••••••••• (leave blank to keep)" : "Not set",
             class: "clar-input mb-4", autocomplete: "off" %>
 
       <label class="clar-field-label">PROJECT KEY</label>
-      <div class="clar-input clar-mono mb-4 flex items-center bg-[var(--surface-2)]"><%= current_workshop_project&.external_reference.presence || "&mdash;".html_safe %></div>
+      <div class="clar-input clar-mono mb-4 flex items-center bg-[var(--surface-2)]"><%= project.external_reference.presence || "&mdash;".html_safe %></div>
 
       <div class="clar-field-label">CUSTOM FIELDS</div>
       <div class="flex flex-col gap-1.5 mb-4">
-        <% [["AI estimation", workspace.jira_ai_estimation_field_id], ["AI actions", workspace.jira_ai_actions_field_id], ["Story points", workspace.jira_story_points_field_id]].each do |label, field_id| %>
+        <% [["AI estimation", project.jira_ai_estimation_field_id], ["AI actions", project.jira_ai_actions_field_id], ["Story points", project.jira_story_points_field_id]].each do |label, field_id| %>
           <div class="flex items-center gap-2.5 bg-[var(--bg)] border border-[color:var(--border)] rounded-[9px] px-3 py-2.5">
             <span class="<%= field_id.present? ? 'text-[color:var(--success)]' : 'clar-text-faint' %> flex">
               <% if field_id.present? %>

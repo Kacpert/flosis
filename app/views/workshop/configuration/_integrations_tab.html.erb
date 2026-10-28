@@ -1,14 +1,14 @@
 <%
-  workspace = current_workspace
-  github_last4 = workspace.github_token.present? ? workspace.github_token.last(4) : nil
+  project = current_workshop_project
+  github_last4 = project&.github_token.present? ? project.github_token.last(4) : nil
   github_detail = [
-    workspace.github_repo.presence || "no repo configured",
+    project&.github_repo.presence || "no repo configured",
     (github_last4 ? "token &bull;&bull;&bull;&bull;#{github_last4}" : "no token").html_safe,
-    "checked #{clar_time_ago(workspace.github_status_checked_at) || 'never'}"
+    "checked #{clar_time_ago(project&.github_status_checked_at) || 'never'}"
   ].join(" &middot; ").html_safe
 
-  jira_fields_verified = workspace.jira_ai_actions_field_id.present? &&
-    workspace.jira_ai_estimation_field_id.present? && workspace.jira_story_points_field_id.present?
+  jira_fields_verified = project&.jira_ai_actions_field_id.present? &&
+    project.jira_ai_estimation_field_id.present? && project.jira_story_points_field_id.present?
   jira_detail = if @jira_configured
     domain = ENV["JIRA_DOMAIN"]
     fields = %(fields &ldquo;AI estimation&rdquo; #{jira_fields_verified ? '&check;' : '&times;'} &ldquo;AI actions&rdquo; #{jira_fields_verified ? '&check;' : '&times;'})
@@ -20,20 +20,23 @@
 
   discord_detail = @discord_webhooks.any? ? @discord_webhooks.map(&:channel_name).join(" &middot; ").html_safe : "No webhooks yet".html_safe
 
-  figma_detail = workspace.figma_read_enabled ? "Read access for Details Gathering" : "Disabled &mdash; AI will not read Figma frames".html_safe
+  figma_detail = project&.figma_read_enabled ? "Read access for Details Gathering" : "Disabled &mdash; AI will not read Figma frames".html_safe
 
   cards = [
-    { key: "github", name: "GitHub", on: workspace.github_status_ok, status: workspace.github_status_ok ? "Connected" : "Not connected", detail: github_detail,
+    { key: "github", name: "GitHub", on: project&.github_status_ok, status: project&.github_status_ok ? "Connected" : "Not connected", detail: github_detail,
       icon: '<path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-1-2.6c3-.3 6.2-1.5 6.2-7A5.4 5.4 0 0 0 20 4.8 5 5 0 0 0 19.9 1S18.7.6 16 2.5a13.4 13.4 0 0 0-7 0C6.3.6 5.1 1 5.1 1A5 5 0 0 0 5 4.8 5.4 5.4 0 0 0 3.6 8.5c0 5.5 3.2 6.7 6.2 7a3.4 3.4 0 0 0-1 2.6V22"/>' },
     { key: "jira", name: "Jira Cloud", on: @jira_configured, status: @jira_configured ? "Connected" : "Not connected", detail: jira_detail,
       icon: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>' },
     { key: "discord", name: "Discord", on: @discord_webhooks.any?, status: "#{@discord_webhooks.size} webhooks", detail: discord_detail,
       icon: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>' },
-    { key: "figma", name: "Figma", on: workspace.figma_read_enabled, status: workspace.figma_read_enabled ? "Connected" : "Disabled", detail: figma_detail,
+    { key: "figma", name: "Figma", on: project&.figma_read_enabled, status: project&.figma_read_enabled ? "Connected" : "Disabled", detail: figma_detail,
       icon: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>' }
   ]
 %>
 
+<% if project.nil? %>
+  <div class="clar-card p-4.5 text-[13px] clar-text-muted">No project selected &mdash; pick one in the top bar to edit its integrations.</div>
+<% else %>
 <div class="flex flex-col gap-3" data-controller="clar-modal">
   <% cards.each do |card| %>
     <div class="clar-card !rounded-[13px] flex items-center gap-[15px] py-4 px-4.5">
@@ -53,8 +56,9 @@
     </div>
   <% end %>
 
-  <%= render "manage_github", workspace: workspace %>
-  <%= render "manage_jira", workspace: workspace, jira_fields_verified: jira_fields_verified %>
+  <%= render "manage_github", project: project %>
+  <%= render "manage_jira", project: project, jira_fields_verified: jira_fields_verified %>
   <%= render "manage_discord", webhooks: @discord_webhooks %>
-  <%= render "manage_figma", workspace: workspace %>
+  <%= render "manage_figma", project: project %>
 </div>
+<% end %>

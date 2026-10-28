@@ -18,28 +18,15 @@ class WorkspaceSettingsController < ApplicationController
     end
   end
 
-  def test_github
-    result = GithubClient.for(current_workspace).health_check
-    current_workspace.update_columns(
-      github_status_ok: result[:ok],
-      github_status_error: result[:error],
-      github_status_checked_at: Time.current
-    )
-    notice = result[:ok] ? "GitHub connection OK." : "GitHub connection failed: #{result[:error]}"
-    redirect_to workspace_settings_path, notice: notice
-  end
-
   private
 
   def workspace_settings_params
     permitted = params.require(:workspace).permit(
-      :clients_enabled, :discord_channel_id, :discord_user_token,
-      :github_repo, :github_token, :pr_review_enabled, :workshop_enabled
+      :clients_enabled, :discord_channel_id, :discord_user_token, :workshop_enabled
     )
-    # Blank token fields mean "leave unchanged" (never pre-filled), so don't wipe
-    # a stored token when the admin saves other settings.
+    # A blank token field means "leave unchanged" (it is never pre-filled), so
+    # don't wipe the stored token when the admin saves other settings.
     permitted.delete(:discord_user_token) if permitted[:discord_user_token].blank?
-    permitted.delete(:github_token) if permitted[:github_token].blank?
     permitted
   end
 end

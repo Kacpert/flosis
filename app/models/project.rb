@@ -1,4 +1,6 @@
 class Project < ApplicationRecord
+  include EstimationSettings
+
   belongs_to :workspace
   belongs_to :client, optional: true
   has_many :tasks, dependent: :destroy

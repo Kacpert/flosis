@@ -12,7 +12,8 @@ module Authorization
   # True when a GitHub token is configured but the last health check failed —
   # drives the admin-only error banner.
   def github_connection_problem?
-    current_workspace&.github_token.present? && current_workspace.github_status_ok == false
+    project = current_workshop_project
+    project&.github_token.present? && project.github_status_ok == false
   end
 
   def current_membership

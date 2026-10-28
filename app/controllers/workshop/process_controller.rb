@@ -15,7 +15,7 @@ class Workshop::ProcessController < Workshop::BaseController
       @reviewed_today_count = today_reviews.count
       @comments_count = today_reviews.where(outcome: "comments").count
       @looks_good_count = today_reviews.where(outcome: "looks_good").count
-      @poll_minutes = [ 7, current_workspace.pr_poll_minutes ].max
+      @poll_minutes = current_workshop_project&.pr_poll_minutes || 7
     when "estimate"
       load_estimate_tab
     when "alerts"
@@ -32,8 +32,9 @@ class Workshop::ProcessController < Workshop::BaseController
 
   def load_estimate_tab
     @estimation_board_name = current_workshop_project&.name
-    @estimation_trigger_label = current_workspace.estimation_trigger_label
-    @estimation_field_names = current_workspace.estimation_field_names
+    @estimation_trigger_label = current_workshop_project&.estimation_trigger_label
+    @estimation_field_names = current_workshop_project&.estimation_field_names ||
+                              [ EstimationSettings::DEFAULT_ESTIMATION_FIELD_NAME ]
     @estimated_tasks = current_workshop_project ? current_workshop_project.tasks
       .where.not(ai_estimated_at: nil)
       .order(ai_estimated_at: :desc)

@@ -4,7 +4,8 @@ class AutoEstimateJobTest < ActiveJob::TestCase
   setup do
     @workspace = workspaces(:one)
     @task = tasks(:jira_task)
-    @workspace.update!(estimation_field_names: ["AI estimation"])
+    @project = @task.project
+    @project.update!(estimation_field_names: ["AI estimation"])
   end
 
   def with_ai(response)
@@ -68,7 +69,7 @@ class AutoEstimateJobTest < ActiveJob::TestCase
   end
 
   test "writes to every configured field name, never one outside the config" do
-    @workspace.update!(estimation_field_names: ["AI estimation", "Story point estimate"])
+    @project.update!(estimation_field_names: ["AI estimation", "Story point estimate"])
     fake = fake_jira_client(field_ids: {
       "AI estimation" => "customfield_9001",
       "Story point estimate" => "customfield_9002",

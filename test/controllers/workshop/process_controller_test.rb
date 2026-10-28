@@ -60,7 +60,7 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
 
   test "renders the AI Estimate tab with summary card and recently-estimated tasks" do
     project = tasks(:jira_task).project
-    @workspace.update!(estimation_trigger: "status", estimation_field_names: ["AI estimation", "Story point estimate"])
+    project.update!(estimation_trigger: "status", estimation_field_names: ["AI estimation", "Story point estimate"])
 
     task = tasks(:jira_task)
     task.update!(ai_estimate_points: 8, ai_estimated_at: 1.hour.ago, story_points: 5)

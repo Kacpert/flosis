@@ -54,10 +54,15 @@ class Workshop::ConfigurationIntegrationsTest < ActionDispatch::IntegrationTest
     assert_includes wrote, @project.id
   end
 
-  test "legacy workspace github save still works (integration param absent)" do
+  # The GitHub modal names its integration like the others; without it the save
+  # would permit nothing and silently store no change.
+  test "saving github persists the repo and token to the project" do
     patch workshop_configuration_path(tab: "integrations"), params: {
-      workspace: { github_repo: "ws/repo", github_token: "wt" }
+      integration: "github",
+      project: { github_repo: "acme/repo", github_token: "gh-secret" }
     }
-    assert_equal "ws/repo", @workspace.reload.github_repo
+    @project.reload
+    assert_equal "acme/repo", @project.github_repo
+    assert_equal "gh-secret", @project.github_token
   end
 end

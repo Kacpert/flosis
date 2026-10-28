@@ -1,7 +1,10 @@
 require "test_helper"
 
 class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
-  setup { @workspace = workspaces(:one) }
+  setup do
+    @workspace = workspaces(:one)
+    @project = projects(:jira_project)
+  end
 
   test "admin can view workspace settings" do
     sign_in_as(users(:one)) # owner
@@ -66,60 +69,27 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "777", @workspace.discord_channel_id
   end
 
-  test "admin can save GitHub settings; blank token keeps existing" do
-    sign_in_as(users(:one))
-    patch workspace_settings_path, params: { workspace: { github_token: "ghp_x", github_repo: "acme/widgets", pr_review_enabled: "1" } }
-    @workspace.reload
-    assert_equal "ghp_x", @workspace.github_token
-    assert_equal "acme/widgets", @workspace.github_repo
-    assert @workspace.pr_review_enabled
-
-    patch workspace_settings_path, params: { workspace: { github_token: "", github_repo: "acme/other" } }
-    @workspace.reload
-    assert_equal "ghp_x", @workspace.github_token, "blank token keeps existing"
-    assert_equal "acme/other", @workspace.github_repo
-  end
-
-  test "test_github runs a health check and stores the result" do
-    @workspace.update!(github_token: "t", github_repo: "acme/widgets")
-    fake = Object.new
-    fake.define_singleton_method(:health_check) { { ok: false, error: "401 Unauthorized" } }
-    orig = GithubClient.method(:for)
-    GithubClient.define_singleton_method(:for) { |*_a, **_k| fake }
-    sign_in_as(users(:one))
-    post test_github_workspace_settings_path
-    assert_redirected_to workspace_settings_path
-    @workspace.reload
-    assert_not @workspace.github_status_ok
-    assert_equal "401 Unauthorized", @workspace.github_status_error
-  ensure
-    GithubClient.define_singleton_method(:for, orig)
-  end
-
-  test "employee cannot run test_github" do
-    sign_in_as(users(:two))
-    post test_github_workspace_settings_path
-    assert_redirected_to root_path
-  end
-
-  test "settings page shows a red GitHub status when last check failed" do
-    @workspace.update!(github_token: "t", github_repo: "acme/widgets", github_status_ok: false, github_status_error: "401 Unauthorized")
+  # GitHub is per project now and edited in Configuration > Integrations, so
+  # this page has no GitHub form and no connection test. The banner stayed:
+  # it reads the selected project's last health check.
+  test "the settings page no longer edits GitHub" do
     sign_in_as(users(:one))
     get workspace_settings_path
     assert_response :success
-    assert_match "GitHub", response.body
-    assert_match "401 Unauthorized", response.body
+    assert_select "input[name='workspace[github_repo]']", false
+    assert_select "input[name='workspace[github_token]']", false
   end
 
-  test "admin sees the GitHub error banner app-wide when connection is broken" do
-    @workspace.update!(github_token: "t", github_repo: "acme/widgets", github_status_ok: false, github_status_error: "401 Unauthorized")
+  test "admin sees the GitHub error banner app-wide when the project's connection is broken" do
+    @project.update!(github_token: "t", github_repo: "acme/widgets", github_status_ok: false, github_status_error: "401 Unauthorized")
     sign_in_as(users(:one))
     get time_entries_path
     assert_match "can't reach GitHub", response.body
+    assert_match "401 Unauthorized", response.body
   end
 
   test "employee does not see the GitHub error banner" do
-    @workspace.update!(github_token: "t", github_repo: "acme/widgets", github_status_ok: false, github_status_error: "401")
+    @project.update!(github_token: "t", github_repo: "acme/widgets", github_status_ok: false, github_status_error: "401")
     sign_in_as(users(:two))
     get time_entries_path
     assert_no_match "can't reach GitHub", response.body

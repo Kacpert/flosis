@@ -7,8 +7,8 @@
       </span>
       <div class="flex-1">
         <div class="font-bold text-[16px] clar-text-text">GitHub</div>
-        <div class="inline-flex items-center gap-1.5 text-[11px] font-bold <%= workspace.github_status_ok ? 'text-[color:var(--success)]' : 'clar-text-faint' %> mt-0.5">
-          <span class="w-1.5 h-1.5 rounded-full bg-current"></span><%= workspace.github_status_ok ? "Connected" : "Not connected" %>
+        <div class="inline-flex items-center gap-1.5 text-[11px] font-bold <%= project.github_status_ok ? 'text-[color:var(--success)]' : 'clar-text-faint' %> mt-0.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-current"></span><%= project.github_status_ok ? "Connected" : "Not connected" %>
         </div>
       </div>
       <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
@@ -16,17 +16,18 @@
       </button>
     </div>
 
-    <%= form_with model: workspace, url: workshop_configuration_path(tab: "integrations"), method: :patch,
+    <%= form_with model: project, url: workshop_configuration_path(tab: "integrations"), method: :patch,
           data: { controller: "clar-toggle" } do |f| %>
+      <%= hidden_field_tag :integration, "github" %>
       <div class="p-5">
         <label class="clar-field-label">REPOSITORY</label>
-        <%= f.text_field :github_repo, value: workspace.github_repo, class: "clar-input clar-mono mb-1.5" %>
+        <%= f.text_field :github_repo, value: project.github_repo, class: "clar-input clar-mono mb-1.5" %>
         <div class="text-[11px] clar-text-faint mb-4">The repo is checked out server-side; master is refreshed daily.</div>
 
         <label class="clar-field-label">ACCESS TOKEN</label>
         <div class="flex gap-1.5 mb-1.5" data-controller="clar-token-field">
           <%= f.password_field :github_token, value: nil,
-                placeholder: workspace.github_token.present? ? "ghp_&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;#{workspace.github_token.last(4)}".html_safe : "Not set",
+                placeholder: project.github_token.present? ? "ghp_&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;#{project.github_token.last(4)}".html_safe : "Not set",
                 autocomplete: "new-password", class: "clar-input clar-mono flex-1", data: { clar_token_field_target: "input" } %>
           <button type="button" class="clar-btn" data-action="click->clar-token-field#rotate">Rotate</button>
         </div>
@@ -47,7 +48,7 @@
           <div class="font-semibold text-[13px] clar-text-text">AI PR reviews on this repo</div>
           <%= f.check_box :pr_review_enabled, class: "sr-only", data: { clar_toggle_target: "input", action: "change->clar-toggle#render" } %>
           <button type="button" class="clar-toggle" data-clar-toggle-target="button"
-                  aria-checked="<%= workspace.pr_review_enabled? ? 'true' : 'false' %>"
+                  aria-checked="<%= project.pr_review_enabled? ? 'true' : 'false' %>"
                   data-action="clar-toggle#toggle">
             <span class="knob"></span>
           </button>
