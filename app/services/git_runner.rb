@@ -36,7 +36,8 @@ class GitRunner
   # instead of waiting for an answer that cannot come. With a token, askpass
   # answers GitHub's questions; without one, a protected remote fails at once.
   def self.env(token)
-    vars = { "GIT_TERMINAL_PROMPT" => "0" }
+    # Git's messages follow the host locale (Hostido may be Polish): one language for users, tests and parsers.
+    vars = { "GIT_TERMINAL_PROMPT" => "0", "LC_ALL" => "C" }
     if token.present?
       vars["GIT_ASKPASS"] = Rails.root.join("bin", "git-askpass").to_s
       vars["FLOSIS_GIT_TOKEN"] = token

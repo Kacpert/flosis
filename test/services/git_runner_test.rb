@@ -20,6 +20,7 @@ class GitRunnerTest < ActiveSupport::TestCase
     env = GitRunner.env("ghp_SECRET123")
     assert_equal "ghp_SECRET123", env["FLOSIS_GIT_TOKEN"]
     assert_equal "0", env["GIT_TERMINAL_PROMPT"]
+    assert_equal "C", env["LC_ALL"]
     assert File.executable?(env["GIT_ASKPASS"])
   end
 
