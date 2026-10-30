@@ -17,7 +17,11 @@ class ClaudeCliService
     @mcp_config = mcp_config
     # Optional Anthropic API key for this run. With one, the CLI runs --bare and
     # is handed the key as its only credential (see build_command and popen_args).
-    # nil = the server's own CLI login, as before.
+    # nil = the server's own CLI login, as before. A key that is given but blank
+    # is refused rather than quietly becoming that login.
+    if !api_key.nil? && api_key.blank?
+      raise ArgumentError, "api_key was given but is blank — refusing to fall back to the server's Claude login"
+    end
     @api_key = api_key
   end
 

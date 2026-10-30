@@ -91,6 +91,13 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
     assert_equal [ [ "claude" ] ], service.send(:popen_args, [ "claude" ])
   end
 
+  test "an API key that is given but blank is refused, never a silent fallback to the server login" do
+    [ "", "  " ].each do |blank|
+      error = assert_raises(ArgumentError) { ClaudeCliService.new(codebase_path: @codebase_path, api_key: blank) }
+      assert_equal "api_key was given but is blank — refusing to fall back to the server's Claude login", error.message
+    end
+  end
+
   test "uses codebase_path from initializer" do
     service = ClaudeCliService.new(codebase_path: "/custom/path")
 
