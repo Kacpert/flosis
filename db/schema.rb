@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_28_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_30_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -412,6 +412,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_160000) do
     t.text "context_info"
     t.datetime "created_at", null: false
     t.string "currency", limit: 3, default: "USD", null: false
+    t.string "design_base_kit", default: "tailwind4", null: false
+    t.string "design_preview_token"
+    t.string "design_repo"
+    t.string "design_repo_error"
+    t.string "design_repo_status"
+    t.text "design_repo_token"
+    t.boolean "designs_enabled", default: false, null: false
     t.json "estimation_field_names"
     t.string "estimation_status_trigger", default: "Ready for dev"
     t.string "estimation_trigger", default: "manual", null: false
@@ -452,6 +459,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_160000) do
     t.string "workspace_dir"
     t.bigint "workspace_id", null: false
     t.index ["client_id"], name: "index_projects_on_client_id"
+    t.index ["design_preview_token"], name: "index_projects_on_design_preview_token", unique: true
     t.index ["workspace_id", "client_id"], name: "index_projects_on_workspace_id_and_client_id"
     t.index ["workspace_id", "name"], name: "index_projects_on_workspace_id_and_name"
     t.index ["workspace_id"], name: "index_projects_on_workspace_id"

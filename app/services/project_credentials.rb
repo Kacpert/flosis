@@ -47,6 +47,19 @@ class ProjectCredentials
     @project.anthropic_api_key.presence || ENV["ANTHROPIC_API_KEY"].presence
   end
 
+  # The design repo and its token come from the project and from nowhere else,
+  # least of all github_repo and github_token. The design token has write
+  # access (Designs pushes a branch per task), and the app repo's token is a
+  # different key for a different repository: borrowing it would push with the
+  # wrong scope.
+  def design_repo
+    @project.design_repo.presence
+  end
+
+  def design_repo_token
+    @project.design_repo_token.presence
+  end
+
   def github_configured?
     github_repo.present? && github_token.present?
   end
@@ -59,5 +72,9 @@ class ProjectCredentials
   # project asked it to, so the toggle is part of being configured.
   def figma_configured?
     @project.figma_read_enabled? && figma_token.present?
+  end
+
+  def design_repo_configured?
+    design_repo.present? && design_repo_token.present?
   end
 end

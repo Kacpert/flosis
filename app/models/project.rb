@@ -27,9 +27,17 @@ class Project < ApplicationRecord
   encrypts :jira_api_token
   encrypts :figma_token
   encrypts :anthropic_api_key
+  encrypts :design_repo_token
+
+  # The CSS a new design repo is built on: Tailwind v4, or plain CSS with no
+  # utility framework at all.
+  DESIGN_BASE_KITS = %w[tailwind4 plain].freeze
 
   validates :name, presence: true
   validates :color, presence: true, format: { with: /\A#[0-9A-Fa-f]{6}\z/ }
+  validates :design_base_kit, inclusion: { in: DESIGN_BASE_KITS }
+  # owner/name, never a URL: it is handed to git and to the GitHub API as it is.
+  validates :design_repo, format: { with: %r{\A[\w.-]+/[\w.-]+\z} }, allow_blank: true
 
   scope :active, -> { where(archived: false) }
   scope :archived, -> { where(archived: true) }
@@ -58,6 +66,16 @@ class Project < ApplicationRecord
     dir = File.join(CLIENTS_BASE_DIR, workspace_id.to_s, id.to_s)
     update_column(:workspace_dir, dir)
     dir
+  end
+
+  # The segment of every preview link that makes it unguessable. Made the first
+  # time it is needed rather than at creation, so a project that never turns
+  # Designs on never carries one.
+  def ensure_design_preview_token!
+    return design_preview_token if design_preview_token.present?
+    token = SecureRandom.alphanumeric(32)
+    update_column(:design_preview_token, token)
+    token
   end
 
   # Where Claude should chdir for automations: the repo checkout subfolder, or
