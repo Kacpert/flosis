@@ -46,7 +46,10 @@ class ProjectRepoCheckoutJob < ApplicationJob
     project.update_columns(repo_checkout_status: "ready", repo_checkout_error: nil)
   rescue => e
     Rails.logger.error("[ProjectRepoCheckoutJob] #{e.message}")
-    project&.update_columns(repo_checkout_status: "error", repo_checkout_error: e.message.to_s.first(500))
+    # repo_checkout_error is a varchar(255) on MySQL, and git's own message can
+    # run longer. Stored whole it would raise from in here and leave the status
+    # on "cloning".
+    project&.update_columns(repo_checkout_status: "error", repo_checkout_error: e.message.to_s.first(255))
   end
 
   private

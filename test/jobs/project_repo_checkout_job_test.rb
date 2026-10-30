@@ -69,6 +69,23 @@ class ProjectRepoCheckoutJobTest < ActiveJob::TestCase
     assert_match "network exploded", @project.repo_checkout_error.to_s
   end
 
+  # repo_checkout_error is a varchar(255) on MySQL and git's own message can run
+  # longer. Stored whole, it raised from inside the rescue and left the status
+  # on "cloning".
+  test "a long git error is stored clipped to the 255 characters its column holds" do
+    message = "git clone failed: ".ljust(400, "x")
+    ProjectRepoCheckoutJob.stub_git = ->(*, **) { raise GitRunner::Error, message }
+    begin
+      assert_nothing_raised { ProjectRepoCheckoutJob.perform_now(@project.id) }
+    ensure
+      ProjectRepoCheckoutJob.stub_git = nil
+    end
+    @project.reload
+    assert_equal "error", @project.repo_checkout_status
+    assert_equal 255, @project.repo_checkout_error.length
+    assert_equal message.first(255), @project.repo_checkout_error
+  end
+
   # Only the project's own credentials count: a checkout cloned with another
   # project's token is the wrong repo, so a blank field means "do nothing".
   test "does nothing when the project has no github credentials of its own" do

@@ -5,6 +5,8 @@ require "test_helper"
 # Rotating a token therefore means visiting each project, which is the price of
 # deleting a project never becoming a question about another project's keys.
 class ProjectCreatorTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @workspace = workspaces(:one)
     @source = projects(:jira_project)
@@ -65,6 +67,40 @@ class ProjectCreatorTest < ActiveSupport::TestCase
 
     assert_equal "acme/partner-portal", project.github_repo
     assert_equal "gt", project.github_token
+  end
+
+  # The dialog is the one place that can hand a project a repository and a
+  # GitHub key together. Such a project is configured from birth, so saving the
+  # GitHub card would never start its checkout.
+  test "a project created with GitHub keys queues a checkout of its repo" do
+    project = create(reuse_from: { "github" => @source.id })
+
+    assert_enqueued_jobs 1, only: ProjectRepoCheckoutJob
+    assert_enqueued_with(job: ProjectRepoCheckoutJob, args: [ project.id ])
+  end
+
+  # Both halves count, as they do when the GitHub card is saved: a repository
+  # with no key, or a key with no repository, has nothing to clone yet.
+  test "a project created without GitHub keys queues no checkout" do
+    assert_no_enqueued_jobs(only: ProjectRepoCheckoutJob) do
+      create
+      create(github_repo: nil, reuse_from: { "github" => @source.id })
+    end
+  end
+
+  # The checkout is for a project that exists, so it is queued only once the
+  # create has gone through, memberships included.
+  test "a create that fails queues no checkout" do
+    original = ProjectMembership.instance_method(:save!)
+    ProjectMembership.define_method(:save!) { raise ActiveRecord::RecordInvalid, self }
+
+    assert_no_enqueued_jobs(only: ProjectRepoCheckoutJob) do
+      assert_raises(ActiveRecord::RecordInvalid) do
+        create(reuse_from: { "github" => @source.id }, member_ids: [ users(:two).id ])
+      end
+    end
+  ensure
+    ProjectMembership.define_method(:save!, original)
   end
 
   test "a source project in another workspace is ignored" do

@@ -83,6 +83,12 @@ class ProjectCreator
       project.save!
       add_members(project)
     end
+    # The dialog can give a project a repository and a copied GitHub key at once.
+    # It is configured from birth, so no save of the GitHub card would ever start
+    # its checkout. After the commit rather than inside the transaction: the
+    # queue has its own connection, so a worker could pick the job up before the
+    # project exists.
+    ProjectRepoCheckoutJob.perform_later(project.id) if ProjectCredentials.new(project).github_configured?
     project
   end
 
