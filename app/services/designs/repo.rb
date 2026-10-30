@@ -14,12 +14,21 @@ require "fileutils"
 # only through GitRunner's askpass: never in .git/config or in a remote URL.
 class Designs::Repo
   MASTER = Designs::BranchNames::MASTER
+  IDENTITY = { "user.name" => "Flosis", "user.email" => "designs@flosis.com" }.freeze
 
   Change = Data.define(:path, :added_text)
 
   # The merge stopped on conflicting files. It has been aborted, so master is
   # where it was.
   class Conflict < StandardError; end
+
+  # master already has everything on the branch. A merge would make no commit,
+  # and an approval needs a commit of its own to tag.
+  class NothingToMerge < StandardError; end
+
+  # The remote has branches but no master, so it is not the empty repository a
+  # design repo starts from (GitHub's "Add a README" creates main).
+  class NotEmpty < StandardError; end
 
   class << self
     # Test seam: where the repo lives instead of GitHub (a bare repo on disk).
@@ -67,7 +76,8 @@ class Designs::Repo
   end
 
   # Leaves a clone of remote_url on master: at origin/master once the remote
-  # has one, else on a master yet to be born.
+  # has one, else on a master yet to be born. A remote with branches but no
+  # master is refused (NotEmpty).
   #
   # A clone of another repo (the project's design repo was changed) is moved
   # aside with its worktrees and never pushed from again, so the old history
@@ -75,6 +85,9 @@ class Designs::Repo
   def ensure_clone!
     synchronize do
       if clone_of_remote?
+        # Set again on every run, not only at clone time: a commit made without
+        # it would carry the host's own user into the client's history.
+        IDENTITY.each { |key, value| git("config", key, value) }
         git("fetch", "--prune", "--tags", "origin", token: token)
       else
         move_aside!
@@ -87,9 +100,10 @@ class Designs::Repo
         # remote are dropped.
         git("checkout", "--force", "-B", MASTER, "origin/#{MASTER}")
       else
+        refuse_occupied_remote!
         # An empty clone's HEAD names the remote's default branch (main, on
         # GitHub) or init.defaultBranch. The first commit belongs on master.
-        git("symbolic-ref", "HEAD", "refs/heads/#{MASTER}")
+        git("symbolic-ref", "HEAD", "refs/heads/#{MASTER}") if unborn_head?
       end
       root
     end
@@ -177,8 +191,14 @@ class Designs::Repo
   # returns master's new sha. Nothing is fetched or pushed here.
   def merge_into_master!(branch, message:)
     synchronize do
+      before = head(MASTER)
       git("merge", "--no-ff", "--no-edit", "--message", message, "refs/heads/#{branch}")
-      head(MASTER)
+      # A branch master already contains is "Already up to date.": git exits 0
+      # without a commit, and master comes back as it was.
+      merged = head(MASTER)
+      raise NothingToMerge, "#{MASTER} already contains everything on #{branch}" if merged == before
+
+      merged
     rescue GitRunner::Error
       # git reports a conflict on stdout, which GitRunner::Error does not
       # carry. MERGE_HEAD is the sign: it exists only while a merge waits for
@@ -252,11 +272,27 @@ class Designs::Repo
   end
 
   # The Flosis identity goes into the clone's own config, which its worktrees
-  # share, so every commit and merge made here is Flosis's.
+  # share, so every commit and merge made here is Flosis's. git writes it as it
+  # creates the repo, before the remote is even configured, so a clone cut
+  # short that ensure_clone! would keep already has it.
   def clone!
-    git("clone", "--", remote_url, root.to_s, chdir: base_dir, token: token)
-    git("config", "user.name", "Flosis")
-    git("config", "user.email", "designs@flosis.com")
+    identity = IDENTITY.flat_map { |key, value| [ "--config", "#{key}=#{value}" ] }
+    git("clone", *identity, "--", remote_url, root.to_s, chdir: base_dir, token: token)
+  end
+
+  def refuse_occupied_remote!
+    branches = git("for-each-ref", "--format=%(refname)", "refs/remotes/origin").lines(chomp: true)
+                 .map { |ref| ref.delete_prefix("refs/remotes/origin/") } - [ "HEAD" ]
+    return if branches.empty?
+
+    raise NotEmpty, "The design repo must be empty — it already has: #{branches.join(", ")}. " \
+                    "Create an empty repository, or remove them."
+  end
+
+  # HEAD names a branch with no commit yet: the state of a fresh clone of an
+  # empty repo.
+  def unborn_head?
+    !ref?(git("symbolic-ref", "HEAD").strip)
   end
 
   # Git runs only in this repo's own checkouts. discard! resets and cleans:

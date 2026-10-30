@@ -236,14 +236,68 @@ class Designs::RepoTest < ActiveSupport::TestCase
 
   test "commits and merges are Flosis's, in worktrees too" do
     with_design_remote do |repo, _|
+      seed = seed_master(repo)
+      wip = commit_files(repo, repo.worktree!("wip/REC-1"), { "designs/a.html" => "a" })
+      repo.point!("design/REC-1", to: wip)
+      merged = repo.merge_into_master!("design/REC-1", message: "Approve REC-1")
+      [ seed, wip, merged ].each do |sha|
+        assert_equal "Flosis <designs@flosis.com> / Flosis <designs@flosis.com>",
+                     GitRunner.run!("log", "-1", "--format=%an <%ae> / %cn <%ce>", sha, chdir: repo.root).strip
+      end
+    end
+  end
+
+  # A clone cut short, or one that lost the keys, would otherwise commit as the
+  # host's own user, and that identity would be pushed into the client's history.
+  test "a clone without the Flosis identity gets it back" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      GitRunner.run!("config", "--unset", "user.name", chdir: repo.root)
+      GitRunner.run!("config", "--unset", "user.email", chdir: repo.root)
+      repo.ensure_clone!
+      sha = commit_files(repo, repo.worktree!("wip/REC-1"), { "designs/a.html" => "a" })
+      assert_equal "Flosis <designs@flosis.com> / Flosis <designs@flosis.com>",
+                   GitRunner.run!("log", "-1", "--format=%an <%ae> / %cn <%ce>", sha, chdir: repo.root).strip
+    end
+  end
+
+  # GitHub's "Add a README" (or a license, or a .gitignore) creates main. Put
+  # on master, a clone of it would stage those files into the first commit.
+  test "a repo that already has branches, but no master, is refused" do
+    with_design_remote do |repo, remote|
+      system("git", "-C", remote, "symbolic-ref", "HEAD", "refs/heads/main", exception: true)
+      push_from_elsewhere(remote, "main", { "README.md" => "# acme\n", "LICENSE" => "MIT\n" })
+      error = assert_raises(Designs::Repo::NotEmpty) { repo.ensure_clone! }
+      assert_equal "The design repo must be empty — it already has: main. Create an empty repository, or remove them.",
+                   error.message
+      assert_nil remote_branch_sha(remote, "master")
+    end
+  end
+
+  # Re-pointing a HEAD that has commits would leave its files staged for
+  # master's first commit: only an empty clone's HEAD is moved.
+  test "a clone of a repo emptied since then never stages the old files for master" do
+    with_design_remote do |repo, remote|
+      system("git", "-C", remote, "symbolic-ref", "HEAD", "refs/heads/main", exception: true)
+      push_from_elsewhere(remote, "main", { "README.md" => "# acme\n" })
+      assert_raises(Designs::Repo::NotEmpty) { repo.ensure_clone! }
+      system("git", "-C", remote, "update-ref", "-d", "refs/heads/main", exception: true)
+      repo.ensure_clone!
+      assert_empty GitRunner.run!("diff", "--cached", "--name-only", chdir: repo.root)
+    end
+  end
+
+  # Approving with no new work: merge --no-ff says "Already up to date." and
+  # succeeds without a commit, and the approval would tag an older one.
+  test "merging a branch master already contains raises NothingToMerge and leaves master as it was" do
+    with_design_remote do |repo, _|
       seed_master(repo)
       wip = commit_files(repo, repo.worktree!("wip/REC-1"), { "designs/a.html" => "a" })
       repo.point!("design/REC-1", to: wip)
       merged = repo.merge_into_master!("design/REC-1", message: "Approve REC-1")
-      [ wip, merged ].each do |sha|
-        assert_equal "Flosis <designs@flosis.com> / Flosis <designs@flosis.com>",
-                     GitRunner.run!("log", "-1", "--format=%an <%ae> / %cn <%ce>", sha, chdir: repo.root).strip
-      end
+      assert_raises(Designs::Repo::NothingToMerge) { repo.merge_into_master!("design/REC-1", message: "Approve REC-1 again") }
+      assert_equal merged, repo.head("master")
+      assert_empty GitRunner.run!("status", "--porcelain", chdir: repo.root)
     end
   end
 
@@ -288,5 +342,20 @@ class Designs::RepoTest < ActiveSupport::TestCase
     root = Designs::Repo.new(project, remote_url: "unused").root
     assert_equal Pathname(project.designs_dir).join("design-repo"), root
     assert_not root.to_s.start_with?(Project::ELVIUM_LEGACY_DIR)
+  end
+
+  private
+
+  # Commits files onto a branch of the remote from a clone of its own, as
+  # GitHub or a developer would.
+  def push_from_elsewhere(remote, branch, files)
+    Dir.mktmpdir("elsewhere") do |dir|
+      system("git", "clone", "--quiet", remote, dir, exception: true, err: File::NULL)
+      files.each { |path, body| File.write(File.join(dir, path), body) }
+      system("git", "-C", dir, "add", "-A", exception: true)
+      system("git", "-C", dir, "-c", "user.name=Someone", "-c", "user.email=someone@example.com",
+             "commit", "--quiet", "-m", "Initial commit", exception: true)
+      system("git", "-C", dir, "push", "--quiet", "origin", "HEAD:refs/heads/#{branch}", exception: true, err: File::NULL)
+    end
   end
 end
