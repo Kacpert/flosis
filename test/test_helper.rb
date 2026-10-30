@@ -4,6 +4,7 @@ require "rails/test_help"
 require "tmpdir"
 require "fileutils"
 require_relative "test_helpers/session_test_helper"
+require_relative "test_helpers/design_repo_test_helper"
 
 module ActiveSupport
   class TestCase
