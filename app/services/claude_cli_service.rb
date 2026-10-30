@@ -2,7 +2,7 @@ class ClaudeCliService
   CLAUDE_CMD = "claude".freeze
   DEFAULT_CODEBASE_PATH = File.expand_path("~/work/elvium").freeze
 
-  def initialize(codebase_path: nil, allowed_tools: nil, model: nil, mcp_config: nil)
+  def initialize(codebase_path: nil, allowed_tools: nil, model: nil, mcp_config: nil, api_key: nil)
     @codebase_path = codebase_path || ENV.fetch("CHAT_CODEBASE_PATH", DEFAULT_CODEBASE_PATH)
     # Per-chat override of the pre-approved tool list. The briefing chat passes a
     # code-free set (no Read/Glob/Grep) so it stays a product conversation and
@@ -15,6 +15,10 @@ class ClaudeCliService
     # those MCP servers (--strict-mcp-config), giving per-project github/jira
     # tools with full isolation from the global config.
     @mcp_config = mcp_config
+    # Optional Anthropic API key for this run. With one, the CLI runs --bare and
+    # is handed the key as its only credential (see build_command and popen_args).
+    # nil = the server's own CLI login, as before.
+    @api_key = api_key
   end
 
   # Start a new Claude session with an initial prompt.
@@ -160,6 +164,10 @@ class ClaudeCliService
 
   def build_command(session_id: nil, streaming: false)
     cmd = [CLAUDE_CMD, "-p"]
+    # --bare is what guarantees the server's own Claude login is never used for a
+    # run that was given a key: it makes the CLI read only ANTHROPIC_API_KEY, never
+    # OAuth or the keychain.
+    cmd << "--bare" if @api_key.present?
 
     if streaming
       cmd += ["--output-format", "stream-json", "--verbose"]
@@ -176,8 +184,15 @@ class ClaudeCliService
     cmd
   end
 
+  # IO.popen arguments for a run: the subprocess environment first when there is
+  # an API key, then the command. Without a key nothing is passed, so the
+  # environment is inherited exactly as before.
+  def popen_args(cmd)
+    @api_key.present? ? [ { "ANTHROPIC_API_KEY" => @api_key }, cmd ] : [ cmd ]
+  end
+
   def run_claude(cmd, message)
-    IO.popen(cmd, "r+", chdir: @codebase_path) do |io|
+    IO.popen(*popen_args(cmd), "r+", chdir: @codebase_path) do |io|
       io.write(message)
       io.close_write
       io.read
@@ -185,7 +200,7 @@ class ClaudeCliService
   end
 
   def popen_streaming(cmd, message, keepalive_interval: 10, &block)
-    IO.popen(cmd, "r+", chdir: @codebase_path) do |io|
+    IO.popen(*popen_args(cmd), "r+", chdir: @codebase_path) do |io|
       io.write(message)
       io.close_write
 

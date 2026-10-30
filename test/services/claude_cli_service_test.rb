@@ -79,6 +79,18 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
     assert_includes cmd, "-p"
   end
 
+  test "with an API key the CLI runs bare and gets the key in its environment" do
+    service = ClaudeCliService.new(codebase_path: @codebase_path, api_key: "sk-ant-test")
+    assert_includes service.send(:build_command, streaming: false), "--bare"
+    assert_equal [ { "ANTHROPIC_API_KEY" => "sk-ant-test" }, [ "claude" ] ], service.send(:popen_args, [ "claude" ])
+  end
+
+  test "without an API key the command and the environment are unchanged" do
+    service = ClaudeCliService.new(codebase_path: @codebase_path)
+    refute_includes service.send(:build_command, streaming: false), "--bare"
+    assert_equal [ [ "claude" ] ], service.send(:popen_args, [ "claude" ])
+  end
+
   test "uses codebase_path from initializer" do
     service = ClaudeCliService.new(codebase_path: "/custom/path")
 
