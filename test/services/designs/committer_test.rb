@@ -103,6 +103,15 @@ class Designs::CommitterTest < ActiveSupport::TestCase
     end
   end
 
+  test "inspecting a committer does not print the credentials or library passages its guard holds" do
+    guard = Designs::LeakGuard.new(forbidden_texts: [ LIBRARY ], secrets: [ "ghp_SECRET123" ])
+    shown = Designs::Committer.new(Designs::Repo.new(projects(:jira_project), remote_url: "unused"), guard).inspect
+
+    assert_includes shown, "Designs::LeakGuard"
+    assert_not_includes shown, "ghp_SECRET123"
+    assert_not_includes shown.downcase, "grotesk"
+  end
+
   test "a clean turn is committed with its message, the repo lock held from staging to commit" do
     with_design_remote do |repo, _|
       seed_master(repo)

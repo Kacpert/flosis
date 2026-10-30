@@ -83,6 +83,21 @@ class Designs::LeakGuardTest < ActiveSupport::TestCase
     assert_empty guard.check([ change("designs/a.html", "too short to be a passage") ])
   end
 
+  # A prompt is longer than twelve words, and a design may quote any twelve of
+  # them: the guard has to know every window of a library text, overlapping,
+  # not only the one that starts at its first word.
+  test "a passage is caught wherever it starts in a long library text" do
+    windows = LIBRARY.split.each_cons(12).map { _1.join(" ") }
+    assert_equal 5, windows.size
+    guard = Designs::LeakGuard.new(forbidden_texts: [ LIBRARY ])
+
+    windows.each_with_index do |quoted, index|
+      assert_equal [ "contains a passage from the Flosis library" ],
+                   guard.check([ change("designs/a.html", quoted) ]).map(&:reason),
+                   "the twelve words from word #{index + 1} on must be refused: #{quoted}"
+    end
+  end
+
   test "a passage must lie within one change: two files do not add up to one" do
     first_half = "Always pair the display serif with a quiet"
     second_half = "grotesk and keep body copy at sixteen pixels"
@@ -102,6 +117,24 @@ class Designs::LeakGuardTest < ActiveSupport::TestCase
 
     eight = Designs::LeakGuard.new(secrets: [ "  abcdefgh\n" ])
     assert_equal [ "contains a stored credential" ], eight.check([ change("designs/a.html", "x abcdefgh y") ]).map(&:reason)
+  end
+
+  # The project hands over every credential it stores, not just one.
+  test "every stored secret is guarded, not only the first or the last" do
+    secrets = %w[ghp_FIRST_SECRET1 ghp_SECOND_SECRET2 ghp_THIRD_SECRET3]
+    guard = Designs::LeakGuard.new(secrets: secrets)
+
+    secrets.each_with_index do |secret, index|
+      in_text = guard.check([ change("designs/a.html", "token=#{secret}") ])
+      assert_equal [ "contains a stored credential" ], in_text.map(&:reason), "secret ##{index + 1} in the text must be refused"
+
+      in_name = guard.check([ change("designs/#{secret}.html") ])
+      assert_equal [ "contains a stored credential" ], in_name.map(&:reason), "secret ##{index + 1} in a file name must be refused"
+      assert_equal [ "[withheld]" ], in_name.map(&:path)
+
+      reported = (in_text + in_name).inspect
+      assert_not_includes reported, secret
+    end
   end
 
   test "a credential in a file name is refused too, and the violation withholds the name" do
@@ -124,5 +157,20 @@ class Designs::LeakGuardTest < ActiveSupport::TestCase
 
     assert_empty guard.check([ change("designs/caf\xE9.html") ])
     assert_equal [ "is outside the design repo's allowed folders" ], guard.check([ change(".claude/caf\xE9.md") ]).map(&:reason)
+  end
+
+  # The guard holds every credential and library passage in plain text: a log
+  # line, an exception, a console or a failed assertion that prints it must not
+  # print them.
+  test "inspecting the guard shows how much it holds, never what it holds" do
+    guard = Designs::LeakGuard.new(forbidden_texts: [ LIBRARY ], secrets: [ "ghp_SECRET123", "ghp_OTHER4567", nil, "short" ])
+
+    assert_equal "#<Designs::LeakGuard secrets=2 passages=5>", guard.inspect
+
+    [ guard.inspect, guard.to_s, guard.pretty_inspect, [ guard ].inspect, { guard: guard }.to_s ].each do |shown|
+      assert_not_includes shown, "ghp_SECRET123"
+      assert_not_includes shown, "ghp_OTHER4567"
+      assert_not_includes shown.downcase, "grotesk"
+    end
   end
 end

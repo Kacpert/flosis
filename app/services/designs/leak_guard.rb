@@ -47,6 +47,14 @@ class Designs::LeakGuard
     changes.flat_map { |change| violations_for(change) }
   end
 
+  # How much the guard holds, never what. The default inspect lists every
+  # instance variable, so a log line, an exception, a console or a failed
+  # assertion that printed the guard (or a Committer holding it) would repeat
+  # every credential and library passage in it. pp prints this too.
+  def inspect
+    "#<#{self.class} secrets=#{@secrets.size} passages=#{@passages.size}>"
+  end
+
   private
 
   def violations_for(change)
