@@ -15,7 +15,7 @@ class ProjectRepoCheckoutJobTest < ActiveJob::TestCase
   # Capture git commands instead of hitting the network.
   def with_git_capture
     calls = []
-    ProjectRepoCheckoutJob.stub_git = ->(cmd, chdir:) { calls << { cmd: cmd, chdir: chdir }; true }
+    ProjectRepoCheckoutJob.stub_git = ->(args, chdir:, token: nil) { calls << { args: args, chdir: chdir, token: token }; true }
     yield calls
   ensure
     ProjectRepoCheckoutJob.stub_git = nil
@@ -24,9 +24,30 @@ class ProjectRepoCheckoutJobTest < ActiveJob::TestCase
   test "clones when no checkout exists and marks ready" do
     with_git_capture do |calls|
       ProjectRepoCheckoutJob.perform_now(@project.id)
-      assert calls.any? { |c| c[:cmd].include?("clone") }, "should clone"
+      assert calls.any? { |c| c[:args].first == "clone" }, "should clone"
     end
     assert_equal "ready", @project.reload.repo_checkout_status
+  end
+
+  test "clones a URL that carries no token, and hands the token over separately" do
+    with_git_capture do |calls|
+      ProjectRepoCheckoutJob.perform_now(@project.id)
+      clone = calls.find { |c| c[:args].first == "clone" }
+      assert_equal "https://github.com/acme/app.git", clone[:args][1]
+      assert_equal "ght", clone[:token]
+      assert calls.none? { |c| c[:args].join(" ").include?("ght") }
+    end
+  end
+
+  # Checkouts made before this change hold the token in their remote URL.
+  # Rewriting it before every pull is what cleans them up.
+  test "an existing checkout gets a tokenless remote before it pulls" do
+    FileUtils.mkdir_p(File.join(@project.repo_checkout_path, ".git"))
+    with_git_capture do |calls|
+      ProjectRepoCheckoutJob.perform_now(@project.id)
+      assert_equal [ %w[remote set-url origin https://github.com/acme/app.git], %w[pull --ff-only] ],
+                   calls.map { |c| c[:args] }
+    end
   end
 
   test "skips clone for legacy elvium" do

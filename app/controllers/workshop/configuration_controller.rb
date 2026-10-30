@@ -166,6 +166,13 @@ class Workshop::ConfigurationController < Workshop::BaseController
       project.update(external_type: "jira")
     end
     ProjectMcpConfig.write!(project) if project.workspace_dir.present?
+    # Saving GitHub is what makes the repo reachable, so this is where its
+    # checkout starts: a clone the first time, a pull after that. The job checks
+    # the credentials itself; asking here just keeps a half-filled form from
+    # queuing a job that would do nothing.
+    if params[:integration].to_s == "github" && ProjectCredentials.new(project).github_configured?
+      ProjectRepoCheckoutJob.perform_later(project.id)
+    end
   end
 
   def save_project_fields(project, fields, notice)

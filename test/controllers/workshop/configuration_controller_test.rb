@@ -549,6 +549,33 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_equal "brand-new-token", @project.reload.github_token
   end
 
+  test "saving the GitHub integration queues a checkout of the project's repo" do
+    assert_enqueued_with(job: ProjectRepoCheckoutJob, args: [ @project.id ]) do
+      patch workshop_configuration_path, params: {
+        tab: "integrations", integration: "github",
+        project: { github_repo: "acme/app", github_token: "ght" }
+      }
+    end
+  end
+
+  test "saving GitHub without a token queues no checkout" do
+    @project.update!(github_token: nil)
+    assert_no_enqueued_jobs(only: ProjectRepoCheckoutJob) do
+      patch workshop_configuration_path, params: {
+        tab: "integrations", integration: "github", project: { github_repo: "acme/app", github_token: "" }
+      }
+    end
+  end
+
+  test "saving another integration queues no checkout, even with GitHub already configured" do
+    @project.update!(github_repo: "acme/app", github_token: "ght")
+    assert_no_enqueued_jobs(only: ProjectRepoCheckoutJob) do
+      patch workshop_configuration_path, params: {
+        tab: "integrations", integration: "figma", project: { figma_read_enabled: true, figma_token: "" }
+      }
+    end
+  end
+
   test "PATCH update persists the Figma token and toggle, and a blank token keeps the stored one" do
     @project.update!(figma_read_enabled: false, figma_token: "figd_keep-me")
 
