@@ -46,4 +46,14 @@ class ProjectDesignSettingsTest < ActiveSupport::TestCase
     @project.update!(design_repo_token: "design-token")
     assert creds.design_repo_configured?
   end
+
+  # Git's own message is stored here. MySQL in strict mode refuses the 256th
+  # character of a string column instead of cutting it, and PostgreSQL's string
+  # has no limit, so locally only the column's type can show the difference.
+  test "the design repo error holds a full git message" do
+    assert_equal :text, Project.columns_hash["design_repo_error"].type
+
+    @project.update!(design_repo_error: "x" * 500)
+    assert_equal 500, @project.reload.design_repo_error.length
+  end
 end

@@ -12,7 +12,10 @@
 # existing row stays NULL, and a unique index allows any number of those.
 #
 # design_repo_status and design_repo_error follow repo_checkout_status and
-# repo_checkout_error: where the repo's setup stands, and why it stopped.
+# repo_checkout_error: where the repo's setup stands, and why it stopped. The
+# error is text, not a string like repo_checkout_error, because it keeps git's
+# own message, and MySQL in strict mode refuses a string past 255 characters
+# instead of cutting it.
 #
 # Guarded per statement: MySQL commits DDL outside the migration transaction,
 # so a failure part-way must leave a re-runnable state.
@@ -24,7 +27,7 @@ class AddDesignSettingsToProjects < ActiveRecord::Migration[8.1]
     [ :design_base_kit, :string, { default: "tailwind4", null: false } ],
     [ :design_preview_token, :string, {} ],
     [ :design_repo_status, :string, {} ],
-    [ :design_repo_error, :string, {} ]
+    [ :design_repo_error, :text, {} ]
   ].freeze
 
   def up

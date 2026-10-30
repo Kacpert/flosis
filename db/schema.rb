@@ -415,7 +415,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_30_120000) do
     t.string "design_base_kit", default: "tailwind4", null: false
     t.string "design_preview_token"
     t.string "design_repo"
-    t.string "design_repo_error"
+    t.text "design_repo_error"
     t.string "design_repo_status"
     t.text "design_repo_token"
     t.boolean "designs_enabled", default: false, null: false
