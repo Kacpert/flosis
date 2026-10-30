@@ -47,6 +47,24 @@ class ProjectDesignSettingsTest < ActiveSupport::TestCase
     assert creds.design_repo_configured?
   end
 
+  # For Elvium, workspace_dir is the app checkout itself (~/work/elvium): a
+  # design clone in there would sit inside the app's own working tree.
+  test "a legacy Elvium project keeps its designs in a folder of its own, outside the app checkout" do
+    @project.workspace_dir = Project::ELVIUM_LEGACY_DIR
+    assert_equal File.join(Project::CLIENTS_BASE_DIR, @project.workspace_id.to_s, @project.id.to_s), @project.designs_dir
+    assert_equal Project::ELVIUM_LEGACY_DIR, @project.workspace_dir
+  end
+
+  test "any other project keeps its designs in its workspace folder, assigned the first time it is needed" do
+    @project.update_columns(workspace_dir: nil)
+    default = File.join(Project::CLIENTS_BASE_DIR, @project.workspace_id.to_s, @project.id.to_s)
+    assert_equal default, @project.designs_dir
+    assert_equal default, @project.reload.workspace_dir
+
+    @project.update_columns(workspace_dir: "/srv/clients/acme")
+    assert_equal "/srv/clients/acme", @project.designs_dir
+  end
+
   # Git's own message is stored here. MySQL in strict mode refuses the 256th
   # character of a string column instead of cutting it, and PostgreSQL's string
   # has no limit, so locally only the column's type can show the difference.

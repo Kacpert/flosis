@@ -68,6 +68,15 @@ class Project < ApplicationRecord
     dir
   end
 
+  # Where the project's design repo lives (its clone, worktrees and lock): the
+  # project's own folder. The legacy Elvium project's workspace_dir is the app
+  # checkout itself, so Elvium gets the folder any other project would have.
+  def designs_dir
+    return File.join(CLIENTS_BASE_DIR, workspace_id.to_s, id.to_s) if legacy_elvium?
+
+    ensure_workspace_dir!
+  end
+
   # The segment of every preview link that makes it unguessable. Made the first
   # time it is needed rather than at creation, so a project that never turns
   # Designs on never carries one.
