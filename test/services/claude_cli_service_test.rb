@@ -1,4 +1,5 @@
 require "test_helper"
+require "tmpdir"
 
 class ClaudeCliServiceTest < ActiveSupport::TestCase
   setup do
@@ -79,7 +80,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
     assert_includes cmd, "-p"
   end
 
-  test "with an API key the CLI runs bare and gets the key in its environment" do
+  test "with an API key build_command adds --bare and popen_args returns the key as the environment" do
     service = ClaudeCliService.new(codebase_path: @codebase_path, api_key: "sk-ant-test")
     assert_includes service.send(:build_command, streaming: false), "--bare"
     assert_equal [ { "ANTHROPIC_API_KEY" => "sk-ant-test" }, [ "claude" ] ], service.send(:popen_args, [ "claude" ])
@@ -95,6 +96,48 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
     [ "", "  " ].each do |blank|
       error = assert_raises(ArgumentError) { ClaudeCliService.new(codebase_path: @codebase_path, api_key: blank) }
       assert_equal "api_key was given but is blank — refusing to fall back to the server's Claude login", error.message
+    end
+  end
+
+  test "a streaming resume with an API key still runs bare" do
+    service = ClaudeCliService.new(codebase_path: @codebase_path, api_key: "sk-ant-test")
+    cmd = service.send(:build_command, session_id: "abc", streaming: true)
+
+    assert_includes cmd, "--bare"
+    assert_includes cmd.each_cons(2).to_a, [ "--resume", "abc" ]
+  end
+
+  # The next three run the real IO.popen, so they check what the Claude process
+  # actually receives, not just what the private helpers return.
+
+  test "run_claude with an API key puts the key in the Claude process environment" do
+    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, api_key: "sk-ant-test")
+
+    assert_equal "sk-ant-test", service.send(:run_claude, [ "sh", "-c", 'printf %s "$ANTHROPIC_API_KEY"' ], "")
+  end
+
+  test "popen_streaming with an API key puts the key in the Claude process environment" do
+    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, api_key: "sk-ant-test")
+    lines = []
+
+    service.send(:popen_streaming, [ "sh", "-c", 'printf %s "$ANTHROPIC_API_KEY"' ], "") { |line| lines << line }
+
+    assert_equal [ "sk-ant-test" ], lines - [ :keepalive ]
+  end
+
+  test "without an API key the Claude process inherits ANTHROPIC_API_KEY from the parent" do
+    original = ENV["ANTHROPIC_API_KEY"]
+    begin
+      ENV["ANTHROPIC_API_KEY"] = "sk-ant-parent"
+      service = ClaudeCliService.new(codebase_path: Dir.tmpdir)
+
+      assert_equal "sk-ant-parent", service.send(:run_claude, [ "sh", "-c", 'printf %s "$ANTHROPIC_API_KEY"' ], "")
+    ensure
+      if original
+        ENV["ANTHROPIC_API_KEY"] = original
+      else
+        ENV.delete("ANTHROPIC_API_KEY")
+      end
     end
   end
 
