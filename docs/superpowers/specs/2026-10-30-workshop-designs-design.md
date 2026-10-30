@@ -51,10 +51,11 @@ Why this matters:
 
 ## Goals
 
-1. **A separate Designs module** inside Workshop. It is enabled per project and
-   developed on its own (own models, controllers, views, jobs and services). It
-   touches the existing pipeline only at the integration points this document
-   names.
+1. **Designs as part of Workshop**, enabled per project and built straight into
+   Flosis. Its code sits under a `Designs::` namespace for order. It reuses the
+   existing pipeline pieces (chat sessions, the idea page, Configuration)
+   wherever they fit, instead of growing parallel ones. Extracting it into a
+   separate module is not planned.
 2. **A design repo per project on GitHub** holding only outputs: the design
    system, components, designs, the files needed to open them in a browser, and
    a README for developers.
@@ -113,9 +114,11 @@ Why this matters:
 
 ## Decided by Kacper
 
-1. Designs is part of Flosis (this repo, the Workshop product) but a separate
-   module: added to a project, developed on its own, with its own scheme,
-   process and configurator.
+1. Designs is part of Flosis (this repo, the Workshop product). It is switched
+   on per project and has its own process and configurator. It is **not**
+   developed as a separate module: there is no need to separate it now, and
+   maybe never. (Revised on 2026-10-30; the first version said "a separate
+   module, developed on its own".)
 2. Three layers: a **design system** (brand, tokens, assets), **reusable
    components** with documentation, and **clickable designs**. Inspirations are
    kept separate from the design system.
@@ -573,7 +576,9 @@ Choosing Gold adds these prerequisites:
 - The live-update mechanism, the job queue setup, timeouts.
 - Checkout and worktree management, how publishing copies files, and the "what
   did this task change" command in the README.
-- The data model: new tables, or `ChatSession` with a `designs` purpose.
+- The data model. Because Designs is not kept separate, prefer reusing
+  `ChatSession` and `ChatMessage` (a `designs` purpose) and the existing chat
+  panel wherever they fit.
 - The runner's exact tool list and the wording of prompts and skills.
 - UI details beyond the approved top bar and the chat / preview / context
   layout.
