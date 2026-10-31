@@ -41,8 +41,8 @@ class Designs::WorkingBranch
 
   # The task's screens, each as { "path", "title", "contexts" }, in the order the
   # manifest lists them. A screen is kept only when its path is under designs/,
-  # exists in the tree and has no "." or ".." segment, so it is safe to link to.
-  # Its contexts are the ones that are context ids.
+  # is a file in the tree and has no "." or ".." segment, so it is safe to link
+  # to. Its contexts are the ones that are context ids.
   def screens
     @screens ||= objects(read("designs/tasks/#{@slug}.json")["screens"]).filter_map { |raw| screen(raw) }
   end
@@ -107,14 +107,15 @@ class Designs::WorkingBranch
     { "path" => path, "title" => label(raw["title"], path), "contexts" => contexts }
   end
 
-  # A path under designs/ (which leaves out a leading "/" too) that has no
-  # "." or ".." segment, and exists in the tree. Whole segments only: a dot in
-  # a name is the name. A null byte would raise when the tree is asked.
+  # A file under designs/ (which leaves out a leading "/" too) whose path has
+  # no "." or ".." segment. Whole segments only: a dot in a name is the name. A
+  # folder is no page: a link to it opens only when it happens to hold an
+  # index.html. A null byte would raise when the tree is asked.
   def page?(path)
     path = text(path)
     return false unless path&.start_with?("designs/")
     return false if path.include?("\0") || path.split("/", -1).intersect?(%w[. ..])
 
-    @dir.join(path).exist?
+    @dir.join(path).file?
   end
 end

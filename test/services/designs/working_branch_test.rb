@@ -120,9 +120,9 @@ class Designs::WorkingBranchTest < ActiveSupport::TestCase
   end
 
   # Ruling P2-R6: a screen's path goes into a preview link, and Publisher#url
-  # refuses one that walks out of its slot. Only paths under designs/ that
-  # exist, whole segments only: a dot inside a name is the name.
-  test "a screen is kept only when its path is under designs/, exists and stays where it says" do
+  # refuses one that walks out of its slot. Only files under designs/, whole
+  # segments only: a dot inside a name is the name.
+  test "a screen is kept only when its path is a file under designs/ that stays where it says" do
     write("designs/jobs/index.html", "<p>jobs</p>")
     write("designs/..odd.html", "<p>odd</p>")
     write("designs/a.b.html", "<p>dots</p>")
@@ -142,6 +142,29 @@ class Designs::WorkingBranchTest < ActiveSupport::TestCase
     assert_equal kept, branch.screens.map { _1["path"] }
     assert_equal "designs/jobs/index.html", branch.entry_path
     branch.screens.each { |screen| assert_nothing_raised { publisher.url("wip/REC-1", screen["path"], ctx: screen["contexts"]) } }
+  end
+
+  # Ruling P2-R18: a screen is a page. A folder exists, and Publisher#url would
+  # link to it, but it opens only when it happens to hold an index.html, and
+  # the preview is a 403 otherwise. So a manifest entry that points at a folder
+  # is dropped, with the trailing slash or without, and the entry page is the
+  # first entry that is a file.
+  test "a screen is a file, never a folder" do
+    write("designs/jobs/index.html", "<p>jobs</p>")
+    write("designs/empty/.keep", "")
+    write("designs/tasks/REC-1.json", { screens: [
+      { path: "designs/jobs", title: "Jobs folder" },
+      { path: "designs/jobs/", title: "Jobs folder, slashed" },
+      { path: "designs/empty/", title: "A folder with no index" },
+      { path: "designs/", title: "Designs" },
+      { path: "designs/jobs/index.html", title: "Jobs" }
+    ] }.to_json)
+    assert_equal %w[designs/jobs/index.html], branch.screens.map { _1["path"] }
+    assert_equal "designs/jobs/index.html", branch.entry_path
+
+    write("designs/tasks/REC-2.json", { screens: [ { path: "designs/jobs/", title: "Jobs" } ] }.to_json)
+    assert_empty branch("REC-2").screens
+    assert_equal "index.html", branch("REC-2").entry_path
   end
 
   test "a task reads its own manifest and no other" do
