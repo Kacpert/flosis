@@ -1,8 +1,13 @@
+require "timeout"
+
 class ClaudeCliService
   CLAUDE_CMD = "claude".freeze
   DEFAULT_CODEBASE_PATH = File.expand_path("~/work/elvium").freeze
+  # What a run that is out of time gets to wind down after TERM, before it is killed.
+  KILL_GRACE_SECONDS = 5
 
-  def initialize(codebase_path: nil, allowed_tools: nil, model: nil, mcp_config: nil, api_key: nil)
+  def initialize(codebase_path: nil, allowed_tools: nil, model: nil, mcp_config: nil, api_key: nil,
+                 restricted: false, append_system_prompt_file: nil, add_dirs: [], max_budget_usd: nil, timeout: nil)
     @codebase_path = codebase_path || ENV.fetch("CHAT_CODEBASE_PATH", DEFAULT_CODEBASE_PATH)
     # Per-chat override of the pre-approved tool list. The briefing chat passes a
     # code-free set (no Read/Glob/Grep) so it stays a product conversation and
@@ -23,24 +28,45 @@ class ClaudeCliService
       raise ArgumentError, "api_key was given but is blank — refusing to fall back to the server's Claude login"
     end
     @api_key = api_key
+    # Restricted mode (--restricted): the CLI drops the tools that run commands or
+    # code, and WebFetch, ignores the user/project/local settings files, and keeps
+    # its file tools inside the working directories (add_dirs included).
+    @restricted = restricted
+    # Optional file whose text the CLI appends to its system prompt
+    # (--append-system-prompt-file).
+    @append_system_prompt_file = append_system_prompt_file
+    # Directories besides the working one that the file tools may reach
+    # (--add-dir, one flag per directory).
+    @add_dirs = Array(add_dirs)
+    # Optional cap on what one run may cost, in dollars (--max-budget-usd), and on
+    # how long one run may take, in seconds (enforced by run_claude, so it covers
+    # the non-streaming runs). nil = no cap. A cap that is given but unusable is
+    # refused rather than quietly dropped: a blank budget would leave the flag off,
+    # and Timeout.timeout treats 0 as "no timeout".
+    unless max_budget_usd.nil? || Float(max_budget_usd.to_s, exception: false)&.positive?
+      raise ArgumentError, "max_budget_usd must be a positive number of dollars, got #{max_budget_usd.inspect}"
+    end
+    unless timeout.nil? || (timeout.is_a?(Numeric) && timeout.positive?)
+      raise ArgumentError, "timeout must be a positive number of seconds, got #{timeout.inspect}"
+    end
+    @max_budget_usd = max_budget_usd
+    @timeout = timeout
   end
 
-  # Start a new Claude session with an initial prompt.
+  # Start a new Claude session with an initial prompt. A new_session_id (a UUID)
+  # names the session up front (--session-id), so the caller has it before the run
+  # is over and resume_session can find it later.
   # Returns { session_id: String, response: String }
-  def start_session(prompt:)
-    cmd = build_command(streaming: false)
-    output = run_claude(cmd, prompt)
-    data = JSON.parse(output)
+  def start_session(prompt:, new_session_id: nil)
+    run_session(build_command(streaming: false, new_session_id: new_session_id), prompt)
+  end
 
-    {
-      session_id: data["session_id"],
-      response: data["result"] || ""
-    }
-  rescue JSON::ParserError => e
-    Rails.logger.error("[ClaudeCliService] Failed to parse response: #{e.message}")
-    raise ClaudeCliError, "Failed to parse Claude response"
-  rescue Errno::ENOENT
-    raise ClaudeCliError, "Claude CLI not found. Install it with: npm install -g @anthropic-ai/claude-code"
+  # Send a message to an existing session and return the whole answer once the
+  # run is over (send_message_streaming is the line-by-line variant). A session the
+  # CLI cannot find prints nothing on stdout, which raises ClaudeCliError.
+  # Returns { session_id: String, response: String }
+  def resume_session(session_id:, prompt:)
+    run_session(build_command(session_id: session_id, streaming: false), prompt)
   end
 
   # Start a brand-new session with the given prompt, streaming raw JSON lines
@@ -82,6 +108,9 @@ class ClaudeCliService
   end
 
   class ClaudeCliError < StandardError; end
+
+  # A run that went past its timeout. It has been stopped by the time this is raised.
+  class TimeoutError < ClaudeCliError; end
 
   private
 
@@ -166,12 +195,15 @@ class ClaudeCliService
     mcp__lit__refresh_keys
   ].freeze
 
-  def build_command(session_id: nil, streaming: false)
+  # new_session_id names a session that does not exist yet (--session-id); it is
+  # for a first run, where session_id (--resume) would name an existing one.
+  def build_command(session_id: nil, streaming: false, new_session_id: nil)
     cmd = [CLAUDE_CMD, "-p"]
     # --bare is what guarantees the server's own Claude login is never used for a
     # run that was given a key: it makes the CLI read only ANTHROPIC_API_KEY, never
     # OAuth or the keychain.
     cmd << "--bare" if @api_key.present?
+    cmd << "--restricted" if @restricted
 
     if streaming
       cmd += ["--output-format", "stream-json", "--verbose"]
@@ -180,8 +212,13 @@ class ClaudeCliService
     end
 
     cmd += ["--resume", session_id] if session_id
+    cmd.push("--session-id", new_session_id) if new_session_id.present?
     cmd += ["--model", @model] if @model.present?
     cmd += ["--mcp-config", @mcp_config, "--strict-mcp-config"] if @mcp_config.present?
+    cmd.push("--append-system-prompt-file", @append_system_prompt_file) if @append_system_prompt_file.present?
+    @add_dirs.each { |dir| cmd.push("--add-dir", dir) }
+    # IO.popen takes strings only, and the budget may have been given as a number.
+    cmd.push("--max-budget-usd", @max_budget_usd.to_s) unless @max_budget_usd.nil?
     # Pre-approve the tools we want the chat assistant to use without
     # prompting. -p (non-interactive) refuses any tool not on this list.
     @allowed_tools.each { |t| cmd += ["--allowedTools", t] }
@@ -200,12 +237,59 @@ class ClaudeCliService
     [ { "ANTHROPIC_API_KEY" => @api_key, "CLAUDE_CODE_OAUTH_TOKEN" => nil, "ANTHROPIC_AUTH_TOKEN" => nil }, cmd ]
   end
 
+  # One non-streaming run: the prompt goes in, the CLI's JSON answer comes out.
+  def run_session(cmd, prompt)
+    output = run_claude(cmd, prompt)
+    data = JSON.parse(output)
+
+    {
+      session_id: data["session_id"],
+      response: data["result"] || ""
+    }
+  rescue JSON::ParserError => e
+    Rails.logger.error("[ClaudeCliService] Failed to parse response: #{e.message}")
+    raise ClaudeCliError, "Failed to parse Claude response"
+  rescue Errno::ENOENT
+    raise ClaudeCliError, "Claude CLI not found. Install it with: npm install -g @anthropic-ai/claude-code"
+  end
+
+  # Runs the CLI to the end and returns what it printed. With a timeout, a run that
+  # is still going when the time is up (handing over the prompt included) is stopped
+  # (see stop_child) and TimeoutError is raised. Without one nothing is timed.
   def run_claude(cmd, message)
     IO.popen(*popen_args(cmd), "r+", chdir: @codebase_path) do |io|
-      io.write(message)
-      io.close_write
-      io.read
+      next exchange(io, message) unless @timeout
+
+      begin
+        Timeout.timeout(@timeout) { exchange(io, message) }
+      rescue Timeout::Error
+        stop_child(io.pid)
+        raise TimeoutError, "Claude CLI did not finish within #{@timeout} seconds and was stopped"
+      end
     end
+  end
+
+  # The prompt goes in on stdin; everything the CLI prints comes back.
+  def exchange(io, message)
+    io.write(message)
+    io.close_write
+    io.read
+  end
+
+  # Stops the CLI of a run that is out of time: TERM first, so it can clean up after
+  # itself, then KILL if it is still there once the grace period is over. It is
+  # waited for either way, so no zombie is left behind, and IO.popen finds nothing
+  # to wait for when its block ends. The signals go to the CLI process only.
+  def stop_child(pid, grace: KILL_GRACE_SECONDS)
+    Process.kill("TERM", pid)
+    begin
+      Timeout.timeout(grace) { Process.wait(pid) }
+    rescue Timeout::Error
+      Process.kill("KILL", pid)
+      Process.wait(pid)
+    end
+  rescue Errno::ESRCH, Errno::ECHILD
+    nil # already gone and collected: there is nothing left to stop
   end
 
   def popen_streaming(cmd, message, keepalive_interval: 10, &block)
