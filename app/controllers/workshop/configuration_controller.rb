@@ -3,12 +3,14 @@
 # either of the two the tabs use, and a tab you lack renders locked instead of
 # missing.
 class Workshop::ConfigurationController < Workshop::BaseController
-  TABS = %w[integrations ai briefing users].freeze
+  TABS = %w[integrations ai briefing designs users].freeze
 
   AI_FIELDS = %i[
     pr_review_prompt pr_poll_minutes pr_review_enabled
     estimation_trigger estimation_status_trigger figma_read_enabled anthropic_api_key
   ].freeze
+
+  DESIGN_FIELDS = %i[designs_enabled design_repo design_repo_token design_base_kit].freeze
 
   INTEGRATION_FIELDS = {
     "jira" => %i[jira_site jira_email jira_api_token external_reference],
@@ -19,7 +21,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
   # A blank secret means "leave it alone", never "erase it" — the forms render
   # secrets as empty fields, so submitting the page untouched must not wipe the
   # keys.
-  SECRETS = %i[jira_api_token github_token figma_token anthropic_api_key].freeze
+  SECRETS = %i[jira_api_token github_token figma_token anthropic_api_key design_repo_token].freeze
 
   # What each tab costs. Briefing is the one a Product Owner holds, which is
   # why this is a per-tab map and not a single gate on the page.
@@ -27,11 +29,12 @@ class Workshop::ConfigurationController < Workshop::BaseController
     "integrations" => :configuration,
     "ai" => :configuration,
     "briefing" => :briefing_config,
+    "designs" => :configuration,
     "users" => :configuration
   }.freeze
 
   before_action :require_configuration_access!
-  before_action -> { require_permission!(:configuration) }, only: %i[test_github verify_jira_fields]
+  before_action -> { require_permission!(:configuration) }, only: %i[test_github verify_jira_fields rotate_design_preview_token]
   before_action -> { require_permission!(:briefing_config) }, only: :refresh_features
   before_action :redirect_to_a_tab_they_hold, only: :show
 
@@ -39,6 +42,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
     @tab = requested_tab
     load_ai_tab if @tab == "ai"
     load_briefing_tab if @tab == "briefing"
+    load_designs_tab if @tab == "designs"
     load_integrations_tab if @tab == "integrations"
     load_users_tab if @tab == "users"
   end
@@ -54,6 +58,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
     when "ai" then save_project_fields(project, AI_FIELDS, "AI settings saved")
     when "integrations" then save_integration(project)
     when "briefing" then save_briefing(project)
+    when "designs" then save_designs(project)
     end
 
     redirect_to workshop_configuration_path(tab: tab)
@@ -104,6 +109,19 @@ class Workshop::ConfigurationController < Workshop::BaseController
       flash[:alert] = "No project selected."
     end
     redirect_to workshop_configuration_path(tab: "briefing")
+  end
+
+  # Gives the project a new preview token. Its published previews move under it,
+  # so every link sent so far, Jira's included, stops working at once. The repo
+  # is handed over so that a project with a design folder is rotated under the
+  # repo's lock, with no publish writing under the token being retired.
+  def rotate_design_preview_token
+    project = current_workshop_project
+    return redirect_with("No project selected.", "designs") unless project
+
+    Designs::Publisher.new(project, Designs::Repo.new(project)).rotate_token!
+    flash[:clar_toast] = "Preview links rotated. Every link sent so far has stopped working."
+    redirect_to workshop_configuration_path(tab: "designs")
   end
 
   private
@@ -175,6 +193,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
     end
   end
 
+  # Returns whether the project was saved, for a caller that goes on to act on it.
   def save_project_fields(project, fields, notice)
     attrs = params.require(:project).permit(*fields, estimation_field_names: []).to_h.symbolize_keys
     SECRETS.each { |secret| attrs.delete(secret) if attrs[secret].blank? }
@@ -182,11 +201,28 @@ class Workshop::ConfigurationController < Workshop::BaseController
     names = Array(attrs[:estimation_field_names]).map { |n| n.to_s.strip }.reject(&:blank?)
     names.any? ? attrs[:estimation_field_names] = names : attrs.delete(:estimation_field_names)
 
-    if project.update(attrs)
+    saved = project.update(attrs)
+    if saved
       flash[:clar_toast] = notice
     else
       flash[:alert] = project.errors.full_messages.to_sentence
     end
+    saved
+  end
+
+  # What makes Designs real is the job, which fills the empty repo and publishes
+  # master. It is queued when the saved settings can run it and it has not run
+  # for them: the repo is not ready (never set up, still at it, or failed, which
+  # is how a fixed token is tried again), or it is a different repo. A ready
+  # repo is left alone, so changing only the kit or the token starts nothing.
+  # A refused save has changed nothing, and starts nothing either.
+  def save_designs(project)
+    return unless save_project_fields(project, DESIGN_FIELDS, "Designs settings saved")
+    return unless project.designs_enabled? && ProjectCredentials.new(project).design_repo_configured?
+    return unless project.design_repo_status != "ready" || project.saved_change_to_design_repo?
+
+    project.update_columns(design_repo_status: "initializing", design_repo_error: nil)
+    Designs::InitializeRepoJob.perform_later(project.id)
   end
 
   # require(:project) rather than dig: a request carrying no project key used to
@@ -222,6 +258,15 @@ class Workshop::ConfigurationController < Workshop::BaseController
     @briefing_personas = current_workshop_project&.briefing_personas
     @features_summary = current_workshop_project&.features_summary
     @features_summary_updated_at = current_workshop_project&.features_summary_updated_at
+  end
+
+  # Designs tab: the link to master is a slot of the preview host, and only a
+  # repo that has been set up has anything published there to open.
+  def load_designs_tab
+    project = current_workshop_project
+    return unless project&.design_repo_status == "ready"
+
+    @master_preview_url = Designs::Publisher.new(project, nil).url("master")
   end
 
   def load_integrations_tab

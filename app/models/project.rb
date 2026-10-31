@@ -33,6 +33,15 @@ class Project < ApplicationRecord
   # utility framework at all.
   DESIGN_BASE_KITS = %w[tailwind4 plain].freeze
 
+  # The repository is pasted from the browser's address bar as often as it is
+  # typed, so a GitHub address is forgiven: surrounding whitespace, a leading
+  # https://github.com/ and a trailing .git or slash are dropped, and
+  # "https://github.com/acme/designs.git" is "acme/designs". Anything else is
+  # left as it came, for the format below to refuse.
+  normalizes :design_repo, with: ->(repo) {
+    repo.strip.sub(%r{\Ahttps://github\.com/}i, "").sub(%r{(?:\.git|/)+\z}i, "")
+  }
+
   validates :name, presence: true
   validates :color, presence: true, format: { with: /\A#[0-9A-Fa-f]{6}\z/ }
   validates :design_base_kit, inclusion: { in: DESIGN_BASE_KITS }

@@ -121,6 +121,7 @@ Rails.application.routes.draw do
     post "configuration/test_github", to: "configuration#test_github", as: :test_github_configuration
     post "configuration/verify_jira_fields", to: "configuration#verify_jira_fields", as: :verify_jira_fields_configuration
     post "configuration/refresh_features", to: "configuration#refresh_features", as: :refresh_features_configuration
+    post "configuration/rotate_design_preview_token", to: "configuration#rotate_design_preview_token", as: :rotate_design_preview_token_configuration
     resources :discord_webhooks, only: [ :create, :destroy ]
     resources :project_members, only: [ :create, :update, :destroy ]
     resources :projects, only: [ :create ]

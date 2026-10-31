@@ -16,11 +16,60 @@ class ProjectDesignSettingsTest < ActiveSupport::TestCase
   end
 
   test "the design repo is owner/name or blank" do
-    @project.design_repo = "https://github.com/acme/designs"
+    @project.design_repo = "acme"
+    assert_not @project.valid?
+    @project.design_repo = "acme/designs/extra"
     assert_not @project.valid?
     @project.design_repo = "acme/designs"
     assert @project.valid?
     @project.design_repo = ""
+    assert @project.valid?
+  end
+
+  # What gets pasted is what the address bar shows.
+  test "a pasted GitHub address is reduced to owner/name" do
+    {
+      "https://github.com/acme/designs" => "acme/designs",
+      "https://github.com/acme/designs.git" => "acme/designs",
+      "https://github.com/acme/designs/" => "acme/designs",
+      "https://github.com/acme/designs.git/" => "acme/designs",
+      "  acme/designs.git  " => "acme/designs",
+      "acme/designs/" => "acme/designs",
+      "HTTPS://GitHub.com/acme/designs" => "acme/designs",
+      "acme/designs" => "acme/designs",
+      # Only a trailing .git is dropped; dots inside a name are the name.
+      "acme/designs.github.io" => "acme/designs.github.io",
+      "acme/my.designs" => "acme/my.designs"
+    }.each do |pasted, saved|
+      @project.design_repo = pasted
+      assert_equal saved, @project.design_repo, pasted
+      assert @project.valid?, "#{pasted} should be accepted"
+    end
+  end
+
+  test "the reduced address is what is stored" do
+    @project.update!(design_repo: "https://github.com/acme/designs.git")
+    assert_equal "acme/designs", @project.reload.design_repo
+  end
+
+  test "an address that is not a GitHub repository is left for the format to refuse" do
+    [
+      "https://gitlab.com/acme/designs", "http://github.com/acme/designs", "git@github.com:acme/designs.git",
+      "https://github.com/acme", "https://github.com/acme/designs/tree/main", "acme", "acme/designs extra"
+    ].each do |address|
+      @project.design_repo = address
+      assert_not @project.valid?, "#{address} should be refused"
+    end
+  end
+
+  test "an empty design repo stays empty, and none stays none" do
+    [ "   ", "https://github.com/", "/" ].each do |empty|
+      @project.design_repo = empty
+      assert_equal "", @project.design_repo, empty.inspect
+      assert @project.valid?
+    end
+    @project.design_repo = nil
+    assert_nil @project.design_repo
     assert @project.valid?
   end
 
