@@ -17,19 +17,22 @@ require "fileutils"
 #
 # runtime/kits/tailwind4.js is the Tailwind CSS browser build, vendored
 # unmodified: dist/index.global.js of the npm package @tailwindcss/browser,
-# version 4.2.1, from
-#   https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.1/dist/index.global.js
+# version TAILWIND_VERSION, from
+#   https://cdn.jsdelivr.net/npm/@tailwindcss/browser@<TAILWIND_VERSION>/dist/index.global.js
 # (SHA-256 29edc4b76dac05a8c27bb9bdd0ec6d6506a2f55c1db24f11fa5b7f509142e6bf,
-# the same bytes as in the package on the npm registry). 4.2.1 because it is
-# the tailwindcss-ruby version in Gold's Gemfile.lock: a design is compiled by
-# the same Tailwind that builds Gold. Tailwind is MIT-licensed, and the MIT
-# licence asks for its notice in every copy, so runtime/kits/tailwind4.LICENSE.txt
-# is the same package's LICENSE, unmodified, from
-#   https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.1/LICENSE
-# To upgrade, replace both files with another version's, unmodified, and update
-# this comment.
+# the same bytes as in the package on the npm registry, pinned by
+# test/services/designs/template_test.rb). That version because it is the
+# tailwindcss-ruby version in Gold's Gemfile.lock: a design is compiled by the
+# same Tailwind that builds Gold. Tailwind is MIT-licensed, and the MIT licence
+# asks for its notice in every copy, so runtime/kits/tailwind4.LICENSE.txt is
+# the same package's LICENSE, unmodified, from
+#   https://cdn.jsdelivr.net/npm/@tailwindcss/browser@<TAILWIND_VERSION>/LICENSE
+# To upgrade, replace both files with another version's, unmodified, then
+# change TAILWIND_VERSION (the README states it), the SHA-256 here and its pin
+# in the test.
 module Designs::Template
   SOURCE = Rails.root.join("lib/designs_template")
+  TAILWIND_VERSION = "4.2.1".freeze
 
   class << self
     # Writes the template for the project's base kit into dir, which is made

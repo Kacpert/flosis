@@ -1,9 +1,11 @@
 /* No CSS import rule in this file, not even in a comment (so this line cannot spell it): the in-browser compiler would then drop every utility. */
 /* The design system's tokens, read by Tailwind CSS v4 (runtime/kit.js).
    Each one is also a utility: bg-primary, text-on-surface, font-sans,
-   rounded-md. These are neutral placeholders: the setup run replaces them
-   with the brand's own. */
-@theme {
+   rounded-md. "static" makes each one a CSS variable on every page too,
+   used by a utility or not, so a component's own CSS can read
+   var(--color-primary). These are neutral placeholders: the setup run
+   replaces them with the brand's own. */
+@theme static {
   --color-primary: #1f2937;
   --color-on-primary: #ffffff;
   --color-surface: #ffffff;

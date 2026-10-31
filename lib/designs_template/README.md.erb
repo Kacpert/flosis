@@ -44,14 +44,14 @@ python3 -m http.server 8000
 | `design_system/` | the brand book, the tokens (`theme.css`), assets and fonts |
 | `components/` | one folder per component: its guidelines, a preview and the component itself |
 | `designs/` | clickable screens of the app, their fake data and the contexts (`contexts.json`) |
-| `runtime/` | what the browser needs: `flosis.js` (components and contexts) and `config.json`<% if kit == "tailwind4" %>, plus `kit.js` (the Tailwind CSS browser build) and its MIT licence, `kit-license.txt`<% end %> |
+| `runtime/` | what the browser needs: `flosis.js` (components and contexts), `nav.html` (the navigation every page includes) and `config.json`<% if kit == "tailwind4" %>, plus `kit.js` (the Tailwind CSS browser build) and its MIT licence, `kit-license.txt`<% end %> |
 
 Nothing else belongs in the repository.
 
 ## Styling
 
 <% if kit == "tailwind4" -%>
-Pages use Tailwind CSS v4 utility classes. `runtime/kit.js`, the Tailwind browser build (version 4.2.1, vendored), compiles them in the browser with the tokens in `design_system/theme.css`: `--color-primary` there is `bg-primary` or `text-primary` on a page.
+Pages use Tailwind CSS v4 utility classes. `runtime/kit.js`, the Tailwind browser build (version <%= Designs::Template::TAILWIND_VERSION %>, vendored), compiles them in the browser with the tokens in `design_system/theme.css`: `--color-primary` there is `bg-primary` or `text-primary` on a page, and `var(--color-primary)` in CSS.
 <% else -%>
 Pages use plain CSS. The tokens are custom properties in `design_system/theme.css`, which every page gets: `background: var(--color-primary)`.
 <% end -%>
@@ -88,8 +88,9 @@ Screens can differ by context: who is looking, or which part of the product is o
 }
 ```
 
-- The URL names the active values, `?ctx=<value>,<value>`, such as `designs/index.html?ctx=client`. A dimension that the URL leaves out uses its `default`, else its first value. Value ids are unique across dimensions.
-- Links between pages carry `?ctx=` along.
+- Dimension and value ids are made of letters, digits, `_` and `-` (`[A-Za-z0-9_-]`), and value ids are unique across dimensions.
+- The URL names the active values, `?ctx=<value>,<value>`, such as `designs/index.html?ctx=client`. A dimension that the URL leaves out uses its `default`, else its first value.
+- Clicking a link within the repo replaces the link's own `?ctx=` with the active contexts, so the contexts stay as they are from page to page. They are switched in the preview's context picker, or by editing `?ctx=` in the address bar, never by a link.
 - `data-ctx-show="admin client"` shows an element only while one of the values listed is active; `data-ctx-hide="client"` hides it while one is.
 - `<html>` gets a `data-ctx-<dimension>` attribute per dimension, for CSS: `html[data-ctx-role="client"] .price { … }`.
 - In a script, wait for `window.Flosis.ready` (or the `flosis:ready` event on `document`), then read `window.Flosis.ctx`: `{ "role": "client" }`.
