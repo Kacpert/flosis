@@ -35,18 +35,36 @@ class Designs::Publisher
     php php3 php4 php5 php6 php7 php8 phtml phar pht phps cgi fcgi pl py sh asp aspx jsp shtml shtm stm
   ].freeze
 
+  # What a context id may be made of, the same for a dimension and a value
+  # (the design repo's README says so). A link carries contexts as they are.
+  CONTEXT = /\A[A-Za-z0-9_-]+\z/
+
   # A publish that cannot go ahead: the project has no folder for its design
   # repo yet, or a branch's files could not be unpacked into the document root.
+  # Also raised in production when the preview root or host is not set.
   class Error < StandardError; end
 
   class << self
     # Blank counts as unset: an empty root would be the working directory.
     def root
-      Pathname(ENV["DESIGNS_PREVIEW_ROOT"].presence || Rails.root.join("tmp/designs_preview")).expand_path
+      Pathname(setting("DESIGNS_PREVIEW_ROOT") { Rails.root.join("tmp/designs_preview") }).expand_path
     end
 
     def base_url
-      (ENV["DESIGNS_PREVIEW_URL"].presence || "http://localhost:3100").sub(%r{/+\z}, "")
+      setting("DESIGNS_PREVIEW_URL") { "http://localhost:3100" }.sub(%r{/+\z}, "")
+    end
+
+    private
+
+    # The variable, or in development and test the default the block gives.
+    # Production has none: the defaults would write previews where Apache
+    # serves nothing, and put localhost links in Jira.
+    def setting(name)
+      value = ENV[name].presence
+      return value if value
+      raise Error, "#{name} is not set, and production has no default for it" if Rails.env.production?
+
+      yield
     end
   end
 
@@ -90,15 +108,16 @@ class Designs::Publisher
     end
   end
 
-  # A link into a slot, which must be one publish! would take. The page is
-  # escaped a segment at a time, so a space, #, ? or % in a file name still makes
-  # a working link, and each context on its own, so the comma between them is the
-  # only one in the list.
+  # A link into a slot, which must be one publish! would take, to a page inside
+  # it. The page is escaped a segment at a time, so a space, #, ? or % in a file
+  # name still makes a working link. A page that leaves its slot (a "." or ".."
+  # segment, a leading "/") and a context that is not a context id (CONTEXT)
+  # are refused: these links reach Jira.
   def url(slot, path = "index.html", ctx: [])
     slot = check_slot!(slot)
-    page = path.to_s.split("/", -1).map { |segment| CGI.escapeURIComponent(segment) }.join("/")
+    page = check_page!(path).split("/", -1).map { |segment| CGI.escapeURIComponent(segment) }.join("/")
     link = "#{self.class.base_url}/#{token}/#{slot}/#{page}"
-    contexts = Array(ctx).map { |value| CGI.escape(value.to_s) }
+    contexts = Array(ctx).map { |value| check_context!(value) }
     contexts.empty? ? link : "#{link}?ctx=#{contexts.join(",")}"
   end
 
@@ -138,6 +157,25 @@ class Designs::Publisher
     raise ArgumentError, "#{slot.inspect} is not a preview slot" unless SLOT.match?(slot)
 
     slot
+  end
+
+  # A path inside the slot, as the repo lists its files: relative, and never
+  # with a "." or ".." segment. ../wip/REC-1/x.html under an approved slot
+  # would put work in progress in a Jira link.
+  def check_page!(path)
+    path = path.to_s
+    if path.start_with?("/") || path.split("/", -1).any? { |segment| %w[. ..].include?(segment) }
+      raise ArgumentError, "#{path.inspect} is not a page inside the slot"
+    end
+
+    path
+  end
+
+  def check_context!(value)
+    value = value.to_s
+    raise ArgumentError, "#{value.inspect} is not a context id (letters, digits, _ and -)" unless CONTEXT.match?(value)
+
+    value
   end
 
   # Under the repo's lock only for a project that has a folder of its own, where

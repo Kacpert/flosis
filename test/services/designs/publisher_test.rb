@@ -135,12 +135,58 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     end
   end
 
-  test "an escaped context value cannot split into two, and a trailing slash on the host is not doubled" do
+  test "a trailing slash on the host is not doubled" do
     ENV["DESIGNS_PREVIEW_URL"] = "https://preview.example/"
     project = projects(:jira_project)
     project.update!(design_preview_token: "t0k")
-    assert_equal "https://preview.example/t0k/master/index.html?ctx=a%2Cb,c+d%26e",
-                 Designs::Publisher.new(project, nil).url("master", ctx: [ "a,b", "c d&e" ])
+    assert_equal "https://preview.example/t0k/master/index.html?ctx=admin,client_2,dark-mode",
+                 Designs::Publisher.new(project, nil).url("master", ctx: %w[admin client_2 dark-mode])
+  end
+
+  # Context ids are letters, digits, _ and - (the design repo's README says
+  # so), so a context that is anything else is no context a page knows: it is
+  # refused rather than escaped into one value or split into two.
+  test "a context that is not letters, digits, _ or - is refused" do
+    project = projects(:jira_project)
+    project.update!(design_preview_token: "t0k")
+    publisher = Designs::Publisher.new(project, nil)
+    [ "a,b", "c d", "x&y", "", "żółw", "a/b", "admin\n", "a=b" ].each do |value|
+      assert_raises(ArgumentError, value.inspect) { publisher.url("master", ctx: [ "admin", value ]) }
+    end
+  end
+
+  # A manifest's page path goes into Jira links. One that walks out of its slot
+  # (../wip/REC-1/x.html under an approved REC-1) would show work in progress
+  # to whoever has the link.
+  test "a link to a page outside its slot is refused" do
+    project = projects(:jira_project)
+    project.update!(design_preview_token: "t0k")
+    publisher = Designs::Publisher.new(project, nil)
+    [ "../wip/REC-1/x.html", "designs/../../wip/REC-1/x.html", "..", ".", "./index.html", "designs/./x.html",
+      "/index.html", "/" ].each do |path|
+      assert_raises(ArgumentError, path) { publisher.url("REC-1", path) }
+    end
+    assert_equal "https://preview.example/t0k/REC-1/designs/..x.html", publisher.url("REC-1", "designs/..x.html"),
+                 "dots inside a name are the name"
+  end
+
+  # The development defaults are wrong in production, not merely unset:
+  # previews written under the app's tmp/, which Apache does not serve, and
+  # localhost links sent to Jira.
+  test "in production an unset preview root or host raises instead of falling back" do
+    ENV["DESIGNS_PREVIEW_ROOT"] = ""
+    ENV["DESIGNS_PREVIEW_URL"] = " "
+    in_production do
+      error = assert_raises(Designs::Publisher::Error) { Designs::Publisher.root }
+      assert_includes error.message, "DESIGNS_PREVIEW_ROOT"
+      error = assert_raises(Designs::Publisher::Error) { Designs::Publisher.base_url }
+      assert_includes error.message, "DESIGNS_PREVIEW_URL"
+
+      ENV["DESIGNS_PREVIEW_ROOT"] = "/srv/previews"
+      ENV["DESIGNS_PREVIEW_URL"] = "https://previews.example/"
+      assert_equal Pathname("/srv/previews"), Designs::Publisher.root
+      assert_equal "https://previews.example", Designs::Publisher.base_url
+    end
   end
 
   test "every folder and file Apache serves is open to it, whatever umask the host runs with" do
@@ -536,6 +582,14 @@ class Designs::PublisherTest < ActiveSupport::TestCase
       holds -= 1
     end
     seen
+  end
+
+  def in_production
+    previous = Rails.env
+    Rails.env = "production"
+    yield
+  ensure
+    Rails.env = previous
   end
 
   def with_umask(mask)
