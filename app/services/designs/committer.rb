@@ -7,6 +7,11 @@ class Designs::Committer
   # say why) or it changed nothing at all.
   Result = Data.define(:sha, :violations) do
     def ok? = violations.empty?
+
+    # What was refused, as the people using the project are told it: each
+    # path with its rule. A violation never carries the text that broke the
+    # rule, so this repeats nothing that was refused.
+    def refusal = violations.map { |violation| "#{violation.path} #{violation.reason}" }.join("; ")
   end
 
   # Every page loads the runtime, and ensure_clone! refuses a master without

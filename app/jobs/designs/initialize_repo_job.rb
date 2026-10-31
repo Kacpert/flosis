@@ -81,15 +81,8 @@ class Designs::InitializeRepoJob < ApplicationJob
     Designs::Template.render_into(repo.root, project: project)
     guard = Designs::LeakGuard.new(secrets: ProjectCredentials.new(project).all_secrets)
     result = Designs::Committer.new(repo, guard).commit!(repo.root, message: COMMIT_MESSAGE)
-    raise Refused, refusal_message(result.violations) unless result.ok?
+    raise Refused, "The design repo's first commit was refused: #{result.refusal}." unless result.ok?
 
     repo.push!(Designs::Repo::MASTER)
-  end
-
-  # A violation names its path and rule, never the text, so this repeats nothing
-  # that was refused.
-  def refusal_message(violations)
-    "The design repo's first commit was refused: " \
-      "#{violations.map { |violation| "#{violation.path} #{violation.reason}" }.join("; ")}."
   end
 end

@@ -126,6 +126,20 @@ class Designs::CommitterTest < ActiveSupport::TestCase
     end
   end
 
+  # Ruling P2-R30: the one wording of a refusal, for a turn and for the repo's
+  # first commit alike.
+  test "a refusal names each refused path with its rule, and never the text" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      File.write(dir.join("index.html"), "<p>ghp_SECRET123</p>")
+      File.write(dir.join("notes.md"), "scratch")
+      result = committer(repo, secrets: [ "ghp_SECRET123" ]).commit!(dir, message: "Turn 1")
+      assert_equal "index.html contains a stored credential; notes.md is outside the design repo's allowed folders",
+                   result.refusal
+    end
+  end
+
   test "a turn that changed nothing commits nothing and is not a refusal" do
     with_design_remote do |repo, _|
       seed_master(repo)
