@@ -630,4 +630,17 @@ class Designs::PublisherTest < ActiveSupport::TestCase
       assert_raises(ArgumentError) { publisher.published?("../master") }
     end
   end
+
+  test "unpublish! removes a slot, and refuses one that is no slot" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      publisher = Designs::Publisher.new(repo.project, repo)
+      publisher.publish!("master", "task-9")
+      assert publisher.published?("task-9")
+      publisher.unpublish!("task-9")
+      assert_not publisher.published?("task-9")
+      assert_nothing_raised { publisher.unpublish!("task-9") }
+      assert_raises(ArgumentError) { publisher.unpublish!("../master") }
+    end
+  end
 end

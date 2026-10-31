@@ -843,4 +843,23 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_equal "new", task.reload.workshop_stage
     assert_redirected_to workshop_idea_designs_path(task)
   end
+
+  test "a task that gets its Jira key from a sync moves its designs to it" do
+    designs_project(ready: true)
+    idea = @project.tasks.create!(name: "Local idea")
+    idea.enter_pipeline!(author: users(:one), stage: "briefing")
+    idea.briefs.create!(workspace: @project.workspace, version: 0, origin: "user", status: "draft", content: "Brief").make_current!
+    original = JiraWriter.instance_method(:commit_brief)
+    JiraWriter.define_method(:commit_brief) { |brief| brief.task.update!(external_reference: "REC-9"); { ok: true } }
+    begin
+      assert_enqueued_with(job: Designs::RenameForJiraJob, args: [ idea.id ]) do
+        post sync_jira_workshop_idea_path(idea, stage: "briefing")
+      end
+      assert_no_enqueued_jobs(only: Designs::RenameForJiraJob) do
+        post sync_jira_workshop_idea_path(idea, stage: "briefing")
+      end
+    ensure
+      JiraWriter.define_method(:commit_brief, original)
+    end
+  end
 end

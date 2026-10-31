@@ -98,11 +98,13 @@ class Workshop::IdeasController < Workshop::BaseController
   def push_jira
     @idea = current_workshop_project.tasks.pipeline.find(params[:id])
 
+    had_key = @idea.external_reference.present?
     case @idea.workshop_stage
     when "details"
       result = JiraWriter.new.commit_detail(@idea.current_detail_draft)
 
       if result[:ok]
+        rename_designs_for_jira(had_key)
         @idea.update!(detail_saved_locally_at: nil, workshop_stage: "ready")
         flash[:clar_toast] = jira_toast("Description sent to Jira · marked Detailed", result)
         redirect_to workshop_idea_path(@idea, stage: "ready")
@@ -120,6 +122,7 @@ class Workshop::IdeasController < Workshop::BaseController
       result = detail.present? ? writer.commit_detail(detail) : writer.commit_brief(@idea.current_brief)
 
       if result[:ok]
+        rename_designs_for_jira(had_key)
         @idea.current_brief&.mark_briefed!
         @idea.update!(brief_saved_locally_at: nil, detail_saved_locally_at: nil)
         flash[:clar_toast] = jira_toast("Pushed to Jira", result)
@@ -151,6 +154,7 @@ class Workshop::IdeasController < Workshop::BaseController
     @idea = current_workshop_project.tasks.pipeline.find(params[:id])
     stage = params[:stage].presence_in(%w[briefing details]) || "briefing"
     writer = JiraWriter.new
+    had_key = @idea.external_reference.present?
 
     result =
       if stage == "details"
@@ -162,6 +166,7 @@ class Workshop::IdeasController < Workshop::BaseController
       end
 
     if result[:ok]
+      rename_designs_for_jira(had_key)
       @idea.current_brief&.mark_briefed! if stage == "briefing"
       base = @idea.reload.external_reference.present? ? "Jira ticket updated" : "Jira ticket created"
       flash[:clar_toast] = jira_toast(base, result)
@@ -234,6 +239,15 @@ class Workshop::IdeasController < Workshop::BaseController
       load_pipeline
       render "workshop/pipeline/index", status: :unprocessable_entity
     end
+  end
+
+  # A task that has just been given its Jira issue moves its designs from
+  # task-<id> to the key: branches, tags and previews (Designs::RenameForJiraJob,
+  # which does nothing for a task with no designs).
+  def rename_designs_for_jira(had_key)
+    return if had_key || @idea.reload.external_reference.blank?
+
+    Designs::RenameForJiraJob.perform_later(@idea.id)
   end
 
   # Pulls an existing Jira-synced task (browsed via the Jira board modal)

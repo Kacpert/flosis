@@ -351,8 +351,14 @@ class Designs::Repo
     synchronize { git("tag", name, at) }
   end
 
-  def delete_tag!(name)
-    synchronize { git("tag", "--delete", name) }
+  # Deletes a tag here, and with remote: true on origin as well. An approval
+  # that fails before its push deletes only its own (P2-R24): the tag never
+  # reached origin.
+  def delete_tag!(name, remote: false)
+    synchronize do
+      git("tag", "--delete", name)
+      push!("--delete", "refs/tags/#{name}") if remote
+    end
   end
 
   def delete_branch!(branch)

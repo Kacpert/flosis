@@ -821,4 +821,17 @@ class Designs::RepoTest < ActiveSupport::TestCase
       end
     end
   end
+
+  test "delete_tag! deletes a tag here, and on origin when asked to" do
+    with_design_remote do |repo, remote|
+      master = seed_master(repo)
+      repo.tag!("approved/X-1/1", at: master)
+      repo.tag!("approved/X-1/2", at: master)
+      repo.push!("approved/X-1/1", "approved/X-1/2")
+      repo.delete_tag!("approved/X-1/1")
+      repo.delete_tag!("approved/X-1/2", remote: true)
+      assert_equal [], repo.tags("approved/X-1/*")
+      assert_equal "approved/X-1/1", GitRunner.run!("tag", "-l", "approved/*", chdir: remote).strip
+    end
+  end
 end

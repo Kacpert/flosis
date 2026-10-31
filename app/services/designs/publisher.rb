@@ -116,6 +116,16 @@ class Designs::Publisher
     folder.present? && self.class.root.join(folder, slot).directory?
   end
 
+  # Takes a slot down, as a task's old names are when it gets its Jira key. A
+  # slot with nothing published is left as it is.
+  def unpublish!(slot)
+    slot = check_slot!(slot)
+    folder = project.design_preview_token.presence
+    return unless folder
+
+    locked { FileUtils.rm_rf(self.class.root.join(folder, slot)) }
+  end
+
   # A link into a slot, which must be one publish! would take, to a page inside
   # it. The page is escaped a segment at a time, so a space, #, ? or % in a file
   # name still makes a working link. A page that leaves its slot (a "." or ".."
