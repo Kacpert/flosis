@@ -1,3 +1,6 @@
+# flosis_staff (a column, so flosis_staff? comes from Active Record) marks the
+# people of Flosis the company, who keep the design library. It is not a
+# workspace role: a workspace admin is not staff. FlosisStaff sets it.
 class User < ApplicationRecord
   has_secure_password
   include Holidayable
