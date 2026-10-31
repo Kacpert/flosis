@@ -1,0 +1,107 @@
+require "test_helper"
+
+class Designs::PromptTest < ActiveSupport::TestCase
+  # Hard-wrapped prose is read with its lines joined.
+  def base = Designs::Prompt::BASE.squish
+
+  test "the system prompt names the rules a turn must follow" do
+    text = Designs::Prompt.system_text(project: projects(:jira_project))
+    [ "design_system/", "components/", "designs/", "runtime/", "<x-include", "designs/contexts.json",
+      "<summary>", "<missing>", "<context>", projects(:jira_project).name ].each { |fact| assert_includes text, fact }
+  end
+
+  test "every turn carries the task, its description, the manifest path and the request" do
+    task = tasks(:jira_task)
+    task.update!(external_reference: "REC-1", description: "Archive offers")
+    message = Designs::Prompt.turn_message(task: task, request: "Add an archive tab")
+    assert_match(/## Task\nREC-1 — #{Regexp.escape(task.name)}/, message)
+    assert_includes message, "Archive offers"
+    assert_includes message, "designs/tasks/REC-1.json"
+    assert message.rstrip.end_with?("Add an archive tab")
+  end
+
+  test "the base prompt is frozen and names all six places the leak guard allows" do
+    assert_predicate Designs::Prompt::BASE, :frozen?
+    allowed = Designs::LeakGuard::ALLOWED_FILES + Designs::LeakGuard::ALLOWED_DIRS
+    assert_equal 6, allowed.size
+    allowed.each { |path| assert_includes Designs::Prompt::BASE, path }
+  end
+
+  test "the base prompt states how to build: components, tokens, data, contexts, manifest, runtime, markup" do
+    [ "A screen never copies a component's markup", "add it to components/", "include it in both places",
+      "design_system/theme.css", "fake data", "Vary it by context",
+      "Add a dimension or a value only when the person asks",
+      "designs/tasks/<slug>.json",
+      "<script src=\"runtime/flosis.js\"></script>",
+      "<button>", "<a href>", "<label>" ].each { |rule| assert_includes base, rule }
+  end
+
+  # Ruling P2-R14: the rules that the runtime and the guard depend on.
+  test "the base prompt states the paths, ids, runtime and link rules" do
+    [ "Paths inside a component are relative to the repo root",
+      "use only letters, digits, _ and -",
+      "never delete or rename runtime/flosis.js",
+      "A link's own ?ctx= is replaced by the active contexts",
+      "switches contexts in the preview's picker" ].each { |rule| assert_includes base, rule }
+  end
+
+  test "the base prompt states the reply protocol, and what a missing requirement is" do
+    [ "exactly one <summary>", "<context>", "<missing>", "a requirement the person has not decided" ].each do |rule|
+      assert_includes base, rule
+    end
+  end
+
+  # The guard refuses twelve words in a row from the base prompt, and a new
+  # screen starts as a copy of the repo's own pages: a prompt that quoted the
+  # template would get every such turn refused.
+  test "the files of a new design repo hold no passage of the base prompt" do
+    guard = Designs::LeakGuard.new(forbidden_texts: [ Designs::Prompt::BASE ])
+    Project::DESIGN_BASE_KITS.each do |kit|
+      project = projects(:jira_project)
+      project.design_base_kit = kit
+      Dir.mktmpdir("prompt") do |dir|
+        Designs::Template.render_into(dir, project: project)
+        changes = Dir.glob("**/*", base: dir).select { |path| File.file?(File.join(dir, path)) }
+                     .map { |path| Designs::Repo::Change.new(path: path, added_text: File.read(File.join(dir, path))) }
+        assert_empty guard.check(changes), kit
+      end
+    end
+  end
+
+  test "the system prompt is the base prompt, then the project's name and its context" do
+    project = projects(:jira_project)
+    project.context_info = "An ATS for recruiters. The users are HR managers."
+    text = Designs::Prompt.system_text(project: project)
+    assert text.start_with?(Designs::Prompt::BASE)
+    assert_includes text.delete_prefix(Designs::Prompt::BASE), project.name
+    assert_includes text.delete_prefix(Designs::Prompt::BASE), "An ATS for recruiters. The users are HR managers."
+  end
+
+  test "a project without context still gets its name, and says so" do
+    project = projects(:jira_project)
+    project.context_info = nil
+    tail = Designs::Prompt.system_text(project: project).delete_prefix(Designs::Prompt::BASE)
+    assert_includes tail, project.name
+    assert_includes tail, "No context"
+  end
+
+  test "the turn's sections come in order, and the description is the current one" do
+    task = tasks(:jira_task)
+    task.update!(external_reference: "REC-1", description: "from jira")
+    task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, content: "from the details draft", origin: "ai").make_current!
+    message = Designs::Prompt.turn_message(task: task, request: "Add an archive tab")
+    assert_equal [ "## Task", "## Current description", "## Manifest path", "## Request" ], message.scan(/^## .+$/)
+    assert_includes message, "## Current description\nfrom the details draft\n"
+    assert_not_includes message, "from jira"
+    assert_includes message, "## Manifest path\ndesigns/tasks/REC-1.json\n"
+  end
+
+  test "a task with no description yet says so, and one with no Jira key is named after its id" do
+    task = tasks(:local_task)
+    task.update!(description: nil)
+    message = Designs::Prompt.turn_message(task: task, request: "Sketch it")
+    assert_includes message, "## Task\ntask-#{task.id} — #{task.name}\n"
+    assert_includes message, "## Current description\n(none yet)\n"
+    assert_includes message, "## Manifest path\ndesigns/tasks/task-#{task.id}.json\n"
+  end
+end
