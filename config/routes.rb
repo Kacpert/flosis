@@ -112,6 +112,8 @@ Rails.application.routes.draw do
         post :approve
         post :update_from_master
         post :retry
+        post :continue_to_details
+        post :describe
       end
     end
     # The design library, for Flosis staff only. Entries are switched off,

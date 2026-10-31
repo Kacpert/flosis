@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_101000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -190,6 +190,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_101000) do
   create_table "design_approvals", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "design_sha", null: false
+    t.text "jira_links_error"
+    t.datetime "jira_links_synced_at"
     t.string "master_sha", null: false
     t.integer "number", null: false
     t.string "tag", null: false
@@ -693,6 +695,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_101000) do
     t.datetime "created_at", null: false
     t.text "description"
     t.text "description_adf"
+    t.string "designs_described_sha"
     t.datetime "detail_saved_locally_at"
     t.string "external_reference"
     t.string "external_type"

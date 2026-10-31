@@ -23,9 +23,20 @@ require "tmpdir"
 class Designs::TurnJob < ApplicationJob
   queue_as :designs
 
-  # Turns of one task share its worktree and its Claude session, so they run
-  # one at a time. The duration only bounds a claim whose run was killed.
-  limits_concurrency to: 1, key: ->(turn_id) { DesignTurn.find(turn_id).chat_session.task_id }, duration: 2.hours
+  # Everything that works in a task's worktree runs one at a time: its turns
+  # (which share one Claude session too), writing the description from it
+  # (DescribeJob) and renaming its branches (RenameForJiraJob). Solid Queue
+  # keys a limit by group and key, and the group defaults to the job's own
+  # class, so the three name one group. The duration only bounds a claim
+  # whose run was killed.
+  CONCURRENCY_GROUP = "designs-task".freeze
+
+  def self.concurrency_key_for(task_id)
+    "designs-task-#{task_id}"
+  end
+
+  limits_concurrency to: 1, group: CONCURRENCY_GROUP, duration: 2.hours,
+                     key: ->(turn_id) { self.class.concurrency_key_for(DesignTurn.find(turn_id).chat_session.task_id) }
 
   # Reading and writing files, nothing else (the library's base prompt tells
   # Claude so).
@@ -196,28 +207,8 @@ class Designs::TurnJob < ApplicationJob
     file.file? && !file.symlink? && file.binread.match?(CONFLICT_MARKER)
   end
 
-  # The task's worktree, made on first use: from its working branch, here or
-  # on origin, else as a new branch off the task's approved design when it has
-  # one, else off master.
   def checkout(repo, task)
-    repo.synchronize do
-      repo.ensure_clone!
-      repo.worktree!(Designs::BranchNames.wip(task), from: base(repo, task))
-    end
-  end
-
-  # The task's approved design, here or on origin, else master. worktree!
-  # starts a new branch off a local one, and a clone made afresh has none of
-  # origin's, so origin's is made local first.
-  def base(repo, task)
-    design = Designs::BranchNames.design(task)
-    return design if repo.head(design)
-
-    approved = repo.remote_head(design)
-    return Designs::Repo::MASTER unless approved
-
-    repo.point!(design, to: approved)
-    design
+    repo.task_worktree!(task)
   end
 
   # Claude's answer to the person's request, as the CLI gives it back. Nothing

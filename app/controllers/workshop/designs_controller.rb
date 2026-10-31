@@ -71,6 +71,20 @@ class Workshop::DesignsController < Workshop::BaseController
     back(alert: "The update from master did not go through — try again in a minute.")
   end
 
+  # Hands the idea over to Details, with Claude writing its description from
+  # the designs. An idea already past Details stays where it is.
+  def continue_to_details
+    @idea.update!(workshop_stage: "details") if @idea.workshop_stage.in?(%w[new briefing])
+    Designs::DescribeJob.perform_later(@idea.id)
+    flash[:clar_toast] = "Writing the description from the designs…"
+    redirect_to workshop_idea_path(@idea, stage: "details"), status: :see_other
+  end
+
+  def describe
+    Designs::DescribeJob.perform_later(@idea.id)
+    back(toast: "Updating the description from the designs…")
+  end
+
   # Ruling P2-R7: the chat's latest turn, once it has failed, whether or not
   # the chat holds its error (a turn failed as cut off has none).
   def retry
@@ -143,8 +157,11 @@ class Workshop::DesignsController < Workshop::BaseController
     slot = publisher.published?(wip) ? wip : Designs::Repo::MASTER
     @preview_base = publisher.url(slot, branch.entry_path)
     @preview_url = publisher.url(slot, branch.entry_path, ctx: @ctx)
+    @wip_head = wip_head
     @waiting = waiting
     @can_approve = !@active && @waiting != 0
+    described = @idea.designs_described_sha
+    @description_stale = described.present? && @wip_head.present? && described != @wip_head
     @offer_update = flash[:designs_update].present?
   end
 
@@ -163,8 +180,19 @@ class Workshop::DesignsController < Workshop::BaseController
   # the first approval, lacks: 0 before the first turn. Ruling P2-R26: read
   # without the repo's lock, and nil when git cannot say, which shows no count
   # and leaves Approve to say whether there is anything.
+  # The working branch's head, read without the lock; nil before the first
+  # turn, and nil with @git_unreadable set when git cannot answer.
+  def wip_head
+    repo.head(wip, lock: false)
+  rescue StandardError => e
+    report(e, "reading the working branch")
+    @git_unreadable = true
+    nil
+  end
+
   def waiting
-    return 0 unless repo.head(wip, lock: false)
+    return if @git_unreadable
+    return 0 unless @wip_head
 
     design = Designs::BranchNames.design(@idea)
     base = repo.head(design, lock: false) ? design : Designs::Repo::MASTER

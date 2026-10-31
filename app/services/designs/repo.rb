@@ -185,6 +185,17 @@ class Designs::Repo
     end
   end
 
+  # A task's worktree, made on first use after a fetch: from its working
+  # branch, here or on origin, else as a new branch off the task's approved
+  # design (made local first when only origin has it, since worktree! starts a
+  # new branch off a local one), else off master.
+  def task_worktree!(task)
+    synchronize do
+      ensure_clone!
+      worktree!(Designs::BranchNames.wip(task), from: task_base(task))
+    end
+  end
+
   # Stages everything in a checkout and reports, per staged path, the text it
   # adds: the leak guard reads it before anything is committed. Renames show
   # as a deletion and an addition, so every path touched is listed.
@@ -364,6 +375,17 @@ class Designs::Repo
   end
 
   private
+
+  def task_base(task)
+    design = Designs::BranchNames.design(task)
+    return design if head(design)
+
+    approved = remote_head(design)
+    return MASTER unless approved
+
+    point!(design, to: approved)
+    design
+  end
 
   def base_dir
     @base_dir ||= Pathname(project.designs_dir).expand_path

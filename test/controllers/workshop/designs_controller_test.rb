@@ -235,4 +235,55 @@ class Workshop::DesignsControllerTest < ActionDispatch::IntegrationTest
       assert_select "iframe[src=?]", "#{Designs::Publisher.base_url}/t0k/wip/REC-1/index.html"
     end
   end
+
+  test "Continue to Details moves the idea and starts writing the description" do
+    assert_enqueued_with(job: Designs::DescribeJob, args: [ @idea.id ]) do
+      post continue_to_details_workshop_idea_designs_path(@idea)
+    end
+    assert_equal "details", @idea.reload.workshop_stage
+    assert_redirected_to workshop_idea_path(@idea, stage: "details")
+    assert_equal "Writing the description from the designs…", flash[:clar_toast]
+  end
+
+  test "Continue to Details works without Jira" do
+    @project.update!(external_type: nil)
+    post continue_to_details_workshop_idea_designs_path(@idea)
+    assert_equal "details", @idea.reload.workshop_stage
+  end
+
+  test "Continue to Details leaves an idea further on where it is" do
+    @idea.update!(workshop_stage: "ready")
+    post continue_to_details_workshop_idea_designs_path(@idea)
+    assert_equal "ready", @idea.reload.workshop_stage
+  end
+
+  test "the top bar offers to update the description once the designs moved on" do
+    with_design_remote(@project) do |repo, _|
+      seed_master(repo)
+      get workshop_idea_designs_path(@idea)
+      assert_select "form[action=?]", continue_to_details_workshop_idea_designs_path(@idea)
+      assert_no_match(/The designs changed since the description was written/, response.body)
+
+      first = commit_files(repo, repo.worktree!("wip/REC-1"), { "designs/a.html" => "a" })
+      @idea.update!(designs_described_sha: first)
+      get workshop_idea_designs_path(@idea)
+      assert_no_match(/The designs changed since the description was written/, response.body)
+
+      commit_files(repo, repo.worktree!("wip/REC-1"), { "designs/a.html" => "b" })
+      get workshop_idea_designs_path(@idea)
+      assert_select "body", /The designs changed since the description was written/
+      assert_enqueued_with(job: Designs::DescribeJob, args: [ @idea.id ]) do
+        post describe_workshop_idea_designs_path(@idea)
+      end
+      assert_equal "Updating the description from the designs…", flash[:clar_toast]
+    end
+  end
+
+  # Ruling P2-R26: git that cannot answer (here: no clone at all) shows no
+  # count and leaves Approve to say whether there is anything.
+  test "when git cannot read the design repo the pill has no count and Approve stays on" do
+    get workshop_idea_designs_path(@idea)
+    assert_no_match(/waiting/, response.body)
+    assert_select "form[action=?] button:not([disabled])", approve_workshop_idea_designs_path(@idea)
+  end
 end
