@@ -409,7 +409,9 @@ class Workshop::ConfigurationDesignsTabTest < ActionDispatch::IntegrationTest
     assert_select "select[name='project[design_style_pack_key]'] option[value=calm]", /Calm/
     assert_select "select[name='project[design_style_pack_key]'] option[value=calm]", /Quiet, roomy/
     assert_select "select[name='project[design_style_pack_key]'] option[value='']", /None/
-    assert_select "body", text: /SECRET GUIDANCE/, count: 0
+    # Not assert_select "body", text:, count: 0, which passes with the text on
+    # the page (rails-dom-testing reads body's text without its children's).
+    assert_not_includes response.body, "SECRET GUIDANCE"
   end
 
   test "saving a style pack" do
