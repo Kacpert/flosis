@@ -111,6 +111,30 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     end
   end
 
+  test "a link survives file names with spaces, #, ?, % and letters beyond ASCII, and keeps its folders" do
+    project = projects(:jira_project)
+    project.update!(design_preview_token: "t0k")
+    publisher = Designs::Publisher.new(project, nil)
+    {
+      "designs/job offers.html" => "designs/job%20offers.html",
+      "designs/a#b?c%d.html" => "designs/a%23b%3Fc%25d.html",
+      "designs/żółć.html" => "designs/%C5%BC%C3%B3%C5%82%C4%87.html",
+      "designs/" => "designs/"
+    }.each do |path, escaped|
+      assert_equal "https://preview.example/t0k/REC-1/#{escaped}", publisher.url("REC-1", path), path
+    end
+    assert_equal "https://preview.example/t0k/wip/REC-1/a%20b.html?ctx=admin", publisher.url("wip/REC-1", "a b.html", ctx: [ "admin" ])
+  end
+
+  test "a link to something that is not a slot is refused, as publishing it would be" do
+    project = projects(:jira_project)
+    project.update!(design_preview_token: "t0k")
+    publisher = Designs::Publisher.new(project, nil)
+    [ "wip", "../x", "design/REC-1", "REC 1", "master\n" ].each do |slot|
+      assert_raises(ArgumentError, slot.inspect) { publisher.url(slot) }
+    end
+  end
+
   test "an escaped context value cannot split into two, and a trailing slash on the host is not doubled" do
     ENV["DESIGNS_PREVIEW_URL"] = "https://preview.example/"
     project = projects(:jira_project)
@@ -217,7 +241,7 @@ class Designs::PublisherTest < ActiveSupport::TestCase
   end
 
   test "a script hidden behind a second extension is never published" do
-    scripts = %w[php php3 php4 php5 php6 php7 php8 phtml phar cgi pl py sh asp aspx jsp]
+    scripts = %w[php php3 php4 php5 php6 php7 php8 phtml phar cgi pl py sh asp aspx jsp shtml shtm stm pht phps fcgi]
     hidden = scripts.map { |ext| "designs/x.#{ext}.html" } +
              %w[designs/shell.php.html designs/a.PHP5.css designs/x.cgi.png designs/v1.php.min.js designs/Shell.ASPX.png]
     # Segments are matched whole, and only after the first dot: a name that merely
@@ -268,6 +292,51 @@ class Designs::PublisherTest < ActiveSupport::TestCase
       seen = probing_lock(repo) { Dir.glob(File.join(@preview_root, "*", "master", "README.md")).any? }
       Designs::Publisher.new(repo.project, repo).publish!("master", "master")
       assert_equal [ false, true ], seen
+    end
+  end
+
+  test "publishing a project with no folder yet raises, takes no lock and makes no folders" do
+    project = projects(:jira_project)
+    assert_nil project.workspace_dir, "fixture drifted: this project must have no folder of its own"
+    repo = Designs::Repo.new(project, remote_url: "unused")
+    repo.define_singleton_method(:synchronize) { |&_| raise "publishing took the repo's lock" }
+
+    assert_raises(Designs::Publisher::Error) { Designs::Publisher.new(project, repo).publish!("master", "master") }
+
+    assert_nil project.reload.workspace_dir
+    assert_empty Dir.children(@preview_root)
+  end
+
+  test "publishing goes by the folder on the project's row, not by an instance that remembers one the row has lost" do
+    dir = Dir.mktmpdir("workspace")
+    begin
+      project = projects(:jira_project)
+      project.update_column(:workspace_dir, dir)
+      stale = Project.find(project.id)
+      Project.where(id: project.id).update_all(workspace_dir: nil)
+      repo = Designs::Repo.new(stale, remote_url: "unused")
+      repo.define_singleton_method(:synchronize) { |&_| raise "publishing took the repo's lock" }
+
+      assert_raises(Designs::Publisher::Error) { Designs::Publisher.new(stale, repo).publish!("master", "master") }
+    ensure
+      FileUtils.remove_entry(dir)
+    end
+  end
+
+  test "the unpacked copy is private until it has been stripped and opened up" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      publisher = Designs::Publisher.new(repo.project, repo)
+      seen = []
+      strip = publisher.method(:strip_unservable!)
+      publisher.define_singleton_method(:strip_unservable!) do |dir|
+        seen << format("%o", File.stat(dir).mode & 0o777)
+        strip.call(dir)
+      end
+
+      with_umask(0o022) { publisher.publish!("master", "master") }
+
+      assert_equal [ "700" ], seen
     end
   end
 
@@ -364,6 +433,27 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     # A publisher with no repo at all rotates the same way.
     again = Designs::Publisher.new(project, nil).rotate_token!
     assert File.exist?(File.join(@preview_root, again, "master", "index.html"))
+  end
+
+  test "rotating takes the repo's lock when the row has a folder, even if the instance has not heard of it" do
+    dir = Dir.mktmpdir("workspace")
+    begin
+      project = projects(:jira_project)
+      project.update_column(:design_preview_token, "old-token-old-token-old-token-12")
+      stale = Project.find(project.id)
+      Project.where(id: project.id).update_all(workspace_dir: dir)
+      old = Pathname(@preview_root).join("old-token-old-token-old-token-12")
+      FileUtils.mkdir_p(old.join("master"))
+      repo = Designs::Repo.new(stale, remote_url: "unused")
+      seen = probing_lock(repo) { old.exist? }
+
+      Designs::Publisher.new(stale, repo).rotate_token!
+
+      assert_equal [ true, false ], seen
+      assert_equal dir, Project.find(project.id).workspace_dir, "the stored folder was replaced by a default one"
+    ensure
+      FileUtils.remove_entry(dir)
+    end
   end
 
   test "rotating a project that has a clone moves the previews inside the repo's lock" do

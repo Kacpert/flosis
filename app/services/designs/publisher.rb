@@ -31,9 +31,12 @@ class Designs::Publisher
   ].freeze
 
   # Apache's mod_mime maps a handler by any extension in a name, so shell.php.html would run as PHP.
-  SCRIPT_EXTENSIONS = %w[php php3 php4 php5 php6 php7 php8 phtml phar cgi pl py sh asp aspx jsp].freeze
+  SCRIPT_EXTENSIONS = %w[
+    php php3 php4 php5 php6 php7 php8 phtml phar pht phps cgi fcgi pl py sh asp aspx jsp shtml shtm stm
+  ].freeze
 
-  # A branch's files could not be unpacked into the document root.
+  # A publish that cannot go ahead: the project has no folder for its design
+  # repo yet, or a branch's files could not be unpacked into the document root.
   class Error < StandardError; end
 
   class << self
@@ -59,13 +62,17 @@ class Designs::Publisher
   # the slot's folder. What was uncommitted in a worktree is not published, and
   # neither is anything but static web files (see SERVABLE_EXTENSIONS).
   #
-  # The new copy is unpacked into a folder of its own beside the slot, then the
-  # old one is moved aside and the new one renamed into its place: both are
-  # renames within the token folder, so Apache sees the old copy or the new one
-  # and never a half-written folder. A failed publish leaves the old copy.
+  # The new copy is unpacked into a private folder beside the slot, then swapped
+  # in with two renames inside the token folder: the old copy is moved aside and
+  # the new one renamed into its place. Apache never sees a half-written folder,
+  # but between the two renames the slot is briefly absent. A failed publish puts
+  # the old copy back.
+  #
+  # Raises Error, before the repo is touched, for a project with no folder of its
+  # own: asked for one, the repo would make it (and save it) just to fail.
   def publish!(branch, slot)
-    slot = slot.to_s
-    raise ArgumentError, "#{slot.inspect} is not a preview slot" unless SLOT.match?(slot)
+    slot = check_slot!(slot)
+    raise Error, "the project has no design repo folder yet, so there is nothing to publish" unless stored_workspace_dir
 
     repo.synchronize do
       sha = repo.head(branch) || raise(ArgumentError, "the design repo has no branch #{branch}")
@@ -83,10 +90,14 @@ class Designs::Publisher
     end
   end
 
-  # A link into a slot. Each context is escaped on its own, so the comma between
-  # them is the only one in the list.
+  # A link into a slot, which must be one publish! would take. The page is
+  # escaped a segment at a time, so a space, #, ? or % in a file name still makes
+  # a working link, and each context on its own, so the comma between them is the
+  # only one in the list.
   def url(slot, path = "index.html", ctx: [])
-    link = "#{self.class.base_url}/#{token}/#{slot}/#{path}"
+    slot = check_slot!(slot)
+    page = path.to_s.split("/", -1).map { |segment| CGI.escapeURIComponent(segment) }.join("/")
+    link = "#{self.class.base_url}/#{token}/#{slot}/#{page}"
     contexts = Array(ctx).map { |value| CGI.escape(value.to_s) }
     contexts.empty? ? link : "#{link}?ctx=#{contexts.join(",")}"
   end
@@ -119,14 +130,30 @@ class Designs::Publisher
     self.class.root
   end
 
+  def check_slot!(slot)
+    slot = slot.to_s
+    raise ArgumentError, "#{slot.inspect} is not a preview slot" unless SLOT.match?(slot)
+
+    slot
+  end
+
   # Under the repo's lock only for a project that has a folder of its own, where
   # a clone can exist and a publish can be running. For any other project the
   # lock would make its folders (and give it a workspace_dir), which rotating
   # the links of a project that never turned Designs on must not do.
   def locked(&block)
-    return yield unless repo && project.workspace_dir.present?
+    return yield unless repo && stored_workspace_dir
 
     repo.synchronize(&block)
+  end
+
+  # The folder on the project's row, never the instance's idea of it, for the
+  # same reason as the token. It matters more here: asked for the folder of a
+  # project that has none, Repo makes a default one under ~/work/clients and
+  # saves it, so an instance that has not heard of a folder the row has would
+  # replace it. The reload also leaves the instance, which the Repo asks, current.
+  def stored_workspace_dir
+    project.reload.workspace_dir.presence
   end
 
   # The token on the project's row. A link made before anything was published
@@ -155,11 +182,13 @@ class Designs::Publisher
 
   # A tar of the commit, unpacked into a new folder. The tar sits in the system
   # temp folder: nothing but the published files belongs in the document root.
+  # The folder is 0700 until open_up! has set the modes: the raw tree, with
+  # whatever is still to be stripped from it, is not readable by Apache.
   def unpack(sha, into:)
     Dir.mktmpdir("designs-publish") do |tmp|
       tarball = File.join(tmp, "export.tar")
       GitRunner.run!("archive", "--format=tar", "-o", tarball, sha, chdir: repo.root)
-      FileUtils.mkdir(into)
+      FileUtils.mkdir(into, mode: 0o700)
       # tar runs in the folder, not with -C: the folder's path holds the
       # project's token, and an argument shows in the process list.
       _, error, status = Open3.capture3("tar", "-xf", tarball, chdir: into.to_s)
