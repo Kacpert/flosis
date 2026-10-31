@@ -55,6 +55,11 @@ class Designs::Repo
   # Another holds the repo's lock, and the caller would rather not wait.
   class Busy < StandardError; end
 
+  # A worktree and the clone no longer point at each other (see linked!):
+  # its .git was changed, and git run there would act on whatever that file
+  # names now. No git is run in it.
+  class Tampered < StandardError; end
+
   # A git lock file this old was left by a git that was killed (a deploy stops
   # jobs mid-run). No git Flosis runs here takes that long, and a transfer that
   # stalls gives up after a minute (GitRunner.env).
@@ -207,6 +212,22 @@ class Designs::Repo
       dir = own_checkout!(dir)
       git("reset", "--hard", chdir: dir)
       git("clean", "-fd", chdir: dir)
+    end
+  end
+
+  # Deletes a worktree's folder and git's record of it, so that worktree!
+  # checks its branch out afresh: what is left to do with a worktree whose
+  # link was changed (Tampered), where no git may run. The folder is checked
+  # by its path alone, without asking git, and must sit directly in
+  # worktrees_root. The branch keeps its commits; only what was never
+  # committed goes with the folder.
+  def remove_worktree!(dir)
+    synchronize do
+      path = Pathname(dir).expand_path
+      raise ArgumentError, "#{path} is not a worktree folder of the design repo" unless path.dirname == worktrees_root
+
+      FileUtils.rm_rf(path)
+      git("worktree", "prune") if root.join(".git").exist?
     end
   end
 
@@ -377,12 +398,45 @@ class Designs::Repo
   end
 
   # Git runs only in this repo's own checkouts. discard! resets and cleans:
-  # pointed at the app's checkout by mistake, it would wipe it.
+  # pointed at the app's checkout by mistake, it would wipe it. A worktree's
+  # link is checked on every call too (see linked!): Claude edits the files in
+  # a worktree, and git trusts whatever its .git says.
   def own_checkout!(dir)
     path = Pathname(dir).expand_path
-    return path if path == root || path.dirname == worktrees_root
+    return path if path == root
+    raise ArgumentError, "#{path} is not a checkout of the design repo" unless path.dirname == worktrees_root
 
-    raise ArgumentError, "#{path} is not a checkout of the design repo"
+    linked!(path)
+    path
+  end
+
+  # A worktree and the clone point at each other: the worktree's .git is a
+  # plain file reading "gitdir: <root>/.git/worktrees/<name>", and the gitdir
+  # file in that folder names the worktree's .git back. A .git naming any
+  # other git folder (another repository's, the clone's own, another
+  # worktree's) would have discard! reset and clean there instead. Paths are
+  # compared resolved: git writes them so (macOS's /var is /private/var), and
+  # with worktree.useRelativePaths relative to the file that holds them.
+  def linked!(path)
+    dot_git = path.join(".git")
+    raise Tampered, tampered(path) unless dot_git.lstat.file?
+
+    target = dot_git.read.scrub[/\Agitdir: (.+)\n?\z/, 1]
+    raise Tampered, tampered(path) unless target
+
+    admin = Pathname(File.realpath(path.join(target)))
+    back = admin.join("gitdir").read.scrub.chomp
+    linked = admin.dirname == Pathname(File.realpath(root.join(".git", "worktrees"))) &&
+             File.realpath(admin.join(back)) == File.realpath(dot_git)
+    raise Tampered, tampered(path) unless linked
+  rescue SystemCallError, ArgumentError
+    # A link to nothing (a missing .git, folder or gitdir file), or to no path
+    # at all (one with a NUL byte in it), is no link.
+    raise Tampered, tampered(path)
+  end
+
+  def tampered(path)
+    "the design worktree #{path.basename} no longer links to the design repo, so no git was run in it"
   end
 
   # The "+" lines of the path's staged diff, without the "+". Only lines in a

@@ -517,6 +517,171 @@ class Designs::RepoTest < ActiveSupport::TestCase
     end
   end
 
+  # Ruling P2-R23. Claude edits the files in a worktree, its .git among them,
+  # and git trusts whatever that file names: pointed at another repository's
+  # git folder, discard! would reset that one and stage_all! stage into it.
+  test "git refuses a worktree whose .git names another repository, and runs nothing there" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      other = repo.root.dirname.join("other")
+      system("git", "init", "--quiet", other.to_s, exception: true)
+      File.write(other.join("work.rb"), "v1\n")
+      system("git", "-C", other.to_s, "add", "work.rb", exception: true)
+      system("git", "-C", other.to_s, "-c", "user.name=Dev", "-c", "user.email=dev@example.com",
+             "commit", "--quiet", "-m", "work", exception: true)
+      File.write(other.join("work.rb"), "v2, staged\n")
+      system("git", "-C", other.to_s, "add", "work.rb", exception: true)
+      File.write(dir.join("designs.html"), "<p>x</p>")
+      dir.join(".git").write("gitdir: #{other.join(".git")}\n")
+
+      assert_raises(Designs::Repo::Tampered) { repo.stage_all!(dir) }
+      assert_raises(Designs::Repo::Tampered) { repo.commit!(dir, message: "x") }
+      assert_raises(Designs::Repo::Tampered) { repo.discard!(dir) }
+      assert_equal "M  work.rb\n", GitRunner.run!("status", "--porcelain", chdir: other), "its index is as it was"
+      assert_equal "v2, staged\n", other.join("work.rb").read
+    end
+  end
+
+  # Pointed at the clone's own git folder, a reset in the worktree would move
+  # master.
+  test "git refuses a worktree whose .git names the clone itself" do
+    with_design_remote do |repo, _|
+      master = seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      commit_files(repo, dir, { "designs/a.html" => "a" })
+      dir.join(".git").write("gitdir: #{File.realpath(repo.root.join(".git"))}\n")
+
+      assert_raises(Designs::Repo::Tampered) { repo.discard!(dir) }
+      assert_raises(Designs::Repo::Tampered) { repo.stage_all!(dir) }
+      assert_equal master, repo.head("master")
+      assert_empty GitRunner.run!("status", "--porcelain", chdir: repo.root)
+    end
+  end
+
+  # The link holds both ways: a .git naming another worktree's git folder
+  # reads like a link to this clone, but that folder names the other worktree
+  # back, and a reset here would use the other branch's index and HEAD.
+  test "git refuses a worktree whose .git names another worktree's git folder" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      other = repo.worktree!("wip/REC-2")
+      other_sha = commit_files(repo, other, { "designs/b.html" => "b" })
+      dir.join(".git").write("gitdir: #{File.realpath(repo.root.join(".git/worktrees/wip__REC-2"))}\n")
+
+      assert_raises(Designs::Repo::Tampered) { repo.discard!(dir) }
+      assert_equal other_sha, repo.head("wip/REC-2")
+      assert other.join("designs/b.html").exist?
+    end
+  end
+
+  # Claude can write a git folder of its own inside the worktree, gitdir file
+  # and all; only the clone's worktrees folder holds real ones.
+  test "git refuses a worktree whose .git names a git folder outside the clone's, even one that names it back" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      fake = dir.join("designs/fake")
+      FileUtils.mkdir_p(fake)
+      FileUtils.cp_r("#{repo.root.join(".git/worktrees/wip__REC-1")}/.", fake)
+      assert_equal "#{File.realpath(dir)}/.git\n", fake.join("gitdir").read
+      dir.join(".git").write("gitdir: #{fake}\n")
+
+      assert_raises(Designs::Repo::Tampered) { repo.discard!(dir) }
+      assert fake.join("gitdir").exist?
+    end
+  end
+
+  test "git refuses a worktree whose git folder no longer names it back" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      other = repo.worktree!("wip/REC-2")
+      repo.root.join(".git/worktrees/wip__REC-1/gitdir").write("#{File.realpath(other)}/.git\n")
+
+      assert_raises(Designs::Repo::Tampered) { repo.discard!(dir) }
+    end
+  end
+
+  test "git refuses a worktree whose .git is not a plain file, or is gone" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      admin = dir.join(".git").read[/\Agitdir: (.+)$/, 1]
+
+      dir.join(".git").delete
+      File.symlink(admin, dir.join(".git"))
+      assert_raises(Designs::Repo::Tampered, "a link to the git folder") { repo.discard!(dir) }
+
+      dir.join(".git").delete
+      dir.join(".git").mkdir
+      assert_raises(Designs::Repo::Tampered, "a repository of its own") { repo.discard!(dir) }
+
+      dir.join(".git").rmdir
+      assert_raises(Designs::Repo::Tampered, "no link at all") { repo.discard!(dir) }
+
+      dir.join(".git").write("gitdir: #{admin}\nworktree: /elsewhere\n")
+      assert_raises(Designs::Repo::Tampered, "more than the link") { repo.discard!(dir) }
+
+      dir.join(".git").write("gitdir: #{admin}\0\n")
+      assert_raises(Designs::Repo::Tampered, "no path at all") { repo.discard!(dir) }
+    end
+  end
+
+  # git writes the links resolved (on macOS, /var is /private/var) and, with
+  # worktree.useRelativePaths, relative to the files that hold them.
+  test "a worktree linked by relative paths is still the clone's own" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      GitRunner.run!("config", "worktree.useRelativePaths", "true", chdir: repo.root)
+      dir = repo.worktree!("wip/REC-1")
+      skip "this git writes absolute links only" unless dir.join(".git").read.start_with?("gitdir: ../")
+
+      assert commit_files(repo, dir, { "designs/a.html" => "a" })
+      repo.discard!(dir)
+    end
+  end
+
+  test "remove_worktree! deletes a worktree's folder and git's record of it, so the branch is checked out afresh" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      sha = commit_files(repo, dir, { "designs/a.html" => "a" })
+      File.write(dir.join("designs/b.html"), "uncommitted")
+      dir.join(".git").write("gitdir: /nowhere\n")
+
+      repo.remove_worktree!(dir)
+
+      assert_not dir.exist?
+      assert_not_includes GitRunner.run!("worktree", "list", "--porcelain", chdir: repo.root), "wip__REC-1"
+      assert_equal sha, repo.head("wip/REC-1"), "the branch keeps its commits"
+      assert_equal dir, repo.worktree!("wip/REC-1")
+      assert dir.join("designs/a.html").exist?
+      assert_not dir.join("designs/b.html").exist?
+    end
+  end
+
+  # Decided by the path alone: git is not asked about a folder whose link
+  # may be lying.
+  test "remove_worktree! removes nothing but a folder directly in the worktrees folder" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      app = repo.root.dirname.join("app")
+      FileUtils.mkdir_p(app)
+      File.write(app.join("work.rb"), "keep me")
+
+      [ repo.root, repo.worktrees_root, app, dir.join("designs"), repo.worktrees_root.join("wip__REC-1", ".."),
+        "#{repo.worktrees_root}/../app" ].each do |path|
+        assert_raises(ArgumentError, path.to_s) { repo.remove_worktree!(path) }
+      end
+      assert repo.root.join(".git").exist?
+      assert dir.join("README.md").exist?
+      assert app.join("work.rb").exist?
+    end
+  end
+
   # Rotating a project's preview token builds a Repo for a project that may
   # have no folder at all yet, and must not make one.
   test "building a repo names its remote and touches neither the disk nor the project" do
