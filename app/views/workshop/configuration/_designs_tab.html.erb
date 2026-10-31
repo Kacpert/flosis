@@ -123,5 +123,10 @@
               form: { data: { turbo_confirm: "Rotate the preview links? Every link sent so far, including those in Jira, will stop working." } } %>
       </div>
     </div>
+
+    <%# The setup run's inputs are Flosis staff's alone. %>
+    <% if current_user&.flosis_staff? %>
+      <%= render "workshop/configuration/designs_setup_inputs", project: project %>
+    <% end %>
   </div>
 <% end %>

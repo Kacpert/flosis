@@ -5,7 +5,7 @@
 # on. Everyone else gets a 404, so the area's existence is not confirmed. The
 # library is one for all of Flosis; the Workshop shell only lends it a layout.
 class Workshop::LibraryEntriesController < Workshop::BaseController
-  before_action :require_flosis_staff!
+  include FlosisStaffOnly
   before_action :set_entry, only: %i[show edit update restore]
 
   HEADINGS = { "base_prompt" => "Base prompt", "skill" => "Skills", "style_pack" => "Style packs" }.freeze
@@ -56,10 +56,6 @@ class Workshop::LibraryEntriesController < Workshop::BaseController
   end
 
   private
-
-  def require_flosis_staff!
-    raise ActionController::RoutingError, "Not Found" unless current_user&.flosis_staff?
-  end
 
   def set_entry
     @entry = LibraryEntry.find(params[:id])

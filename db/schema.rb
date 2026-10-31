@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_111000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -214,6 +214,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_110000) do
     t.index ["designer_id"], name: "index_design_requests_on_designer_id"
     t.index ["requester_id"], name: "index_design_requests_on_requester_id"
     t.index ["task_id"], name: "index_design_requests_on_task_id", unique: true
+  end
+
+  create_table "design_setup_roles", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "login_url", null: false
+    t.string "name", null: false
+    t.text "notes"
+    t.text "password", null: false
+    t.integer "position", default: 0, null: false
+    t.bigint "project_id", null: false
+    t.datetime "updated_at", null: false
+    t.string "username", null: false
+    t.index ["project_id"], name: "index_design_setup_roles_on_project_id"
   end
 
   create_table "design_turns", force: :cascade do |t|
@@ -464,7 +477,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_110000) do
     t.text "context_info"
     t.datetime "created_at", null: false
     t.string "currency", limit: 3, default: "USD", null: false
+    t.string "design_app_url"
     t.string "design_base_kit", default: "tailwind4", null: false
+    t.json "design_figma_urls"
     t.string "design_preview_token"
     t.string "design_repo"
     t.text "design_repo_error"
@@ -813,6 +828,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_110000) do
   add_foreign_key "design_requests", "tasks"
   add_foreign_key "design_requests", "users", column: "designer_id"
   add_foreign_key "design_requests", "users", column: "requester_id"
+  add_foreign_key "design_setup_roles", "projects"
   add_foreign_key "design_turns", "chat_messages"
   add_foreign_key "design_turns", "chat_sessions"
   add_foreign_key "discord_reminder_pings", "discord_reminder_recipients"

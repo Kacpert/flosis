@@ -42,7 +42,15 @@ class Project < ApplicationRecord
     repo.strip.sub(%r{\Ahttps://github\.com/}i, "").sub(%r{(?:\.git|/)+\z}i, "")
   }
 
+  # A setup run's inputs (Workshop::DesignSetupInputsController), for staff.
+  has_many :design_setup_roles, -> { order(:position, :id) }, dependent: :destroy
+  has_many_attached :design_materials
+  # JSON with no database default, which MySQL could not give (see
+  # DesignRequest#links).
+  attribute :design_figma_urls, :json, default: []
+
   validates :name, presence: true
+  validates :design_app_url, format: { with: %r{\Ahttps?://[^\s]+\z}i, message: "must be an http(s) address" }, allow_blank: true
   validates :color, presence: true, format: { with: /\A#[0-9A-Fa-f]{6}\z/ }
   validates :design_base_kit, inclusion: { in: DESIGN_BASE_KITS }
   # owner/name, never a URL: it is handed to git and to the GitHub API as it is.

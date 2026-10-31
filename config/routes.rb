@@ -122,6 +122,13 @@ Rails.application.routes.draw do
     resources :library_entries, path: "library", except: :destroy do
       member { post :restore }
     end
+    # The setup run's inputs, for Flosis staff only.
+    resource :design_setup_inputs, only: :update do
+      post :add_role
+      patch :update_role
+      delete :remove_role
+      delete :remove_material
+    end
     get "process", to: "process#show", as: :process
     get "reporting", to: "reports#show", as: :reporting
     get "reporting/developer/:id", to: "reports#developer", as: :developer_report
