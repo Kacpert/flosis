@@ -85,6 +85,13 @@ class Workshop::DesignsController < Workshop::BaseController
     back(toast: "Updating the description from the designs…")
   end
 
+  # Sends the latest approval's Jira links again.
+  def sync_links
+    approval = @idea.design_approvals.order(:number).last
+    Designs::SyncJiraLinksJob.perform_later(approval.id) if approval
+    back(toast: "Sending the Jira links again…")
+  end
+
   # Ruling P2-R7: the chat's latest turn, once it has failed, whether or not
   # the chat holds its error (a turn failed as cut off has none).
   def retry
@@ -163,6 +170,7 @@ class Workshop::DesignsController < Workshop::BaseController
     described = @idea.designs_described_sha
     @description_stale = described.present? && @wip_head.present? && described != @wip_head
     @offer_update = flash[:designs_update].present?
+    @approval = @idea.design_approvals.order(:number).last
   end
 
   # Ruling P2-R27: the value of each dimension the page's ?ctx= names, when it

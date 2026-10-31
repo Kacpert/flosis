@@ -114,6 +114,7 @@ Rails.application.routes.draw do
         post :retry
         post :continue_to_details
         post :describe
+        post :sync_links
       end
     end
     # The design library, for Flosis staff only. Entries are switched off,

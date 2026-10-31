@@ -286,4 +286,18 @@ class Workshop::DesignsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/waiting/, response.body)
     assert_select "form[action=?] button:not([disabled])", approve_workshop_idea_designs_path(@idea)
   end
+
+  test "the top bar says how the latest approval's Jira links went, and offers a retry" do
+    approval = @idea.design_approvals.create!(user: users(:one), number: 1, tag: "approved/REC-1/1", design_sha: "a", master_sha: "b",
+                                              jira_links_error: "403 Forbidden")
+    get workshop_idea_designs_path(@idea)
+    assert_select "body", /Jira links: 403 Forbidden/
+    assert_enqueued_with(job: Designs::SyncJiraLinksJob, args: [ approval.id ]) do
+      post sync_links_workshop_idea_designs_path(@idea)
+    end
+    approval.update!(jira_links_error: nil, jira_links_synced_at: Time.current)
+    get workshop_idea_designs_path(@idea)
+    assert_select "body", /Jira links: up to date/
+    assert_no_match(/Retry links/, response.body)
+  end
 end

@@ -115,4 +115,35 @@ class JiraClientTest < ActiveSupport::TestCase
 
     assert_equal [], issues
   end
+
+  test "upsert_remote_link posts the link under its globalId" do
+    stub = stub_request(:post, "#{@base_url}/issue/REC-1/remotelink")
+           .with(body: { globalId: "g:1", object: { url: "https://x.example/a", title: "Design · A" } }.to_json)
+           .to_return(status: 201, body: "{}")
+    assert_equal({ ok: true, error: nil }, @client.upsert_remote_link(issue_key: "REC-1", global_id: "g:1",
+                                                                      url: "https://x.example/a", title: "Design · A"))
+    assert_requested stub
+  end
+
+  test "remote_links lists the globalIds of the issue's links" do
+    stub_request(:get, "#{@base_url}/issue/REC-1/remotelink")
+      .to_return(status: 200, body: [ { id: 1, globalId: "g:1" }, { id: 2 } ].to_json)
+    assert_equal({ ok: true, global_ids: [ "g:1" ], error: nil }, @client.remote_links("REC-1"))
+  end
+
+  test "remote_links says so when Jira does not answer" do
+    stub_request(:get, "#{@base_url}/issue/REC-1/remotelink").to_return(status: 404, body: "{}")
+    result = @client.remote_links("REC-1")
+    assert_not result[:ok]
+    assert_equal [], result[:global_ids]
+    assert result[:error].present?
+  end
+
+  test "delete_remote_link deletes by escaped globalId and sends no body" do
+    stub = stub_request(:delete, "#{@base_url}/issue/REC-1/remotelink?globalId=#{CGI.escape("g:1 a/b")}")
+           .with { |request| request.body.blank? }
+           .to_return(status: 204)
+    assert_equal({ ok: true, error: nil }, @client.delete_remote_link(issue_key: "REC-1", global_id: "g:1 a/b"))
+    assert_requested stub
+  end
 end

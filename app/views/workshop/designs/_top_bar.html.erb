@@ -13,6 +13,12 @@
 
   <span class="flex-1"></span>
 
+  <% if @approval&.jira_links_error.present? %>
+    <span class="clar-text-warn text-[12px]">Jira links: <%= @approval.jira_links_error %></span>
+    <%= button_to "Retry links", sync_links_workshop_idea_designs_path(@idea), class: "clar-btn py-1 px-3 text-[12px]" %>
+  <% elsif @approval&.jira_links_synced_at %>
+    <span class="clar-text-muted text-[12px]">Jira links: up to date</span>
+  <% end %>
   <%= button_to "Continue to Details", continue_to_details_workshop_idea_designs_path(@idea), class: "clar-btn py-1.5" %>
   <% if @offer_update %>
     <%= button_to "Update from master", update_from_master_workshop_idea_designs_path(@idea), class: "clar-btn py-1.5" %>

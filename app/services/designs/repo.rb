@@ -339,6 +339,14 @@ class Designs::Repo
     end
   end
 
+  # A file as a commit has it: its content at ref (a full ref name or a sha),
+  # or nil when there is no such file there, or no such ref.
+  def read_file(ref, path)
+    synchronize { git("show", "#{ref}:#{path}") }
+  rescue GitRunner::Error
+    nil
+  end
+
   def tag!(name, at:)
     synchronize { git("tag", name, at) }
   end

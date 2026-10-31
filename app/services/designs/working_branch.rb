@@ -18,10 +18,24 @@ class Designs::WorkingBranch
   # The page a slot opens on when the task has no screen to show first.
   INDEX = "index.html".freeze
 
-  # The tree is a Pathname or a String. The slug is a Designs::BranchNames slug
-  # (a Jira key, or task-<id>), so a file can be named after it.
-  def initialize(dir, slug)
-    @dir = Pathname(dir)
+  # A tree on disk: a worktree, or the clone root.
+  FolderTree = Data.define(:dir) do
+    def read(relative) = dir.join(relative).read
+    def file?(relative) = dir.join(relative).file?
+  end
+
+  # A branch's tree as committed, read from the design repo (Jira links are
+  # made from the approved design, which no worktree holds).
+  GitTree = Data.define(:repo, :ref) do
+    def read(relative) = repo.read_file(ref, relative) || raise(Errno::ENOENT, relative)
+    def file?(relative) = !repo.read_file(ref, relative).nil?
+  end
+
+  # The tree is a folder (a Pathname or a String) or a GitTree. The slug is a
+  # Designs::BranchNames slug (a Jira key, or task-<id>), so a file can be
+  # named after it.
+  def initialize(tree, slug)
+    @tree = tree.is_a?(GitTree) ? tree : FolderTree.new(dir: Pathname(tree))
     @slug = slug
   end
 
@@ -57,7 +71,7 @@ class Designs::WorkingBranch
   # The file's top-level object. {} for a file that is missing, unreadable, not
   # JSON (too deeply nested included) or not an object.
   def read(relative)
-    data = JSON.parse(@dir.join(relative).read)
+    data = JSON.parse(@tree.read(relative))
     data.is_a?(Hash) ? data : {}
   rescue JSON::ParserError, SystemCallError
     {}
@@ -116,6 +130,6 @@ class Designs::WorkingBranch
     return false unless path&.start_with?("designs/")
     return false if path.include?("\0") || path.split("/", -1).intersect?(%w[. ..])
 
-    @dir.join(path).file?
+    @tree.file?(path)
   end
 end

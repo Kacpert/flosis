@@ -382,6 +382,26 @@ class JiraClient
     res[:ok] ? { ok: true } : { ok: false, error: res[:error] }
   end
 
+  # An issue's Web links (Jira's remote links), each known by the globalId it
+  # was posted with: posting a globalId the issue already has updates that
+  # link instead of adding one.
+  def upsert_remote_link(issue_key:, global_id:, url:, title:)
+    result = post_raw("/rest/api/3/issue/#{issue_key}/remotelink", { globalId: global_id, object: { url: url, title: title } })
+    { ok: result[:ok], error: result[:error] }
+  end
+
+  # The globalIds of the issue's Web links (links added by hand have none).
+  def remote_links(issue_key)
+    links = get("/rest/api/3/issue/#{issue_key}/remotelink")
+    return { ok: false, global_ids: [], error: "Jira did not list the links of #{issue_key}" } unless links.is_a?(Array)
+
+    { ok: true, global_ids: links.filter_map { |link| link["globalId"] if link.is_a?(Hash) }, error: nil }
+  end
+
+  def delete_remote_link(issue_key:, global_id:)
+    delete("/rest/api/3/issue/#{issue_key}/remotelink?globalId=#{CGI.escape(global_id)}")
+  end
+
   private
 
   # Minimal ADF document wrapping plain text in a single paragraph.
@@ -416,14 +436,27 @@ class JiraClient
     { ok: false, error: e.message }
   end
 
-  # Shared request builder for write verbs.
+  def delete(path)
+    response = http_request(Net::HTTP::Delete, path, nil)
+    if response.is_a?(Net::HTTPSuccess)
+      { ok: true, error: nil }
+    else
+      { ok: false, error: "#{response.code} #{response.message}" }
+    end
+  rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED => e
+    { ok: false, error: e.message }
+  end
+
+  # Shared request builder for write verbs. A nil body (a DELETE) sends none.
   def http_request(verb_class, path, body)
     uri = URI("https://#{@domain}#{path}")
     request = verb_class.new(uri)
     request["Authorization"] = "Basic #{Base64.strict_encode64("#{@email}:#{@api_token}")}"
     request["Accept"] = "application/json"
-    request["Content-Type"] = "application/json"
-    request.body = body.to_json
+    unless body.nil?
+      request["Content-Type"] = "application/json"
+      request.body = body.to_json
+    end
 
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = true

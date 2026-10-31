@@ -299,4 +299,16 @@ class Designs::ApprovalTest < ActiveSupport::TestCase
   ensure
     FileUtils.chmod_R("u+w", remote)
   end
+
+  test "an approval sends its Jira links afterwards" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      task = task_on(repo)
+      session_for(task)
+      commit_files(repo, repo.worktree!("wip/REC-1"), { "designs/jobs.html" => "jobs" })
+      approval = nil
+      assert_enqueued_with(job: Designs::SyncJiraLinksJob) { approval = approve(task, remote) }
+      assert_enqueued_with(job: Designs::SyncJiraLinksJob, args: [ approval.id ])
+    end
+  end
 end

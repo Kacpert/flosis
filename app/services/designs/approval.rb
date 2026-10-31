@@ -41,6 +41,8 @@ class Designs::Approval
       tag = Designs::BranchNames.approval_tag(slug, number)
       master = push_approval!(work, tag)
       approval, message = record!(number, tag, work, master)
+      # The links read the design branch, which is on GitHub by now.
+      Designs::SyncJiraLinksJob.perform_later(approval.id)
       publish!(message)
       approval
     end
