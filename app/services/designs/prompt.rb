@@ -138,10 +138,13 @@ module Designs::Prompt
   module_function
 
   # BASE, then the project: its name and the context the team wrote for it.
-  def system_text(project:)
+  # The library's composition for the project (Designs::Library), then the
+  # project's name and context. A turn passes the composition it also gives
+  # the leak guard (Ruling P3-R1).
+  def system_text(project:, composition: Designs::Library.compose(project))
     context = project.context_info.to_s.strip
     context = context.empty? ? "No context has been set for this project." : "Context set by the team:\n\n#{context}"
-    "#{BASE}\n# The project\n\nName: #{project.name}\n\n#{context}\n"
+    "#{composition.text}\n\n# The project\n\nName: #{project.name}\n\n#{context}\n"
   end
 
   # The user's message of a turn. The request comes last, so that a long

@@ -27,7 +27,7 @@ class Designs::TurnJob < ApplicationJob
   # one at a time. The duration only bounds a claim whose run was killed.
   limits_concurrency to: 1, key: ->(turn_id) { DesignTurn.find(turn_id).chat_session.task_id }, duration: 2.hours
 
-  # Reading and writing files, nothing else (Designs::Prompt::BASE tells
+  # Reading and writing files, nothing else (the library's base prompt tells
   # Claude so).
   TOOLS = %w[Read Glob Grep Edit Write].freeze
 
@@ -109,14 +109,18 @@ class Designs::TurnJob < ApplicationJob
     start_clean(turn, repo, worktree)
     return bring_up_to_date(turn, repo, task, start) if @conflicts == []
 
-    answer = ask_claude(turn, repo, worktree, key)
+    # One composition for the prompt and the guard alike (Ruling P3-R1), and
+    # the record of what Claude is given, kept before it runs.
+    composition = Designs::Library.compose(project)
+    turn.update!(library_version_ids: composition.version_ids)
+    answer = ask_claude(turn, repo, worktree, key, composition)
     raise Failure, stopped(answer[:response]) if answer[:is_error]
 
     output = Designs::TurnOutput.parse(answer[:response])
     raise Failure, NO_ANSWER if output.summary.blank?
 
     check_resolved!(worktree) if @conflicts
-    sha, notes = save(turn, repo, task, worktree, output.summary)
+    sha, notes = save(turn, repo, task, worktree, output.summary, composition.texts)
     finish(turn, output, sha, notes)
   rescue StandardError => e
     fail_turn(turn, e, repo, worktree)
@@ -162,7 +166,10 @@ class Designs::TurnJob < ApplicationJob
   # Master went in by itself, so there is nothing for Claude to do. The merge
   # commit goes out as a turn's commit does; master that had nothing new
   # leaves the turn with no commit.
+  # Claude is given nothing, so the turn records no library versions (Ruling
+  # P3-R2), whatever an earlier attempt recorded.
   def bring_up_to_date(turn, repo, task, start)
+    turn.update!(library_version_ids: [])
     notes = repo.synchronize { send_out(turn, repo, task) }
     head = repo.head(Designs::BranchNames.wip(task))
     output = Designs::TurnOutput::Result.new(summary: UP_TO_DATE, contexts: [], missing: [])
@@ -216,13 +223,13 @@ class Designs::TurnJob < ApplicationJob
   # Claude's answer to the person's request, as the CLI gives it back. Nothing
   # it is given lives in the worktree: the system prompt is a temp file and
   # the app a temp copy, both gone when it is done.
-  def ask_claude(turn, repo, worktree, key)
+  def ask_claude(turn, repo, worktree, key, composition)
     task = turn.chat_session.task
     # A resolving turn asks about the files that collide now: master may have
     # moved since "Update from master" named them.
     request = @conflicts ? DesignTurn.resolve_request(@conflicts) : turn.chat_message.content
     prompt = Designs::Prompt.turn_message(task: task, request: request)
-    with_system_prompt(task.project) do |system_prompt|
+    with_system_prompt(task.project, composition) do |system_prompt|
       Designs::AppCopy.open(task.project) do |app|
         cli = self.class.claude_factory.call(
           codebase_path: worktree.to_s, allowed_tools: TOOLS, restricted: true, api_key: key,
@@ -267,9 +274,9 @@ class Designs::TurnJob < ApplicationJob
 
   # The system prompt goes to the CLI as a file in the system's temp folder:
   # in the worktree it would be committed.
-  def with_system_prompt(project)
+  def with_system_prompt(project, composition)
     Tempfile.create([ PROMPT_PREFIX, ".md" ]) do |file|
-      file.write(Designs::Prompt.system_text(project: project))
+      file.write(Designs::Prompt.system_text(project: project, composition: composition))
       file.close
       yield file.path
     end
@@ -289,9 +296,9 @@ class Designs::TurnJob < ApplicationJob
   # published, so a preview that a failed publish left stale refreshes with the
   # next turn, even one that only answers a question. The preview is served
   # from this clone, so a commit is published even when its push failed.
-  def save(turn, repo, task, worktree, summary)
+  def save(turn, repo, task, worktree, summary, library_texts)
     slug = Designs::BranchNames.slug(task)
-    guard = Designs::LeakGuard.new(forbidden_texts: [ Designs::Prompt::BASE ],
+    guard = Designs::LeakGuard.new(forbidden_texts: library_texts,
                                    secrets: ProjectCredentials.new(task.project).all_secrets)
     message = "#{slug}: #{summary.lines.first.strip.truncate(72)}"
     repo.synchronize do

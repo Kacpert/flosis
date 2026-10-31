@@ -90,19 +90,26 @@ class Designs::PromptTest < ActiveSupport::TestCase
     end
   end
 
-  test "the system prompt is the base prompt, then the project's name and its context" do
+  # Plan 3: the prompt starts with the library's composition, not with BASE.
+  test "the system prompt is the library's composition, then the project's name and its context" do
     project = projects(:jira_project)
     project.context_info = "An ATS for recruiters. The users are HR managers."
+    library = Designs::Library.compose(project).text
     text = Designs::Prompt.system_text(project: project)
-    assert text.start_with?(Designs::Prompt::BASE)
-    assert_includes text.delete_prefix(Designs::Prompt::BASE), project.name
-    assert_includes text.delete_prefix(Designs::Prompt::BASE), "An ATS for recruiters. The users are HR managers."
+    assert text.start_with?(library)
+    assert_includes text.delete_prefix(library), project.name
+    assert_includes text.delete_prefix(library), "An ATS for recruiters. The users are HR managers."
+  end
+
+  test "the system prompt is made of the composition it is given" do
+    composition = Designs::Library::Composition.new(text: "# Base\nGiven.", texts: [ "Given." ], version_ids: [])
+    assert Designs::Prompt.system_text(project: projects(:jira_project), composition: composition).start_with?("# Base\nGiven.\n")
   end
 
   test "a project without context still gets its name, and says so" do
     project = projects(:jira_project)
     project.context_info = nil
-    tail = Designs::Prompt.system_text(project: project).delete_prefix(Designs::Prompt::BASE)
+    tail = Designs::Prompt.system_text(project: project).delete_prefix(Designs::Library.compose(project).text)
     assert_includes tail, project.name
     assert_includes tail, "No context"
   end

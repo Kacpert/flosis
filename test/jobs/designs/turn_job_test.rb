@@ -910,4 +910,68 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       assert_equal [ wip, repo.head("master") ], parents(repo, turn.commit_sha)
     end
   end
+
+  test "a turn records the library versions it used" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      repo.project.update!(anthropic_api_key: "sk-ant")
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "REC-1")
+      fake_claude(files: { "designs/a.html" => "a" })
+      turn = new_turn(task)
+      with_remote_url(remote) { Designs::TurnJob.perform_now(turn.id) }
+      assert_equal Designs::Library.compose(repo.project).version_ids, turn.reload.library_version_ids
+    end
+  end
+
+  test "a turn that copies library text is refused" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      repo.project.update!(anthropic_api_key: "sk-ant")
+      skill = "Always pair every primary action with a quiet secondary one and never stack more than two buttons."
+      LibraryEntry.create!(kind: "skill", key: "buttons", name: "Buttons").revise!(body: skill, by: nil)
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "REC-1")
+      fake_claude(files: { "designs/a.html" => "<p>#{skill}</p>" })
+      turn = new_turn(task)
+      with_remote_url(remote) { Designs::TurnJob.perform_now(turn.id) }
+      assert turn.reload.failed?
+      assert_match(/passage from the Flosis library/, turn.error)
+    end
+  end
+
+  # Ruling P3-R1: the prompt Claude gets and the texts the guard reads are one
+  # composition, even when staff revise the library while Claude works.
+  test "the guard reads the library as the turn's prompt had it" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      skill = LibraryEntry.create!(kind: "skill", key: "buttons", name: "Buttons")
+      first = "Always pair every primary action with a quiet secondary one and never stack more than two buttons."
+      skill.revise!(body: first, by: nil)
+      fake_claude(files: { "designs/a.html" => "<p>#{first}</p>" },
+                  during: ->(_) { skill.revise!(body: "Something else entirely, with no words in common at all.", by: nil) })
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.failed?
+      assert_match(/passage from the Flosis library/, turn.error)
+    end
+  end
+
+  # Ruling P3-R2: the record says what Claude was given, and a resolving turn
+  # whose merge went through by itself gave Claude nothing.
+  test "a resolving turn that needs no Claude records no library versions" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      diverge(repo, task_files: { "designs/b.html" => "b\n" }, master_files: { "designs/c.html" => "c\n" })
+      fake_claude
+      turn = resolve_turn(task)
+      turn.update!(library_version_ids: [ 1, 2 ])
+
+      turn = run_turn(turn, remote)
+
+      assert turn.succeeded?, turn.error
+      assert_equal [], turn.library_version_ids
+    end
+  end
 end
