@@ -162,4 +162,14 @@ class ProjectDesignSettingsTest < ActiveSupport::TestCase
     @project.update!(design_repo_error: "x" * 500)
     assert_equal 500, @project.reload.design_repo_error.length
   end
+
+  test "designs_ready? needs Designs on and its repo set up" do
+    project = projects(:jira_project)
+    project.update_columns(designs_enabled: true, design_repo_status: "ready")
+    assert project.designs_ready?
+    project.update_columns(design_repo_status: "initializing")
+    assert_not project.designs_ready?
+    project.update_columns(design_repo_status: "ready", designs_enabled: false)
+    assert_not project.designs_ready?
+  end
 end

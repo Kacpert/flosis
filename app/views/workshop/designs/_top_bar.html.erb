@@ -1,0 +1,24 @@
+<div class="flex items-center gap-2.5 flex-wrap px-5 py-3 border-b clar-divider bg-[var(--surface)] text-[13px]">
+  <span class="clar-text-muted">
+    <%= link_to "Workshop", workshop_pipeline_path, class: "clar-text-muted no-underline" %> ›
+    <%= link_to workshop_idea_path(@idea), class: "clar-text-muted no-underline" do %>
+      <% if @idea.external_reference.present? %><%= @idea.external_reference %> <% end %><%= @idea.name %>
+    <% end %> ›
+    <b class="clar-text-text">Designs</b>
+  </span>
+
+  <%# How many commits wait for approval: none before the first turn, and no
+      count at all when git could not say (Ruling P2-R26). %>
+  <span class="clar-chip cursor-default">design/<%= @slug %><% unless @waiting.nil? %> · <%= @waiting %> waiting<% end %></span>
+
+  <span class="flex-1"></span>
+
+  <% if @offer_update %>
+    <%= button_to "Update from master", update_from_master_workshop_idea_designs_path(@idea), class: "clar-btn py-1.5" %>
+  <% end %>
+  <%= link_to "Open in new tab ↗", @preview_url, target: "_blank", rel: "noopener", class: "clar-btn py-1.5 no-underline",
+              data: { designs_preview_target: "open" } %>
+  <%= button_to "Approve → master", approve_workshop_idea_designs_path(@idea), class: "clar-btn clar-btn-primary py-1.5",
+                disabled: !@can_approve,
+                title: (@active ? "Wait for the current turn to finish." : (@waiting == 0 ? "Nothing new to approve." : nil)) %>
+</div>

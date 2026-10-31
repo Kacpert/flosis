@@ -106,6 +106,13 @@ Rails.application.routes.draw do
         member { post :make_current }
       end
       resource :design_request, only: [ :create, :update, :destroy ]
+      resource :designs, only: :show, controller: "designs" do
+        get :chat
+        post :message
+        post :approve
+        post :update_from_master
+        post :retry
+      end
     end
     get "process", to: "process#show", as: :process
     get "reporting", to: "reports#show", as: :reporting

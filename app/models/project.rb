@@ -82,6 +82,11 @@ class Project < ApplicationRecord
     dir
   end
 
+  # Designs is on and its repo was set up: what the Designs screen needs.
+  def designs_ready?
+    designs_enabled? && design_repo_status == "ready"
+  end
+
   # Where the project's design repo lives (its clone, worktrees and lock): the
   # project's own folder. The legacy Elvium project's workspace_dir is the app
   # checkout itself, so Elvium gets the folder any other project would have.

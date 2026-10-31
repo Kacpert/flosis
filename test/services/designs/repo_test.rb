@@ -805,4 +805,20 @@ class Designs::RepoTest < ActiveSupport::TestCase
       assert_nil remote_branch_sha(remote, "design/REC-1")
     end
   end
+
+  # Ruling P2-R26: the screen reads refs while a job may hold the lock.
+  test "head and commits_ahead read without the lock when asked to" do
+    with_design_remote do |repo, _|
+      master = seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      commit_files(repo, dir, { "designs/a.html" => "1" })
+      File.open(repo.root.dirname.join("design-repo.lock")) do |job|
+        job.flock(File::LOCK_EX)
+        Timeout.timeout(10) do
+          assert_equal master, repo.head("master", lock: false)
+          assert_equal 1, repo.commits_ahead("wip/REC-1", lock: false)
+        end
+      end
+    end
+  end
 end

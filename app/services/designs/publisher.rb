@@ -108,6 +108,14 @@ class Designs::Publisher
     end
   end
 
+  # Whether the slot has been published, so that a link into it leads to a
+  # page. Only the disk is asked: nothing is made, the token included.
+  def published?(slot)
+    slot = check_slot!(slot)
+    folder = project.design_preview_token.presence
+    folder.present? && self.class.root.join(folder, slot).directory?
+  end
+
   # A link into a slot, which must be one publish! would take, to a page inside
   # it. The page is escaped a segment at a time, so a space, #, ? or % in a file
   # name still makes a working link. A page that leaves its slot (a "." or ".."

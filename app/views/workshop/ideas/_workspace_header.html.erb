@@ -32,7 +32,10 @@
       </button>
     </div>
 
-    <div class="flex-none">
+    <div class="flex-none flex items-center gap-3">
+      <% if idea.project&.designs_ready? %>
+        <%= link_to "Designs", workshop_idea_designs_path(idea), class: "clar-btn py-1.5 no-underline" %>
+      <% end %>
       <%= render "workshop/ideas/stepper", idea: idea, stage: stage %>
     </div>
   </div>

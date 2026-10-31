@@ -1,0 +1,23 @@
+<div class="flex flex-col h-full min-h-0 p-4 gap-3 bg-[var(--bg)]">
+  <%# One row per dimension; one value of each is active. Rows are told apart
+      by position, not by id: the ids are Claude's and may repeat. %>
+  <div class="flex flex-col gap-2">
+    <% @dimensions.each_with_index do |dimension, index| %>
+      <div class="flex items-center gap-1.5 flex-wrap text-[12px]">
+        <span class="font-semibold min-w-[7rem]"><%= dimension["name"] %></span>
+        <% dimension["values"].each do |value| %>
+          <button type="button" class="clar-chip <%= "clar-chip-active" if @ctx[index] == value["id"] %>"
+                  data-designs-preview-target="pill" data-dimension="<%= index %>" data-value="<%= value["id"] %>"
+                  data-action="designs-preview#pick"><%= value["name"] %></button>
+        <% end %>
+      </div>
+    <% end %>
+    <div class="flex items-center gap-1.5 text-[12px]">
+      <% if @dimensions.any? %><span class="min-w-[7rem]"></span><% end %>
+      <button type="button" class="clar-chip border-dashed clar-text-primary" data-action="designs-preview#askForContext">+ Context — ask in the chat</button>
+    </div>
+  </div>
+
+  <iframe src="<%= @preview_url %>" title="Preview of the task's designs" data-designs-preview-target="frame"
+          class="flex-1 w-full min-h-0 border clar-divider rounded-[10px] bg-white"></iframe>
+</div>

@@ -264,9 +264,12 @@ class Designs::Repo
     synchronize { head(branch) != remote_head(branch) && commits_ahead(branch).positive? }
   end
 
-  # The local branch's sha, or nil when there is no such branch.
-  def head(branch)
-    synchronize { sha("refs/heads/#{branch}") }
+  # The local branch's sha, or nil when there is no such branch. With
+  # lock: false, here and in commits_ahead, the refs are read without the
+  # repo's lock, which a job can hold across a fetch or a push: a web request
+  # must not wait on it, and git moves a ref in one step.
+  def head(branch, lock: true)
+    reading(lock) { sha("refs/heads/#{branch}") }
   end
 
   # Where origin's branch was at the last fetch, or nil when it has none.
@@ -274,8 +277,8 @@ class Designs::Repo
     synchronize { sha("refs/remotes/origin/#{branch}") }
   end
 
-  def commits_ahead(branch, base: MASTER)
-    synchronize { git("rev-list", "--count", "refs/heads/#{base}..refs/heads/#{branch}").to_i }
+  def commits_ahead(branch, base: MASTER, lock: true)
+    reading(lock) { git("rev-list", "--count", "refs/heads/#{base}..refs/heads/#{branch}").to_i }
   end
 
   def point!(branch, to:)
@@ -368,6 +371,10 @@ class Designs::Repo
 
   def lock_path
     base_dir.join("design-repo.lock").to_s
+  end
+
+  def reading(lock, &block)
+    lock ? synchronize(&block) : yield
   end
 
   # Every git Flosis runs in this repo runs under the lock, so once it is taken

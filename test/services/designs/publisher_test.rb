@@ -618,4 +618,16 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     ENV["PATH"] = path
     FileUtils.remove_entry(bin)
   end
+
+  test "published? says whether a slot has been published" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      publisher = Designs::Publisher.new(repo.project, repo)
+      assert_not publisher.published?("master")
+      publisher.publish!("master", "master")
+      assert publisher.published?("master")
+      assert_not publisher.published?("wip/REC-1")
+      assert_raises(ArgumentError) { publisher.published?("../master") }
+    end
+  end
 end
