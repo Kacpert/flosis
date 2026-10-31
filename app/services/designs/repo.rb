@@ -1,4 +1,5 @@
 require "fileutils"
+require "securerandom"
 
 # A project's design repo on disk, driven through GitRunner: one clone that
 # stays on master, a worktree per working branch beside it, and one lock that
@@ -77,7 +78,8 @@ class Designs::Repo
 
   # Leaves a clone of remote_url on master: at origin/master once the remote
   # has one, else on a master yet to be born. A remote with branches but no
-  # master is refused (NotEmpty).
+  # master is refused (NotEmpty), and its clone is set aside like the one
+  # below, so that emptying the remote, as the error advises, starts afresh.
   #
   # A clone of another repo (the project's design repo was changed) is moved
   # aside with its worktrees and never pushed from again, so the old history
@@ -266,9 +268,13 @@ class Designs::Repo
     nil # no origin, or no readable repo at all: not a clone of remote_url either way
   end
 
+  # The clone and its worktrees share one tag, so they can be matched up
+  # afterwards. The random part is there because a refused repo is refused
+  # again by the next job, which can come within the same second: renaming onto
+  # the first clone's name would fail with a filesystem error instead of NotEmpty.
   def move_aside!
-    stamp = Time.now.utc.strftime("%Y%m%dT%H%M%SZ")
-    [ root, worktrees_root ].each { |dir| File.rename(dir, "#{dir}.replaced-#{stamp}") if dir.exist? }
+    tag = "#{Time.now.utc.strftime("%Y%m%dT%H%M%SZ")}-#{SecureRandom.hex(3)}"
+    [ root, worktrees_root ].each { |dir| File.rename(dir, "#{dir}.replaced-#{tag}") if dir.exist? }
   end
 
   # The Flosis identity goes into the clone's own config, which its worktrees
@@ -285,6 +291,11 @@ class Designs::Repo
                  .map { |ref| ref.delete_prefix("refs/remotes/origin/") } - [ "HEAD" ]
     return if branches.empty?
 
+    # A clone of this very remote is one ensure_clone! keeps, so a refused one
+    # left in place would be fetched into and committed on by the next run,
+    # on top of the old main, once the repo had been emptied as the message
+    # advises. It is set aside like a clone of another repo.
+    move_aside!
     raise NotEmpty, "The design repo must be empty — it already has: #{branches.join(", ")}. " \
                     "Create an empty repository, or remove them."
   end

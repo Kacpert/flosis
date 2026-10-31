@@ -275,15 +275,69 @@ class Designs::RepoTest < ActiveSupport::TestCase
   end
 
   # Re-pointing a HEAD that has commits would leave its files staged for
-  # master's first commit: only an empty clone's HEAD is moved.
-  test "a clone of a repo emptied since then never stages the old files for master" do
+  # master's first commit: only an empty clone's HEAD is moved. The refused
+  # clone is not kept (see the next test), so the emptied repo is cloned afresh
+  # and its HEAD is the unborn one that may be moved.
+  test "a repo emptied after it was refused is cloned afresh, unborn on master, with nothing of the old main" do
     with_design_remote do |repo, remote|
       system("git", "-C", remote, "symbolic-ref", "HEAD", "refs/heads/main", exception: true)
       push_from_elsewhere(remote, "main", { "README.md" => "# acme\n" })
       assert_raises(Designs::Repo::NotEmpty) { repo.ensure_clone! }
       system("git", "-C", remote, "update-ref", "-d", "refs/heads/main", exception: true)
       repo.ensure_clone!
+      assert_equal "refs/heads/master", GitRunner.run!("symbolic-ref", "HEAD", chdir: repo.root).strip
+      assert_empty GitRunner.run!("for-each-ref", "refs/heads", chdir: repo.root), "no main, no branch at all"
       assert_empty GitRunner.run!("diff", "--cached", "--name-only", chdir: repo.root)
+      assert_equal [ ".git" ], Dir.children(repo.root), "none of main's files"
+      assert_not repo.initialized?
+
+      first = seed_master(repo)
+      assert_equal [ first ], GitRunner.run!("rev-list", "--parents", "-n", "1", first, chdir: repo.root).split,
+                   "master's first commit is a root commit, not one on top of main's history"
+    end
+  end
+
+  # A clone of the same remote is the one ensure_clone! keeps, fetches into and
+  # commits on. A refused one left in place would turn emptying the repo, as the
+  # error advises, into committing onto the old main.
+  test "a refused clone is moved aside, not kept and not deleted" do
+    with_design_remote do |repo, remote|
+      system("git", "-C", remote, "symbolic-ref", "HEAD", "refs/heads/main", exception: true)
+      push_from_elsewhere(remote, "main", { "README.md" => "# acme\n" })
+      error = assert_raises(Designs::Repo::NotEmpty) { repo.ensure_clone! }
+      assert_equal "The design repo must be empty — it already has: main. Create an empty repository, or remove them.",
+                   error.message
+      assert_not repo.root.exist?
+      assert_equal 1, Dir.glob("#{repo.root}.replaced-*/.git").size
+    end
+  end
+
+  # An initialized repo whose master was swapped for another branch is refused
+  # the same way, with its local master and its worktrees.
+  test "a refused clone is set aside with its worktrees" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      repo.worktree!("wip/REC-1")
+      system("git", "-C", remote, "update-ref", "refs/heads/main", remote_branch_sha(remote, "master"), exception: true)
+      system("git", "-C", remote, "update-ref", "-d", "refs/heads/master", exception: true)
+      assert_raises(Designs::Repo::NotEmpty) { repo.ensure_clone! }
+      assert_not repo.root.exist?
+      assert_not repo.worktrees_root.exist?
+      assert_equal 1, Dir.glob("#{repo.root}.replaced-*/.git").size
+      assert_equal 1, Dir.glob("#{repo.worktrees_root}.replaced-*/wip__REC-1").size
+    end
+  end
+
+  # Two jobs queued by a double click refuse the repo one after the other, and
+  # can do it within a second: the first clone's name must not be taken.
+  test "clones refused within the same second are each set aside" do
+    with_design_remote do |repo, remote|
+      system("git", "-C", remote, "symbolic-ref", "HEAD", "refs/heads/main", exception: true)
+      push_from_elsewhere(remote, "main", { "README.md" => "# acme\n" })
+      freeze_time do
+        2.times { assert_raises(Designs::Repo::NotEmpty) { repo.ensure_clone! } }
+      end
+      assert_equal 2, Dir.glob("#{repo.root}.replaced-*/.git").size
     end
   end
 
@@ -342,20 +396,5 @@ class Designs::RepoTest < ActiveSupport::TestCase
     root = Designs::Repo.new(project, remote_url: "unused").root
     assert_equal Pathname(project.designs_dir).join("design-repo"), root
     assert_not root.to_s.start_with?(Project::ELVIUM_LEGACY_DIR)
-  end
-
-  private
-
-  # Commits files onto a branch of the remote from a clone of its own, as
-  # GitHub or a developer would.
-  def push_from_elsewhere(remote, branch, files)
-    Dir.mktmpdir("elsewhere") do |dir|
-      system("git", "clone", "--quiet", remote, dir, exception: true, err: File::NULL)
-      files.each { |path, body| File.write(File.join(dir, path), body) }
-      system("git", "-C", dir, "add", "-A", exception: true)
-      system("git", "-C", dir, "-c", "user.name=Someone", "-c", "user.email=someone@example.com",
-             "commit", "--quiet", "-m", "Initial commit", exception: true)
-      system("git", "-C", dir, "push", "--quiet", "origin", "HEAD:refs/heads/#{branch}", exception: true, err: File::NULL)
-    end
   end
 end

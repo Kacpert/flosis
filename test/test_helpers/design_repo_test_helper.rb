@@ -43,4 +43,17 @@ module DesignRepoTestHelper
     out, status = Open3.capture2("git", "-C", remote, "rev-parse", "--verify", "--quiet", "refs/heads/#{branch}")
     status.success? ? out.strip : nil
   end
+
+  # Commits files onto a branch of the remote from a clone of its own, as
+  # GitHub or a developer would.
+  def push_from_elsewhere(remote, branch, files)
+    Dir.mktmpdir("elsewhere") do |dir|
+      system("git", "clone", "--quiet", remote, dir, exception: true, err: File::NULL)
+      files.each { |path, body| File.write(File.join(dir, path), body) }
+      system("git", "-C", dir, "add", "-A", exception: true)
+      system("git", "-C", dir, "-c", "user.name=Someone", "-c", "user.email=someone@example.com",
+             "commit", "--quiet", "-m", "Initial commit", exception: true)
+      system("git", "-C", dir, "push", "--quiet", "origin", "HEAD:refs/heads/#{branch}", exception: true, err: File::NULL)
+    end
+  end
 end
