@@ -3,6 +3,14 @@
 <div class="clar-card p-4.5" data-design-setup-inputs>
   <div class="font-bold text-[14px] clar-text-text mb-1">Setup run inputs <span class="clar-badge clar-badge-primary ml-1">Flosis staff</span></div>
   <div class="text-[12.5px] clar-text-muted mb-4">What a setup run reads to recreate the app in the design repo: the running app, logged in as each role, Figma files and other materials.</div>
+  <div class="mb-5">
+    <% if project.design_setups.active.exists? %>
+      <%= link_to "Open setup run", workshop_design_setup_path, class: "clar-btn no-underline" %>
+    <% else %>
+      <%= button_to "Start setup run", start_workshop_design_setup_path, class: "clar-btn",
+                    form: { data: { turbo_confirm: "Start a setup run? It crawls the app as each role, then works on wip/setup." } } %>
+    <% end %>
+  </div>
 
   <%= form_with model: project, url: workshop_design_setup_inputs_path, method: :patch, multipart: true, class: "flex flex-col gap-1.5 mb-5" do |f| %>
     <%= f.label :design_app_url, "APP URL", class: "clar-field-label" %>

@@ -4,7 +4,7 @@
   <div class="flex flex-col h-full min-h-0" data-controller="designs-poll"
        data-designs-poll-active-value="<%= @active %>"
        data-designs-poll-commit-value="<%= @last_commit %>"
-       data-designs-poll-url-value="<%= chat_workshop_idea_designs_path(@idea) %>">
+       data-designs-poll-url-value="<%= @designs_urls[:chat] %>">
     <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-2.5">
       <% if @messages.empty? %>
         <p class="clar-text-muted text-[13px]">Tell Claude what to design for this task. It works on the task's own branch, and the preview on the right follows it.</p>
@@ -18,7 +18,7 @@
       <% if @failed_turn && retry_on.nil? %>
         <div class="clar-bubble-ai border-[var(--danger)] text-[13px]">
           <%= @failed_turn.error %>
-          <%= button_to "Retry", retry_workshop_idea_designs_path(@idea), class: "clar-btn mt-2 py-1 px-3 text-[12px]" %>
+          <%= button_to "Retry", @designs_urls[:retry], class: "clar-btn mt-2 py-1 px-3 text-[12px]" %>
         </div>
       <% end %>
       <% if @active %>
@@ -28,9 +28,9 @@
 
     <div class="border-t clar-divider p-3">
       <% if @no_key %>
-        <p class="clar-text-danger text-[12.5px]"><%= Designs::TurnJob::NO_KEY %></p>
+        <p class="clar-text-danger text-[12.5px]"><%= @no_key %></p>
       <% else %>
-        <%= form_with url: message_workshop_idea_designs_path(@idea), class: "flex flex-col gap-2" do |form| %>
+        <%= form_with url: @designs_urls[:message], class: "flex flex-col gap-2" do |form| %>
           <%= form.text_area :content, id: "designs-composer", rows: 3, required: true, class: "clar-textarea w-full",
                              placeholder: "Describe what to change…" %>
           <div class="flex justify-end"><%= form.submit "Send", class: "clar-btn clar-btn-primary py-1.5" %></div>

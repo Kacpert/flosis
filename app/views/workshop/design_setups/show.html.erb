@@ -1,0 +1,18 @@
+<% content_for :title, "Setup · #{current_workshop_project.name} · Flosis" %>
+<% content_for :clar_full_bleed, true %>
+
+<%# The Designs screen's chat and preview, for the project's setup run. %>
+<div class="flex flex-col h-full" data-controller="designs-preview"
+     data-designs-preview-base-value="<%= @preview_base %>"
+     data-designs-preview-ctx-value="<%= @ctx.to_json %>">
+  <%= render "workshop/design_setups/top_bar" %>
+
+  <div class="flex-1 grid min-h-0" style="grid-template-columns: minmax(300px, 36%) minmax(0, 1fr)">
+    <div class="border-r clar-divider min-h-0 flex flex-col">
+      <%= render "workshop/designs/chat" %>
+    </div>
+    <div class="min-h-0 flex flex-col">
+      <%= render "workshop/designs/preview" %>
+    </div>
+  </div>
+</div>

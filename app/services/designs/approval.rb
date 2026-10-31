@@ -22,6 +22,11 @@ class Designs::Approval
   # goes to the log only.
   PREVIEW_NOT_UPDATED = "The preview could not be updated, so it still shows the version before.".freeze
 
+  # A project's setup run, approved into master (Designs::SetupApproval).
+  def self.for_setup(project, user:, wait: true)
+    Designs::SetupApproval.new(project, user: user, wait: wait)
+  end
+
   # With wait: false a repo whose lock another holds raises Repo::Busy at
   # once: a web request must not wait behind a job.
   def initialize(task, user:, wait: true)

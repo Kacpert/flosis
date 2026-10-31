@@ -18,7 +18,7 @@
     <% if label %><div class="clar-text-muted text-[11.5px] font-semibold mb-1"><%= label %></div><% end %>
     <div class="whitespace-pre-line"><%= message.content %></div>
     <% if offer_retry %>
-      <%= button_to "Retry", retry_workshop_idea_designs_path(@idea), class: "clar-btn mt-2 py-1 px-3 text-[12px]" %>
+      <%= button_to "Retry", @designs_urls[:retry], class: "clar-btn mt-2 py-1 px-3 text-[12px]" %>
     <% end %>
   </div>
 <% end %>

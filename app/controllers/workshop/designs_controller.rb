@@ -148,7 +148,12 @@ class Workshop::DesignsController < Workshop::BaseController
     @last_commit = turns.where(status: "succeeded").where.not(commit_sha: nil).order(:id).last&.commit_sha
     latest = turns.order(:id).last
     @failed_turn = latest if latest&.failed?
-    @no_key = ProjectCredentials.new(project).designs_api_key.nil?
+    # What the chat says in place of its composer, when the turn would have
+    # no key to run on.
+    @no_key = Designs::TurnJob::NO_KEY if ProjectCredentials.new(project).designs_api_key.nil?
+    # The chat partials serve a task's screen and a setup run's alike.
+    @designs_urls = { chat: chat_workshop_idea_designs_path(@idea), message: message_workshop_idea_designs_path(@idea),
+                      retry: retry_workshop_idea_designs_path(@idea) }
   end
 
   # The contexts and the entry page come from the task's worktree, or from

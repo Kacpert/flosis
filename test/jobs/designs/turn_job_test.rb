@@ -1034,4 +1034,19 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     assert_equal "designs-task/designs-setup-#{projects(:jira_project).id}", Designs::TurnJob.new(turn.id).concurrency_key
     assert_not_equal Designs::TurnJob.new(task_turn.id).concurrency_key, Designs::TurnJob.new(turn.id).concurrency_key
   end
+
+  test "a setup turn refuses a stored password" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      ENV["FLOSIS_DESIGNS_SETUP_API_KEY"] = "sk-flosis"
+      repo.project.design_setup_roles.create!(name: "Admin", login_url: "https://app.test/login", username: "a", password: "p4ssword-xyz")
+      fake_claude(files: { "designs/a.html" => "<p>p4ssword-xyz</p>" })
+      turn = run_turn(setup_turn(repo.project), remote)
+      assert turn.failed?
+      assert_match(/contains a stored credential/, turn.error)
+      assert_nil remote_branch_sha(remote, "wip/setup")
+    ensure
+      ENV.delete("FLOSIS_DESIGNS_SETUP_API_KEY")
+    end
+  end
 end

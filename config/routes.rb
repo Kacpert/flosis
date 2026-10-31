@@ -122,6 +122,15 @@ Rails.application.routes.draw do
     resources :library_entries, path: "library", except: :destroy do
       member { post :restore }
     end
+    # The project's setup run, for Flosis staff only.
+    resource :design_setup, only: :show do
+      post :start
+      post :message
+      post :next_phase
+      post :approve
+      post :retry
+      get :chat
+    end
     # The setup run's inputs, for Flosis staff only.
     resource :design_setup_inputs, only: :update do
       post :add_role
