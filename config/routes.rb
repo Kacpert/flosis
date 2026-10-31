@@ -114,6 +114,11 @@ Rails.application.routes.draw do
         post :retry
       end
     end
+    # The design library, for Flosis staff only. Entries are switched off,
+    # never deleted: turns record the versions they ran on.
+    resources :library_entries, path: "library", except: :destroy do
+      member { post :restore }
+    end
     get "process", to: "process#show", as: :process
     get "reporting", to: "reports#show", as: :reporting
     get "reporting/developer/:id", to: "reports#developer", as: :developer_report

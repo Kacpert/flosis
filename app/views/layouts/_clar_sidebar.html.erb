@@ -73,8 +73,21 @@
     <%# The link follows the controller's own rule (either permission the
         Configuration page accepts) rather than admin-only — otherwise someone
         could reach the page but never find it. %>
-    <% if can?(:configuration) || can?(:briefing_config) %>
+    <% show_configuration = can?(:configuration) || can?(:briefing_config) %>
+    <%# The design library is Flosis's own, so staff see it whatever their
+        workspace role, and nobody else sees the link at all. %>
+    <% show_library = current_user&.flosis_staff? %>
+    <% if show_configuration || show_library %>
       <span class="clar-nav-label" data-clar-sidebar-hide-label>ADMIN</span>
+    <% end %>
+    <% if show_library %>
+      <%= link_to workshop_library_entries_path,
+            class: "clar-nav-item #{'clar-nav-item-active' if request.path.start_with?(workshop_library_entries_path)}" do %>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span class="flex-1 text-left" data-clar-sidebar-hide-label>Library</span>
+      <% end %>
+    <% end %>
+    <% if show_configuration %>
       <%
         configuration_real = respond_to?(:workshop_configuration_path)
         configuration_path = configuration_real ? workshop_configuration_path : fallback_path
