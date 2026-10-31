@@ -643,6 +643,19 @@ class Designs::RepoTest < ActiveSupport::TestCase
     end
   end
 
+  test "remote_head is where origin's branch was at the last fetch, and nil when origin has none" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      push_from_elsewhere(remote, "design/REC-1", { "designs/a.html" => "a" })
+      assert_nil repo.remote_head("design/REC-1"), "not fetched yet"
+      repo.ensure_clone!
+      assert_equal remote_branch_sha(remote, "design/REC-1"), repo.remote_head("design/REC-1")
+      assert_nil repo.head("design/REC-1"), "origin's branch is not a local one"
+      assert_nil repo.remote_head("design"), "a folder of branches is no branch"
+      assert_nil repo.remote_head("design/REC-2")
+    end
+  end
+
   test "indexed? sees a file in a checkout's index at exactly the path given" do
     with_design_remote do |repo, _|
       seed_master(repo)

@@ -250,6 +250,11 @@ class Designs::Repo
     synchronize { sha("refs/heads/#{branch}") }
   end
 
+  # Where origin's branch was at the last fetch, or nil when it has none.
+  def remote_head(branch)
+    synchronize { sha("refs/remotes/origin/#{branch}") }
+  end
+
   def commits_ahead(branch, base: MASTER)
     synchronize { git("rev-list", "--count", "refs/heads/#{base}..refs/heads/#{branch}").to_i }
   end

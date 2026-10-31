@@ -1,0 +1,574 @@
+require "test_helper"
+
+class Designs::TurnJobTest < ActiveJob::TestCase
+  include DesignRepoTestHelper
+
+  setup do
+    @preview_root = Dir.mktmpdir("preview")
+    ENV["DESIGNS_PREVIEW_ROOT"] = @preview_root
+  end
+
+  teardown do
+    ENV.delete("DESIGNS_PREVIEW_ROOT")
+    FileUtils.remove_entry(@preview_root)
+    Designs::TurnJob.claude_factory = nil
+  end
+
+  # A stand-in for Claude: edits the worktree, then answers. during is called
+  # with the options the CLI was built with, while the turn runs.
+  def fake_claude(files: {}, reply: "<summary>Did it.</summary>", raise_error: nil, during: nil)
+    scripted_claude do |_call, _keywords, opts|
+      raise raise_error if raise_error
+      files.each { |p, b| FileUtils.mkdir_p(File.dirname(File.join(opts[:codebase_path], p))); File.write(File.join(opts[:codebase_path], p), b) }
+      during&.call(opts)
+      { session_id: "s", response: reply }
+    end
+  end
+
+  # A stand-in for Claude that does what the block says on every call. The
+  # calls are kept in @calls, each as [:start_session or :resume_session, keywords].
+  def scripted_claude(&script)
+    calls = @calls = []
+    Designs::TurnJob.claude_factory = lambda do |**opts|
+      Object.new.tap do |cli|
+        %i[start_session resume_session].each do |call|
+          cli.define_singleton_method(call) do |**keywords|
+            calls << [ call, keywords ]
+            script.call(call, keywords, opts)
+          end
+        end
+      end
+    end
+  end
+
+  def new_turn(task)
+    session = ChatSession.create!(task: task, workspace: task.project.workspace, user: users(:one), purpose: "designs",
+                                  claude_session_id: SecureRandom.uuid, codebase_path: "/tmp")
+    msg = session.chat_messages.create!(role: "user", content: "Add an archive tab", user: users(:one))
+    DesignTurn.create!(chat_session: session, chat_message: msg)
+  end
+
+  # The person's next message in the same chat, and its turn.
+  def next_turn(session, request = "Now add a filter")
+    msg = session.chat_messages.create!(role: "user", content: request, user: users(:one))
+    DesignTurn.create!(chat_session: session, chat_message: msg)
+  end
+
+  # Where most tests start: master seeded, the project's own key, and the
+  # task, named REC-1, on the project.
+  def design_task(repo)
+    seed_master(repo)
+    repo.project.update!(anthropic_api_key: "sk-ant")
+    tasks(:jira_task).tap { |task| task.update!(project: repo.project, external_reference: "REC-1") }
+  end
+
+  def run_turn(turn, remote)
+    with_remote_url(remote) { Designs::TurnJob.perform_now(turn.id) }
+    turn.reload
+  end
+
+  def remote_files(remote, branch)
+    GitRunner.run!("ls-tree", "-r", "--name-only", "refs/heads/#{branch}", chdir: remote).split("\n")
+  end
+
+  def assistant_messages(turn)
+    turn.chat_session.chat_messages.where(role: "assistant").ordered
+  end
+
+  # The project's app checkout, with the files committed. Not checkout!(project):
+  # that moves workspace_dir, and the design repo lives there too.
+  def app_checkout(project, files = {})
+    project.update!(github_repo: "acme/app")
+    app = project.repo_checkout_path
+    FileUtils.mkdir_p(app)
+    system("git", "-C", app, "init", "-q", exception: true)
+    return app if files.empty?
+
+    files.each do |path, body|
+      FileUtils.mkdir_p(File.dirname(File.join(app, path)))
+      File.write(File.join(app, path), body)
+    end
+    system("git", "-C", app, "add", "-A", exception: true)
+    system("git", "-C", app, "-c", "user.name=Dev", "-c", "user.email=dev@example.com", "commit", "-q", "-m", "app",
+           exception: true)
+    app
+  end
+
+  test "a turn commits Claude's work to the working branch, pushes it and publishes it" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      repo.project.update!(anthropic_api_key: "sk-ant")
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "REC-1")
+      fake_claude(files: { "designs/jobs.html" => "<p>jobs</p>" },
+                  reply: "<summary>Added jobs.</summary><missing>Who can archive?</missing>")
+      turn = new_turn(task)
+      with_remote_url(remote) { Designs::TurnJob.perform_now(turn.id) }
+      turn.reload
+      assert turn.succeeded?, turn.error
+      assert_equal turn.commit_sha, remote_branch_sha(remote, "wip/REC-1")
+      assert File.exist?(File.join(@preview_root, repo.project.reload.design_preview_token, "wip", "REC-1", "designs", "jobs.html"))
+      assert_equal %w[summary missing], turn.chat_session.chat_messages.where(role: "assistant").ordered.pluck(:kind)
+    end
+  end
+
+  test "a refused change fails the turn and leaves the branch where it was" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      repo.project.update!(anthropic_api_key: "sk-ant")
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "REC-1")
+      fake_claude(files: { ".claude/skill.md" => "x" })
+      turn = new_turn(task)
+      with_remote_url(remote) { Designs::TurnJob.perform_now(turn.id) }
+      assert turn.reload.failed?
+      assert_match(/Refused: \.claude\/skill\.md/, turn.error)
+      assert_nil remote_branch_sha(remote, "wip/REC-1")
+    end
+  end
+
+  # Ruling P2-R19, in place of the brief's "a change to the app checkout is
+  # undone": Flosis never runs checkout or clean in the live checkout, which
+  # is shared (and for Elvium a developer's own working copy). Claude reads a
+  # copy of what it has committed, so .env and master.key never reach it.
+  test "Claude reads a read-only copy of what the app checkout has committed, never the checkout itself" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      app = app_checkout(repo.project, { "config/routes.rb" => "get '/jobs'\n" })
+      File.write(File.join(app, ".env"), "SECRET_KEY_BASE=abc\n")
+      status = GitRunner.run!("status", "--porcelain", chdir: app)
+      copies = nil
+      fake_claude(during: lambda { |opts|
+        copies = opts[:add_dirs]
+        assert_equal 1, copies.size
+        copy = copies.first
+        assert_not_equal File.realpath(app), File.realpath(copy), "the live checkout"
+        assert_equal "get '/jobs'\n", File.read(File.join(copy, "config/routes.rb"))
+        assert_not File.exist?(File.join(copy, ".env")), "what the checkout does not track"
+        unless Process.uid.zero?
+          assert_raises(Errno::EACCES) { File.write(File.join(copy, "config/routes.rb"), "hacked") }
+          assert_raises(Errno::EACCES) { File.write(File.join(copy, "hacked.rb"), "x") }
+        end
+      })
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_not File.exist?(copies.first), "the copy is removed after the turn"
+      assert_not File.exist?(File.dirname(copies.first)), "and the folder it was made in"
+      assert_equal "SECRET_KEY_BASE=abc\n", File.read(File.join(app, ".env"))
+      assert_equal "get '/jobs'\n", File.read(File.join(app, "config/routes.rb"))
+      assert_equal status, GitRunner.run!("status", "--porcelain", chdir: app)
+    end
+  end
+
+  # A link the app's repo tracks would lead Claude's tools out of the copy:
+  # this one to the live checkout's .env.
+  test "the copy of the app holds no links" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      app = app_checkout(repo.project)
+      File.write(File.join(app, ".env"), "SECRET_KEY_BASE=abc\n")
+      File.write(File.join(app, "Gemfile"), "gem \"rails\"\n")
+      File.symlink(File.join(app, ".env"), File.join(app, "settings.txt"))
+      system("git", "-C", app, "add", "Gemfile", "settings.txt", exception: true)
+      system("git", "-C", app, "-c", "user.name=Dev", "-c", "user.email=dev@example.com", "commit", "-q", "-m", "app",
+             exception: true)
+      entries = nil
+      fake_claude(during: ->(opts) { entries = opts[:add_dirs].map { |copy| Dir.children(copy).sort } })
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_equal [ [ "Gemfile" ] ], entries
+    end
+  end
+
+  # Ruling P2-R19: no commit to copy (or no checkout at all) is no reason to
+  # refuse the turn.
+  test "an app checkout with nothing committed gives Claude no copy, and the turn still runs" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      app = app_checkout(repo.project)
+      File.write(File.join(app, ".env"), "SECRET_KEY_BASE=abc\n")
+      copies = nil
+      fake_claude(files: { "designs/a.html" => "a" }, during: ->(opts) { copies = opts[:add_dirs] })
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_equal [], copies
+      assert File.exist?(File.join(app, ".env"))
+    end
+  end
+
+  test "a project without its own API key fails the turn with the way out" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      repo.project.update!(anthropic_api_key: nil)
+      task = tasks(:jira_task)
+      task.update!(project: repo.project)
+      fake_claude
+      turn = new_turn(task)
+      with_remote_url(remote) { Designs::TurnJob.perform_now(turn.id) }
+      assert_match(/Configuration › AI/, turn.reload.error)
+    end
+  end
+
+  test "a stale running turn is failed and can be retried" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      repo.project.update!(anthropic_api_key: "sk-ant")
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "REC-1")
+      turn = new_turn(task)
+      turn.update!(status: "running", started_at: DesignTurn.stale_after.ago - 1.minute)
+      fake_claude(files: { "designs/a.html" => "a" })
+      with_remote_url(remote) { Designs::TurnJob.perform_now(turn.id) }
+      assert turn.reload.succeeded?, "a re-delivered job takes over a stale turn"
+    end
+  end
+
+  test "turns of one task never run at the same time" do
+    assert_equal 1, Designs::TurnJob.concurrency_limit
+  end
+
+  # Beyond the brief.
+
+  test "Claude works in the worktree with file tools only, on the project's key, the turn's limits and a system prompt kept outside the worktree" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      repo.project.update!(context_info: "A recruiting app for agencies.")
+      seen = nil
+      system_prompt = nil
+      fake_claude(during: lambda { |opts|
+        seen = opts
+        system_prompt = File.read(opts[:append_system_prompt_file])
+      })
+
+      turn = with_env("DESIGNS_TURN_TIMEOUT_SECONDS" => "120", "DESIGNS_TURN_BUDGET_USD" => "2.5") do
+        run_turn(new_turn(task), remote)
+      end
+
+      assert turn.succeeded?, turn.error
+      worktree = repo.worktree!("wip/REC-1").to_s
+      assert_equal %i[add_dirs allowed_tools api_key append_system_prompt_file codebase_path max_budget_usd restricted timeout],
+                   seen.keys.sort
+      assert_equal worktree, seen[:codebase_path]
+      assert_equal %w[Read Glob Grep Edit Write], seen[:allowed_tools]
+      assert_equal true, seen[:restricted]
+      assert_equal "sk-ant", seen[:api_key]
+      assert_equal 120, seen[:timeout]
+      assert_equal 2.5, seen[:max_budget_usd]
+      assert_equal [], seen[:add_dirs], "the project has no app checkout"
+      assert_equal Designs::Prompt.system_text(project: repo.project.reload), system_prompt
+      assert_not seen[:append_system_prompt_file].start_with?("#{worktree}/"), "a file in the worktree would be committed"
+      assert_not File.exist?(seen[:append_system_prompt_file]), "the prompt file is removed after the turn"
+      assert_equal [ Designs::Prompt.turn_message(task: task.reload, request: "Add an archive tab") ],
+                   @calls.map { |_call, keywords| keywords[:prompt] }
+    end
+  end
+
+  # Ruling P2-R13: any turn of the chat that has started may have started the
+  # session, failed ones included.
+  test "the first turn of a chat starts its Claude session, and every later one resumes it" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      fake_claude(files: { "designs/a.html" => "a" })
+      first = run_turn(new_turn(task), remote)
+      session = first.chat_session
+      id = session.claude_session_id
+      assert_equal [ [ :start_session, { prompt: @calls.dig(0, 1, :prompt), new_session_id: id } ] ], @calls
+
+      fake_claude(raise_error: ClaudeCliService::TimeoutError.new("Claude CLI did not finish within 900 seconds and was stopped"))
+      assert run_turn(next_turn(session), remote).failed?
+      fake_claude(files: { "designs/b.html" => "b" })
+      third = run_turn(next_turn(session, "And a search box"), remote)
+
+      assert third.succeeded?, third.error
+      assert_equal [ [ :resume_session, id ] ], @calls.map { |call, keywords| [ call, keywords[:session_id] ] }
+      assert_equal id, session.reload.claude_session_id
+    end
+  end
+
+  # A deploy killed the first turn mid-run and fail_stale! failed it, which
+  # posts nothing in the chat: the session was started all the same.
+  test "a turn after one that was cut off resumes the session, though the chat has no answer yet" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      first = new_turn(task)
+      first.update!(status: "running", started_at: DesignTurn.stale_after.ago - 1.minute)
+      DesignTurn.fail_stale!
+      session = first.chat_session
+      assert_empty session.chat_messages.where(role: "assistant")
+      fake_claude(files: { "designs/a.html" => "a" })
+
+      turn = run_turn(next_turn(session), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_equal [ [ :resume_session, session.claude_session_id ] ],
+                   @calls.map { |call, keywords| [ call, keywords[:session_id] ] }
+    end
+  end
+
+  # Ruling P2-R13 and P2-R21: the CLI cannot resume a session whose transcript
+  # is gone. The fresh session starts from the branch's last commit, not from
+  # whatever the failed attempt left in the worktree.
+  test "a session the CLI cannot resume is started afresh, once, under a new id and from the branch's last commit" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      fake_claude(files: { "designs/a.html" => "a" })
+      session = run_turn(new_turn(task), remote).chat_session
+      old_id = session.claude_session_id
+
+      scripted_claude do |call, _keywords, opts|
+        if call == :resume_session
+          File.write(File.join(opts[:codebase_path], "designs/half.html"), "half done")
+          raise ClaudeCliService::ClaudeCliError, "Failed to parse Claude response"
+        end
+        File.write(File.join(opts[:codebase_path], "designs/b.html"), "b")
+        { session_id: "s", response: "<summary>Added b.</summary>" }
+      end
+      turn = run_turn(next_turn(session), remote)
+
+      assert turn.succeeded?, turn.error
+      new_id = session.reload.claude_session_id
+      assert_not_equal old_id, new_id
+      assert_match(/\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/, new_id)
+      assert_equal [ [ :resume_session, old_id ], [ :start_session, new_id ] ],
+                   @calls.map { |call, keywords| [ call, keywords[:session_id] || keywords[:new_session_id] ] }
+      assert_includes remote_files(remote, "wip/REC-1"), "designs/b.html"
+      assert_not_includes remote_files(remote, "wip/REC-1"), "designs/half.html"
+    end
+  end
+
+  # Ruling P2-R13: a first turn that a deploy killed left its transcript under
+  # the session's id, and the CLI will not start that id again.
+  test "a first turn whose session id the CLI refuses starts under a new one" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      refused = false
+      scripted_claude do |_call, keywords, _opts|
+        unless refused
+          refused = keywords[:new_session_id]
+          raise ClaudeCliService::ClaudeCliError, "Failed to parse Claude response"
+        end
+        { session_id: "s", response: "<summary>Answered.</summary>" }
+      end
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      new_id = turn.chat_session.reload.claude_session_id
+      assert_equal [ [ :start_session, refused ], [ :start_session, new_id ] ],
+                   @calls.map { |call, keywords| [ call, keywords[:new_session_id] ] }
+      assert_not_equal refused, new_id
+    end
+  end
+
+  test "a second failure of the CLI fails the turn" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      fake_claude(raise_error: ClaudeCliService::ClaudeCliError.new("Claude CLI not found"))
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.failed?
+      assert_equal "Claude CLI not found", turn.error
+      assert_equal %i[start_session start_session], @calls.map(&:first)
+    end
+  end
+
+  # Ruling P2-R11: a run that went past its time had all of it.
+  test "a turn that runs out of time is failed and not run again" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      timeout = ClaudeCliService::TimeoutError.new("Claude CLI did not finish within 900 seconds and was stopped")
+      fake_claude(files: { "designs/a.html" => "a" }, raise_error: timeout)
+      turn = new_turn(task)
+      id = turn.chat_session.claude_session_id
+
+      turn = run_turn(turn, remote)
+
+      assert turn.failed?
+      assert_equal "Claude CLI did not finish within 900 seconds and was stopped", turn.error
+      assert_equal 1, @calls.size
+      assert_equal id, turn.chat_session.reload.claude_session_id
+    end
+  end
+
+  # Ruling P2-R12: an empty answer is what a run cut short by the cost cap or
+  # the time limit gives back, and a reply of blocks only says nothing either.
+  test "an answer with no summary fails the turn, and nothing Claude wrote is kept" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      master = repo.head("master")
+      [ "", "<missing>Who can archive?</missing>" ].each do |reply|
+        fake_claude(files: { "designs/a.html" => "a" }, reply: reply)
+
+        turn = run_turn(new_turn(task), remote)
+
+        assert turn.failed?, reply
+        assert_equal "Claude returned no answer — it may have hit the cost cap or the time limit.", turn.error
+        assert_equal master, repo.head("wip/REC-1")
+        assert_nil remote_branch_sha(remote, "wip/REC-1")
+        assert_not repo.worktree!("wip/REC-1").join("designs/a.html").exist?
+        assert_equal [ [ "error", turn.error ] ], assistant_messages(turn).pluck(:kind, :content)
+      end
+    end
+  end
+
+  # Ruling P2-R22: a turn a deploy killed left its edits in the worktree. The
+  # person saw it fail, and the next commit must not carry them.
+  test "a turn starts from the branch's last commit, whatever a killed turn left in the worktree" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      dir = repo.worktree!("wip/REC-1")
+      FileUtils.mkdir_p(dir.join("designs"))
+      File.write(dir.join("designs/half.html"), "half done")
+      File.write(dir.join("README.md"), "edited by a turn that was killed\n")
+      fake_claude(files: { "designs/a.html" => "a" })
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_equal %w[README.md designs/a.html runtime/flosis.js], remote_files(remote, "wip/REC-1").sort
+      assert_equal "hi\n", GitRunner.run!("show", "refs/heads/wip/REC-1:README.md", chdir: remote)
+      assert_not dir.join("designs/half.html").exist?
+    end
+  end
+
+  # Ruling P2-R23: git run in a worktree whose .git names another repository
+  # would act on that one. The worktree is removed, and the next turn checks
+  # the branch out afresh.
+  test "a worktree whose .git was pointed elsewhere is removed and its turn failed, and the other repository is untouched" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      other = app_checkout(repo.project, { "work.rb" => "v1\n" })
+      File.write(File.join(other, "work.rb"), "v2, staged\n")
+      system("git", "-C", other, "add", "work.rb", exception: true)
+      status = GitRunner.run!("status", "--porcelain", chdir: other)
+      fake_claude(files: { "designs/a.html" => "a" },
+                  during: ->(opts) { File.write(File.join(opts[:codebase_path], ".git"), "gitdir: #{other}/.git\n") })
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.failed?
+      assert_match(/no longer links to the design repo/, turn.error)
+      assert_not repo.worktrees_root.join("wip__REC-1").exist?
+      assert_equal status, GitRunner.run!("status", "--porcelain", chdir: other)
+      assert_equal "v2, staged\n", File.read(File.join(other, "work.rb"))
+      assert_nil remote_branch_sha(remote, "wip/REC-1")
+
+      fake_claude(files: { "designs/a.html" => "a" })
+      again = run_turn(next_turn(turn.chat_session), remote)
+      assert again.succeeded?, again.error
+      assert_includes remote_files(remote, "wip/REC-1"), "designs/a.html"
+    end
+  end
+
+  # A clone made afresh has none of the remote's branches, and worktree!
+  # starts a new branch from a local one.
+  test "a task's first turn starts from its approved design, even when only origin has it" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      push_from_elsewhere(remote, "design/REC-1", { "designs/approved.html" => "<p>approved</p>" })
+      approved = remote_branch_sha(remote, "design/REC-1")
+      fake_claude(files: { "designs/next.html" => "<p>next</p>" })
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_equal approved, repo.head("design/REC-1")
+      assert_equal approved, GitRunner.run!("rev-parse", "refs/heads/wip/REC-1^", chdir: remote).strip
+      assert_includes remote_files(remote, "wip/REC-1"), "designs/approved.html"
+    end
+  end
+
+  # Ruling P2-R9: the chat shows the error as the turn keeps it, cut to fit.
+  test "a failed turn says why in the chat, as the turn keeps it" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      fake_claude(raise_error: ClaudeCliService::ClaudeCliError.new("x" * 20_000))
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.failed?
+      assert_equal DesignTurn::ERROR_LIMIT, turn.error.length
+      assert_equal [ [ "error", turn.error ] ], assistant_messages(turn).pluck(:kind, :content)
+    end
+  end
+
+  # Ruling P2-R1: every credential on the project, the design repo's token
+  # among them, and Flosis's own prompt.
+  test "a refusal names every rule the turn broke" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      fake_claude(files: { "designs/a.html" => "<p>#{Designs::Prompt::BASE.lines.first}</p>",
+                           "designs/b.html" => "<p>token: design-token</p>", "notes.md" => "x" })
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.failed?
+      assert_equal "Refused: designs/a.html contains a passage from the Flosis library; " \
+                   "designs/b.html contains a stored credential; " \
+                   "notes.md is outside the design repo's allowed folders", turn.error
+      assert_equal [ [ "error", turn.error ] ], assistant_messages(turn).pluck(:kind, :content)
+      assert_nil remote_branch_sha(remote, "wip/REC-1")
+    end
+  end
+
+  test "the reply is posted as its summary, each context and each open question, and the commit is named after the task" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      first_line = "Added an archive tab to the jobs list, with a filter and a button to restore a job"
+      reply = "<summary>#{first_line}\nAdmins see the tab.</summary>" \
+              "<context>Role: Admin - sees the tab</context><context>Plan: Free - no archive</context>" \
+              "<missing>Who can restore a job?</missing>"
+      fake_claude(files: { "designs/jobs.html" => "<p>jobs</p>" }, reply: reply)
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_equal [ [ "summary", "#{first_line}\nAdmins see the tab." ], [ "context", "Role: Admin - sees the tab" ],
+                     [ "context", "Plan: Free - no archive" ], [ "missing", "Who can restore a job?" ] ],
+                   assistant_messages(turn).pluck(:kind, :content)
+      assert_operator first_line.length, :>, 72
+      assert_equal "REC-1: #{first_line.truncate(72)}",
+                   GitRunner.run!("log", "-1", "--format=%s", "refs/heads/wip/REC-1", chdir: remote).strip
+    end
+  end
+
+  # A question needs no change to the files.
+  test "an answer that changes no file succeeds with no commit, and nothing is pushed or published" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      fake_claude(reply: "<summary>Only admins can archive, as the description says.</summary>")
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_nil turn.commit_sha
+      assert_nil remote_branch_sha(remote, "wip/REC-1")
+      assert_empty Dir.children(@preview_root)
+      assert_equal [ [ "summary", "Only admins can archive, as the description says." ] ],
+                   assistant_messages(turn).pluck(:kind, :content)
+    end
+  end
+
+  test "a turn that is not waiting, or is still running in time, is left alone" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      fake_claude
+      turns = [ { status: "succeeded" }, { status: "failed" }, { status: "running", started_at: 1.minute.ago } ]
+                .map { |attributes| new_turn(task).tap { |turn| turn.update!(attributes) } }
+
+      turns.each { |turn| run_turn(turn, remote) }
+      with_remote_url(remote) { Designs::TurnJob.perform_now(0) }
+
+      assert_equal %w[succeeded failed running], turns.map(&:status)
+      assert_empty @calls
+      assert_empty ChatMessage.where(role: "assistant", chat_session: turns.map(&:chat_session))
+    end
+  end
+end

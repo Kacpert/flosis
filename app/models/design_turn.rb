@@ -51,14 +51,33 @@ class DesignTurn < ApplicationRecord
     update!(status: "failed", error: message.to_s.truncate(ERROR_LIMIT), finished_at: Time.current)
   end
 
-  # How long a turn may stay running before it counts as cut off: the timeout
-  # the CLI is run with (the same DESIGNS_TURN_TIMEOUT_SECONDS), plus five
-  # minutes for what Flosis does after Claude answers — committing, pushing and
-  # publishing. A deploy restarts the queue worker and kills a turn it was
-  # running, and nothing else would ever finish or fail that turn: its row
-  # would say "running" for good, and the screen would wait on it.
+  DEFAULT_TIMEOUT_SECONDS = 900
+  DEFAULT_BUDGET_USD = 5
+
+  # How long the CLI may run one turn, in seconds: DESIGNS_TURN_TIMEOUT_SECONDS
+  # when it is a positive whole number, else fifteen minutes. stale_after
+  # counts from it too, so the two cannot drift apart.
+  def self.turn_timeout
+    seconds = Integer(ENV["DESIGNS_TURN_TIMEOUT_SECONDS"].to_s, 10, exception: false)
+    seconds&.positive? ? seconds : DEFAULT_TIMEOUT_SECONDS
+  end
+
+  # What one turn may cost, in dollars (the CLI's --max-budget-usd):
+  # DESIGNS_TURN_BUDGET_USD when it is a positive number, else five. A value
+  # that is not one gets the default, never no cap at all.
+  def self.turn_budget_usd
+    budget = Float(ENV["DESIGNS_TURN_BUDGET_USD"].to_s, exception: false)
+    budget&.finite? && budget.positive? ? budget : DEFAULT_BUDGET_USD
+  end
+
+  # How long a turn may stay running before it counts as cut off: the CLI's
+  # timeout (turn_timeout), plus five minutes for what Flosis does after Claude
+  # answers — committing, pushing and publishing. A deploy restarts the queue
+  # worker and kills a turn it was running, and nothing else would ever finish
+  # or fail that turn: its row would say "running" for good, and the screen
+  # would wait on it.
   def self.stale_after
-    ENV.fetch("DESIGNS_TURN_TIMEOUT_SECONDS", "900").to_i.seconds + 5.minutes
+    turn_timeout.seconds + 5.minutes
   end
 
   # Fails every running turn older than stale_after and returns how many. One

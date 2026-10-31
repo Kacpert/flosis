@@ -35,6 +35,15 @@ class ChatMessageTest < ActiveSupport::TestCase
     end
   end
 
+  # Ruling P2-R10: a kind the screen does not know would be drawn as a plain
+  # message, a typo included.
+  test "a kind is one Designs knows, or none" do
+    message = ChatMessage.new(chat_session: chat_sessions(:one), role: "assistant", content: "x", kind: "sumary")
+    assert_not message.valid?
+    assert_includes message.errors[:kind], "is not included in the list"
+    assert ChatMessage.new(chat_session: chat_sessions(:one), role: "assistant", content: "x", kind: nil).valid?
+  end
+
   test "ordered scope returns messages in chronological order" do
     assert_equal chat_messages(:greeting), chat_sessions(:one).chat_messages.ordered.first
   end
