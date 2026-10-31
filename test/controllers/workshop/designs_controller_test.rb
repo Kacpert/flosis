@@ -32,7 +32,14 @@ class Workshop::DesignsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a", /Open in new tab/
     assert_select "button, input[type=submit]", /Approve/
     assert_select "turbo-frame#designs-chat"
-    assert_select "iframe[src^=?]", "#{Designs::Publisher.base_url}/test-workspace/elvium/t0k/"
+    assert_equal [ @project, "master" ], preview_grant
+  end
+
+  # The preview is served from the app's own origin. The frame sandboxes it
+  # too, so the page in it never runs as the app, whatever the server sends.
+  test "the preview's frame is sandboxed without the app's origin" do
+    get workshop_idea_designs_path(@idea)
+    assert_select "iframe[sandbox=?]", "allow-scripts allow-forms allow-popups allow-modals"
   end
 
   test "a message starts a queued turn" do
@@ -228,11 +235,11 @@ class Workshop::DesignsControllerTest < ActionDispatch::IntegrationTest
     with_design_remote(@project) do |repo, _|
       seed_master(repo)
       get workshop_idea_designs_path(@idea)
-      assert_select "iframe[src=?]", "#{Designs::Publisher.base_url}/test-workspace/elvium/t0k/master/index.html"
+      assert_equal [ @project, "master" ], preview_grant
       commit_files(repo, repo.worktree!("wip/REC-1"), { "designs/jobs.html" => "jobs" })
       Designs::Publisher.new(@project, repo).publish!("wip/REC-1", "wip/REC-1")
       get workshop_idea_designs_path(@idea)
-      assert_select "iframe[src=?]", "#{Designs::Publisher.base_url}/test-workspace/elvium/t0k/wip/REC-1/index.html"
+      assert_equal [ @project, "wip/REC-1" ], preview_grant
     end
   end
 
@@ -299,5 +306,16 @@ class Workshop::DesignsControllerTest < ActionDispatch::IntegrationTest
     get workshop_idea_designs_path(@idea)
     assert_select "body", /Jira links: up to date/
     assert_no_match(/Retry links/, response.body)
+  end
+
+  private
+
+  # What the preview frame shows: the project and slot its grant names,
+  # after checking the frame opens the entry page under that grant.
+  def preview_grant
+    src = css_select("iframe").first&.[]("src").to_s
+    match = %r{\A#{Regexp.escape(Designs::Publisher.base_url)}/test-workspace/elvium/(#{Designs::PreviewGrant::FORMAT.source})/design/index\.html\z}.match(src)
+    assert match, src
+    Designs::PreviewGrant.read(match[1])
   end
 end

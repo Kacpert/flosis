@@ -100,7 +100,7 @@ class Designs::WorkingBranchTest < ActiveSupport::TestCase
     assert_equal %w[plan tier_2], branch.dimensions.map { _1["id"] }
     assert_equal [ %w[pro], %w[free-tier] ], branch.dimensions.map { |dimension| dimension["values"].map { _1["id"] } }
     assert_equal %w[pro free-tier], branch.default_ctx
-    assert_nothing_raised { publisher.url("wip/REC-1", branch.entry_path, ctx: branch.default_ctx) }
+    assert_nothing_raised { publisher.grant_url("wip/REC-1", branch.entry_path, ctx: branch.default_ctx) }
   end
 
   test "a screen reads as its path, title and contexts" do
@@ -141,7 +141,7 @@ class Designs::WorkingBranchTest < ActiveSupport::TestCase
     write("designs/tasks/REC-1.json", { screens: (dropped + kept).map { { path: _1, title: "T" } } }.to_json)
     assert_equal kept, branch.screens.map { _1["path"] }
     assert_equal "designs/jobs/index.html", branch.entry_path
-    branch.screens.each { |screen| assert_nothing_raised { publisher.url("wip/REC-1", screen["path"], ctx: screen["contexts"]) } }
+    branch.screens.each { |screen| assert_nothing_raised { publisher.grant_url("wip/REC-1", screen["path"], ctx: screen["contexts"]) } }
   end
 
   # Ruling P2-R18: a screen is a page. A folder exists, and Publisher#url would

@@ -453,6 +453,18 @@ Rules:
 
 ### The preview host
 
+> **Changed 2026-10-31 (Kacper):** no separate domain. Designs live under the
+> app, at `https://app.flosis.com/<organization>/<project>/design/…` (the
+> approved designs) and `…/<organization>/<project>/<key>/design/…` (a task's
+> approved version, the link Jira gets). Only signed-in people the Workshop
+> shows the project to may open them. The app then sends them to the same page
+> under a short-lived grant, `…/<organization>/<project>/<grant>/design/…`,
+> served with a CSP `sandbox` (no `allow-same-origin`), so a design's scripts
+> never run as the app. The Designs screen shows work in progress under a
+> grant. A Designs page in the Workshop sidebar shows the whole design and the
+> conversations. The rest of this section describes the original plan.
+
+
 - **A separate registrable domain**, not a `flosis.com` subdomain:
   - A `flosis.com` subdomain would land in Workshop routing.
   - It would also share the same site as the app.

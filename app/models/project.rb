@@ -76,6 +76,19 @@ class Project < ApplicationRecord
   # never consults this — see WorkspaceScoped#available_projects.
   scope :in_workshop, -> { where(show_in_workshop: true) }
 
+  # The projects the Workshop shows this person in this workspace: every one to
+  # a workspace admin, else those their membership grants anything on (see
+  # WorkspaceScoped#workshop_projects, which explains each filter).
+  def self.workshop_visible_to(user, workspace)
+    scope = workspace.projects.active.in_workshop
+    return scope.order(:name) if user&.workspace_admin?(workspace)
+
+    scope.joins(:project_memberships)
+         .where(project_memberships: { user_id: user&.id })
+         .merge(ProjectMembership.granting_anything)
+         .order(:name)
+  end
+
   def jira_connected?
     external_type == "jira"
   end

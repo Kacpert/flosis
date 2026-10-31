@@ -116,13 +116,7 @@ module WorkspaceScoped
   # attach to it. Hiding every project leaves no openable Workshop page, and
   # the way back is Time & HR -> the project, which lists them all.
   def workshop_projects
-    scope = current_workspace.projects.active.in_workshop
-    return scope.order(:name) if workspace_admin?
-
-    scope.joins(:project_memberships)
-         .where(project_memberships: { user_id: current_user&.id })
-         .merge(ProjectMembership.granting_anything)
-         .order(:name)
+    Project.workshop_visible_to(current_user, current_workspace)
   end
 
   # The active Workshop project context (a project switcher, like the workspace

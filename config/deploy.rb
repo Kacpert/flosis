@@ -19,20 +19,8 @@ set :app_document_root, "/home/host420646/domains/app.flosis.com/public_html"
 set :landing_document_root, "/home/host420646/domains/flosis.com/public_html"
 set :legacy_document_root, "/home/host420646/domains/clar.rubyonsaas.com/public_html"
 
-# The Designs preview host is a fourth hostname: a registrable domain of its own,
-# so that no preview's scripts share a site (or cookies) with the app. Its document
-# root is where Designs::Publisher writes (DESIGNS_PREVIEW_ROOT in the app's .env).
-# It comes from the environment because it names a domain that has to be chosen:
-#
-#   DESIGNS_PREVIEW_DOCUMENT_ROOT=/home/host420646/domains/<domain>/public_html \
-#     cap production setup:designs_preview_htaccess
-#
-set :designs_preview_document_root, ENV["DESIGNS_PREVIEW_DOCUMENT_ROOT"]
-
-# The one origin whose pages may put a preview in a frame (the Designs screen):
-# the preview host's Content-Security-Policy frame-ancestors. The task defaults
-# to the same origin.
-set :designs_preview_frame_ancestor, "https://app.flosis.com"
+# Designs previews need no hostname of their own: the app serves them, sandboxed
+# (Designs::PreviewsController), from DESIGNS_PREVIEW_ROOT in the app's .env.
 
 # rbenv
 set :rbenv_type, :user

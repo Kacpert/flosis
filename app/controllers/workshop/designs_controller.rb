@@ -167,8 +167,8 @@ class Workshop::DesignsController < Workshop::BaseController
     @ctx = chosen_ctx
     publisher = Designs::Publisher.new(project, nil)
     slot = publisher.published?(wip) ? wip : Designs::Repo::MASTER
-    @preview_base = publisher.url(slot, branch.entry_path)
-    @preview_url = publisher.url(slot, branch.entry_path, ctx: @ctx)
+    @preview_base = publisher.grant_url(slot, branch.entry_path)
+    @preview_url = publisher.grant_url(slot, branch.entry_path, ctx: @ctx)
     @wip_head = wip_head
     @waiting = waiting
     @can_approve = !@active && @waiting != 0

@@ -153,8 +153,8 @@ class Workshop::DesignSetupsController < Workshop::BaseController
     end
     publisher = Designs::Publisher.new(project, nil)
     slot = publisher.published?(wip) ? wip : Designs::Repo::MASTER
-    @preview_base = publisher.url(slot, branch.entry_path)
-    @preview_url = publisher.url(slot, branch.entry_path, ctx: @ctx)
+    @preview_base = publisher.grant_url(slot, branch.entry_path)
+    @preview_url = publisher.grant_url(slot, branch.entry_path, ctx: @ctx)
     @phase_number = DesignSetup::PHASES.index(setup.phase) + 1
     @waiting = waiting
     @last_phase = setup.phase == DesignSetup::PHASES.last

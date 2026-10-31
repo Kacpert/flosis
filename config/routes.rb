@@ -189,4 +189,16 @@ Rails.application.routes.draw do
   end
 
   get "up" => "rails/health#show", as: :rails_health_check
+
+  # A project's designs (Designs::Publisher). The lasting links ask whoever
+  # opens them to sign in: /<organization>/<project>/design/<page> for master,
+  # /<organization>/<project>/<key>/design/<page> for a task's approved
+  # version. Each sends its reader on to the same page under a grant, served
+  # sandboxed: /<organization>/<project>/<grant>/design/<page>. Last, so that
+  # no page of the app is ever taken for one.
+  scope ":organization/:project", format: false do
+    get ":grant/design(/*path)", to: "designs/previews#show", constraints: { grant: Designs::PreviewGrant::FORMAT }
+    get "design(/*path)", to: "designs/preview_entries#master"
+    get ":key/design(/*path)", to: "designs/preview_entries#task", constraints: { key: /[A-Za-z0-9_-]+/ }
+  end
 end

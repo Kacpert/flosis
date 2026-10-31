@@ -5,18 +5,20 @@ require "open3"
 require "securerandom"
 require "tmpdir"
 
-# Puts a branch of a project's design repo where Apache serves it: the preview
-# host's document root, a folder per project named by a long random token, and
-# in it a folder per slot.
+# Puts a branch of a project's design repo where the app serves it from
+# (Designs::PreviewsController): DESIGNS_PREVIEW_ROOT, which no web server
+# serves on its own, a folder per project named by a random token, and in it a
+# folder per slot.
 #
 #   <root>/<token>/master/       master
 #   <root>/<token>/REC-1/        a task's approved design
 #   <root>/<token>/wip/REC-1/    a task's work in progress
 #   <root>/<token>/wip/setup/    the design system being set up
 #
-# The token is the only lock on a preview: anyone with a link can open it.
-# Rotating the token renames the project's folder, so every link sent so far
-# stops working at once.
+# Links name the organization and the project, never the token: lasting ones
+# ask whoever opens them to sign in, and send them on under a short-lived
+# grant (#url, #grant_url). What is published is still kept to static web
+# files, in case the root ever sits where a web server reaches it.
 class Designs::Publisher
   # What may name a slot: master, a task's key, or work in progress under wip/.
   # A slot becomes folders in the document root, so it is never a path of its
@@ -39,8 +41,7 @@ class Designs::Publisher
   # (the design repo's README says so). A link carries contexts as they are.
   CONTEXT = /\A[A-Za-z0-9_-]+\z/
 
-  # The longest an organization's or a project's name is in a link: shorter
-  # than a token (32), which the preview host's .htaccess relies on.
+  # The longest an organization's or a project's name is in a link.
   NAME_LIMIT = 30
 
   # A publish that cannot go ahead: the project has no folder for its design
@@ -55,14 +56,20 @@ class Designs::Publisher
     end
 
     def base_url
-      setting("DESIGNS_PREVIEW_URL") { "http://localhost:3100" }.sub(%r{/+\z}, "")
+      setting("DESIGNS_PREVIEW_URL") { "http://localhost:3000" }.sub(%r{/+\z}, "")
+    end
+
+    # A name as a link writes it: letters, digits, - and _, cut to NAME_LIMIT,
+    # with the stand-in when nothing is left of it.
+    def label(name, stand_in)
+      name.to_s.parameterize.first(NAME_LIMIT).sub(/[-_]+\z/, "").presence || stand_in
     end
 
     private
 
     # The variable, or in development and test the default the block gives.
-    # Production has none: the defaults would write previews where Apache
-    # serves nothing, and put localhost links in Jira.
+    # Production has none: it must say where previews live, and the links
+    # Jira gets must name the app's own host, which serves them.
     def setting(name)
       value = ENV[name].presence
       return value if value
@@ -115,9 +122,14 @@ class Designs::Publisher
   # Whether the slot has been published, so that a link into it leads to a
   # page. Only the disk is asked: nothing is made, the token included.
   def published?(slot)
+    slot_folder(slot)&.directory? || false
+  end
+
+  # Where the slot is published, or nil while the project has no token.
+  def slot_folder(slot)
     slot = check_slot!(slot)
     folder = project.design_preview_token.presence
-    folder.present? && self.class.root.join(folder, slot).directory?
+    folder && self.class.root.join(folder, slot)
   end
 
   # Takes a slot down, as a task's old names are when it gets its Jira key. A
@@ -130,17 +142,28 @@ class Designs::Publisher
     locked { FileUtils.rm_rf(self.class.root.join(folder, slot)) }
   end
 
-  # A link into a slot, which must be one publish! would take, to a page inside
-  # it. The page is escaped a segment at a time, so a space, #, ? or % in a file
-  # name still makes a working link. A page that leaves its slot (a "." or ".."
-  # segment, a leading "/") and a context that is not a context id (CONTEXT)
-  # are refused: these links reach Jira.
+  # A lasting link, for Jira and for people to keep: to the project's designs
+  # (master) at /<organization>/<project>/design/<page>, or to a task's last
+  # approved version at /<organization>/<project>/<key>/design/<page>. Whoever
+  # opens one signs in, and must be someone the Workshop shows the project to
+  # (Designs::PreviewEntriesController). Work in progress has none.
+  #
+  # The slot must be one publish! would take. The page is escaped a segment at
+  # a time, so a space, #, ? or % in a file name still makes a working link. A
+  # page that leaves its slot (a "." or ".." segment, a leading "/") and a
+  # context that is not a context id (CONTEXT) are refused: these links reach Jira.
   def url(slot, path = "index.html", ctx: [])
     slot = check_slot!(slot)
-    page = check_page!(path).split("/", -1).map { |segment| CGI.escapeURIComponent(segment) }.join("/")
-    link = "#{self.class.base_url}/#{names}/#{token}/#{slot}/#{page}"
-    contexts = Array(ctx).map { |value| check_context!(value) }
-    contexts.empty? ? link : "#{link}?ctx=#{contexts.join(",")}"
+    raise ArgumentError, "#{slot} is work in progress, which has no lasting link" if slot.start_with?("wip/")
+
+    link(slot == Designs::Repo::MASTER ? "design" : "#{slot}/design", path, ctx)
+  end
+
+  # The page under a short-lived grant for the slot, where it is served
+  # sandboxed (Designs::PreviewsController): where a lasting link sends whoever
+  # opened it, and where the Designs screen shows its work.
+  def grant_url(slot, path = "index.html", ctx: [])
+    link("#{Designs::PreviewGrant.issue(project, check_slot!(slot))}/design", path, ctx)
   end
 
   # Gives the project a new token and moves its previews under it, which kills
@@ -219,20 +242,17 @@ class Designs::Publisher
     project.reload.workspace_dir.presence
   end
 
-  # The organization and the project, as a link names them for whoever reads
-  # it. The preview host drops both and finds the files by the token alone, so
-  # renaming either leaves every link sent so far working. A name is cut
-  # shorter than a token: that is how the host's .htaccess tells them apart.
+  # The organization and the project, as links name them.
   def names
-    [ [ project.workspace&.name, "organization" ], [ project.name, "project" ] ].map do |name, stand_in|
-      name.to_s.parameterize.first(NAME_LIMIT).sub(/[-_]+\z/, "").presence || stand_in
-    end.join("/")
+    "#{self.class.label(project.workspace&.name, "organization")}/#{self.class.label(project.name, "project")}"
   end
 
-  # The token on the project's row. A link made before anything was published
-  # gets one made on the spot, the same one the first publish then uses.
-  def token
-    project.design_preview_token.presence || stored_token!
+  # /<organization>/<project>/<within>/<page>, with the contexts.
+  def link(within, path, ctx)
+    page = check_page!(path).split("/", -1).map { |segment| CGI.escapeURIComponent(segment) }.join("/")
+    link = "#{self.class.base_url}/#{names}/#{within}/#{page}"
+    contexts = Array(ctx).map { |value| check_context!(value) }
+    contexts.empty? ? link : "#{link}?ctx=#{contexts.join(",")}"
   end
 
   # Read from the database, never from the instance: ensure_design_preview_token!

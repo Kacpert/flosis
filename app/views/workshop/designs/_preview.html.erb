@@ -18,6 +18,8 @@
     </div>
   </div>
 
+  <%# The preview comes from the app's own host: sandboxed, it never runs as the app. %>
   <iframe src="<%= @preview_url %>" title="Preview of the task's designs" data-designs-preview-target="frame"
+          sandbox="allow-scripts allow-forms allow-popups allow-modals"
           class="flex-1 w-full min-h-0 border clar-divider rounded-[10px] bg-white"></iframe>
 </div>
