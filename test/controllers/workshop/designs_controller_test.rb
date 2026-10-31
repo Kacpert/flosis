@@ -32,7 +32,7 @@ class Workshop::DesignsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a", /Open in new tab/
     assert_select "button, input[type=submit]", /Approve/
     assert_select "turbo-frame#designs-chat"
-    assert_select "iframe[src^=?]", "#{Designs::Publisher.base_url}/t0k/"
+    assert_select "iframe[src^=?]", "#{Designs::Publisher.base_url}/test-workspace/elvium/t0k/"
   end
 
   test "a message starts a queued turn" do
@@ -228,11 +228,11 @@ class Workshop::DesignsControllerTest < ActionDispatch::IntegrationTest
     with_design_remote(@project) do |repo, _|
       seed_master(repo)
       get workshop_idea_designs_path(@idea)
-      assert_select "iframe[src=?]", "#{Designs::Publisher.base_url}/t0k/master/index.html"
+      assert_select "iframe[src=?]", "#{Designs::Publisher.base_url}/test-workspace/elvium/t0k/master/index.html"
       commit_files(repo, repo.worktree!("wip/REC-1"), { "designs/jobs.html" => "jobs" })
       Designs::Publisher.new(@project, repo).publish!("wip/REC-1", "wip/REC-1")
       get workshop_idea_designs_path(@idea)
-      assert_select "iframe[src=?]", "#{Designs::Publisher.base_url}/t0k/wip/REC-1/index.html"
+      assert_select "iframe[src=?]", "#{Designs::Publisher.base_url}/test-workspace/elvium/t0k/wip/REC-1/index.html"
     end
   end
 

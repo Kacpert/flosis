@@ -39,7 +39,7 @@ class Designs::JiraLinksTest < ActiveSupport::TestCase
       assert result[:ok], result[:error]
       assert_requested posts, times: 3
       assert_requested(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink") { |req|
-        JSON.parse(req.body)["object"]["url"] == "https://preview.example/t0k/REC-1/designs/jobs.html?ctx=viewer"
+        JSON.parse(req.body)["object"]["url"] == "https://preview.example/test-workspace/elvium/t0k/REC-1/designs/jobs.html?ctx=viewer"
       }
       assert_requested(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink") { |req|
         body = JSON.parse(req.body)

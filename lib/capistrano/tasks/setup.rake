@@ -108,6 +108,13 @@ namespace :setup do
       # Half-published and replaced copies are never served.
       RewriteRule (^|/)\.(staging|old)- - [F,L]
 
+      # A link reads /<organization>/<project>/<token>/<slot>/…. The two names are
+      # only there to be read: the files are under <token>/. Designs::Publisher keeps
+      # a name shorter than a token, so a path that already starts with a token (a
+      # rewritten one, or a link without names) is left as it is.
+      RewriteCond $1 !^[A-Za-z0-9]{32}$
+      RewriteRule ^([^/]+)/[^/]+/([A-Za-z0-9]{32})/(.*)$ $2/$3 [L]
+
       # The publisher strips scripts from what it publishes. Anything that got past it
       # is still refused here: no file with a script extension anywhere in its name
       # (shell.php.html) is ever served.

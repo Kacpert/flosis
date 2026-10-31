@@ -23,11 +23,24 @@ port = "3100" if port.empty?
 
 FileUtils.mkdir_p(root)
 
+# python3's http.server, with the preview host's one rewrite: a link reads
+# /<organization>/<project>/<token>/…, and the two names are dropped, as the
+# host's .htaccess drops them. A path that starts with a token is left as it is.
+SERVER = <<~'PY'
+  import functools, http.server, re, sys
+  class Handler(http.server.SimpleHTTPRequestHandler):
+      def translate_path(self, path):
+          path = re.sub(r"^/(?![A-Za-z0-9]{32}/)[^/]+/[^/]+/([A-Za-z0-9]{32})/", r"/\1/", path)
+          return super().translate_path(path)
+  handler = functools.partial(Handler, directory=sys.argv[2])
+  http.server.ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), handler).serve_forever()
+PY
+
 $stdout.sync = true
 puts "Serving #{root} on http://localhost:#{port}"
 
 begin
-  exec "python3", "-m", "http.server", port, "--bind", "127.0.0.1", "--directory", root
+  exec "python3", "-c", SERVER, port, root
 rescue Errno::ENOENT
-  abort "bin/designs-preview needs python3 on the PATH: it serves the folder with python3 -m http.server."
+  abort "bin/designs-preview needs python3 on the PATH: it serves the folder with python3's http.server."
 end

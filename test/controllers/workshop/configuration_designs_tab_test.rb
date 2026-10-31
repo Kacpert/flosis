@@ -51,7 +51,7 @@ class Workshop::ConfigurationDesignsTabTest < ActionDispatch::IntegrationTest
     @project.update!(designs_enabled: true, design_repo: "acme/designs", design_repo_token: "dt",
                      design_repo_status: "ready", design_preview_token: "t0k")
     get workshop_configuration_path(tab: "designs")
-    assert_select "a[href=?][target=_blank]", "#{Designs::Publisher.base_url}/t0k/master/index.html"
+    assert_select "a[href=?][target=_blank]", "#{Designs::Publisher.base_url}/test-workspace/elvium/t0k/master/index.html"
   end
 
   test "a failed setup shows git's message" do
@@ -185,7 +185,7 @@ class Workshop::ConfigurationDesignsTabTest < ActionDispatch::IntegrationTest
     @project.update!(designs_enabled: true, design_repo_status: "ready", design_preview_token: "t0k")
     get workshop_configuration_path(tab: "designs")
     assert_select "a[href=?][target=_blank][rel='noopener noreferrer']",
-                  "#{Designs::Publisher.base_url}/t0k/master/index.html", text: /Open master preview/
+                  "#{Designs::Publisher.base_url}/test-workspace/elvium/t0k/master/index.html", text: /Open master preview/
   end
 
   # A git failure quotes whatever the remote said, and the remote is the client's.

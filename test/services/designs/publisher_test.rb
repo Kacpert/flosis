@@ -61,13 +61,39 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     end
   end
 
-  test "urls carry the token, the slot, the page and the contexts" do
+  test "urls carry the organization, the project, the token, the slot, the page and the contexts" do
     project = projects(:jira_project)
     project.update!(design_preview_token: "t0k")
     publisher = Designs::Publisher.new(project, nil)
-    assert_equal "https://preview.example/t0k/REC-1/designs/jobs.html?ctx=admin,workshop",
+    assert_equal "https://preview.example/test-workspace/elvium/t0k/REC-1/designs/jobs.html?ctx=admin,workshop",
                  publisher.url("REC-1", "designs/jobs.html", ctx: %w[admin workshop])
-    assert_equal "https://preview.example/t0k/master/index.html", publisher.url("master")
+    assert_equal "https://preview.example/test-workspace/elvium/t0k/master/index.html", publisher.url("master")
+  end
+
+  # The names are for whoever reads the link: the preview host drops them and
+  # finds the files by the token alone, so a rename leaves sent links working.
+  test "a link names the organization and the project as they are now, ahead of the token" do
+    project = projects(:jira_project)
+    project.update!(design_preview_token: "t0k", name: "Hiring Portal")
+    project.workspace.update!(name: "Acme Corp")
+    assert_equal "https://preview.example/acme-corp/hiring-portal/t0k/master/index.html",
+                 Designs::Publisher.new(project, nil).url("master")
+  end
+
+  # The host tells the names from the token by length: a name is never as
+  # long as a token, so a path that starts with a token is left as it is.
+  test "a name in a link is letters, digits, - and _, shorter than a token, and has a stand-in when nothing is left" do
+    project = projects(:jira_project)
+    project.update!(design_preview_token: "t0k", name: "Żółta Łódź & Co.")
+    project.workspace.update!(name: "!!!")
+    assert_equal "https://preview.example/organization/zolta-lodz-co/t0k/master/index.html",
+                 Designs::Publisher.new(project, nil).url("master")
+
+    project.update!(name: "#{"a" * 29} b")
+    project.workspace.update!(name: "Supercalifragilisticexpialidocious Holdings")
+    names = Designs::Publisher.new(project, nil).url("master").delete_prefix("https://preview.example/").split("/").first(2)
+    assert_equal [ "supercalifragilisticexpialidoc", "a" * 29 ], names
+    names.each { |name| assert_operator name.length, :<, 32 }
   end
 
   test "rotate_token! moves the previews and kills the old path" do
@@ -121,9 +147,9 @@ class Designs::PublisherTest < ActiveSupport::TestCase
       "designs/żółć.html" => "designs/%C5%BC%C3%B3%C5%82%C4%87.html",
       "designs/" => "designs/"
     }.each do |path, escaped|
-      assert_equal "https://preview.example/t0k/REC-1/#{escaped}", publisher.url("REC-1", path), path
+      assert_equal "https://preview.example/test-workspace/elvium/t0k/REC-1/#{escaped}", publisher.url("REC-1", path), path
     end
-    assert_equal "https://preview.example/t0k/wip/REC-1/a%20b.html?ctx=admin", publisher.url("wip/REC-1", "a b.html", ctx: [ "admin" ])
+    assert_equal "https://preview.example/test-workspace/elvium/t0k/wip/REC-1/a%20b.html?ctx=admin", publisher.url("wip/REC-1", "a b.html", ctx: [ "admin" ])
   end
 
   test "a link to something that is not a slot is refused, as publishing it would be" do
@@ -139,7 +165,7 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     ENV["DESIGNS_PREVIEW_URL"] = "https://preview.example/"
     project = projects(:jira_project)
     project.update!(design_preview_token: "t0k")
-    assert_equal "https://preview.example/t0k/master/index.html?ctx=admin,client_2,dark-mode",
+    assert_equal "https://preview.example/test-workspace/elvium/t0k/master/index.html?ctx=admin,client_2,dark-mode",
                  Designs::Publisher.new(project, nil).url("master", ctx: %w[admin client_2 dark-mode])
   end
 
@@ -166,7 +192,7 @@ class Designs::PublisherTest < ActiveSupport::TestCase
       "/index.html", "/" ].each do |path|
       assert_raises(ArgumentError, path) { publisher.url("REC-1", path) }
     end
-    assert_equal "https://preview.example/t0k/REC-1/designs/..x.html", publisher.url("REC-1", "designs/..x.html"),
+    assert_equal "https://preview.example/test-workspace/elvium/t0k/REC-1/designs/..x.html", publisher.url("REC-1", "designs/..x.html"),
                  "dots inside a name are the name"
   end
 

@@ -39,6 +39,10 @@ class Designs::Publisher
   # (the design repo's README says so). A link carries contexts as they are.
   CONTEXT = /\A[A-Za-z0-9_-]+\z/
 
+  # The longest an organization's or a project's name is in a link: shorter
+  # than a token (32), which the preview host's .htaccess relies on.
+  NAME_LIMIT = 30
+
   # A publish that cannot go ahead: the project has no folder for its design
   # repo yet, or a branch's files could not be unpacked into the document root.
   # Also raised in production when the preview root or host is not set.
@@ -134,7 +138,7 @@ class Designs::Publisher
   def url(slot, path = "index.html", ctx: [])
     slot = check_slot!(slot)
     page = check_page!(path).split("/", -1).map { |segment| CGI.escapeURIComponent(segment) }.join("/")
-    link = "#{self.class.base_url}/#{token}/#{slot}/#{page}"
+    link = "#{self.class.base_url}/#{names}/#{token}/#{slot}/#{page}"
     contexts = Array(ctx).map { |value| check_context!(value) }
     contexts.empty? ? link : "#{link}?ctx=#{contexts.join(",")}"
   end
@@ -213,6 +217,16 @@ class Designs::Publisher
   # replace it. The reload also leaves the instance, which the Repo asks, current.
   def stored_workspace_dir
     project.reload.workspace_dir.presence
+  end
+
+  # The organization and the project, as a link names them for whoever reads
+  # it. The preview host drops both and finds the files by the token alone, so
+  # renaming either leaves every link sent so far working. A name is cut
+  # shorter than a token: that is how the host's .htaccess tells them apart.
+  def names
+    [ [ project.workspace&.name, "organization" ], [ project.name, "project" ] ].map do |name, stand_in|
+      name.to_s.parameterize.first(NAME_LIMIT).sub(/[-_]+\z/, "").presence || stand_in
+    end.join("/")
   end
 
   # The token on the project's row. A link made before anything was published
