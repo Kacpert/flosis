@@ -216,6 +216,24 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     end
   end
 
+  test "a script hidden behind a second extension is never published" do
+    scripts = %w[php php3 php4 php5 php6 php7 php8 phtml phar cgi pl py sh asp aspx jsp]
+    hidden = scripts.map { |ext| "designs/x.#{ext}.html" } +
+             %w[designs/shell.php.html designs/a.PHP5.css designs/x.cgi.png designs/v1.php.min.js designs/Shell.ASPX.png]
+    # Segments are matched whole, and only after the first dot: a name that merely
+    # starts with, or contains, a script word is a design like any other.
+    kept = %w[designs/brand.png designs/page.html designs/php-guide.html designs/php.html designs/sh.png
+              designs/app.phpx.css designs/a.shell.css designs/jquery.min.js]
+
+    with_design_remote do |repo, _|
+      seed_master(repo, (hidden + kept).index_with { "x" })
+
+      dir = Designs::Publisher.new(repo.project, repo).publish!("master", "master")
+
+      assert_equal kept.sort, published_files(dir)
+    end
+  end
+
   test "a project instance whose token is out of date publishes under the stored one" do
     with_design_remote do |repo, _|
       seed_master(repo)

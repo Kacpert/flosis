@@ -30,6 +30,9 @@ class Designs::Publisher
     html htm css js mjs json map svg png jpg jpeg gif webp avif ico woff woff2 ttf otf txt md pdf mp4 webm
   ].freeze
 
+  # Apache's mod_mime maps a handler by any extension in a name, so shell.php.html would run as PHP.
+  SCRIPT_EXTENSIONS = %w[php php3 php4 php5 php6 php7 php8 phtml phar cgi pl py sh asp aspx jsp].freeze
+
   # A branch's files could not be unpacked into the document root.
   class Error < StandardError; end
 
@@ -173,7 +176,9 @@ class Designs::Publisher
   #   chmod would follow it too and open up whatever it points at;
   # - dotfiles and dot folders at any depth (.htaccess, .user.ini, .git*), with
   #   everything in them;
-  # - files whose extension is not in SERVABLE_EXTENSIONS, in any case.
+  # - files whose extension is not in SERVABLE_EXTENSIONS, in any case;
+  # - files with a SCRIPT_EXTENSIONS segment anywhere after the first dot, so a
+  #   script cannot hide behind an extension that is allowed (shell.php.html).
   #
   # Find does not follow links, and ignore_error: false makes an unreadable
   # folder raise instead of being skipped with whatever it holds. Whatever Find
@@ -198,7 +203,13 @@ class Designs::Publisher
   end
 
   def servable?(name)
-    !name.start_with?(".") && SERVABLE_EXTENSIONS.include?(File.extname(name).delete_prefix(".").downcase)
+    !name.start_with?(".") && !script_named?(name) &&
+      SERVABLE_EXTENSIONS.include?(File.extname(name).delete_prefix(".").downcase)
+  end
+
+  # Whole segments only: php-guide.html and php.html are not scripts, a.PHP5.css is.
+  def script_named?(name)
+    name.split(".").drop(1).any? { |segment| SCRIPT_EXTENSIONS.include?(segment.downcase) }
   end
 
   # Folders 0755 and files 0644, whatever umask made them: Apache on the host
