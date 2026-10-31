@@ -190,9 +190,14 @@ class ClaudeCliService
 
   # IO.popen arguments for a run: the subprocess environment first when there is
   # an API key, then the command. Without a key nothing is passed, so the
-  # environment is inherited exactly as before.
+  # environment is inherited exactly as before. With one, the key is the run's
+  # only credential: --bare reads nothing else, and the variables that carry the
+  # server's own Claude login are unset in the child all the same (a nil value
+  # unsets one). The rest of the environment is kept, PATH and HOME with it.
   def popen_args(cmd)
-    @api_key.present? ? [ { "ANTHROPIC_API_KEY" => @api_key }, cmd ] : [ cmd ]
+    return [ cmd ] unless @api_key.present?
+
+    [ { "ANTHROPIC_API_KEY" => @api_key, "CLAUDE_CODE_OAUTH_TOKEN" => nil, "ANTHROPIC_AUTH_TOKEN" => nil }, cmd ]
   end
 
   def run_claude(cmd, message)

@@ -313,6 +313,40 @@ class Designs::RepoTest < ActiveSupport::TestCase
     end
   end
 
+  # A client can push a design as a symlink, to the app's .env.production say.
+  # Checked out as a link, Claude's tools would follow it out of the checkout.
+  test "a symlink pushed to the repo is checked out as a plain file holding its target" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      Dir.mktmpdir("elsewhere") do |dir|
+        system("git", "clone", "--quiet", remote, dir, exception: true, err: File::NULL)
+        FileUtils.mkdir_p(File.join(dir, "designs"))
+        File.symlink("../../.env.production", File.join(dir, "designs/x.html"))
+        system("git", "-C", dir, "add", "-A", exception: true)
+        system("git", "-C", dir, "-c", "user.name=Someone", "-c", "user.email=someone@example.com",
+               "commit", "--quiet", "-m", "a link", exception: true)
+        system("git", "-C", dir, "push", "--quiet", "origin", "HEAD:refs/heads/wip/REC-1", "HEAD:refs/heads/master",
+               exception: true, err: File::NULL)
+      end
+
+      repo.ensure_clone!
+      [ repo.worktree!("wip/REC-1"), repo.root ].each do |checkout|
+        file = checkout.join("designs/x.html")
+        assert_not file.symlink?, "#{checkout} has it as a link"
+        assert_equal "../../.env.production", file.read, checkout.to_s
+      end
+    end
+  end
+
+  test "a clone that lost core.symlinks=false gets it back" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      GitRunner.run!("config", "core.symlinks", "true", chdir: repo.root)
+      repo.ensure_clone!
+      assert_equal "false", GitRunner.run!("config", "core.symlinks", chdir: repo.root).strip
+    end
+  end
+
   # GitHub's "Add a README" (or a license, or a .gitignore) creates main. Put
   # on master, a clone of it would stage those files into the first commit.
   test "a repo that already has branches, but no master, is refused" do

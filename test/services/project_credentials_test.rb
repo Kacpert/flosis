@@ -129,6 +129,37 @@ class ProjectCredentialsTest < ActiveSupport::TestCase
   end
 
 
+  # What the leak guard keeps out of a design repo. Every encrypted column is
+  # in it, so a credential added to the model later is guarded without anyone
+  # remembering the guard. The machine's own credentials are ENV and the CLI's
+  # config here; both are replaced, so no real one is read or printed.
+  test "all_secrets holds every credential the project stores" do
+    stored = Project.encrypted_attributes.index_with { |attribute| "stored-#{attribute}" }
+    @project.update!(stored)
+    with_env("JIRA_API_TOKEN" => nil, "ANTHROPIC_API_KEY" => nil) do
+      with_cli_token(nil) do
+        assert_equal stored.values.sort, ProjectCredentials.new(@project).all_secrets.sort
+      end
+    end
+  end
+
+  # They are the fallbacks the AI is handed, whatever the project stores.
+  test "all_secrets adds the machine's own credentials, each once, and no blanks" do
+    @project.update!(github_token: nil, jira_api_token: "shared-jira-token", figma_token: "",
+                     anthropic_api_key: nil, design_repo_token: nil)
+    with_env("JIRA_API_TOKEN" => "shared-jira-token", "ANTHROPIC_API_KEY" => "machine-anthropic-key") do
+      with_cli_token("machine-figma-token") do
+        assert_equal %w[machine-anthropic-key machine-figma-token shared-jira-token],
+                     ProjectCredentials.new(@project).all_secrets.sort
+      end
+    end
+    with_env("JIRA_API_TOKEN" => "  ", "ANTHROPIC_API_KEY" => "") do
+      with_cli_token(nil) do
+        assert_equal %w[shared-jira-token], ProjectCredentials.new(@project).all_secrets
+      end
+    end
+  end
+
   test "not configured when creds missing everywhere" do
     @project.update!(github_repo: nil, github_token: nil, figma_token: nil)
     %w[JIRA_DOMAIN JIRA_EMAIL JIRA_API_TOKEN].each { |k| ENV.delete(k) }

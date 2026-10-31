@@ -17,6 +17,14 @@ class Designs::Repo
   MASTER = Designs::BranchNames::MASTER
   IDENTITY = { "user.name" => "Flosis", "user.email" => "designs@flosis.com" }.freeze
 
+  # What the clone's own config always says, for its worktrees too: the
+  # identity, so every commit and merge made here is Flosis's, and no symlinks.
+  # A client can push one (designs/x.html pointing at the app's
+  # .env.production); checked out as a link, Claude's tools would follow it
+  # out of the checkout. With core.symlinks false it is a small plain file
+  # holding the link's target.
+  CONFIG = IDENTITY.merge("core.symlinks" => "false").freeze
+
   # Every master Flosis starts has the template's runtime from its first
   # commit, so a master without it is somebody else's repository.
   RUNTIME = "runtime/flosis.js".freeze
@@ -116,8 +124,9 @@ class Designs::Repo
     synchronize do
       if clone_of_remote?
         # Set again on every run, not only at clone time: a commit made without
-        # it would carry the host's own user into the client's history.
-        IDENTITY.each { |key, value| git("config", key, value) }
+        # the identity would carry the host's own user into the client's
+        # history, and a checkout with symlinks on would write links.
+        CONFIG.each { |key, value| git("config", key, value) }
         git("fetch", "--prune", "--tags", "origin", token: token)
       else
         move_aside!
@@ -324,13 +333,13 @@ class Designs::Repo
     [ root, worktrees_root ].each { |dir| File.rename(dir, "#{dir}.replaced-#{tag}") if dir.exist? }
   end
 
-  # The Flosis identity goes into the clone's own config, which its worktrees
-  # share, so every commit and merge made here is Flosis's. git writes it as it
-  # creates the repo, before the remote is even configured, so a clone cut
-  # short that ensure_clone! would keep already has it.
+  # CONFIG goes into the clone's own config, which its worktrees share. git
+  # writes it as it creates the repo, before the remote is even configured and
+  # before anything is checked out, so the first checkout writes no symlink and
+  # a clone cut short that ensure_clone! would keep already has it.
   def clone!
-    identity = IDENTITY.flat_map { |key, value| [ "--config", "#{key}=#{value}" ] }
-    git("clone", *identity, "--", remote_url, root.to_s, chdir: base_dir, token: token)
+    config = CONFIG.flat_map { |key, value| [ "--config", "#{key}=#{value}" ] }
+    git("clone", *config, "--", remote_url, root.to_s, chdir: base_dir, token: token)
   end
 
   def refuse_occupied_remote!

@@ -79,19 +79,11 @@ class Designs::InitializeRepoJob < ApplicationJob
   # and failed to push it, and then there is nothing new to commit.
   def start_master(project, repo)
     Designs::Template.render_into(repo.root, project: project)
-    result = Designs::Committer.new(repo, Designs::LeakGuard.new(secrets: stored_secrets(project)))
-                               .commit!(repo.root, message: COMMIT_MESSAGE)
+    guard = Designs::LeakGuard.new(secrets: ProjectCredentials.new(project).all_secrets)
+    result = Designs::Committer.new(repo, guard).commit!(repo.root, message: COMMIT_MESSAGE)
     raise Refused, refusal_message(result.violations) unless result.ok?
 
     repo.push!(Designs::Repo::MASTER)
-  end
-
-  # Every credential Flosis stores on the project, from its own columns: the
-  # secrets are the encrypted ones, so a credential added to the model is
-  # guarded without anyone remembering this job. ProjectCredentials is not
-  # asked, because it falls back to the machine's own keys.
-  def stored_secrets(project)
-    Project.encrypted_attributes.map { |attribute| project.public_send(attribute) }.compact_blank
   end
 
   # A violation names its path and rule, never the text, so this repeats nothing

@@ -77,4 +77,15 @@ class ProjectCredentials
   def design_repo_configured?
     design_repo.present? && design_repo_token.present?
   end
+
+  # Every credential Flosis could hand to anything for this project, for the
+  # leak guard to keep out of its design repo: each one the project stores
+  # (every encrypted column, so one added to the model later is included
+  # without anyone remembering this) and the machine's own, which the
+  # fallbacks above hand to the AI when the project has none.
+  def all_secrets
+    stored = Project.encrypted_attributes.map { |attribute| @project.public_send(attribute) }
+    machine = [ ENV["JIRA_API_TOKEN"], ENV["ANTHROPIC_API_KEY"], FigmaClient.cli_token ]
+    (stored + machine).compact_blank.uniq
+  end
 end

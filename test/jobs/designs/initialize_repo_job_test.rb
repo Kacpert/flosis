@@ -163,6 +163,27 @@ class Designs::InitializeRepoJobTest < ActiveJob::TestCase
     end
   end
 
+  # The machine's own keys are handed to the AI as fallbacks, so the guard
+  # holds them too. Both are replaced here: no real credential is read.
+  test "a first commit that carries one of the machine's own credentials is refused, and never repeats it" do
+    machine = { "JIRA_API_TOKEN" => "machine-jira-token", "ANTHROPIC_API_KEY" => "machine-anthropic-key" }
+    with_design_remote do |repo, remote|
+      with_env(machine) do
+        with_figma_cli_token("machine-figma-token") do
+          [ *machine.values, "machine-figma-token" ].each do |secret|
+            repo.project.update!(name: "Acme #{secret}")
+            with_remote_url(remote) { Designs::InitializeRepoJob.perform_now(repo.project.id) }
+            project = repo.project.reload
+            assert_equal "error", project.design_repo_status, secret
+            assert_includes project.design_repo_error, "README.md contains a stored credential", secret
+            assert_not_includes project.design_repo_error, secret
+            assert_nil remote_branch_sha(remote, "master"), secret
+          end
+        end
+      end
+    end
+  end
+
   test "a refused first commit leaves the clone empty, and the next run starts from the template again" do
     with_design_remote do |repo, remote|
       project = repo.project
@@ -367,6 +388,14 @@ class Designs::InitializeRepoJobTest < ActiveJob::TestCase
   end
 
   private
+
+  def with_figma_cli_token(token)
+    original = FigmaClient.method(:cli_token)
+    FigmaClient.define_singleton_method(:cli_token) { token }
+    yield
+  ensure
+    FigmaClient.define_singleton_method(:cli_token, original)
+  end
 
   # What a save with Designs off does when it points the project at another
   # repo: the new repo, and no status (the old one's belongs to the old repo).

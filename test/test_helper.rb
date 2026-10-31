@@ -30,5 +30,16 @@ module ActiveSupport
     teardown do
       @ai_checkouts&.each { |dir| FileUtils.remove_entry(dir) if File.exist?(dir) }
     end
+
+    # Sets environment variables for the block (nil unsets one), then puts
+    # back what was there. Credentials the machine holds (.env, the CLI's
+    # config) are replaced this way, so a test never reads, or prints, a real one.
+    def with_env(vars)
+      previous = vars.keys.index_with { |name| ENV[name] }
+      vars.each { |name, value| value.nil? ? ENV.delete(name) : ENV[name] = value }
+      yield
+    ensure
+      previous&.each { |name, value| value.nil? ? ENV.delete(name) : ENV[name] = value }
+    end
   end
 end

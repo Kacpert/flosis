@@ -83,7 +83,9 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   test "with an API key build_command adds --bare and popen_args returns the key as the environment" do
     service = ClaudeCliService.new(codebase_path: @codebase_path, api_key: "sk-ant-test")
     assert_includes service.send(:build_command, streaming: false), "--bare"
-    assert_equal [ { "ANTHROPIC_API_KEY" => "sk-ant-test" }, [ "claude" ] ], service.send(:popen_args, [ "claude" ])
+    assert_equal [ { "ANTHROPIC_API_KEY" => "sk-ant-test", "CLAUDE_CODE_OAUTH_TOKEN" => nil, "ANTHROPIC_AUTH_TOKEN" => nil },
+                   [ "claude" ] ],
+                 service.send(:popen_args, [ "claude" ])
   end
 
   test "without an API key the command and the environment are unchanged" do
@@ -138,6 +140,23 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
       else
         ENV.delete("ANTHROPIC_API_KEY")
       end
+    end
+  end
+
+  # The server's own Claude login can sit in the environment the app runs
+  # with. A keyed run is billed to the project's key alone, so the variables
+  # that carry that login never reach it; a run without a key keeps them.
+  test "a keyed Claude process does not inherit the server's login from the environment" do
+    probe = [ "sh", "-c", 'printf "%s|%s" "${CLAUDE_CODE_OAUTH_TOKEN-unset}" "${ANTHROPIC_AUTH_TOKEN-unset}"' ]
+    with_env("CLAUDE_CODE_OAUTH_TOKEN" => "oauth-from-parent", "ANTHROPIC_AUTH_TOKEN" => "auth-from-parent") do
+      keyed = ClaudeCliService.new(codebase_path: Dir.tmpdir, api_key: "sk-ant-test")
+      assert_equal "unset|unset", keyed.send(:run_claude, probe, "")
+      lines = []
+      keyed.send(:popen_streaming, probe, "") { |line| lines << line }
+      assert_equal [ "unset|unset" ], lines - [ :keepalive ]
+
+      keyless = ClaudeCliService.new(codebase_path: Dir.tmpdir)
+      assert_equal "oauth-from-parent|auth-from-parent", keyless.send(:run_claude, probe, "")
     end
   end
 
