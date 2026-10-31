@@ -45,6 +45,28 @@ class Designs::PromptTest < ActiveSupport::TestCase
       "switches contexts in the preview's picker" ].each { |rule| assert_includes base, rule }
   end
 
+  # Ruling P2-R17. Both fail without a word in the browser (reproduced against
+  # flosis.js): HTML ignores the slash of <x-include ... />, so what follows it
+  # becomes its children and is dropped unless the component has a slot; and the
+  # include itself is replaced by the component, so its own class or
+  # data-ctx-show is gone and a gated component shows to everyone.
+  test "the base prompt warns about the two ways an include silently drops markup" do
+    [ "Always close an include with </x-include>",
+      "never write <x-include ... />",
+      "Only placeholders read an include's attributes",
+      "Put classes and data-ctx-* on a wrapper element" ].each { |rule| assert_includes base, rule }
+  end
+
+  # Ruling P2-R17 (Minor 1 and 3): the setup run owns the listing pages, and
+  # Claude's tools cannot delete a file.
+  test "the base prompt leaves the setup run's pages alone and says how to retire a screen" do
+    [ "belong to the setup run", "list this task's screens in its manifest",
+      "but not delete or rename them",
+      "to retire a screen, drop it from the manifest and say so in your summary" ].each do |rule|
+      assert_includes base, rule
+    end
+  end
+
   test "the base prompt states the reply protocol, and what a missing requirement is" do
     [ "exactly one <summary>", "<context>", "<missing>", "a requirement the person has not decided" ].each do |rule|
       assert_includes base, rule
