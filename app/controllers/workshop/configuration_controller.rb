@@ -216,10 +216,19 @@ class Workshop::ConfigurationController < Workshop::BaseController
   # is how a fixed token is tried again), or it is a different repo. A ready
   # repo is left alone, so changing only the kit or the token starts nothing.
   # A refused save has changed nothing, and starts nothing either.
+  #
+  # A status and its error describe the repo they were made for, so a different
+  # repo starts from none, before anything asks whether this save can set it up.
+  # Left until after, a repoint with Designs off (or with the repo cleared) kept
+  # the old repo's "ready" and its link, and switching Designs on later found a
+  # repo that looked done and queued nothing.
   def save_designs(project)
     return unless save_project_fields(project, DESIGN_FIELDS, "Designs settings saved")
+
+    repointed = project.saved_change_to_design_repo?
+    project.update_columns(design_repo_status: nil, design_repo_error: nil) if repointed
     return unless project.designs_enabled? && ProjectCredentials.new(project).design_repo_configured?
-    return unless project.design_repo_status != "ready" || project.saved_change_to_design_repo?
+    return unless project.design_repo_status != "ready" || repointed
 
     project.update_columns(design_repo_status: "initializing", design_repo_error: nil)
     Designs::InitializeRepoJob.perform_later(project.id)

@@ -46,7 +46,9 @@ class Project < ApplicationRecord
   validates :color, presence: true, format: { with: /\A#[0-9A-Fa-f]{6}\z/ }
   validates :design_base_kit, inclusion: { in: DESIGN_BASE_KITS }
   # owner/name, never a URL: it is handed to git and to the GitHub API as it is.
-  validates :design_repo, format: { with: %r{\A[\w.-]+/[\w.-]+\z} }, allow_blank: true
+  # In the app this refusal is shown as an alert on the Designs tab, so it says
+  # what to type rather than only that something is wrong.
+  validates :design_repo, format: { with: %r{\A[\w.-]+/[\w.-]+\z}, message: "must look like owner/name" }, allow_blank: true
 
   scope :active, -> { where(archived: false) }
   scope :archived, -> { where(archived: true) }

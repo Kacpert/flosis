@@ -26,6 +26,15 @@ class ProjectDesignSettingsTest < ActiveSupport::TestCase
     assert @project.valid?
   end
 
+  # In the app this is shown as an alert on the Designs tab, so it has to say
+  # what to type, not just that something is wrong.
+  test "a repository that is not owner/name says how it should look" do
+    @project.design_repo = "git@github.com:acme/designs.git"
+    assert_not @project.valid?
+    assert_equal [ "must look like owner/name" ], @project.errors[:design_repo]
+    assert_equal [ "Design repo must look like owner/name" ], @project.errors.full_messages_for(:design_repo)
+  end
+
   # What gets pasted is what the address bar shows.
   test "a pasted GitHub address is reduced to owner/name" do
     {

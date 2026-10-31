@@ -193,7 +193,7 @@ class Workshop::ConfigurationDesignsTabTest < ActionDispatch::IntegrationTest
     assert_not @project.designs_enabled?
     assert_nil @project.design_repo_token
     assert_nil @project.design_repo_status
-    assert_match(/Design repo/, flash[:alert])
+    assert_equal "Design repo must look like owner/name", flash[:alert]
     assert_no_match(/Designs settings saved/, flash[:clar_toast].to_s)
   end
 
@@ -234,6 +234,62 @@ class Workshop::ConfigurationDesignsTabTest < ActionDispatch::IntegrationTest
     @project.reload
     assert_equal "acme/other", @project.design_repo
     assert_equal "initializing", @project.design_repo_status
+  end
+
+  # A status describes the repo it was made for. Repointed with Designs off, the
+  # old repo's Ready (and its link into the old previews) must not survive, or
+  # switching Designs on later finds a repo that looks done and queues nothing.
+  test "pointing a ready project at another repo with Designs off drops its Ready, and switching Designs on later sets the new repo up" do
+    ready_project
+
+    assert_no_enqueued_jobs(only: Designs::InitializeRepoJob) do
+      patch workshop_configuration_path, params: { tab: "designs", project: {
+        designs_enabled: "0", design_repo: "acme/other", design_repo_token: "" } }
+    end
+    @project.reload
+    assert_equal "acme/other", @project.design_repo
+    assert_nil @project.design_repo_status
+    get workshop_configuration_path(tab: "designs")
+    assert_select "[data-design-status]", /Not set up/
+    assert_select "a", text: /Open master preview/, count: 0
+
+    assert_enqueued_with(job: Designs::InitializeRepoJob, args: [ @project.id ]) do
+      patch workshop_configuration_path, params: { tab: "designs", project: {
+        designs_enabled: "1", design_repo: "acme/other", design_repo_token: "" } }
+    end
+    assert_equal "initializing", @project.reload.design_repo_status
+  end
+
+  test "a failure belongs to the repo that failed, so pointing Designs at another repo clears it" do
+    @project.update!(design_repo: "acme/designs", design_repo_token: "dt",
+                     design_repo_status: "error", design_repo_error: "git push failed: permission denied")
+
+    patch workshop_configuration_path, params: { tab: "designs", project: { design_repo: "acme/other" } }
+
+    @project.reload
+    assert_nil @project.design_repo_status
+    assert_nil @project.design_repo_error
+    get workshop_configuration_path(tab: "designs")
+    assert_select "[data-design-status]", /Not set up/
+    assert_no_match(/permission denied/, response.body)
+  end
+
+  test "clearing the repo while Designs is on drops its Ready as well" do
+    ready_project
+
+    assert_no_enqueued_jobs(only: Designs::InitializeRepoJob) do
+      patch workshop_configuration_path, params: { tab: "designs", project: { design_repo: "" } }
+    end
+    @project.reload
+    assert_equal "", @project.design_repo
+    assert_nil @project.design_repo_status
+  end
+
+  test "a repository that cannot be forgiven says how it should look" do
+    patch workshop_configuration_path, params: { tab: "designs", project: { design_repo: "git@github.com:acme/designs.git" } }
+    assert_redirected_to workshop_configuration_path(tab: "designs")
+    follow_redirect!
+    assert_select ".clar-badge-danger", text: /Design repo must look like owner\/name/
   end
 
   test "saving after a failed setup tries again and clears the error" do
