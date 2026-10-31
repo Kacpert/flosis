@@ -10,7 +10,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
     estimation_trigger estimation_status_trigger figma_read_enabled anthropic_api_key
   ].freeze
 
-  DESIGN_FIELDS = %i[designs_enabled design_repo design_repo_token design_base_kit].freeze
+  DESIGN_FIELDS = %i[designs_enabled design_repo design_repo_token design_base_kit design_style_pack_key].freeze
 
   INTEGRATION_FIELDS = {
     "jira" => %i[jira_site jira_email jira_api_token external_reference],

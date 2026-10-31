@@ -402,4 +402,46 @@ class Workshop::ConfigurationDesignsTabTest < ActionDispatch::IntegrationTest
     previous ? ENV["DESIGNS_PREVIEW_ROOT"] = previous : ENV.delete("DESIGNS_PREVIEW_ROOT")
     FileUtils.remove_entry(root) if root && File.exist?(root)
   end
+
+  test "the style pack select never shows the pack's text" do
+    LibraryEntry.create!(kind: "style_pack", key: "calm", name: "Calm", description: "Quiet, roomy").revise!(body: "SECRET GUIDANCE", by: nil)
+    get workshop_configuration_path(tab: "designs")
+    assert_select "select[name='project[design_style_pack_key]'] option[value=calm]", /Calm/
+    assert_select "select[name='project[design_style_pack_key]'] option[value=calm]", /Quiet, roomy/
+    assert_select "select[name='project[design_style_pack_key]'] option[value='']", /None/
+    assert_select "body", text: /SECRET GUIDANCE/, count: 0
+  end
+
+  test "saving a style pack" do
+    LibraryEntry.create!(kind: "style_pack", key: "calm", name: "Calm").revise!(body: "x", by: nil)
+    patch workshop_configuration_path, params: { tab: "designs", project: { design_style_pack_key: "calm" } }
+    assert_equal "calm", @project.reload.design_style_pack_key
+  end
+
+  test "a key that is no available style pack is refused" do
+    LibraryEntry.create!(kind: "skill", key: "forms", name: "Forms").revise!(body: "x", by: nil)
+    patch workshop_configuration_path, params: { tab: "designs", project: { design_style_pack_key: "forms" } }
+    assert_nil @project.reload.design_style_pack_key
+    assert_match(/is not an available style pack/, flash[:alert].to_s)
+  end
+
+  test "a deactivated pack shows as missing" do
+    pack = LibraryEntry.create!(kind: "style_pack", key: "calm", name: "Calm")
+    pack.revise!(body: "x", by: nil)
+    @project.update!(design_style_pack_key: "calm")
+    pack.update!(active: false)
+    get workshop_configuration_path(tab: "designs")
+    assert_select "body", /calm \(no longer available\)/
+    assert_select "body", /Turns run without a style pack until you pick another\./
+  end
+
+  test "the tab saves with a deactivated pack still chosen" do
+    pack = LibraryEntry.create!(kind: "style_pack", key: "calm", name: "Calm")
+    pack.revise!(body: "x", by: nil)
+    @project.update!(design_style_pack_key: "calm")
+    pack.update!(active: false)
+    patch workshop_configuration_path,
+          params: { tab: "designs", project: { design_style_pack_key: "calm", design_base_kit: "plain" } }
+    assert_equal [ "calm", "plain" ], [ @project.reload.design_style_pack_key, @project.design_base_kit ]
+  end
 end

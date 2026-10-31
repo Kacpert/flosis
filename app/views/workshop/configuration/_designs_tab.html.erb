@@ -58,7 +58,28 @@
       <%= f.label :design_base_kit, "BASE KIT", class: "clar-field-label" %>
       <%= f.select :design_base_kit, Project::DESIGN_BASE_KITS.map { |kit| [ kit_labels.fetch(kit, kit), kit ] }, {},
             class: "clar-select mb-1.5" %>
-      <div class="text-[11px] clar-text-faint">The CSS the starter files are built on. It is used when the repository is set up; changing it later does not rewrite what is already there.</div>
+      <div class="text-[11px] clar-text-faint mb-4">The CSS the starter files are built on. It is used when the repository is set up; changing it later does not rewrite what is already there.</div>
+
+      <%# Names and descriptions only: a pack's text is Flosis's and stays in
+          the library. A pack chosen before staff switched it off is kept,
+          and said to be gone. %>
+      <%
+        packs = LibraryEntry.active.of_kind("style_pack").order(:name)
+        chosen = project.design_style_pack_key
+        missing = chosen.present? && packs.none? { |pack| pack.key == chosen }
+        pack_options = [ [ "None", "" ] ] +
+                       packs.map { |pack| [ [ pack.name, pack.description.presence ].compact.join(" — "), pack.key ] }
+        pack_options << [ "#{chosen} (no longer available)", chosen ] if missing
+      %>
+      <%= f.label :design_style_pack_key, "STYLE PACK", class: "clar-field-label" %>
+      <%= f.select :design_style_pack_key, pack_options, {}, class: "clar-select mb-1.5" %>
+      <div class="text-[11px] clar-text-faint">
+        <% if missing %>
+          Turns run without a style pack until you pick another.
+        <% else %>
+          The look Flosis gives this project's designs, on top of its design system.
+        <% end %>
+      </div>
     </div>
 
     <%= f.submit "Save changes", class: "clar-btn clar-btn-primary self-start" %>

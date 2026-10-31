@@ -52,6 +52,12 @@ class Project < ApplicationRecord
   # GitHub's own limits: an owner of 39 characters, a name of 100.
   validates :design_repo, length: { maximum: 140 }
   validate :design_repo_is_not_the_app_repo
+  # A style pack is chosen by key, and only an active one can be chosen. One
+  # chosen before staff switched it off stays until someone picks another:
+  # turns run without it meanwhile (Designs::Library), and the rest of the
+  # Designs tab still saves.
+  normalizes :design_style_pack_key, with: ->(key) { key.strip.presence }
+  validate :design_style_pack_is_available, if: :will_save_change_to_design_style_pack_key?
 
   scope :active, -> { where(archived: false) }
   scope :archived, -> { where(archived: true) }
@@ -173,6 +179,13 @@ class Project < ApplicationRecord
   # repo's master, and the client's application repository is never changed.
   # GitHub names ignore case, and the app repo is read the way a pasted design
   # repo is, so "https://github.com/Acme/App.git" is still acme/app.
+  def design_style_pack_is_available
+    return if design_style_pack_key.blank?
+    return if LibraryEntry.active.of_kind("style_pack").exists?(key: design_style_pack_key)
+
+    errors.add(:design_style_pack_key, "is not an available style pack")
+  end
+
   def design_repo_is_not_the_app_repo
     return if design_repo.blank? || github_repo.blank?
     return unless design_repo.casecmp?(self.class.normalize_value_for(:design_repo, github_repo))
