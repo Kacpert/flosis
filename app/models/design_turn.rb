@@ -24,6 +24,11 @@ class DesignTurn < ApplicationRecord
   # inside that and far more than anyone reads in a chat.
   ERROR_LIMIT = 10_000
 
+  # The library versions the turn's prompt was made of (Designs::Library),
+  # kept here and never in the design repo: [] until it runs Claude. Typed
+  # as JSON, with its default here, for MySQL (see DesignRequest#links).
+  attribute :library_version_ids, :json, default: []
+
   validates :status, inclusion: { in: STATUSES }
   validates :kind, inclusion: { in: KINDS }
 

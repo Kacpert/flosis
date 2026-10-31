@@ -1,0 +1,5 @@
+designs_base_1:
+  library_entry: designs_base
+  number: 1
+  body: <%= Designs::Prompt::BASE.strip.to_json %>
+  created_at: <%= Time.utc(2026, 11, 1).to_fs(:db) %>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_101000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -222,6 +222,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_100000) do
     t.text "error"
     t.datetime "finished_at"
     t.string "kind", default: "design", null: false
+    t.json "library_version_ids"
     t.datetime "started_at"
     t.string "status", default: "queued", null: false
     t.datetime "updated_at", null: false
@@ -386,6 +387,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_100000) do
     t.index ["jira_board_id"], name: "index_jira_sprints_on_jira_board_id"
   end
 
+  create_table "library_entries", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "key", null: false
+    t.string "kind", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["key"], name: "index_library_entries_on_key", unique: true
+  end
+
+  create_table "library_entry_versions", force: :cascade do |t|
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.bigint "library_entry_id", null: false
+    t.integer "number", null: false
+    t.index ["created_by_id"], name: "index_library_entry_versions_on_created_by_id"
+    t.index ["library_entry_id", "number"], name: "index_library_entry_versions_on_library_entry_id_and_number", unique: true
+  end
+
   create_table "pr_reviews", force: :cascade do |t|
     t.string "attempt_sha"
     t.integer "attempts", default: 0, null: false
@@ -446,6 +468,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_100000) do
     t.text "design_repo_error"
     t.string "design_repo_status"
     t.text "design_repo_token"
+    t.string "design_style_pack_key"
     t.boolean "designs_enabled", default: false, null: false
     t.json "estimation_field_names"
     t.string "estimation_status_trigger", default: "Ready for dev"
@@ -809,6 +832,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_100000) do
   add_foreign_key "jira_boards", "projects"
   add_foreign_key "jira_comments", "tasks"
   add_foreign_key "jira_sprints", "jira_boards"
+  add_foreign_key "library_entry_versions", "library_entries"
+  add_foreign_key "library_entry_versions", "users", column: "created_by_id", on_delete: :nullify
   add_foreign_key "pr_reviews", "workspaces"
   add_foreign_key "project_memberships", "projects"
   add_foreign_key "project_memberships", "users"

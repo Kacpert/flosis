@@ -1,0 +1,8 @@
+# The library's first entry, which the CreateLibrary migration seeds: tests
+# load schema.rb, which carries no data.
+designs_base:
+  kind: base_prompt
+  key: designs-base
+  name: Designs base prompt
+  description: What every design turn is told first.
+  active: true
