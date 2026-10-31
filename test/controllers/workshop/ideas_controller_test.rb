@@ -802,4 +802,45 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "a[href='#{workshop_pipeline_path}']", text: /Back to pipeline/
   end
+
+  # The Workshop's current project, with Designs ready or not.
+  def designs_project(ready:)
+    @project = projects(:jira_project)
+    @project.update!(designs_enabled: ready, design_repo: "a/b", design_repo_token: "t", design_repo_status: ("ready" if ready))
+    post switch_workshop_project_path, params: { project_id: @project.id }
+  end
+
+  test "an idea can start in Designs" do
+    designs_project(ready: true)
+    post workshop_ideas_path, params: { idea: { title: "Archive offers", description: "Hide old offers", start_stage: "designs" } }
+    task = @project.tasks.find_by!(name: "Archive offers")
+    assert_equal "new", task.workshop_stage
+    assert_redirected_to workshop_idea_designs_path(task)
+    assert_equal "Hide old offers", task.current_brief.content
+    assert_equal %(Idea saved · "Archive offers" · Designs), flash[:clar_toast]
+  end
+
+  test "without ready Designs a designs start falls back to Briefing" do
+    designs_project(ready: false)
+    post workshop_ideas_path, params: { idea: { title: "X", start_stage: "designs" } }
+    assert_equal "briefing", @project.tasks.find_by!(name: "X").workshop_stage
+  end
+
+  test "the new idea dialog offers Designs only when they are ready" do
+    designs_project(ready: false)
+    get workshop_pipeline_path
+    assert_select "[data-stage=designs]", count: 0
+    designs_project(ready: true)
+    get workshop_pipeline_path
+    assert_select "[data-stage=designs]", /Sketch it first — the description follows from the designs\./
+  end
+
+  test "a Jira ticket imported to start in Designs opens there" do
+    designs_project(ready: true)
+    task = tasks(:jira_task)
+    task.update!(project: @project)
+    post workshop_ideas_path, params: { task_id: task.id, start_stage: "designs" }
+    assert_equal "new", task.reload.workshop_stage
+    assert_redirected_to workshop_idea_designs_path(task)
+  end
 end

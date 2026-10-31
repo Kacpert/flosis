@@ -18,12 +18,19 @@
       <%= f.text_area "idea[description]", value: nil, rows: 3, placeholder: "A sentence or two on what you're thinking…",
             class: "clar-textarea mb-5" %>
 
-      <%# START AT — Briefing (default) or skip the brief and open straight in
-          Details Gathering. Carried on the POST as idea[start_stage]. %>
+      <%# START AT — Briefing (default), skip the brief and open straight in
+          Details Gathering, or (when the project's Designs are ready) sketch it
+          in Designs first. Carried on the POST as idea[start_stage]. %>
       <label class="clar-field-label !mb-[7px]">START AT</label>
       <div class="flex gap-2.5 mb-5">
-        <% [["briefing", "Briefing", "Shape the why first, then detail it."],
-            ["details", "Details Gathering", "Skip the brief &mdash; go straight to the spec."]].each do |value, label, hint| %>
+        <%
+          start_cards = [ [ "briefing", "Briefing", "Shape the why first, then detail it." ],
+                          [ "details", "Details Gathering", "Skip the brief &mdash; go straight to the spec." ] ]
+          if current_workshop_project&.designs_ready?
+            start_cards << [ "designs", "Designs", "Sketch it first &mdash; the description follows from the designs." ]
+          end
+        %>
+        <% start_cards.each do |value, label, hint| %>
           <button type="button" data-stage="<%= value %>"
                   data-clar-start-stage-target="card" data-action="click->clar-start-stage#select"
                   class="flex-1 text-left cursor-pointer py-2.5 px-3 rounded-[10px] border bg-[color:var(--surface)] clar-divider">

@@ -1,7 +1,8 @@
 import { Controller } from "@hotwired/stimulus"
 
 // "START AT" picker — choose whether a new/imported task enters the pipeline at
-// Briefing (the default) or skips straight to Details Gathering.
+// Briefing (the default), skips straight to Details Gathering, or (new ideas,
+// when the project's Designs are ready) starts on the Designs screen.
 //
 // Two shapes share this controller:
 //  - card    : the New idea modal's two big option cards (title + hint), which
@@ -68,8 +69,9 @@ export default class extends Controller {
       link.href = url.pathname + url.search
     })
 
+    const labels = { details: "Save & start details", designs: "Save & start designing" }
     this.submitLabelTargets.forEach((el) => {
-      el.textContent = stage === "details" ? "Save & start details" : "Save & start briefing"
+      el.textContent = labels[stage] || "Save & start briefing"
     })
   }
 }

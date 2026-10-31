@@ -220,7 +220,7 @@ class Workshop::IdeasController < Workshop::BaseController
     stage = start_stage
 
     if task.save
-      task.enter_pipeline!(author: current_user, stage: stage)
+      task.enter_pipeline!(author: current_user, stage: pipeline_stage(stage))
 
       if idea_params[:description].present?
         task.briefs.create!(workspace: task.project.workspace, version: 0,
@@ -228,7 +228,7 @@ class Workshop::IdeasController < Workshop::BaseController
       end
 
       flash[:clar_toast] = %(Idea saved · "#{idea_params[:title]}" · #{stage_label(stage)})
-      redirect_to workshop_idea_path(task, stage: explicit_stage(stage))
+      redirect_to landing_path(task, stage)
     else
       flash.now[:alert] = task.errors.full_messages.to_sentence
       load_pipeline
@@ -252,7 +252,7 @@ class Workshop::IdeasController < Workshop::BaseController
     end
 
     stage = start_stage
-    task.enter_pipeline!(author: current_user, stage: stage)
+    task.enter_pipeline!(author: current_user, stage: pipeline_stage(stage))
 
     # Seed from the ticket's own ADF when we have it: that keeps the headings,
     # bold, lists and tables the description was written with, instead of the
@@ -268,7 +268,17 @@ class Workshop::IdeasController < Workshop::BaseController
     end
 
     flash[:clar_toast] = "Imported #{task.external_reference} · #{stage_label(stage)}"
-    redirect_to workshop_idea_path(task, stage: explicit_stage(stage))
+    redirect_to landing_path(task, stage)
+  end
+
+  # Designs is no stage of the pipeline: a task that starts there enters it
+  # as "new", and its description follows from the designs.
+  def pipeline_stage(stage)
+    stage == "designs" ? "new" : stage
+  end
+
+  def landing_path(task, stage)
+    stage == "designs" ? workshop_idea_designs_path(task) : workshop_idea_path(task, stage: explicit_stage(stage))
   end
 
   # Briefing is #show's own default, so only "details" needs to be spelled out
@@ -279,15 +289,17 @@ class Workshop::IdeasController < Workshop::BaseController
 
   # Where a new/imported task enters the pipeline. "briefing" is the default;
   # "details" is the explicit skip-the-brief option (the START AT picker in the
-  # new-idea modal and the Jira browser). Anything else falls back to briefing —
-  # the stage list is a whitelist, never trusted straight from params.
+  # new-idea modal and the Jira browser), and "designs" opens the Designs
+  # screen when the project's Designs are ready. Anything else falls back to
+  # briefing — the stage list is a whitelist, never trusted straight from params.
   def start_stage
     raw = params[:start_stage].presence || params.dig(:idea, :start_stage).presence
-    raw.to_s.presence_in(%w[briefing details]) || "briefing"
+    stage = raw.to_s.presence_in(%w[briefing details designs]) || "briefing"
+    stage == "designs" && !current_workshop_project&.designs_ready? ? "briefing" : stage
   end
 
   def stage_label(stage)
-    stage == "details" ? "Details Gathering" : "Briefing"
+    { "details" => "Details Gathering", "designs" => "Designs" }.fetch(stage, "Briefing")
   end
 
   # On first entering the details stage, seed a v0 "user description" AI
