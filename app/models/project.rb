@@ -49,6 +49,7 @@ class Project < ApplicationRecord
   # In the app this refusal is shown as an alert on the Designs tab, so it says
   # what to type rather than only that something is wrong.
   validates :design_repo, format: { with: %r{\A[\w.-]+/[\w.-]+\z}, message: "must look like owner/name" }, allow_blank: true
+  validate :design_repo_is_not_the_app_repo
 
   scope :active, -> { where(archived: false) }
   scope :archived, -> { where(archived: true) }
@@ -157,5 +158,18 @@ class Project < ApplicationRecord
     else
       0
     end
+  end
+
+  private
+
+  # Designs pushes a branch per task and merges approvals into the design
+  # repo's master, and the client's application repository is never changed.
+  # GitHub names ignore case, and the app repo is read the way a pasted design
+  # repo is, so "https://github.com/Acme/App.git" is still acme/app.
+  def design_repo_is_not_the_app_repo
+    return if design_repo.blank? || github_repo.blank?
+    return unless design_repo.casecmp?(self.class.normalize_value_for(:design_repo, github_repo))
+
+    errors.add(:design_repo, "must be a different repository from the app's")
   end
 end

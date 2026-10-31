@@ -17,6 +17,17 @@ class Designs::Repo
   MASTER = Designs::BranchNames::MASTER
   IDENTITY = { "user.name" => "Flosis", "user.email" => "designs@flosis.com" }.freeze
 
+  # Every master Flosis starts has the template's runtime from its first
+  # commit, so a master without it is somebody else's repository.
+  RUNTIME = "runtime/flosis.js".freeze
+
+  # What a refused repo is told to do instead.
+  REMEDY = "Create a new, empty repository (no README, licence or .gitignore).".freeze
+
+  # How many of a refused repo's branches its error names. The error is stored
+  # cut to 500 characters, and the remedy comes after the list.
+  BRANCHES_NAMED = 10
+
   Change = Data.define(:path, :added_text)
 
   # The merge stopped on conflicting files. It has been aborted, so master is
@@ -27,8 +38,10 @@ class Designs::Repo
   # and an approval needs a commit of its own to tag.
   class NothingToMerge < StandardError; end
 
-  # The remote has branches but no master, so it is not the empty repository a
-  # design repo starts from (GitHub's "Add a README" creates main).
+  # The remote is neither the empty repository a design repo starts from nor a
+  # design repo Flosis started: it has branches but no master (GitHub's "Add a
+  # README" creates main), or a master without the runtime (the app's own
+  # repository, say).
   class NotEmpty < StandardError; end
 
   class << self
@@ -78,8 +91,9 @@ class Designs::Repo
 
   # Leaves a clone of remote_url on master: at origin/master once the remote
   # has one, else on a master yet to be born. A remote with branches but no
-  # master is refused (NotEmpty), and its clone is set aside like the one
-  # below, so that emptying the remote, as the error advises, starts afresh.
+  # master, or with a master that has no RUNTIME, is refused (NotEmpty), and
+  # its clone is set aside like the one below, so that nothing of it is ever
+  # committed on or pushed from.
   #
   # A clone of another repo (the project's design repo was changed) is moved
   # aside with its worktrees and never pushed from again, so the old history
@@ -97,6 +111,7 @@ class Designs::Repo
       end
 
       if initialized?
+        refuse_foreign_master!
         # Checks master out and resets it hard to origin/master in one step,
         # from an unborn HEAD too: commits and edits that never reached the
         # remote are dropped.
@@ -293,11 +308,25 @@ class Designs::Repo
 
     # A clone of this very remote is one ensure_clone! keeps, so a refused one
     # left in place would be fetched into and committed on by the next run,
-    # on top of the old main, once the repo had been emptied as the message
-    # advises. It is set aside like a clone of another repo.
+    # on top of the old main, once the repo had been emptied. It is set aside
+    # like a clone of another repo.
     move_aside!
-    raise NotEmpty, "The design repo must be empty — it already has: #{branches.join(", ")}. " \
-                    "Create an empty repository, or remove them."
+    named = branches.first(BRANCHES_NAMED).join(", ")
+    named += " and #{branches.size - BRANCHES_NAMED} more" if branches.size > BRANCHES_NAMED
+    raise NotEmpty, "The design repo must be empty — it already has: #{named}. #{REMEDY}"
+  end
+
+  # Only a master Flosis started is taken on. Any other (the app's own
+  # repository, say) would have its files published as designs, and every
+  # task's branch pushed and every approval merged into it. RUNTIME must be a
+  # file: ls-tree names what is at the path, a folder as a tree. The clone is
+  # set aside, as for any refusal: emptied and started afresh, the repo must
+  # not get the old master's history back from it.
+  def refuse_foreign_master!
+    return if git("ls-tree", "origin/#{MASTER}", "--", RUNTIME).split(" ", 3)[1] == "blob"
+
+    move_aside!
+    raise NotEmpty, "The design repo already has a #{MASTER} that Flosis did not start (it has no #{RUNTIME}). #{REMEDY}"
   end
 
   # HEAD names a branch with no commit yet: the state of a fresh clone of an

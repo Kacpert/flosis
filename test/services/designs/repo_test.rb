@@ -268,8 +268,8 @@ class Designs::RepoTest < ActiveSupport::TestCase
       system("git", "-C", remote, "symbolic-ref", "HEAD", "refs/heads/main", exception: true)
       push_from_elsewhere(remote, "main", { "README.md" => "# acme\n", "LICENSE" => "MIT\n" })
       error = assert_raises(Designs::Repo::NotEmpty) { repo.ensure_clone! }
-      assert_equal "The design repo must be empty — it already has: main. Create an empty repository, or remove them.",
-                   error.message
+      assert_equal "The design repo must be empty — it already has: main. " \
+                   "Create a new, empty repository (no README, licence or .gitignore).", error.message
       assert_nil remote_branch_sha(remote, "master")
     end
   end
@@ -305,8 +305,8 @@ class Designs::RepoTest < ActiveSupport::TestCase
       system("git", "-C", remote, "symbolic-ref", "HEAD", "refs/heads/main", exception: true)
       push_from_elsewhere(remote, "main", { "README.md" => "# acme\n" })
       error = assert_raises(Designs::Repo::NotEmpty) { repo.ensure_clone! }
-      assert_equal "The design repo must be empty — it already has: main. Create an empty repository, or remove them.",
-                   error.message
+      assert_equal "The design repo must be empty — it already has: main. " \
+                   "Create a new, empty repository (no README, licence or .gitignore).", error.message
       assert_not repo.root.exist?
       assert_equal 1, Dir.glob("#{repo.root}.replaced-*/.git").size
     end
@@ -338,6 +338,59 @@ class Designs::RepoTest < ActiveSupport::TestCase
         2.times { assert_raises(Designs::Repo::NotEmpty) { repo.ensure_clone! } }
       end
       assert_equal 2, Dir.glob("#{repo.root}.replaced-*/.git").size
+    end
+  end
+
+  # Any remote with a master used to be taken on as it was, the app's own
+  # repository included: its files published, and every task's branch pushed
+  # into it.
+  test "a remote whose master Flosis did not start is refused, and its clone set aside" do
+    with_design_remote do |repo, remote|
+      push_from_elsewhere(remote, "master", { "Gemfile" => "gem \"rails\"\n", "secrets.json" => "{}\n",
+                                              "README.md" => "# acme app\n" })
+      before = remote_branch_sha(remote, "master")
+      error = assert_raises(Designs::Repo::NotEmpty) { repo.ensure_clone! }
+      assert_equal "The design repo already has a master that Flosis did not start (it has no runtime/flosis.js). " \
+                   "Create a new, empty repository (no README, licence or .gitignore).", error.message
+      assert_not repo.root.exist?
+      assert_equal 1, Dir.glob("#{repo.root}.replaced-*/.git").size
+      assert_equal before, remote_branch_sha(remote, "master")
+    end
+  end
+
+  test "a master that holds the runtime is taken on, wherever it was started" do
+    with_design_remote do |repo, remote|
+      push_from_elsewhere(remote, "master", { "runtime/flosis.js" => "// runtime\n", "README.md" => "# designs\n" })
+      repo.ensure_clone!
+      assert repo.initialized?
+      assert_equal remote_branch_sha(remote, "master"), repo.head("master")
+    end
+  end
+
+  # A folder named like the runtime is not the runtime.
+  test "a master whose runtime/flosis.js is not a file is refused" do
+    with_design_remote do |repo, remote|
+      push_from_elsewhere(remote, "master", { "runtime/flosis.js/index.html" => "<p>x</p>\n" })
+      assert_raises(Designs::Repo::NotEmpty) { repo.ensure_clone! }
+    end
+  end
+
+  # The refusal is shown on the Designs tab and stored cut to 500 characters:
+  # however many branches the repo has, the remedy must still be there.
+  test "a refused repo's error names ten of its branches at most, then the remedy" do
+    with_design_remote do |repo, remote|
+      system("git", "-C", remote, "symbolic-ref", "HEAD", "refs/heads/main", exception: true)
+      push_from_elsewhere(remote, "main", { "README.md" => "# acme\n" })
+      main = remote_branch_sha(remote, "main")
+      refs = (1..80).map { |n| "create refs/heads/branch-number-#{n} #{main}\n" }.join
+      _, status = Open3.capture2e("git", "-C", remote, "update-ref", "--stdin", stdin_data: refs)
+      assert status.success?
+
+      error = assert_raises(Designs::Repo::NotEmpty) { repo.ensure_clone! }
+      assert_equal "The design repo must be empty — it already has: branch-number-1, branch-number-10, " \
+                   "branch-number-11, branch-number-12, branch-number-13, branch-number-14, branch-number-15, " \
+                   "branch-number-16, branch-number-17, branch-number-18 and 71 more. " \
+                   "Create a new, empty repository (no README, licence or .gitignore).", error.message
     end
   end
 

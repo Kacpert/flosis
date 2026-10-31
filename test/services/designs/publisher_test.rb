@@ -219,7 +219,7 @@ class Designs::PublisherTest < ActiveSupport::TestCase
 
       dir = Designs::Publisher.new(repo.project, repo).publish!("master", "master")
 
-      assert_equal [ "README.md", "design_system/tokens.css", "designs/page.html" ], published_files(dir)
+      assert_equal [ "README.md", "design_system/tokens.css", "designs/page.html", "runtime/flosis.js" ], published_files(dir)
       assert_not dir.join("design_system/.hidden").exist?, "a dot folder was published"
       assert_not dir.join("designs/deep/.cache").exist?, "a nested dot folder was published"
     end
@@ -236,7 +236,7 @@ class Designs::PublisherTest < ActiveSupport::TestCase
 
       dir = Designs::Publisher.new(repo.project, repo).publish!("master", "master")
 
-      assert_equal kept.sort, published_files(dir)
+      assert_equal [ *kept, "runtime/flosis.js" ].sort, published_files(dir)
     end
   end
 
@@ -254,7 +254,7 @@ class Designs::PublisherTest < ActiveSupport::TestCase
 
       dir = Designs::Publisher.new(repo.project, repo).publish!("master", "master")
 
-      assert_equal kept.sort, published_files(dir)
+      assert_equal [ *kept, "runtime/flosis.js" ].sort, published_files(dir)
     end
   end
 

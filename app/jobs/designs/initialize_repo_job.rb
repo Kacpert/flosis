@@ -1,12 +1,15 @@
 # Starts a project's design repo and publishes its master: the empty GitHub
 # repository gets the template (Designs::Template) as its first commit on
 # master, made as Flosis through the leak guard, pushed, and then published to
-# the preview host. A repo that already has master is only published again, so
-# running the job twice is harmless.
+# the preview host. A repo whose master Flosis already started is only
+# published again, so running the job twice is harmless; a repo with anything
+# else in it is refused (Designs::Repo::NotEmpty).
 #
 # design_repo_status follows the run: "initializing", then "ready", or "error"
 # with design_repo_error saying what went wrong. A git failure arrives from
-# GitRunner with the token already filtered out of its message.
+# GitRunner with the token already filtered out of its message. A status
+# describes the repo it was made for, so it is written only while the project
+# still points at the repo the run started for (see record).
 #
 # Everything runs under the repo's lock, so a publish or a turn on the same
 # project never meets it in git's own files.
@@ -25,22 +28,45 @@ class Designs::InitializeRepoJob < ApplicationJob
 
   def perform(project_id)
     project = Project.find_by(id: project_id)
-    return unless project&.designs_enabled? && ProjectCredentials.new(project).design_repo_configured?
+    return unless project
+
+    # The repo this run is for, read once: the Repo below is built for it, and
+    # a save that points the project elsewhere must not get this run's status.
+    @design_repo = project.design_repo
+    unless project.designs_enabled? && ProjectCredentials.new(project).design_repo_configured?
+      # The save that queued this run said "initializing"; nothing will run now
+      # to say anything else.
+      Project.where(id: project.id, design_repo_status: "initializing").update_all(design_repo_status: nil)
+      return
+    end
 
     repo = Designs::Repo.new(project)
     repo.synchronize do
-      project.update_columns(design_repo_status: "initializing", design_repo_error: nil)
+      # Pointed elsewhere while the run waited: that repo is not the project's
+      # any more, and is left alone.
+      next unless record(project, "initializing")
+
       repo.ensure_clone!
       start_master(project, repo) unless repo.initialized?
       Designs::Publisher.new(project, repo).publish!(Designs::Repo::MASTER, "master")
-      project.update_columns(design_repo_status: "ready", design_repo_error: nil)
+      record(project, "ready")
     end
   rescue => e
     Rails.logger.error("[#{self.class.name}] project #{project_id}: #{e.class}: #{e.message}")
-    project&.update_columns(design_repo_status: "error", design_repo_error: e.message.to_s.scrub.first(ERROR_LIMIT))
+    record(project, "error", e.message.to_s.scrub.first(ERROR_LIMIT)) if project
   end
 
   private
+
+  # Writes the status, and whether it could: only while the project still
+  # points at the repo this run is for. A save that points it at another repo
+  # resets the status for that one, and the run for the old repo, finishing
+  # afterwards, must not mark the new one Ready or Failed. One conditional
+  # UPDATE, so no save can come between the check and the write.
+  def record(project, status, error = nil)
+    Project.where(id: project.id, design_repo: @design_repo)
+           .update_all(design_repo_status: status, design_repo_error: error).positive?
+  end
 
   # master's first commit, then the push. The commit can come back empty and the
   # push must still happen: an earlier run may have committed the same template

@@ -31,9 +31,11 @@ module DesignRepoTestHelper
     repo.commit!(dir, message: message)
   end
 
+  # master as Flosis starts it: the files the test needs, beside the runtime
+  # that marks a master as Flosis's (ensure_clone! refuses any other).
   def seed_master(repo, files = { "README.md" => "hi\n" })
     repo.ensure_clone!
-    commit_files(repo, repo.root, files)
+    commit_files(repo, repo.root, { Designs::Repo::RUNTIME => "// the runtime\n" }.merge(files))
     repo.push!("master")
     repo.ensure_clone!
     repo.head("master")
@@ -49,7 +51,10 @@ module DesignRepoTestHelper
   def push_from_elsewhere(remote, branch, files)
     Dir.mktmpdir("elsewhere") do |dir|
       system("git", "clone", "--quiet", remote, dir, exception: true, err: File::NULL)
-      files.each { |path, body| File.write(File.join(dir, path), body) }
+      files.each do |path, body|
+        FileUtils.mkdir_p(File.dirname(File.join(dir, path)))
+        File.write(File.join(dir, path), body)
+      end
       system("git", "-C", dir, "add", "-A", exception: true)
       system("git", "-C", dir, "-c", "user.name=Someone", "-c", "user.email=someone@example.com",
              "commit", "--quiet", "-m", "Initial commit", exception: true)

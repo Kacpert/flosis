@@ -197,6 +197,18 @@ class Workshop::ConfigurationDesignsTabTest < ActionDispatch::IntegrationTest
     assert_no_match(/Designs settings saved/, flash[:clar_toast].to_s)
   end
 
+  test "the app's own repository is refused as the design repo, and starts nothing" do
+    @project.update!(github_repo: "acme/app")
+    assert_no_enqueued_jobs(only: Designs::InitializeRepoJob) do
+      patch workshop_configuration_path, params: { tab: "designs", project: {
+        designs_enabled: "1", design_repo: "acme/app", design_repo_token: "dt" } }
+    end
+    @project.reload
+    assert_nil @project.design_repo
+    assert_nil @project.design_repo_status
+    assert_equal "Design repo must be a different repository from the app's", flash[:alert]
+  end
+
   test "switching Designs on without a token queues nothing" do
     assert_no_enqueued_jobs(only: Designs::InitializeRepoJob) do
       patch workshop_configuration_path, params: { tab: "designs", project: {

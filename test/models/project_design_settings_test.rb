@@ -35,6 +35,27 @@ class ProjectDesignSettingsTest < ActiveSupport::TestCase
     assert_equal [ "Design repo must look like owner/name" ], @project.errors.full_messages_for(:design_repo)
   end
 
+  # Designs pushes a branch per task and merges approvals into master: pointed
+  # at the app's own repository, it would change the client's application.
+  test "the design repo must be a different repository from the app's" do
+    @project.github_repo = "acme/app"
+    [ "acme/app", "Acme/App", "https://github.com/acme/app.git" ].each do |same|
+      @project.design_repo = same
+      assert_not @project.valid?, same
+      assert_equal [ "must be a different repository from the app's" ], @project.errors[:design_repo], same
+    end
+
+    @project.github_repo = "https://github.com/acme/app"
+    @project.design_repo = "acme/app"
+    assert_not @project.valid?, "the app repo written as a URL is still the app repo"
+
+    @project.design_repo = "acme/app-designs"
+    assert @project.valid?
+    @project.github_repo = nil
+    @project.design_repo = "acme/app"
+    assert @project.valid?, "a project with no app repo can use any design repo"
+  end
+
   # What gets pasted is what the address bar shows.
   test "a pasted GitHub address is reduced to owner/name" do
     {
