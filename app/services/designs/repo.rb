@@ -216,12 +216,14 @@ class Designs::Repo
   end
 
   # Back to the checkout's last commit: edits undone and new files removed.
-  # Files the repo ignores stay.
+  # Files the repo ignores stay. The second -f removes a repository written
+  # into the checkout too, which a single one skips: left there, it would fail
+  # every later git add -A.
   def discard!(dir)
     synchronize do
       dir = own_checkout!(dir)
       git("reset", "--hard", chdir: dir)
-      git("clean", "-fd", chdir: dir)
+      git("clean", "-ffd", chdir: dir)
     end
   end
 

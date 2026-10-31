@@ -643,6 +643,25 @@ class Designs::RepoTest < ActiveSupport::TestCase
     end
   end
 
+  # Ruling P2-R30. Claude can write a repository of its own into a worktree,
+  # file by file. git clean -fd skips one, and every later git add -A fails on
+  # it, so no turn of the task could commit again.
+  test "discard! removes a repository written into a worktree, so the next commit works" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      nested = dir.join("designs/x/.git")
+      FileUtils.mkdir_p([ nested.join("objects"), nested.join("refs") ])
+      nested.join("HEAD").write("ref: refs/heads/master\n")
+      assert_raises(GitRunner::Error) { repo.stage_all!(dir) }
+
+      repo.discard!(dir)
+
+      assert_not dir.join("designs/x").exist?
+      assert commit_files(repo, dir, { "designs/a.html" => "a" })
+    end
+  end
+
   test "remote_head is where origin's branch was at the last fetch, and nil when origin has none" do
     with_design_remote do |repo, remote|
       seed_master(repo)
