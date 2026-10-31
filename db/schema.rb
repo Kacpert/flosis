@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_111000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_112000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -143,12 +143,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_111000) do
     t.string "claude_session_id", null: false
     t.string "codebase_path", null: false
     t.datetime "created_at", null: false
+    t.bigint "project_id"
     t.string "purpose", default: "refine", null: false
     t.string "status", default: "active", null: false
-    t.bigint "task_id", null: false
+    t.bigint "task_id"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "workspace_id", null: false
+    t.index ["project_id"], name: "index_chat_sessions_on_project_id"
     t.index ["task_id", "purpose", "status"], name: "index_chat_sessions_on_task_purpose_status"
     t.index ["task_id"], name: "index_chat_sessions_on_task_id"
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
@@ -227,6 +229,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_111000) do
     t.datetime "updated_at", null: false
     t.string "username", null: false
     t.index ["project_id"], name: "index_design_setup_roles_on_project_id"
+  end
+
+  create_table "design_setups", force: :cascade do |t|
+    t.datetime "approved_at"
+    t.string "crawl_dir"
+    t.text "crawl_error"
+    t.datetime "crawl_requested_at"
+    t.datetime "crawled_at"
+    t.datetime "created_at", null: false
+    t.string "phase", default: "design_system", null: false
+    t.bigint "project_id", null: false
+    t.bigint "started_by_id"
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.index ["project_id"], name: "index_design_setups_on_project_id"
+    t.index ["started_by_id"], name: "index_design_setups_on_started_by_id"
   end
 
   create_table "design_turns", force: :cascade do |t|
@@ -818,6 +836,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_111000) do
   add_foreign_key "bug_attributions", "tasks"
   add_foreign_key "chat_messages", "chat_sessions"
   add_foreign_key "chat_messages", "users"
+  add_foreign_key "chat_sessions", "projects"
   add_foreign_key "chat_sessions", "tasks"
   add_foreign_key "chat_sessions", "users"
   add_foreign_key "chat_sessions", "workspaces"
@@ -829,6 +848,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_111000) do
   add_foreign_key "design_requests", "users", column: "designer_id"
   add_foreign_key "design_requests", "users", column: "requester_id"
   add_foreign_key "design_setup_roles", "projects"
+  add_foreign_key "design_setups", "projects"
+  add_foreign_key "design_setups", "users", column: "started_by_id", on_delete: :nullify
   add_foreign_key "design_turns", "chat_messages"
   add_foreign_key "design_turns", "chat_sessions"
   add_foreign_key "discord_reminder_pings", "discord_reminder_recipients"

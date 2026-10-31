@@ -3,3 +3,11 @@ designs_base_1:
   number: 1
   body: <%= Designs::Prompt::BASE.strip.to_json %>
   created_at: <%= Time.utc(2026, 11, 1).to_fs(:db) %>
+
+<% Designs::SetupPrompts::SEEDS.each do |phase, seed| %>
+setup_<%= phase %>_1:
+  library_entry: setup_<%= phase %>
+  number: 1
+  body: <%= seed[:body].strip.to_json %>
+  created_at: <%= Time.utc(2026, 11, 1).to_fs(:db) %>
+<% end %>

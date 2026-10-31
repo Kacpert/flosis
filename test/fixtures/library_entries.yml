@@ -6,3 +6,13 @@ designs_base:
   name: Designs base prompt
   description: What every design turn is told first.
   active: true
+
+# The setup run's phase prompts, which AddDesignSetups seeds.
+<% Designs::SetupPrompts::SEEDS.each do |phase, seed| %>
+setup_<%= phase %>:
+  kind: base_prompt
+  key: <%= seed[:key] %>
+  name: <%= seed[:name].to_json %>
+  description: <%= seed[:description].to_json %>
+  active: true
+<% end %>

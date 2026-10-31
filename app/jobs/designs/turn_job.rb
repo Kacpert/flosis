@@ -35,8 +35,13 @@ class Designs::TurnJob < ApplicationJob
     "designs-task-#{task_id}"
   end
 
+  # A setup run's turns hold the project's setup, apart from its tasks.
+  def self.concurrency_key_for_session(session)
+    session.task_id ? concurrency_key_for(session.task_id) : "designs-setup-#{session.project_id}"
+  end
+
   limits_concurrency to: 1, group: CONCURRENCY_GROUP, duration: 2.hours,
-                     key: ->(turn_id) { self.class.concurrency_key_for(DesignTurn.find(turn_id).chat_session.task_id) }
+                     key: ->(turn_id) { self.class.concurrency_key_for_session(DesignTurn.find(turn_id).chat_session) }
 
   # Reading and writing files, nothing else (the library's base prompt tells
   # Claude so).
@@ -48,6 +53,9 @@ class Designs::TurnJob < ApplicationJob
   # log only.
   PREVIEW_NOT_UPDATED = "Saved, but the preview could not be updated. It refreshes with the next turn.".freeze
   UP_TO_DATE = "Brought up to date with master.".freeze
+  WAITING_FOR_CRAWL = "Waiting for the crawl to finish…".freeze
+  # How often a setup turn looks again while the crawl runs.
+  CRAWL_POLL = 30.seconds
 
   # A line git writes into a file whose merge collided. The separator must be
   # the whole line: a longer row of "=" underlines a Markdown heading.
@@ -85,7 +93,10 @@ class Designs::TurnJob < ApplicationJob
 
   def perform(turn_id)
     turn = DesignTurn.find_by(id: turn_id)
-    run(turn) if turn && claim(turn)
+    return unless turn
+    return wait_for_crawl(turn) if waiting_for_crawl?(turn)
+
+    run(turn) if claim(turn)
   end
 
   private
@@ -107,31 +118,47 @@ class Designs::TurnJob < ApplicationJob
     end
   end
 
+  # A setup turn queued while its run's crawl goes on waits for it, rather
+  # than designing blind: it stays queued and looks again later. The chat says
+  # so once.
+  def waiting_for_crawl?(turn)
+    turn.queued? && turn.chat_session.purpose == "designs_setup" && Designs::Subject.for(turn.chat_session).crawling?
+  end
+
+  def wait_for_crawl(turn)
+    session = turn.chat_session
+    said = session.chat_messages.where(kind: "system", content: WAITING_FOR_CRAWL).where("id > ?", turn.chat_message_id).exists?
+    session.chat_messages.create!(role: "assistant", kind: "system", content: WAITING_FOR_CRAWL) unless said
+    self.class.set(wait: CRAWL_POLL).perform_later(turn.id)
+  end
+
+  # Everything that differs between a task's turn and a setup run's comes
+  # from the subject (Designs::Subject).
   def run(turn)
     sweep_leftovers
-    task = turn.chat_session.task
-    project = task.project
-    repo = Designs::Repo.new(project)
-    key = ProjectCredentials.new(project).designs_api_key
-    raise Failure, NO_KEY unless key
+    subject = Designs::Subject.for(turn.chat_session)
+    repo = Designs::Repo.new(subject.project)
+    key = subject.api_key
+    raise Failure, subject.missing_key_message unless key
 
-    worktree = checkout(repo, task)
-    start = repo.head(Designs::BranchNames.wip(task))
+    worktree = subject.checkout!(repo)
+    start = repo.head(subject.wip_branch)
     start_clean(turn, repo, worktree)
-    return bring_up_to_date(turn, repo, task, start) if @conflicts == []
+    return bring_up_to_date(turn, repo, subject, start) if @conflicts == []
 
-    # One composition for the prompt and the guard alike (Ruling P3-R1), and
-    # the record of what Claude is given, kept before it runs.
-    composition = Designs::Library.compose(project)
-    turn.update!(library_version_ids: composition.version_ids)
-    answer = ask_claude(turn, repo, worktree, key, composition)
+    # The subject composes once, for the prompt and the guard alike (Rulings
+    # P3-R1, P5-R4), and the record of what Claude is given is kept before it
+    # runs.
+    turn.update!(library_version_ids: subject.library_version_ids)
+    subject.prepare!
+    answer = ask_claude(turn, repo, worktree, key, subject)
     raise Failure, stopped(answer[:response]) if answer[:is_error]
 
     output = Designs::TurnOutput.parse(answer[:response])
     raise Failure, NO_ANSWER if output.summary.blank?
 
     check_resolved!(worktree) if @conflicts
-    sha, notes = save(turn, repo, task, worktree, output.summary, composition.texts)
+    sha, notes = save(turn, repo, subject, worktree, output.summary)
     finish(turn, output, sha, notes)
   rescue StandardError => e
     fail_turn(turn, e, repo, worktree)
@@ -179,10 +206,10 @@ class Designs::TurnJob < ApplicationJob
   # leaves the turn with no commit.
   # Claude is given nothing, so the turn records no library versions (Ruling
   # P3-R2), whatever an earlier attempt recorded.
-  def bring_up_to_date(turn, repo, task, start)
+  def bring_up_to_date(turn, repo, subject, start)
     turn.update!(library_version_ids: [])
-    notes = repo.synchronize { send_out(turn, repo, task) }
-    head = repo.head(Designs::BranchNames.wip(task))
+    notes = repo.synchronize { send_out(turn, repo, subject) }
+    head = repo.head(subject.wip_branch)
     output = Designs::TurnOutput::Result.new(summary: UP_TO_DATE, contexts: [], missing: [])
     finish(turn, output, (head unless head == start), notes)
   end
@@ -207,24 +234,19 @@ class Designs::TurnJob < ApplicationJob
     file.file? && !file.symlink? && file.binread.match?(CONFLICT_MARKER)
   end
 
-  def checkout(repo, task)
-    repo.task_worktree!(task)
-  end
-
   # Claude's answer to the person's request, as the CLI gives it back. Nothing
   # it is given lives in the worktree: the system prompt is a temp file and
   # the app a temp copy, both gone when it is done.
-  def ask_claude(turn, repo, worktree, key, composition)
-    task = turn.chat_session.task
+  def ask_claude(turn, repo, worktree, key, subject)
     # A resolving turn asks about the files that collide now: master may have
     # moved since "Update from master" named them.
     request = @conflicts ? DesignTurn.resolve_request(@conflicts) : turn.chat_message.content
-    prompt = Designs::Prompt.turn_message(task: task, request: request)
-    with_system_prompt(task.project, composition) do |system_prompt|
-      Designs::AppCopy.open(task.project) do |app|
+    prompt = subject.turn_message(request)
+    with_system_prompt(subject) do |system_prompt|
+      Designs::AppCopy.open(subject.project) do |app|
         cli = self.class.claude_factory.call(
           codebase_path: worktree.to_s, allowed_tools: TOOLS, restricted: true, api_key: key,
-          append_system_prompt_file: system_prompt, add_dirs: [ app ].compact,
+          append_system_prompt_file: system_prompt, add_dirs: [ app, *subject.add_dirs ].compact,
           max_budget_usd: DesignTurn.turn_budget_usd, timeout: DesignTurn.turn_timeout
         )
         converse(cli, turn, prompt, repo, worktree)
@@ -265,9 +287,9 @@ class Designs::TurnJob < ApplicationJob
 
   # The system prompt goes to the CLI as a file in the system's temp folder:
   # in the worktree it would be committed.
-  def with_system_prompt(project, composition)
+  def with_system_prompt(subject)
     Tempfile.create([ PROMPT_PREFIX, ".md" ]) do |file|
-      file.write(Designs::Prompt.system_text(project: project, composition: composition))
+      file.write(subject.system_text)
       file.close
       yield file.path
     end
@@ -287,25 +309,22 @@ class Designs::TurnJob < ApplicationJob
   # published, so a preview that a failed publish left stale refreshes with the
   # next turn, even one that only answers a question. The preview is served
   # from this clone, so a commit is published even when its push failed.
-  def save(turn, repo, task, worktree, summary, library_texts)
-    slug = Designs::BranchNames.slug(task)
-    guard = Designs::LeakGuard.new(forbidden_texts: library_texts,
-                                   secrets: ProjectCredentials.new(task.project).all_secrets)
-    message = "#{slug}: #{summary.lines.first.strip.truncate(72)}"
+  def save(turn, repo, subject, worktree, summary)
+    guard = Designs::LeakGuard.new(forbidden_texts: subject.forbidden_texts, secrets: subject.secrets)
+    message = "#{subject.slug}: #{summary.lines.first.strip.truncate(72)}"
     repo.synchronize do
       result = Designs::Committer.new(repo, guard).commit!(worktree, message: message)
       raise Failure, "Refused: #{result.refusal}" unless result.ok?
 
-      [ result.sha, send_out(turn, repo, task) ]
+      [ result.sha, send_out(turn, repo, subject) ]
     end
   end
 
   # Pushes and publishes the working branch, and returns a note for each of
   # the two that failed. What origin lacks is pushed: this turn's commit, or
   # an earlier turn's whose push failed.
-  def send_out(turn, repo, task)
-    slug = Designs::BranchNames.slug(task)
-    wip = Designs::BranchNames.wip(task)
+  def send_out(turn, repo, subject)
+    wip = subject.wip_branch
     notes = []
     begin
       repo.push!(wip) if repo.unpushed?(wip)
@@ -315,7 +334,7 @@ class Designs::TurnJob < ApplicationJob
     end
     begin
       if repo.commits_ahead(wip).positive?
-        Designs::Publisher.new(task.project, repo).publish!(wip, "wip/#{slug}")
+        Designs::Publisher.new(subject.project, repo).publish!(wip, subject.preview_slot)
       end
     rescue StandardError => e
       log(turn, e, "the preview shows the last turn it took")

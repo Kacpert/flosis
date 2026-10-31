@@ -974,4 +974,64 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       assert_equal [], turn.library_version_ids
     end
   end
+
+  # Plan 5: a project's setup run, on its own session.
+  def setup_turn(project, request = "Recreate the design system")
+    DesignSetup.find_or_create_by!(project: project, status: "active") { |setup| setup.started_by = users(:one) }
+    session = ChatSession.create!(project: project, workspace: project.workspace, user: users(:one), purpose: "designs_setup",
+                                  claude_session_id: SecureRandom.uuid, codebase_path: "/tmp")
+    msg = session.chat_messages.create!(role: "user", content: request, user: users(:one))
+    DesignTurn.create!(chat_session: session, chat_message: msg)
+  end
+
+  test "a setup turn commits to wip/setup on Flosis's key" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      ENV["FLOSIS_DESIGNS_SETUP_API_KEY"] = "sk-flosis"
+      options = nil
+      fake_claude(files: { "design_system/tokens.css" => ":root { --brand: #123456; }" },
+                  reply: "<summary>Tokens read from the app.</summary>", during: ->(opts) { options = opts })
+      turn = run_turn(setup_turn(repo.project), remote)
+      assert turn.succeeded?, turn.error
+      assert_equal "sk-flosis", options[:api_key]
+      assert_equal turn.commit_sha, remote_branch_sha(remote, "wip/setup")
+      assert File.exist?(File.join(@preview_root, repo.project.reload.design_preview_token, "wip", "setup", "design_system", "tokens.css"))
+    ensure
+      ENV.delete("FLOSIS_DESIGNS_SETUP_API_KEY")
+    end
+  end
+
+  test "a setup turn without Flosis's key fails with the way out" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      ENV.delete("FLOSIS_DESIGNS_SETUP_API_KEY")
+      repo.project.update!(anthropic_api_key: "sk-project")
+      fake_claude
+      turn = run_turn(setup_turn(repo.project), remote)
+      assert turn.failed?
+      assert_equal "Flosis's setup key is not configured (FLOSIS_DESIGNS_SETUP_API_KEY).", turn.error
+      assert_empty @calls
+    end
+  end
+
+  test "a turn waits while the crawl runs" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      turn = setup_turn(repo.project)
+      DesignSetup.find_by!(project: repo.project).update!(crawl_requested_at: Time.current, crawled_at: nil)
+      fake_claude
+      assert_enqueued_with(job: Designs::TurnJob, args: [ turn.id ]) { run_turn(turn, remote) }
+      assert turn.reload.queued?
+      run_turn(turn, remote)
+      assert_equal [ "Waiting for the crawl to finish…" ], turn.chat_session.chat_messages.where(kind: "system").pluck(:content)
+      assert_empty @calls
+    end
+  end
+
+  test "turns of one project's setup share one lock, apart from its tasks'" do
+    task_turn = new_turn(tasks(:jira_task))
+    turn = setup_turn(projects(:jira_project))
+    assert_equal "designs-task/designs-setup-#{projects(:jira_project).id}", Designs::TurnJob.new(turn.id).concurrency_key
+    assert_not_equal Designs::TurnJob.new(task_turn.id).concurrency_key, Designs::TurnJob.new(turn.id).concurrency_key
+  end
 end

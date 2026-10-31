@@ -1,5 +1,8 @@
 class ChatSession < ApplicationRecord
-  belongs_to :task
+  # A chat is about a task, or (a setup run's, purpose "designs_setup") about
+  # a whole project: exactly one of the two.
+  belongs_to :task, optional: true
+  belongs_to :project, optional: true
   belongs_to :workspace
   belongs_to :user
 
@@ -14,12 +17,13 @@ class ChatSession < ApplicationRecord
   # the task's brief) or "designs" (make clickable designs for the task; each
   # message starts a DesignTurn). They are separate conversations so they don't
   # pollute each other's context.
-  PURPOSES = %w[refine breakdown brief designs].freeze
+  PURPOSES = %w[refine breakdown brief designs designs_setup].freeze
 
   validates :claude_session_id, presence: true
   validates :codebase_path, presence: true
   validates :status, presence: true, inclusion: { in: %w[active closed] }
   validates :purpose, presence: true, inclusion: { in: PURPOSES }
+  validate :task_or_project
 
   scope :active, -> { where(status: "active") }
 
@@ -32,6 +36,14 @@ class ChatSession < ApplicationRecord
     scope.order(created_at: :desc).first
   end
 
+  # A setup run's chat: the project's one active designs_setup session, made
+  # on first use by the person who started the run.
+  def self.designs_setup_for!(project, user:, codebase_path:)
+    active.where(project: project, purpose: "designs_setup").order(created_at: :desc).first ||
+      create!(project: project, workspace: project.workspace, user: user, purpose: "designs_setup",
+              claude_session_id: SecureRandom.uuid, codebase_path: codebase_path)
+  end
+
   # A task's Designs chat. There is one per task, whoever opens it: its turns
   # share the task's worktree and one Claude session. It is made on first
   # use, by the person who opened it, in the workspace of the task's project.
@@ -39,5 +51,11 @@ class ChatSession < ApplicationRecord
     find_active_for(task, purpose: "designs") ||
       create!(task: task, workspace: task.project.workspace, user: user, purpose: "designs",
               claude_session_id: SecureRandom.uuid, codebase_path: codebase_path)
+  end
+
+  private
+
+  def task_or_project
+    errors.add(:base, "A chat belongs to a task or to a project") unless task_id.present? ^ project_id.present?
   end
 end

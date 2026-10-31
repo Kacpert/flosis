@@ -44,6 +44,7 @@ class Project < ApplicationRecord
 
   # A setup run's inputs (Workshop::DesignSetupInputsController), for staff.
   has_many :design_setup_roles, -> { order(:position, :id) }, dependent: :destroy
+  has_many :design_setups, dependent: :destroy
   has_many_attached :design_materials
   # JSON with no database default, which MySQL could not give (see
   # DesignRequest#links).

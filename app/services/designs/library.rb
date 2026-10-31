@@ -16,7 +16,23 @@ module Designs::Library
   module_function
 
   def compose(project)
-    pieces = [ base, *skills, style_pack(project) ].compact
+    composition_of([ base, *skills, style_pack(project) ].compact)
+  end
+
+  # A setup run's composition: the base prompt and the prompt of the run's
+  # phase (Designs::SetupPrompts names them); no skills and no style pack, as
+  # the run recreates the app as it is. A phase prompt missing from the library
+  # falls back to the text it was seeded with, recording no version.
+  def compose_setup(phase)
+    seed = Designs::SetupPrompts::SEEDS.fetch(phase)
+    entry = LibraryEntry.of_kind("base_prompt").find_by(key: seed[:key])
+    version = entry&.current_version
+    heading = "# Setup phase: #{entry&.name || seed[:name]}"
+    phase_piece = version ? piece(heading, version) : Piece.new(heading: heading, body: seed[:body].strip, version_id: nil)
+    composition_of([ base, phase_piece ])
+  end
+
+  def composition_of(pieces)
     Composition.new(
       text: pieces.map { |piece| "#{piece.heading}\n#{piece.body}" }.join("\n\n"),
       texts: pieces.map(&:body),
