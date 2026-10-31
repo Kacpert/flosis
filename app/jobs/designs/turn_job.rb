@@ -253,13 +253,13 @@ class Designs::TurnJob < ApplicationJob
         log(turn, e, "the commit stays on the local branch")
         notes << "Saved, but not pushed to GitHub: #{reason(e)}. It goes out with the next turn."
       end
-      if repo.commits_ahead(wip).positive?
-        begin
+      begin
+        if repo.commits_ahead(wip).positive?
           Designs::Publisher.new(task.project, repo).publish!(wip, "wip/#{slug}")
-        rescue StandardError => e
-          log(turn, e, "the preview shows the last turn it took")
-          notes << PREVIEW_NOT_UPDATED
         end
+      rescue StandardError => e
+        log(turn, e, "the preview shows the last turn it took")
+        notes << PREVIEW_NOT_UPDATED
       end
       [ result.sha, notes ]
     end
