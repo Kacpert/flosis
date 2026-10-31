@@ -20,8 +20,15 @@ require "tmpdir"
 class Designs::Publisher
   # What may name a slot: master, a task's key, or work in progress under wip/.
   # A slot becomes folders in the document root, so it is never a path of its
-  # own: no dots, no leading or doubled slashes, nothing after a newline.
-  SLOT = %r{\A(master|wip/setup|wip/[A-Za-z0-9_-]+|[A-Za-z0-9_-]+)\z}
+  # own: no dots, no leading or doubled slashes, nothing after a newline. A bare
+  # "wip" is refused too: it would replace the wip/ folder and every work in
+  # progress in it.
+  SLOT = %r{\A(master|wip/setup|wip/[A-Za-z0-9_-]+|(?!wip\z)[A-Za-z0-9_-]+)\z}
+
+  # Anything pushed to the design repo reaches the docroot, where Apache honours nested .htaccess and PHP runs as the Rails user.
+  SERVABLE_EXTENSIONS = %w[
+    html htm css js mjs json map svg png jpg jpeg gif webp avif ico woff woff2 ttf otf txt md pdf mp4 webm
+  ].freeze
 
   # A branch's files could not be unpacked into the document root.
   class Error < StandardError; end
@@ -46,7 +53,8 @@ class Designs::Publisher
   end
 
   # Replaces what the slot shows with the branch as last committed, and returns
-  # the slot's folder. What was uncommitted in a worktree is not published.
+  # the slot's folder. What was uncommitted in a worktree is not published, and
+  # neither is anything but static web files (see SERVABLE_EXTENSIONS).
   #
   # The new copy is unpacked into a folder of its own beside the slot, then the
   # old one is moved aside and the new one renamed into its place: both are
@@ -62,7 +70,8 @@ class Designs::Publisher
       staging = folder.join(".staging-#{SecureRandom.hex(8)}")
       begin
         unpack(sha, into: staging)
-        make_servable!(staging)
+        strip_unservable!(staging)
+        open_up!(staging)
         swap!(staging, folder.join(slot))
       ensure
         FileUtils.rm_rf(staging)
@@ -155,18 +164,48 @@ class Designs::Publisher
     end
   end
 
-  # Only plain files and folders are published. Apache follows a symlink the host
-  # user owns, so one committed to the repo (designs/leak -> /etc/passwd, or the
-  # Rails config) would be served. The links go before any chmod, which would
-  # follow one and open up whatever it points at. Find does not follow links, and
-  # ignore_error: false makes an unreadable folder raise instead of being skipped
-  # with whatever it holds.
-  def make_servable!(dir)
-    entries = Find.find(dir.to_s, ignore_error: false).map { |path| [ path, File.lstat(path) ] }
-    entries.each { |path, stat| File.unlink(path) unless stat.file? || stat.directory? }
-    entries.each do |path, stat|
-      File.chmod(0o755, path) if stat.directory?
-      File.chmod(0o644, path) if stat.file?
+  # Only static web files are published, so everything else is deleted from the
+  # unpacked copy, before anything is chmodded or swapped in:
+  #
+  # - symlinks, and any other entry that is not a plain file or folder. Apache
+  #   follows a symlink the host user owns, so one committed to the repo
+  #   (designs/leak -> /etc/passwd, or the Rails config) would be served, and a
+  #   chmod would follow it too and open up whatever it points at;
+  # - dotfiles and dot folders at any depth (.htaccess, .user.ini, .git*), with
+  #   everything in them;
+  # - files whose extension is not in SERVABLE_EXTENSIONS, in any case.
+  #
+  # Find does not follow links, and ignore_error: false makes an unreadable
+  # folder raise instead of being skipped with whatever it holds. Whatever Find
+  # is told to prune has just been deleted, so it must not look at it again.
+  def strip_unservable!(dir)
+    Find.find(dir.to_s, ignore_error: false) do |path|
+      next if path == dir.to_s
+
+      name = File.basename(path)
+      stat = File.lstat(path)
+      if stat.directory?
+        next unless name.start_with?(".")
+
+        FileUtils.rm_r(path)
+      else
+        next if stat.file? && servable?(name)
+
+        File.unlink(path)
+      end
+      Find.prune
+    end
+  end
+
+  def servable?(name)
+    !name.start_with?(".") && SERVABLE_EXTENSIONS.include?(File.extname(name).delete_prefix(".").downcase)
+  end
+
+  # Folders 0755 and files 0644, whatever umask made them: Apache on the host
+  # cannot read what is 0640, and nothing served needs an executable bit.
+  def open_up!(dir)
+    Find.find(dir.to_s, ignore_error: false) do |path|
+      File.chmod(File.lstat(path).directory? ? 0o755 : 0o644, path)
     end
   end
 

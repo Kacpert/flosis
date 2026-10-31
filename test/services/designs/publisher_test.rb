@@ -54,7 +54,8 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     with_design_remote do |repo, _|
       seed_master(repo)
       publisher = Designs::Publisher.new(repo.project, repo)
-      %w[../x wip/../../x master/../x .staging x/y].each do |slot|
+      # A bare wip would replace the wip/ folder, and every work in progress with it.
+      %w[../x wip/../../x master/../x .staging x/y wip].each do |slot|
         assert_raises(ArgumentError, slot) { publisher.publish!("master", slot) }
       end
     end
@@ -94,6 +95,15 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     assert_equal Pathname(Dir.home).join("previews"), Designs::Publisher.root
   end
 
+  test "the slot pattern takes master, a key, wip/setup and wip/<key>, but not the wip folder itself or a path" do
+    %w[master REC-1 task-12 wip/setup wip/REC-1 wip/wip wip-1 wipe].each do |slot|
+      assert_match Designs::Publisher::SLOT, slot
+    end
+    %w[wip wip/ /wip wip//x ../x].each do |slot|
+      assert_no_match Designs::Publisher::SLOT, slot
+    end
+  end
+
   test "a slot is matched whole: a newline cannot hide a path behind a valid line" do
     publisher = Designs::Publisher.new(projects(:jira_project), nil)
     [ "master\n", "master\n../../x", "x\nwip/y" ].each do |slot|
@@ -112,9 +122,9 @@ class Designs::PublisherTest < ActiveSupport::TestCase
   test "every folder and file Apache serves is open to it, whatever umask the host runs with" do
     with_design_remote do |repo, _|
       seed_master(repo, { "designs/jobs.html" => "<p>Jobs</p>" })
-      script = repo.root.join("runtime/run.sh")
+      script = repo.root.join("runtime/run.js")
       FileUtils.mkdir_p(script.dirname)
-      File.write(script, "#!/bin/sh\n")
+      File.write(script, "#!/usr/bin/env node\n")
       File.chmod(0o755, script)
       repo.stage_all!(repo.root)
       repo.commit!(repo.root, message: "an executable")
@@ -131,7 +141,7 @@ class Designs::PublisherTest < ActiveSupport::TestCase
       master = with_umask(0o027) { publisher.publish!("master", "master") }
       assert_equal [ "designs", "runtime" ], Dir.children(master).sort
       [ master, master.join("designs"), master.join("runtime") ].each { |folder| assert_equal "755", mode.(folder), folder.to_s }
-      [ master.join("designs/jobs.html"), master.join("runtime/run.sh"), wip.join("designs/jobs.html") ].each do |file|
+      [ master.join("designs/jobs.html"), master.join("runtime/run.js"), wip.join("designs/jobs.html") ].each do |file|
         assert_equal "644", mode.(file), file.to_s
       end
     end
@@ -165,6 +175,44 @@ class Designs::PublisherTest < ActiveSupport::TestCase
       ensure
         FileUtils.remove_entry(outside)
       end
+    end
+  end
+
+  test "only static web files are published: no dotfiles, no dot folders, no scripts" do
+    with_design_remote do |repo, _|
+      seed_master(repo, {
+        "README.md" => "hi\n",
+        "designs/page.html" => "<p>page</p>",
+        "designs/.htaccess" => "AddHandler application/x-httpd-php .html\n",
+        "designs/.config.json" => "{}\n",
+        "designs/x/.user.ini" => "auto_prepend_file=/etc/passwd\n",
+        "designs/shell.php" => "<?php system($_GET['c']);\n",
+        "runtime/a.cgi" => "#!/bin/sh\n",
+        "design_system/.hidden/a.css" => "a { color: red }\n",
+        "design_system/tokens.css" => "b { color: blue }\n",
+        "designs/deep/.cache/inner/c.css" => "c { color: green }\n"
+      })
+
+      dir = Designs::Publisher.new(repo.project, repo).publish!("master", "master")
+
+      assert_equal [ "README.md", "design_system/tokens.css", "designs/page.html" ], published_files(dir)
+      assert_not dir.join("design_system/.hidden").exist?, "a dot folder was published"
+      assert_not dir.join("designs/deep/.cache").exist?, "a nested dot folder was published"
+    end
+  end
+
+  test "the static web kinds are published whatever the case of their extension, every other kind is not" do
+    served = %w[html htm css js mjs json map svg png jpg jpeg gif webp avif ico woff woff2 ttf otf txt md pdf mp4 webm]
+    refused = %w[php phtml php5 phar cgi pl py rb sh exe zip gz xml yml ts jsx scss wasm]
+    kept = served.map { |ext| "designs/file.#{ext}" } + %w[designs/UPPER.HTML designs/Mixed.JpG designs/app.min.js]
+    dropped = refused.map { |ext| "designs/file.#{ext}" } + %w[designs/LICENSE designs/archive.tar.gz]
+
+    with_design_remote do |repo, _|
+      seed_master(repo, (kept + dropped).index_with { "x" })
+
+      dir = Designs::Publisher.new(repo.project, repo).publish!("master", "master")
+
+      assert_equal kept.sort, published_files(dir)
     end
   end
 
@@ -340,6 +388,11 @@ class Designs::PublisherTest < ActiveSupport::TestCase
   end
 
   private
+
+  # Every file in a slot, relative to it, dotfiles included.
+  def published_files(dir)
+    Find.find(dir.to_s).select { |path| File.file?(path) }.map { |path| Pathname(path).relative_path_from(dir).to_s }.sort
+  end
 
   # What `probe` finds on entering and on leaving the repo's lock. Only the
   # outermost hold counts: the git calls inside take the lock again.
