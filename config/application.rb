@@ -29,7 +29,7 @@ module Gold
     # constant names of a plain script and break eager loading in production.
     # lib/designs_template is the design repo template (Designs::Template):
     # HTML, CSS, JS and ERB files, with no Ruby code to load.
-    config.autoload_lib(ignore: %w[assets tasks mcp designs_template])
+    config.autoload_lib(ignore: %w[assets tasks mcp designs_template designs_crawler])
 
     # Configuration for the application, engines, and railties goes here.
     #

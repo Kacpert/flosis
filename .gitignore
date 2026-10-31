@@ -31,6 +31,7 @@ tmp
 # "tailwindcss"`), and assets are precompiled locally by deploy:compile_assets_locally,
 # so the server never needs this directory either.
 /node_modules/
+/lib/designs_crawler/node_modules/
 
 # Active Storage blobs written at runtime
 /storage/*
