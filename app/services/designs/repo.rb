@@ -205,6 +205,16 @@ class Designs::Repo
     end
   end
 
+  # Whether the checkout's index has a file at exactly this path: what the
+  # next commit would hold, once stage_all! has run. ls-files also lists what
+  # sits in a folder of that name, which does not count.
+  def indexed?(dir, path)
+    synchronize do
+      dir = own_checkout!(dir)
+      git("ls-files", "-z", "--", ":(literal)#{path}", chdir: dir).split("\0").include?(path)
+    end
+  end
+
   # Back to the checkout's last commit: edits undone and new files removed.
   # Files the repo ignores stay.
   def discard!(dir)

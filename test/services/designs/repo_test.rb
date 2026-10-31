@@ -643,6 +643,23 @@ class Designs::RepoTest < ActiveSupport::TestCase
     end
   end
 
+  test "indexed? sees a file in a checkout's index at exactly the path given" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      assert repo.indexed?(dir, "runtime/flosis.js")
+      assert_not repo.indexed?(dir, "runtime"), "a folder is not a file"
+      assert_not repo.indexed?(dir, "runtime/flosis")
+      assert_not repo.indexed?(dir, "runtime/*.js"), "a path, not a pattern"
+
+      dir.join("runtime/flosis.js").delete
+      assert repo.indexed?(dir, "runtime/flosis.js"), "deleted but not staged yet"
+      repo.stage_all!(dir)
+      assert_not repo.indexed?(dir, "runtime/flosis.js")
+      assert repo.indexed?(repo.root, "runtime/flosis.js"), "each checkout has an index of its own"
+    end
+  end
+
   test "remove_worktree! deletes a worktree's folder and git's record of it, so the branch is checked out afresh" do
     with_design_remote do |repo, _|
       seed_master(repo)

@@ -9,6 +9,11 @@ class Designs::Committer
     def ok? = violations.empty?
   end
 
+  # Every page loads the runtime, and ensure_clone! refuses a master without
+  # it as somebody else's repository: one commit that dropped it, once
+  # approved, would lock the project out of its own design repo.
+  NO_RUNTIME = Designs::LeakGuard::Violation.new(path: Designs::Repo::RUNTIME, reason: "would delete the design runtime")
+
   def initialize(repo, guard)
     @repo = repo
     @guard = guard
@@ -20,6 +25,7 @@ class Designs::Committer
     # re-entrant: a caller that holds it already is not affected.
     @repo.synchronize do
       violations = @guard.check(@repo.stage_all!(dir))
+      violations += [ NO_RUNTIME ] unless @repo.indexed?(dir, Designs::Repo::RUNTIME)
       if violations.any?
         @repo.discard!(dir)
         Result.new(sha: nil, violations: violations)

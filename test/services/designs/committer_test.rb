@@ -91,6 +91,41 @@ class Designs::CommitterTest < ActiveSupport::TestCase
     end
   end
 
+  # Ruling P2-R3. Every page loads the runtime, and ensure_clone! refuses a
+  # master without it: approved, one such commit would lock the project out
+  # of its own design repo.
+  test "a turn that deletes or renames the runtime is refused, and the runtime is put back" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      before = repo.head("wip/REC-1")
+      runtime = dir.join(Designs::Repo::RUNTIME)
+      [ -> { runtime.delete }, -> { File.rename(runtime, dir.join("runtime/flosis-old.js")) } ].each do |change|
+        change.call
+        File.write(dir.join("index.html"), "<h1>Hi</h1>")
+        result = committer(repo).commit!(dir, message: "Turn 1")
+        assert_equal [ [ "runtime/flosis.js", "would delete the design runtime" ] ],
+                     result.violations.map { [ _1.path, _1.reason ] }
+        assert_nil result.sha
+        assert_equal before, repo.head("wip/REC-1")
+        assert_equal "// the runtime\n", runtime.read
+        assert_not dir.join("index.html").exist?
+        assert_not dir.join("runtime/flosis-old.js").exist?
+      end
+    end
+  end
+
+  test "a turn may edit the runtime, as long as it stays" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      File.write(dir.join(Designs::Repo::RUNTIME), "// the runtime, extended\n")
+      result = committer(repo).commit!(dir, message: "Turn 1")
+      assert result.ok?
+      assert_equal repo.head("wip/REC-1"), result.sha
+    end
+  end
+
   test "a turn that changed nothing commits nothing and is not a refusal" do
     with_design_remote do |repo, _|
       seed_master(repo)
