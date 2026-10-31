@@ -22,6 +22,44 @@ class Designs::TurnOutputTest < ActiveSupport::TestCase
     assert_equal "a" * 300, Designs::TurnOutput.parse("  #{"a" * 500}  ").summary
   end
 
+  # Ruling P2-R16: the chat never shows a protocol tag. The prose of a reply
+  # with no summary is its summary, and the blocks are left out of it, tags and
+  # contents both (the context and missing blocks reach the chat on their own).
+  test "a reply without a summary is its prose, with no context or missing block in it" do
+    result = Designs::TurnOutput.parse(<<~TEXT)
+      Added the Archived tab.
+      <context>Plan: Free — archive hidden</context>
+      <missing>What does a candidate see on an archived offer?</missing>
+    TEXT
+    assert_equal "Added the Archived tab.", result.summary
+    assert_equal [ "Plan: Free — archive hidden" ], result.contexts
+    assert_equal [ "What does a candidate see on an archived offer?" ], result.missing
+  end
+
+  test "prose on both sides of a block is kept and the block is gone" do
+    reply = "Added the tab.\n<missing>Can an offer be restored?</missing>\nIt lists offers newest first."
+    assert_equal "Added the tab.\n\nIt lists offers newest first.", Designs::TurnOutput.parse(reply).summary
+  end
+
+  test "an empty summary block is no summary, and no tag shows either" do
+    assert_equal "Done.", Designs::TurnOutput.parse("Done.\n<summary>  </summary>").summary
+  end
+
+  test "a reply made of blocks only has an empty summary" do
+    result = Designs::TurnOutput.parse(<<~TEXT)
+      <context>Plan: Free — archive hidden</context>
+      <missing>Can an offer be restored?</missing>
+    TEXT
+    assert_equal "", result.summary
+    assert_equal [ "Plan: Free — archive hidden" ], result.contexts
+    assert_equal [ "Can an offer be restored?" ], result.missing
+  end
+
+  test "the 300 characters are counted without the blocks" do
+    reply = "<missing>#{"q" * 400}</missing>#{"p" * 500}"
+    assert_equal "p" * 300, Designs::TurnOutput.parse(reply).summary
+  end
+
   test "a summary keeps its lines, and the other blocks are trimmed, may span lines and are dropped when empty" do
     result = Designs::TurnOutput.parse(<<~TEXT)
       <summary>
