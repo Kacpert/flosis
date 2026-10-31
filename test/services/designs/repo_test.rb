@@ -750,4 +750,59 @@ class Designs::RepoTest < ActiveSupport::TestCase
     assert_equal Pathname(project.designs_dir).join("design-repo"), root
     assert_not root.to_s.start_with?(Project::ELVIUM_LEGACY_DIR)
   end
+
+  test "merge_master_into! makes a merge commit when nothing collides" do
+    with_design_remote do |repo, _|
+      seed_master(repo, { "designs/a.html" => "a\n" })
+      dir = repo.worktree!("wip/REC-1")
+      commit_files(repo, dir, { "designs/b.html" => "b\n" })
+      commit_files(repo, repo.root, { "designs/c.html" => "c\n" })
+      assert_equal [], repo.merge_master_into!(dir)
+      assert dir.join("designs/c.html").exist?
+      assert_equal [ repo.head("master") ],
+                   GitRunner.run!("rev-list", "--parents", "-1", "HEAD", chdir: dir).split.drop(2)
+    end
+  end
+
+  test "merge_master_into! names the files that collide and leaves them marked for resolving" do
+    with_design_remote do |repo, _|
+      seed_master(repo, { "designs/a.html" => "base\n", "designs/b.html" => "base\n" })
+      dir = repo.worktree!("wip/REC-1")
+      commit_files(repo, dir, { "designs/a.html" => "task\n", "designs/b.html" => "task\n" })
+      commit_files(repo, repo.root, { "designs/a.html" => "master\n", "designs/b.html" => "master\n", "designs/c.html" => "c\n" })
+      assert_equal %w[designs/a.html designs/b.html], repo.merge_master_into!(dir).sort
+      assert_match(/^<<<<<<< /, dir.join("designs/a.html").read)
+      assert dir.join("designs/c.html").exist?
+      assert GitRunner.run!("rev-parse", "--verify", "--quiet", "MERGE_HEAD", chdir: dir).present?
+    end
+  end
+
+  test "commit! records a merge in progress whose result is the branch as it was" do
+    with_design_remote do |repo, _|
+      seed_master(repo, { "designs/a.html" => "base\n" })
+      dir = repo.worktree!("wip/REC-1")
+      wip = commit_files(repo, dir, { "designs/a.html" => "task\n" })
+      commit_files(repo, repo.root, { "designs/a.html" => "master\n" })
+      repo.merge_master_into!(dir)
+      dir.join("designs/a.html").write("task\n")
+      repo.stage_all!(dir)
+      sha = repo.commit!(dir, message: "keep the task's version")
+      assert_equal [ wip, repo.head("master") ], GitRunner.run!("rev-list", "--parents", "-1", sha, chdir: dir).split.drop(1)
+    end
+  end
+
+  test "an atomic push updates no ref on the remote when one of them is refused" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      first = commit_files(repo, dir, { "designs/a.html" => "1" })
+      repo.tag!("approved/REC-1/1", at: first)
+      repo.push!("approved/REC-1/1")
+      second = commit_files(repo, dir, { "designs/a.html" => "2" })
+      GitRunner.run!("tag", "--force", "approved/REC-1/1", second, chdir: repo.root)
+      repo.point!("design/REC-1", to: second)
+      assert_raises(GitRunner::Error) { repo.push!("design/REC-1", "approved/REC-1/1", atomic: true) }
+      assert_nil remote_branch_sha(remote, "design/REC-1")
+    end
+  end
 end

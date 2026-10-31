@@ -806,4 +806,108 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       assert_empty ChatMessage.where(role: "assistant", chat_session: turns.map(&:chat_session))
     end
   end
+
+  # Ruling P2-R25: what "Update from master" starts when master changed the
+  # same files. The turn merges master again itself, after its clean start.
+  def resolve_turn(task, paths = [ "designs/a.html" ])
+    session = ChatSession.create!(task: task, workspace: task.project.workspace, user: users(:one), purpose: "designs",
+                                  claude_session_id: SecureRandom.uuid, codebase_path: "/tmp")
+    msg = session.chat_messages.create!(role: "user", content: DesignTurn.resolve_request(paths), user: users(:one))
+    DesignTurn.create!(chat_session: session, chat_message: msg, kind: "resolve_conflicts")
+  end
+
+  # The task's branch and master, each with its own version of designs/a.html
+  # (or with the files given), master pushed.
+  def diverge(repo, task_files: { "designs/a.html" => "task\n" }, master_files: { "designs/a.html" => "master\n" })
+    commit_files(repo, repo.root, { "designs/a.html" => "base\n" })
+    repo.push!("master")
+    wip = commit_files(repo, repo.worktree!("wip/REC-1"), task_files)
+    commit_files(repo, repo.root, master_files)
+    repo.push!("master")
+    wip
+  end
+
+  def parents(repo, sha)
+    GitRunner.run!("rev-list", "--parents", "-1", sha, chdir: repo.root).split.drop(1)
+  end
+
+  test "a resolving turn whose merge is clean by now brings the branch up to date without Claude" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      wip = diverge(repo, task_files: { "designs/b.html" => "b\n" }, master_files: { "designs/c.html" => "c\n" })
+      fake_claude
+
+      turn = run_turn(resolve_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_empty @calls
+      assert_equal [ wip, repo.head("master") ], parents(repo, turn.commit_sha)
+      assert_equal turn.commit_sha, remote_branch_sha(remote, "wip/REC-1")
+      assert File.exist?(File.join(@preview_root, repo.project.reload.design_preview_token, "wip", "REC-1", "designs", "c.html"))
+      assert_equal [ [ "summary", "Brought up to date with master." ] ], assistant_messages(turn).pluck(:kind, :content)
+    end
+  end
+
+  test "a resolving turn has Claude resolve the files that collide, and commits the merge" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      wip = diverge(repo)
+      marked = nil
+      fake_claude(files: { "designs/a.html" => "task and master\n" }, reply: "<summary>Kept both.</summary>")
+      # Claude is handed the file with the markers in it, and asked about it
+      # by name.
+      fake = Designs::TurnJob.claude_factory
+      Designs::TurnJob.claude_factory = lambda do |**opts|
+        marked = File.read(File.join(opts[:codebase_path], "designs/a.html"))
+        fake.call(**opts)
+      end
+
+      turn = run_turn(resolve_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_match(/^<<<<<<< /, marked)
+      assert_includes @calls.first.last[:prompt], "Resolve the merge conflict markers in: designs/a.html."
+      assert_equal [ wip, repo.head("master") ], parents(repo, turn.commit_sha)
+      assert_equal turn.commit_sha, remote_branch_sha(remote, "wip/REC-1")
+      assert_equal "task and master\n", GitRunner.run!("show", "refs/heads/wip/REC-1:designs/a.html", chdir: remote)
+    end
+  end
+
+  test "conflict markers left in a file fail the turn, and nothing of the merge is kept" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      wip = diverge(repo)
+      fake_claude(reply: "<summary>Done.</summary>")
+
+      turn = run_turn(resolve_turn(task), remote)
+
+      assert turn.failed?
+      assert_equal "Conflict markers are still in: designs/a.html", turn.error
+      assert_equal wip, repo.head("wip/REC-1")
+      dir = repo.worktree!("wip/REC-1")
+      assert_equal "task\n", dir.join("designs/a.html").read
+      assert_raises(GitRunner::Error) { GitRunner.run!("rev-parse", "--verify", "--quiet", "MERGE_HEAD", chdir: dir) }
+    end
+  end
+
+  test "a resolving turn run again as a new session merges master again first" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      wip = diverge(repo)
+      now = 1_000.0
+      Designs::TurnJob.clock = -> { now }
+      scripted_claude do |_call, _keywords, opts|
+        raise ClaudeCliService::ClaudeCliError, "Failed to parse Claude response" if @calls.one?
+
+        File.write(File.join(opts[:codebase_path], "designs/a.html"), "resolved\n")
+        { session_id: "s", response: "<summary>Resolved.</summary>" }
+      end
+
+      turn = run_turn(resolve_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_equal %i[start_session start_session], @calls.map(&:first)
+      assert_equal [ wip, repo.head("master") ], parents(repo, turn.commit_sha)
+    end
+  end
 end

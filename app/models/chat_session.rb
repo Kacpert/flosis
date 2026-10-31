@@ -31,4 +31,13 @@ class ChatSession < ApplicationRecord
     scope = scope.where(workspace_id: user.workspaces.pluck(:id)) if user
     scope.order(created_at: :desc).first
   end
+
+  # A task's Designs chat. There is one per task, whoever opens it: its turns
+  # share the task's worktree and one Claude session. It is made on first
+  # use, by the person who opened it, in the workspace of the task's project.
+  def self.designs_for!(task, user:, codebase_path:)
+    find_active_for(task, purpose: "designs") ||
+      create!(task: task, workspace: task.project.workspace, user: user, purpose: "designs",
+              claude_session_id: SecureRandom.uuid, codebase_path: codebase_path)
+  end
 end

@@ -14,6 +14,12 @@ require "tmpdir"
 # the branch stays where the last good turn left it. Once the commit is made,
 # the turn has succeeded, and a push or a publish that fails is a note in the
 # chat.
+#
+# A resolve_conflicts turn ("Update from master" found master changed the same
+# files) merges master in again after its clean start. If the merge goes
+# through by itself, the branch is brought up to date without Claude;
+# otherwise Claude resolves the conflict markers, and the turn fails if any
+# are left.
 class Designs::TurnJob < ApplicationJob
   queue_as :designs
 
@@ -30,6 +36,11 @@ class Designs::TurnJob < ApplicationJob
   # What the publish failed on can name the preview folder, so it goes to the
   # log only.
   PREVIEW_NOT_UPDATED = "Saved, but the preview could not be updated. It refreshes with the next turn.".freeze
+  UP_TO_DATE = "Brought up to date with master.".freeze
+
+  # A line git writes into a file whose merge collided. The separator must be
+  # the whole line: a longer row of "=" underlines a Markdown heading.
+  CONFLICT_MARKER = /^(?:<{7} |>{7} |={7}\r?$)/
 
   # The system prompt's temp files are named after it, so that the ones killed
   # turns left behind can be found.
@@ -94,9 +105,9 @@ class Designs::TurnJob < ApplicationJob
     raise Failure, NO_KEY unless key
 
     worktree = checkout(repo, task)
-    # A turn a deploy killed left its edits here. The person saw it fail, and
-    # the next commit must not carry them.
-    repo.discard!(worktree)
+    start = repo.head(Designs::BranchNames.wip(task))
+    start_clean(turn, repo, worktree)
+    return bring_up_to_date(turn, repo, task, start) if @conflicts == []
 
     answer = ask_claude(turn, repo, worktree, key)
     raise Failure, stopped(answer[:response]) if answer[:is_error]
@@ -104,11 +115,9 @@ class Designs::TurnJob < ApplicationJob
     output = Designs::TurnOutput.parse(answer[:response])
     raise Failure, NO_ANSWER if output.summary.blank?
 
+    check_resolved!(worktree) if @conflicts
     sha, notes = save(turn, repo, task, worktree, output.summary)
-    DesignTurn.transaction do
-      post_reply(turn.chat_session, output, notes)
-      turn.succeed!(commit_sha: sha)
-    end
+    finish(turn, output, sha, notes)
   rescue StandardError => e
     fail_turn(turn, e, repo, worktree)
   end
@@ -137,6 +146,47 @@ class Designs::TurnJob < ApplicationJob
   def stopped(text)
     text = text.to_s.strip
     text.empty? ? NO_ANSWER : "Claude stopped with an error: #{text.first(300)}"
+  end
+
+  # A turn starts from its branch's last commit: a turn a deploy killed left
+  # its edits here, the person saw it fail, and the next commit must not carry
+  # them. A resolve_conflicts turn then merges master in again, and
+  # @conflicts names the files that collided ([] when none did): nothing of a
+  # merge waits in the worktree between turns, where a turn queued before
+  # this one would have committed the markers.
+  def start_clean(turn, repo, worktree)
+    repo.discard!(worktree)
+    @conflicts = repo.merge_master_into!(worktree) if turn.resolve_conflicts?
+  end
+
+  # Master went in by itself, so there is nothing for Claude to do. The merge
+  # commit goes out as a turn's commit does; master that had nothing new
+  # leaves the turn with no commit.
+  def bring_up_to_date(turn, repo, task, start)
+    notes = repo.synchronize { send_out(turn, repo, task) }
+    head = repo.head(Designs::BranchNames.wip(task))
+    output = Designs::TurnOutput::Result.new(summary: UP_TO_DATE, contexts: [], missing: [])
+    finish(turn, output, (head unless head == start), notes)
+  end
+
+  def finish(turn, output, sha, notes)
+    DesignTurn.transaction do
+      post_reply(turn.chat_session, output, notes)
+      turn.succeed!(commit_sha: sha)
+    end
+  end
+
+  # Every file that collided must be free of conflict markers before the
+  # merge is committed. The turn fails otherwise, and putting the worktree
+  # back aborts the merge.
+  def check_resolved!(worktree)
+    left = @conflicts.select { |path| marked?(worktree.join(path)) }
+    raise Failure, "Conflict markers are still in: #{left.join(", ")}" if left.any?
+  end
+
+  # A file Claude deleted has no markers left in it.
+  def marked?(file)
+    file.file? && !file.symlink? && file.binread.match?(CONFLICT_MARKER)
   end
 
   # The task's worktree, made on first use: from its working branch, here or
@@ -168,7 +218,10 @@ class Designs::TurnJob < ApplicationJob
   # the app a temp copy, both gone when it is done.
   def ask_claude(turn, repo, worktree, key)
     task = turn.chat_session.task
-    prompt = Designs::Prompt.turn_message(task: task, request: turn.chat_message.content)
+    # A resolving turn asks about the files that collide now: master may have
+    # moved since "Update from master" named them.
+    request = @conflicts ? DesignTurn.resolve_request(@conflicts) : turn.chat_message.content
+    prompt = Designs::Prompt.turn_message(task: task, request: request)
     with_system_prompt(task.project) do |system_prompt|
       Designs::AppCopy.open(task.project) do |app|
         cli = self.class.claude_factory.call(
@@ -190,9 +243,9 @@ class Designs::TurnJob < ApplicationJob
   # leaves it), and fails at once on either. It says so only on its stderr,
   # which ClaudeCliError does not carry, so any failure but a timeout within
   # RETRY_WINDOW is taken for one of these: the turn is run once more as a new
-  # session, under a new id the chat keeps, from the branch's last commit
-  # rather than from what the failed run left. A run that failed later, or
-  # went past its time limit, is not run again.
+  # session, under a new id the chat keeps, from a clean start (master merged
+  # in again for a resolving turn) rather than from what the failed run left.
+  # A run that failed later, or went past its time limit, is not run again.
   def converse(cli, turn, prompt, repo, worktree)
     session = turn.chat_session
     started = self.class.clock.call
@@ -207,7 +260,7 @@ class Designs::TurnJob < ApplicationJob
     raise if self.class.clock.call - started > RETRY_WINDOW.to_f
 
     log(turn, e, "starting a new Claude session")
-    repo.discard!(worktree)
+    start_clean(turn, repo, worktree)
     session.update!(claude_session_id: SecureRandom.uuid)
     cli.start_session(prompt: prompt, new_session_id: session.claude_session_id)
   end
@@ -238,7 +291,6 @@ class Designs::TurnJob < ApplicationJob
   # from this clone, so a commit is published even when its push failed.
   def save(turn, repo, task, worktree, summary)
     slug = Designs::BranchNames.slug(task)
-    wip = Designs::BranchNames.wip(task)
     guard = Designs::LeakGuard.new(forbidden_texts: [ Designs::Prompt::BASE ],
                                    secrets: ProjectCredentials.new(task.project).all_secrets)
     message = "#{slug}: #{summary.lines.first.strip.truncate(72)}"
@@ -246,30 +298,32 @@ class Designs::TurnJob < ApplicationJob
       result = Designs::Committer.new(repo, guard).commit!(worktree, message: message)
       raise Failure, "Refused: #{result.refusal}" unless result.ok?
 
-      notes = []
-      begin
-        repo.push!(wip) if unpushed?(repo, wip)
-      rescue StandardError => e
-        log(turn, e, "the commit stays on the local branch")
-        notes << "Saved, but not pushed to GitHub: #{reason(e)}. It goes out with the next turn."
-      end
-      begin
-        if repo.commits_ahead(wip).positive?
-          Designs::Publisher.new(task.project, repo).publish!(wip, "wip/#{slug}")
-        end
-      rescue StandardError => e
-        log(turn, e, "the preview shows the last turn it took")
-        notes << PREVIEW_NOT_UPDATED
-      end
-      [ result.sha, notes ]
+      [ result.sha, send_out(turn, repo, task) ]
     end
   end
 
-  # Whether the working branch has commits origin lacks: this turn's, or an
-  # earlier turn's whose push failed. A branch with no commits of its own (a
-  # fresh one whose first turn changed nothing) has nothing to take out.
-  def unpushed?(repo, wip)
-    repo.head(wip) != repo.remote_head(wip) && repo.commits_ahead(wip).positive?
+  # Pushes and publishes the working branch, and returns a note for each of
+  # the two that failed. What origin lacks is pushed: this turn's commit, or
+  # an earlier turn's whose push failed.
+  def send_out(turn, repo, task)
+    slug = Designs::BranchNames.slug(task)
+    wip = Designs::BranchNames.wip(task)
+    notes = []
+    begin
+      repo.push!(wip) if repo.unpushed?(wip)
+    rescue StandardError => e
+      log(turn, e, "the commit stays on the local branch")
+      notes << "Saved, but not pushed to GitHub: #{reason(e)}. It goes out with the next turn."
+    end
+    begin
+      if repo.commits_ahead(wip).positive?
+        Designs::Publisher.new(task.project, repo).publish!(wip, "wip/#{slug}")
+      end
+    rescue StandardError => e
+      log(turn, e, "the preview shows the last turn it took")
+      notes << PREVIEW_NOT_UPDATED
+    end
+    notes
   end
 
   # An error's message as a clause: git's ends in a newline, and often in a

@@ -33,6 +33,16 @@ class DesignTurn < ApplicationRecord
     define_method("#{s}?") { status == s }
   end
 
+  def resolve_conflicts?
+    kind == "resolve_conflicts"
+  end
+
+  # What a resolve_conflicts turn asks for, naming the files master changed
+  # too.
+  def self.resolve_request(paths)
+    "Resolve the merge conflict markers in: #{paths.join(", ")}. Keep this task's intent and master's newer changes."
+  end
+
   # A turn that starts again (a retry, or a job delivered a second time after
   # a deploy killed the first) begins with a clean slate: a running turn has no
   # finish time and no error from its last attempt.

@@ -89,6 +89,11 @@ class Designs::Repo
     base_dir.join("design-worktrees")
   end
 
+  # Where worktree! checks a branch out, whether or not it has yet.
+  def worktree_path(branch)
+    worktrees_root.join(branch.gsub("/", "__"))
+  end
+
   # Holds an exclusive flock on design-repo.lock for the block. It is
   # re-entrant within a thread, whichever Repo of the project asks, and every
   # method below runs inside it. The lock file sits beside the clone, so
@@ -194,11 +199,14 @@ class Designs::Repo
   end
 
   # The new commit's sha, or nil when nothing is staged. The author is the
-  # Flosis identity the clone was configured with.
+  # Flosis identity the clone was configured with. A merge in progress is
+  # committed even when its result is the branch as it was (each conflict
+  # resolved the branch's way): left uncommitted, the next discard! would
+  # abort it, and master would never count as merged in.
   def commit!(dir, message:)
     synchronize do
       dir = own_checkout!(dir)
-      next if git("diff", "--cached", "--name-only", chdir: dir).empty?
+      next if git("diff", "--cached", "--name-only", chdir: dir).empty? && !merging?(dir)
 
       git("commit", "--message", message, chdir: dir)
       git("rev-parse", "HEAD", chdir: dir).strip
@@ -243,8 +251,17 @@ class Designs::Repo
     end
   end
 
-  def push!(*refs)
-    synchronize { git("push", "origin", *refs, token: token) }
+  # With atomic: true the remote takes every ref or none: an approval's
+  # design branch, master and tag must never disagree on GitHub.
+  def push!(*refs, atomic: false)
+    synchronize { git("push", *("--atomic" if atomic), "origin", *refs, token: token) }
+  end
+
+  # Whether the branch has commits origin lacks. A branch with no commits of
+  # its own beside master (a fresh one nothing was committed on) has nothing
+  # to take out.
+  def unpushed?(branch)
+    synchronize { head(branch) != remote_head(branch) && commits_ahead(branch).positive? }
   end
 
   # The local branch's sha, or nil when there is no such branch.
@@ -263,6 +280,25 @@ class Designs::Repo
 
   def point!(branch, to:)
     synchronize { git("branch", "--force", branch, to) }
+  end
+
+  # Merges master, as the clone has it, into the branch checked out in a
+  # worktree, and returns the paths that collide: [] once the merge is
+  # committed (or master had nothing new), else the merge is left in progress
+  # with conflict markers in those files, for a turn to resolve and commit.
+  # discard! aborts it.
+  def merge_master_into!(dir)
+    synchronize do
+      dir = own_checkout!(dir)
+      git("merge", "--no-edit", "refs/heads/#{MASTER}", chdir: dir)
+      []
+    rescue GitRunner::Error
+      # As in merge_into_master!: a conflict is told apart from any other
+      # failure by the merge waiting to be finished.
+      raise unless merging?(dir)
+
+      git("diff", "--name-only", "--diff-filter=U", "-z", chdir: dir).split("\0")
+    end
   end
 
   # Merges a branch into master as the clone has it, with a merge commit, and
@@ -291,6 +327,20 @@ class Designs::Repo
 
   def tag!(name, at:)
     synchronize { git("tag", name, at) }
+  end
+
+  def delete_tag!(name)
+    synchronize { git("tag", "--delete", name) }
+  end
+
+  def delete_branch!(branch)
+    synchronize { git("branch", "--delete", "--force", branch) }
+  end
+
+  # master back where origin's was at the last fetch, with whatever was
+  # committed on it here since: what ensure_clone! does, without the fetch.
+  def reset_master!
+    synchronize { git("checkout", "--force", "-B", MASTER, "refs/remotes/origin/#{MASTER}") }
   end
 
   def tags(pattern)
@@ -336,10 +386,6 @@ class Designs::Repo
     rescue Errno::ENOENT
       nil # gone in the meantime
     end
-  end
-
-  def worktree_path(branch)
-    worktrees_root.join(branch.gsub("/", "__"))
   end
 
   def token
@@ -477,5 +523,14 @@ class Designs::Repo
 
   def ref?(ref)
     !sha(ref).nil?
+  end
+
+  # A merge waits in the checkout for its conflicts to be resolved.
+  # MERGE_HEAD is the checkout's own ref, a worktree's included.
+  def merging?(dir)
+    git("rev-parse", "--verify", "--quiet", "MERGE_HEAD", chdir: dir)
+    true
+  rescue GitRunner::Error
+    false
   end
 end
