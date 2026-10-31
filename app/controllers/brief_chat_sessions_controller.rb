@@ -45,6 +45,19 @@ class BriefChatSessionsController < ApplicationController
     Rails.logger.warn("[BriefChat] Brief extraction failed: #{e.message}")
   end
 
+  def investigation_step
+    <<~STEP.chomp
+      # Investigate the codebase first (quietly)
+
+      Before you answer, look at the code to ground your suggestions in how THIS app
+      actually works. Read CLAUDE.md and the relevant parts of the app. In particular,
+      learn how the app ALREADY handles the kind of thing being asked — e.g. how
+      required fields are marked and validated, how similar UI patterns and copy are
+      done elsewhere — so your recommendation fits existing conventions instead of
+      inventing something new. Do this silently; don't narrate that you're reading files.
+    STEP
+  end
+
   def build_initial_prompt
     project = @task.project
     context = project.context_info.presence || "(no project context provided)"
@@ -78,6 +91,8 @@ class BriefChatSessionsController < ApplicationController
 
       # Project context (set by the team)
 
+      Project: #{project.name}
+
       #{context}#{personas_section}#{features_section}
 
       # The idea to brief
@@ -85,14 +100,7 @@ class BriefChatSessionsController < ApplicationController
       #{ticket_section}
       #{comments_section}#{attachments_section}#{refine_current_section}
 
-      # Investigate the codebase first (quietly)
-
-      Before you answer, look at the code to ground your suggestions in how THIS app
-      actually works. Read CLAUDE.md and the relevant parts of the app. In particular,
-      learn how the app ALREADY handles the kind of thing being asked — e.g. how
-      required fields are marked and validated, how similar UI patterns and copy are
-      done elsewhere — so your recommendation fits existing conventions instead of
-      inventing something new. Do this silently; don't narrate that you're reading files.
+      #{chat_codebase? ? investigation_step : "# There is no code to read\n\n#{NO_CODE}"}
 
       What you learn from the code is FUEL — you use it to think about HOW this
       feature actually fits into the app, not just whether it's a nice idea. But you

@@ -33,6 +33,32 @@ class ChatSessionsController < ApplicationController
     Rails.logger.warn("[ChatSessions] Draft extraction failed: #{e.message}")
   end
 
+  def investigation_step
+    <<~STEP
+      ## Step 1 — Investigate the code FIRST, before any question
+
+      Before your first message to the user, do an upfront investigation of the #{project_label} codebase:
+
+      - Read `CLAUDE.md` if it exists.
+      - List the top-level `app/` directory to learn the domain.
+      - Identify the 2–5 files most likely involved in this ticket (models, controllers, views, services). Read them.
+      - If there are screenshots in the attachments list, read them with the `Read` tool — they usually carry critical UI context.
+      #{figma_instructions_section}
+      Do all of this with your tools (Read, Grep, Glob, figma MCP). Do **not** narrate any of it. Don't say "let me read X", "now let me load the Figma", "I'll check Y" — go completely silent until you're ready to post your first user-facing message. Your first message should be a 1–2 sentence PLAIN-LANGUAGE summary of what you found about how the feature works today (NO file paths / code names) followed by your first clarifying question. **Do not emit any text before that summary.**
+    STEP
+  end
+
+  # Step 1 for a project with no checkout (ChatStreaming#chat_codebase?).
+  def no_code_step
+    <<~STEP
+      ## Step 1 — There is no code to read
+
+      #{NO_CODE}
+      #{figma_instructions_section}
+      Do **not** narrate. Your first message should be a 1–2 sentence PLAIN-LANGUAGE summary of what the brief asks for, followed by your first clarifying question. **Do not emit any text before that summary.**
+    STEP
+  end
+
   def build_initial_prompt
     desc = @task.description.presence || "(no description provided)"
     title = ticket_title
@@ -44,7 +70,7 @@ class ChatSessionsController < ApplicationController
     <<~PROMPT
       # Role
 
-      You are a senior product/engineering partner helping a non-technical product owner draft a complete, ready-to-implement Jira ticket. The codebase you have access to in your working directory is the Elvium HR app — this is the project the ticket is about.
+      You are a senior product/engineering partner helping a non-technical product owner draft a complete, ready-to-implement Jira ticket. #{chat_codebase? ? "The codebase you have access to in your working directory is the #{project_label} app — this is the project the ticket is about." : "The ticket is about the #{project_label} app."}
 
       # Ticket being drafted
 
@@ -73,16 +99,7 @@ class ChatSessionsController < ApplicationController
       premise. If the brief truly leaves the goal ambiguous, you may confirm it in
       ONE sentence — but never open with a question the brief has already answered.
 
-      ## Step 1 — Investigate the code FIRST, before any question
-
-      Before your first message to the user, do an upfront investigation of the Elvium codebase:
-
-      - Read `CLAUDE.md` if it exists.
-      - List the top-level `app/` directory to learn the domain.
-      - Identify the 2–5 files most likely involved in this ticket (models, controllers, views, services). Read them.
-      - If there are screenshots in the attachments list, read them with the `Read` tool — they usually carry critical UI context.
-      #{figma_instructions_section}
-      Do all of this with your tools (Read, Grep, Glob, figma MCP). Do **not** narrate any of it. Don't say "let me read X", "now let me load the Figma", "I'll check Y" — go completely silent until you're ready to post your first user-facing message. Your first message should be a 1–2 sentence PLAIN-LANGUAGE summary of what you found about how the feature works today (NO file paths / code names) followed by your first clarifying question. **Do not emit any text before that summary.**
+      #{chat_codebase? ? investigation_step : no_code_step}
 
       ## Step 2 — Ask product/UX/business questions only, one at a time
 

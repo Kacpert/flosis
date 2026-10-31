@@ -29,6 +29,30 @@ class BreakdownChatSessionsController < ApplicationController
     Rails.logger.warn("[BreakdownChat] Breakdown extraction failed: #{e.message}")
   end
 
+  def investigation_step
+    <<~STEP
+      ## Step 1 — Investigate the code FIRST, silently
+
+      Before producing anything, investigate so your estimate is grounded:
+
+      - Read `CLAUDE.md` if it exists, list `app/`, and read the 2–5 files most relevant to this task.
+      - If there are attachment screenshots, `Read` them — they carry critical scope context.
+      #{figma_instructions_section}
+      Do all of this with your tools. Do **not** narrate it — go silent until you post the breakdown.
+    STEP
+  end
+
+  # Step 1 for a project with no checkout (ChatStreaming#chat_codebase?).
+  def no_code_step
+    <<~STEP
+      ## Step 1 — There is no code to read
+
+      #{NO_CODE}
+      #{figma_instructions_section}
+      Do **not** narrate — go silent until you post the breakdown.
+    STEP
+  end
+
   def build_initial_prompt
     desc = @task.description.presence || "(no description provided)"
     ref = @task.external_reference
@@ -39,7 +63,7 @@ class BreakdownChatSessionsController < ApplicationController
     <<~PROMPT
       # Role
 
-      You are a senior tech lead / software architect. Your job is to ESTIMATE a Jira task's complexity and, when it is too large, BREAK IT DOWN into smaller, mostly-independent pieces a development team can pick up. The codebase in your working directory is the Elvium HR app — the project this task belongs to.
+      You are a senior tech lead / software architect. Your job is to ESTIMATE a Jira task's complexity and, when it is too large, BREAK IT DOWN into smaller, mostly-independent pieces a development team can pick up. #{chat_codebase? ? "The codebase in your working directory is the #{project_label} app — the project this task belongs to." : "This task belongs to the #{project_label} app."}
 
       # Task being estimated
 
@@ -53,14 +77,7 @@ class BreakdownChatSessionsController < ApplicationController
 
       # How you must operate
 
-      ## Step 1 — Investigate the code FIRST, silently
-
-      Before producing anything, investigate so your estimate is grounded:
-
-      - Read `CLAUDE.md` if it exists, list `app/`, and read the 2–5 files most relevant to this task.
-      - If there are attachment screenshots, `Read` them — they carry critical scope context.
-      #{figma_instructions_section}
-      Do all of this with your tools. Do **not** narrate it — go silent until you post the breakdown.
+      #{chat_codebase? ? investigation_step : no_code_step}
 
       ## Step 2 — Produce the estimate & breakdown immediately
 

@@ -34,6 +34,44 @@ module ChatStreaming
     nil
   end
 
+  # Where a chat runs Claude for a project with no checkout of its own: an
+  # empty folder, so there is no code to read, and the prompt says so.
+  NO_CODEBASE_DIR = Rails.root.join("tmp/no-codebase")
+  CODE_TOOLS = %w[Read Glob Grep].freeze
+
+  # The task's project's own checkout, else the empty folder.
+  def chat_codebase_path
+    @chat_codebase_path ||= @task.project.ai_codebase_path.presence || begin
+      FileUtils.mkdir_p(NO_CODEBASE_DIR)
+      NO_CODEBASE_DIR.to_s
+    end
+  end
+
+  def chat_codebase?
+    chat_codebase_path != NO_CODEBASE_DIR.to_s
+  end
+
+  # The chat's tools, less those that read code when a session runs in the
+  # empty folder. A resumed session is judged by the folder it began in.
+  def chat_tools(codebase_path = chat_codebase_path)
+    tools = chat_allowed_tools
+    return tools unless codebase_path == NO_CODEBASE_DIR.to_s
+
+    (tools || ClaudeCliService::ALLOWED_TOOLS) - CODE_TOOLS
+  end
+
+  # The task's project as the prompts name it: its name, and the start of
+  # what the team wrote about it.
+  def project_label
+    project = @task.project
+    context = project.context_info.to_s.squish.first(300)
+    context.empty? ? project.name.to_s : "#{project.name} — #{context}"
+  end
+
+  # What a prompt says in place of its code investigation when there is no
+  # code to read.
+  NO_CODE = "You have no access to this project's code; reason from the brief and ask.".freeze
+
   # POST — return the existing active session, or start a new one and stream
   # the initial investigation + first answer back as SSE.
   def create
@@ -46,7 +84,7 @@ module ChatStreaming
 
     write_sse_headers
 
-    service = ClaudeCliService.new(allowed_tools: chat_allowed_tools)
+    service = ClaudeCliService.new(codebase_path: chat_codebase_path, allowed_tools: chat_tools)
     full_response = ""
     @stream_session_id = nil
 
@@ -119,7 +157,8 @@ module ChatStreaming
 
     write_sse_headers
 
-    service = ClaudeCliService.new(codebase_path: @chat_session.codebase_path, allowed_tools: chat_allowed_tools)
+    service = ClaudeCliService.new(codebase_path: @chat_session.codebase_path,
+                                   allowed_tools: chat_tools(@chat_session.codebase_path))
     full_response = ""
 
     begin
@@ -266,7 +305,8 @@ module ChatStreaming
       user: current_user,
       purpose: chat_purpose,
       claude_session_id: session_id,
-      codebase_path: ClaudeCliService::DEFAULT_CODEBASE_PATH
+      # Where this session began, so a --resume runs there too.
+      codebase_path: chat_codebase_path
     )
     session.chat_messages.create!(
       role: "assistant", content: final_text, thinking: thinking_for(full_response, final_text)
@@ -373,7 +413,9 @@ module ChatStreaming
     }
   end
 
+  # Any task of the person's Workshop projects, with Jira or without: the
+  # chats run in the task's own project (chat_codebase_path, project_label).
   def set_task
-    @task = Task.where(project_id: visible_jira_projects.select(:id)).find(params[:jira_task_id])
+    @task = Task.where(project_id: workshop_projects.select(:id)).find(params[:jira_task_id])
   end
 end

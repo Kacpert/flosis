@@ -1,6 +1,8 @@
 require "test_helper"
 
 class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
+  include FakeChatCliTestHelper
+
   setup do
     sign_in_as(users(:one))
     @task = tasks(:jira_task)
@@ -200,5 +202,46 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
     refute_includes figma_prompt, "mcp__figma__get_figma_data"
   ensure
     FigmaClient.define_singleton_method(:cli_token, original)
+  end
+
+  test "a task of a Workshop project without Jira is found" do
+    task = flosis_task("Local idea")
+    with_fake_cli { post jira_task_chat_session_path(task) }
+    # Ruling (Plan 4 Task 1): a task out of reach redirects an HTML request,
+    # so "not 404" would pass without it; a found task starts streaming.
+    assert_response :success
+  end
+
+  test "the prompt names the task's own project, not Elvium" do
+    task = flosis_task
+    checkout!(task.project)
+    controller = chat_controller(ChatSessionsController, task)
+    prompt = controller.send(:build_initial_prompt)
+    assert_includes prompt, "Flosis — Time tracking and Workshop"
+    assert_not_includes prompt, "Elvium"
+  end
+
+  test "Claude runs in the project's own checkout" do
+    task = tasks(:jira_task)
+    task.chat_sessions.destroy_all # an active session is returned as it is, with no new run
+    path = checkout!(task.project)
+    with_fake_cli do |captured|
+      post jira_task_chat_session_path(task)
+      assert_equal path, captured[:codebase_path]
+    end
+  end
+
+  test "a project with no checkout gets an empty folder, no code tools, and a prompt that says so" do
+    task = flosis_task
+    with_fake_cli do |captured|
+      post jira_task_chat_session_path(task)
+      assert_equal ChatStreaming::NO_CODEBASE_DIR.to_s, captured[:codebase_path]
+      assert_empty Dir.children(ChatStreaming::NO_CODEBASE_DIR)
+      assert_equal ClaudeCliService::ALLOWED_TOOLS - %w[Read Glob Grep], captured[:allowed_tools]
+    end
+    controller = chat_controller(ChatSessionsController, task)
+    prompt = controller.send(:build_initial_prompt)
+    assert_includes prompt, "You have no access to this project's code; reason from the brief and ask."
+    assert_not_includes prompt, "investigation of the"
   end
 end

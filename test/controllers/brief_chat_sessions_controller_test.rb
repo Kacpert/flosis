@@ -1,6 +1,8 @@
 require "test_helper"
 
 class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
+  include FakeChatCliTestHelper
+
   setup do
     @workspace = workspaces(:one)
     @workspace.update!(workshop_enabled: true)
@@ -169,6 +171,7 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "build_initial_prompt frames a UX-minded PO that investigates code but talks product, tersely" do
+    checkout!(@task.project) # Plan 4: only a project with a checkout is told to read its code
     controller = BriefChatSessionsController.new
     controller.instance_variable_set(:@task, @task)
     def controller.params; {}; end
@@ -259,5 +262,29 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
 
     refute_includes prompt, "Who uses this app & our perspective"
     refute_includes prompt, "What the app already does"
+  end
+
+  test "a task of a Workshop project without Jira is found" do
+    task = flosis_task("Local idea")
+    with_fake_cli { post jira_task_brief_chat_session_path(task) }
+    # Ruling (Plan 4 Task 1): a task out of reach redirects an HTML request,
+    # so "not 404" would pass without it; a found task starts streaming.
+    assert_response :success
+  end
+
+  test "the prompt names the task's own project, not Elvium" do
+    task = flosis_task
+    checkout!(task.project)
+    controller = chat_controller(BriefChatSessionsController, task)
+    prompt = controller.send(:build_initial_prompt)
+    assert_includes prompt, "Flosis"
+    assert_not_includes prompt, "Elvium"
+  end
+
+  test "without a checkout the prompt says there is no code to read" do
+    controller = chat_controller(BriefChatSessionsController, flosis_task)
+    prompt = controller.send(:build_initial_prompt)
+    assert_includes prompt, "You have no access to this project's code; reason from the brief and ask."
+    assert_not_includes prompt, "Investigate the codebase first"
   end
 end
