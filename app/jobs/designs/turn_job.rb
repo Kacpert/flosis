@@ -1,6 +1,3 @@
-require "fileutils"
-require "find"
-require "open3"
 require "securerandom"
 require "tempfile"
 require "tmpdir"
@@ -30,18 +27,37 @@ class Designs::TurnJob < ApplicationJob
 
   NO_KEY = "This project has no Anthropic API key of its own. Add it in Configuration › AI.".freeze
   NO_ANSWER = "Claude returned no answer — it may have hit the cost cap or the time limit.".freeze
+  # What the publish failed on can name the preview folder, so it goes to the
+  # log only.
+  PREVIEW_NOT_UPDATED = "Saved, but the preview could not be updated. It refreshes with the next turn.".freeze
+
+  # The system prompt's temp files are named after it, so that the ones killed
+  # turns left behind can be found.
+  PROMPT_PREFIX = "designs-prompt".freeze
+
+  # How long a first run may have gone on and still be run again as a new
+  # session. The CLI fails at once on a session it cannot resume or an id it
+  # will not start; a run that failed later had Claude at work, and a whole
+  # second run after it could outlast DesignTurn.stale_after, so the screen
+  # would show a live turn as interrupted.
+  RETRY_WINDOW = 60.seconds
 
   # A turn that cannot go on. Its message is what the person is told, and
   # nothing more is logged: none of these is Flosis's own failure.
   class Failure < StandardError; end
 
   class << self
-    # Test seam: what a turn talks to Claude through, built from
-    # ClaudeCliService's keywords. Set to nil, it is the CLI again.
-    attr_writer :claude_factory
+    # Test seams. claude_factory is what a turn talks to Claude through, built
+    # from ClaudeCliService's keywords; clock is a monotonic clock in seconds.
+    # Set to nil, each is the real one again.
+    attr_writer :claude_factory, :clock
 
     def claude_factory
       @claude_factory || ClaudeCliService.method(:new)
+    end
+
+    def clock
+      @clock || -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
     end
   end
 
@@ -52,10 +68,14 @@ class Designs::TurnJob < ApplicationJob
 
   private
 
-  # Only a queued turn is taken, or a running one that was cut off (a deploy
-  # killed its job, and the queue delivered it again). The row lock keeps a
-  # second delivery, or the screen failing the turn as stale, from deciding
-  # at the same moment.
+  # Only a queued turn is taken, or a running one that is stale. What Solid
+  # Queue 1.4 does with a job a deploy interrupts: one released at shutdown
+  # comes back at once and finds its turn running but not stale, so it leaves
+  # it; one whose worker was killed is marked failed, not delivered again.
+  # Either way the cut-off turn stays running until DesignTurn.fail_stale!
+  # fails it, and the person retries it. Taking over a stale turn is a belt to
+  # that. The row lock keeps two deliveries, or the screen failing the turn as
+  # stale, from deciding at the same moment.
   def claim(turn)
     turn.with_lock do
       next false unless turn.queued? || turn.stale?
@@ -66,6 +86,7 @@ class Designs::TurnJob < ApplicationJob
   end
 
   def run(turn)
+    sweep_leftovers
     task = turn.chat_session.task
     project = task.project
     repo = Designs::Repo.new(project)
@@ -90,6 +111,23 @@ class Designs::TurnJob < ApplicationJob
     end
   rescue StandardError => e
     fail_turn(turn, e, repo, worktree)
+  end
+
+  # Solid Queue stops a worker with exit!, which runs no ensure: a turn a
+  # deploy killed leaves its app copy and its prompt file in the temp folder.
+  # Whatever of theirs is older than any turn can run was left that way. A
+  # failure here is logged and never stops the turn.
+  def sweep_leftovers
+    older_than = DesignTurn.stale_after.ago
+    Designs::AppCopy.sweep(older_than: older_than)
+    Dir.glob(File.join(Dir.tmpdir, "#{PROMPT_PREFIX}*")).each do |path|
+      stat = File.lstat(path)
+      File.delete(path) if stat.file? && stat.uid == Process.euid && stat.mtime < older_than
+    rescue StandardError => e
+      Rails.logger.warn("[#{self.class.name}] could not sweep #{path}: #{e.message}")
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[#{self.class.name}] could not sweep the temp folder: #{e.message}")
   end
 
   # A run the CLI says ended in an error: an API error (an overload past the
@@ -132,7 +170,7 @@ class Designs::TurnJob < ApplicationJob
     task = turn.chat_session.task
     prompt = Designs::Prompt.turn_message(task: task, request: turn.chat_message.content)
     with_system_prompt(task.project) do |system_prompt|
-      with_app_copy(task.project) do |app|
+      Designs::AppCopy.open(task.project) do |app|
         cli = self.class.claude_factory.call(
           codebase_path: worktree.to_s, allowed_tools: TOOLS, restricted: true, api_key: key,
           append_system_prompt_file: system_prompt, add_dirs: [ app ].compact,
@@ -149,13 +187,15 @@ class Designs::TurnJob < ApplicationJob
   #
   # The CLI cannot resume a session whose transcript is gone, nor start one
   # under an id that already has a transcript (a first turn killed by a deploy
-  # leaves it). It says so only on its stderr, which ClaudeCliError does not
-  # carry, so any failure but a timeout is taken for one of these: the turn is
-  # run once more as a new session, under a new id the chat keeps, from the
-  # branch's last commit rather than from what the failed run left. A run that
-  # went past its time limit had all of it and is not run again.
+  # leaves it), and fails at once on either. It says so only on its stderr,
+  # which ClaudeCliError does not carry, so any failure but a timeout within
+  # RETRY_WINDOW is taken for one of these: the turn is run once more as a new
+  # session, under a new id the chat keeps, from the branch's last commit
+  # rather than from what the failed run left. A run that failed later, or
+  # went past its time limit, is not run again.
   def converse(cli, turn, prompt, repo, worktree)
     session = turn.chat_session
+    started = self.class.clock.call
     if session.design_turns.where.not(id: turn.id).where.not(started_at: nil).exists?
       cli.resume_session(session_id: session.claude_session_id, prompt: prompt)
     else
@@ -164,6 +204,8 @@ class Designs::TurnJob < ApplicationJob
   rescue ClaudeCliService::TimeoutError
     raise
   rescue ClaudeCliService::ClaudeCliError => e
+    raise if self.class.clock.call - started > RETRY_WINDOW.to_f
+
     log(turn, e, "starting a new Claude session")
     repo.discard!(worktree)
     session.update!(claude_session_id: SecureRandom.uuid)
@@ -173,94 +215,26 @@ class Designs::TurnJob < ApplicationJob
   # The system prompt goes to the CLI as a file in the system's temp folder:
   # in the worktree it would be committed.
   def with_system_prompt(project)
-    Tempfile.create([ "designs-prompt", ".md" ]) do |file|
+    Tempfile.create([ PROMPT_PREFIX, ".md" ]) do |file|
       file.write(Designs::Prompt.system_text(project: project))
       file.close
       yield file.path
     end
   end
 
-  # Claude reads the application through a copy of what its checkout has
-  # committed, made for this turn and read-only. Nothing runs in the checkout
-  # itself but git archive: it is shared (the features scan pulls in it, and
-  # the legacy Elvium project's is a developer's own working copy), and what
-  # it does not track (.env, master.key) must never reach Claude, nor through
-  # it a pushed design. Without a checkout, or with nothing in it to copy
-  # (nothing committed yet), the turn runs without the app.
-  #
-  # The copy sits in a private folder of its own, removed with it afterwards.
-  def with_app_copy(project)
-    if (source = project.ai_codebase_path)
-      holder = Dir.mktmpdir("designs-app")
-      copy = copy_app(source, File.join(holder, "app"))
-    else
-      Rails.logger.warn("[#{self.class.name}] project #{project.id} has no app checkout of its own, " \
-                        "so the turn runs without the app")
-    end
-    yield copy
-  ensure
-    remove_copy(holder) if holder
-  end
-
-  # The checkout's HEAD unpacked into dir, with plain files and folders only,
-  # files 0444 and folders 0555, so Claude's Edit and Write fail on it. nil,
-  # with a warning, when it cannot be made.
-  def copy_app(source, dir)
-    tarball = "#{dir}.tar"
-    GitRunner.run!("archive", "--format=tar", "-o", tarball, "HEAD", chdir: source)
-    FileUtils.mkdir(dir, mode: 0o700)
-    _, error, status = Open3.capture3({ "LC_ALL" => "C" }, "tar", "-xf", tarball, chdir: dir)
-    raise "tar could not unpack it: #{error.strip}" unless status.success?
-
-    File.delete(tarball)
-    strip_links!(dir)
-    seal!(dir)
-    dir
-  rescue StandardError => e
-    Rails.logger.warn("[#{self.class.name}] no copy of #{source} for Claude to read, so the turn runs without the app: " \
-                      "#{e.message}")
-    nil
-  end
-
-  # A link the app's repo tracks would lead Claude's tools out of the copy (to
-  # the live checkout's .env, say), and seal! would follow it. Find does not.
-  # Find looks at what it yielded once the block is done, so what was deleted
-  # is pruned.
-  def strip_links!(dir)
-    Find.find(dir, ignore_error: false) do |path|
-      stat = File.lstat(path)
-      next if stat.file? || stat.directory?
-
-      File.unlink(path)
-      Find.prune
-    end
-  end
-
-  def seal!(dir)
-    Find.find(dir, ignore_error: false) do |path|
-      File.chmod(File.lstat(path).directory? ? 0o555 : 0o444, path)
-    end
-  end
-
-  # Writable again first: nothing in a folder that cannot be written to can be
-  # deleted.
-  def remove_copy(holder)
-    FileUtils.chmod_R("u+w", holder)
-    FileUtils.rm_rf(holder)
-  rescue StandardError => e
-    Rails.logger.warn("[#{self.class.name}] could not remove #{holder}: #{e.message}")
-  end
-
   # The commit's sha (nil for a turn that changed no file), and a note for
   # each step after the commit that failed. Staging, the guard, the commit,
   # the push and the publish run under one hold of the repo's lock: what the
-  # guard passed is what is committed, pushed and published.
+  # guard passed is what is committed, pushed and published. A refused turn
+  # does no network work.
   #
   # Once the commit is made, it is the turn's outcome. Failing the turn over a
   # push or a publish would invite a retry that runs Claude again on work
-  # already on the branch, so each failure is a note in the chat instead. The
-  # next turn's push takes the commit out, and the preview is served from this
-  # clone, so it is published even when the push failed.
+  # already on the branch, so each failure is a note in the chat instead.
+  # Every successful turn pushes what origin lacks, an earlier turn's commit
+  # included, and a turn that committed or pushed anything is published. The
+  # preview is served from this clone, so a commit is published even when its
+  # push failed.
   def save(turn, repo, task, worktree, summary)
     slug = Designs::BranchNames.slug(task)
     wip = Designs::BranchNames.wip(task)
@@ -269,35 +243,42 @@ class Designs::TurnJob < ApplicationJob
     message = "#{slug}: #{summary.lines.first.strip.truncate(72)}"
     repo.synchronize do
       result = Designs::Committer.new(repo, guard).commit!(worktree, message: message)
-      raise Failure, refusal(result.violations) unless result.ok?
-      next [ nil, [] ] unless result.sha
+      raise Failure, "Refused: #{result.refusal}" unless result.ok?
 
       notes = []
+      pushed = false
       begin
-        repo.push!(wip)
+        if unpushed?(repo, wip)
+          repo.push!(wip)
+          pushed = true
+        end
       rescue StandardError => e
         log(turn, e, "the commit stays on the local branch")
         notes << "Saved, but not pushed to GitHub: #{reason(e)}. It goes out with the next turn."
       end
-      begin
-        Designs::Publisher.new(task.project, repo).publish!(wip, "wip/#{slug}")
-      rescue StandardError => e
-        log(turn, e, "the preview shows the last turn it took")
-        notes << "Saved, but the preview could not be updated: #{reason(e)}."
+      if result.sha || pushed
+        begin
+          Designs::Publisher.new(task.project, repo).publish!(wip, "wip/#{slug}")
+        rescue StandardError => e
+          log(turn, e, "the preview shows the last turn it took")
+          notes << PREVIEW_NOT_UPDATED
+        end
       end
       [ result.sha, notes ]
     end
+  end
+
+  # Whether the working branch has commits origin lacks: this turn's, or an
+  # earlier turn's whose push failed. A branch with no commits of its own (a
+  # fresh one whose first turn changed nothing) has nothing to take out.
+  def unpushed?(repo, wip)
+    repo.head(wip) != repo.remote_head(wip) && repo.commits_ahead(wip).positive?
   end
 
   # An error's message as a clause: git's ends in a newline, and often in a
   # full stop of its own.
   def reason(error)
     (error.message.presence || error.class.name).strip.delete_suffix(".")
-  end
-
-  # A violation names its path and rule, never the text that broke it.
-  def refusal(violations)
-    "Refused: #{violations.map { |violation| "#{violation.path} #{violation.reason}" }.join("; ")}"
   end
 
   # The reply as the chat shows it: the summary, then each context Claude

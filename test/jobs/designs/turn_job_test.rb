@@ -12,6 +12,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     ENV.delete("DESIGNS_PREVIEW_ROOT")
     FileUtils.remove_entry(@preview_root)
     Designs::TurnJob.claude_factory = nil
+    Designs::TurnJob.clock = nil
   end
 
   # A stand-in for Claude: edits the worktree, then answers. during is called
@@ -129,77 +130,77 @@ class Designs::TurnJobTest < ActiveJob::TestCase
   end
 
   # Ruling P2-R19, in place of the brief's "a change to the app checkout is
-  # undone": Flosis never runs checkout or clean in the live checkout, which
-  # is shared (and for Elvium a developer's own working copy). Claude reads a
-  # copy of what it has committed, so .env and master.key never reach it.
-  test "Claude reads a read-only copy of what the app checkout has committed, never the checkout itself" do
+  # undone": Flosis never runs checkout or clean in the live checkout. Claude
+  # reads a copy of what it has committed (Designs::AppCopy, whose own tests
+  # cover what the copy holds); this is the wiring.
+  test "Claude is given a copy of what the app checkout has committed, as its only extra directory" do
     with_design_remote do |repo, remote|
       task = design_task(repo)
       app = app_checkout(repo.project, { "config/routes.rb" => "get '/jobs'\n" })
-      File.write(File.join(app, ".env"), "SECRET_KEY_BASE=abc\n")
-      status = GitRunner.run!("status", "--porcelain", chdir: app)
       copies = nil
       fake_claude(during: lambda { |opts|
         copies = opts[:add_dirs]
         assert_equal 1, copies.size
-        copy = copies.first
-        assert_not_equal File.realpath(app), File.realpath(copy), "the live checkout"
-        assert_equal "get '/jobs'\n", File.read(File.join(copy, "config/routes.rb"))
-        assert_not File.exist?(File.join(copy, ".env")), "what the checkout does not track"
-        unless Process.uid.zero?
-          assert_raises(Errno::EACCES) { File.write(File.join(copy, "config/routes.rb"), "hacked") }
-          assert_raises(Errno::EACCES) { File.write(File.join(copy, "hacked.rb"), "x") }
-        end
+        assert_not_equal File.realpath(app), File.realpath(copies.first), "the live checkout"
+        assert_equal "get '/jobs'\n", File.read(File.join(copies.first, "config/routes.rb"))
       })
 
       turn = run_turn(new_turn(task), remote)
 
       assert turn.succeeded?, turn.error
-      assert_not File.exist?(copies.first), "the copy is removed after the turn"
-      assert_not File.exist?(File.dirname(copies.first)), "and the folder it was made in"
-      assert_equal "SECRET_KEY_BASE=abc\n", File.read(File.join(app, ".env"))
-      assert_equal "get '/jobs'\n", File.read(File.join(app, "config/routes.rb"))
-      assert_equal status, GitRunner.run!("status", "--porcelain", chdir: app)
+      assert_not File.exist?(File.dirname(copies.first)), "the copy is removed, with the folder it was made in"
     end
   end
 
-  # A link the app's repo tracks would lead Claude's tools out of the copy:
-  # this one to the live checkout's .env.
-  test "the copy of the app holds no links" do
+  # Ruling P2-R30.
+  test "the app copy and the prompt file are gone after a turn the CLI failed, too" do
     with_design_remote do |repo, remote|
       task = design_task(repo)
-      app = app_checkout(repo.project)
-      File.write(File.join(app, ".env"), "SECRET_KEY_BASE=abc\n")
-      File.write(File.join(app, "Gemfile"), "gem \"rails\"\n")
-      File.symlink(File.join(app, ".env"), File.join(app, "settings.txt"))
-      system("git", "-C", app, "add", "Gemfile", "settings.txt", exception: true)
-      system("git", "-C", app, "-c", "user.name=Dev", "-c", "user.email=dev@example.com", "commit", "-q", "-m", "app",
-             exception: true)
-      entries = nil
-      fake_claude(during: ->(opts) { entries = opts[:add_dirs].map { |copy| Dir.children(copy).sort } })
+      app_checkout(repo.project, { "config/routes.rb" => "get '/jobs'\n" })
+      given = []
+      scripted_claude do |_call, _keywords, opts|
+        given.push(opts[:add_dirs].first, opts[:append_system_prompt_file])
+        raise ClaudeCliService::ClaudeCliError, "Failed to parse Claude response"
+      end
 
       turn = run_turn(new_turn(task), remote)
 
-      assert turn.succeeded?, turn.error
-      assert_equal [ [ "Gemfile" ] ], entries
+      assert turn.failed?
+      assert_equal 2, given.uniq.size, "the copy and the prompt file, the same for both attempts"
+      given.uniq.each { |path| assert_not File.exist?(path), path }
+      assert_not File.exist?(File.dirname(given.first))
     end
   end
 
-  # Ruling P2-R19: no commit to copy (or no checkout at all) is no reason to
-  # refuse the turn.
-  test "an app checkout with nothing committed gives Claude no copy, and the turn still runs" do
+  # Ruling P2-R30. Solid Queue stops a worker with exit!, which runs no
+  # ensure, so a turn a deploy killed leaves its temp files behind.
+  test "a turn first clears away the temp files that killed turns left" do
     with_design_remote do |repo, remote|
       task = design_task(repo)
-      app = app_checkout(repo.project)
-      File.write(File.join(app, ".env"), "SECRET_KEY_BASE=abc\n")
-      copies = nil
-      fake_claude(files: { "designs/a.html" => "a" }, during: ->(opts) { copies = opts[:add_dirs] })
+      long_ago = (DesignTurn.stale_after + 1.minute).ago.to_time
+      old_copy = Dir.mktmpdir(Designs::AppCopy::PREFIX)
+      FileUtils.mkdir(File.join(old_copy, "app"))
+      File.chmod(0o555, File.join(old_copy, "app"))
+      File.utime(long_ago, long_ago, old_copy)
+      old_prompt, young_prompt = 2.times.map do
+        File.join(Dir.tmpdir, "#{Designs::TurnJob::PROMPT_PREFIX}-test-#{SecureRandom.hex(4)}.md")
+      end
+      [ old_prompt, young_prompt ].each { |path| File.write(path, "a system prompt") }
+      File.utime(long_ago, long_ago, old_prompt)
+      fake_claude
 
-      turn = run_turn(new_turn(task), remote)
+      assert run_turn(new_turn(task), remote).succeeded?
 
-      assert turn.succeeded?, turn.error
-      assert_equal [], copies
-      assert File.exist?(File.join(app, ".env"))
+      assert_not File.exist?(old_copy)
+      assert_not File.exist?(old_prompt)
+      assert File.exist?(young_prompt), "a running turn's prompt file is younger than any turn can run"
+    ensure
+      File.delete(young_prompt) if young_prompt && File.exist?(young_prompt)
+      File.delete(old_prompt) if old_prompt && File.exist?(old_prompt)
+      if old_copy && File.exist?(old_copy)
+        FileUtils.chmod_R("u+w", old_copy)
+        FileUtils.remove_entry(old_copy)
+      end
     end
   end
 
@@ -367,6 +368,51 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  # Ruling P2-R30. The CLI fails at once on a lost session or an id in use. A
+  # failure after a long run had Claude at work, and a whole second run after
+  # it could outlast stale_after, so the screen would show a live turn as
+  # interrupted.
+  test "a CLI failure after a long run fails the turn instead of running it again" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      now = 1_000.0
+      Designs::TurnJob.clock = -> { now }
+      scripted_claude do |_call, _keywords, _opts|
+        now += Designs::TurnJob::RETRY_WINDOW.to_f + 1
+        raise ClaudeCliService::ClaudeCliError, "Failed to parse Claude response"
+      end
+      turn = new_turn(task)
+      id = turn.chat_session.claude_session_id
+
+      turn = run_turn(turn, remote)
+
+      assert turn.failed?
+      assert_equal "Failed to parse Claude response", turn.error
+      assert_equal 1, @calls.size
+      assert_equal id, turn.chat_session.reload.claude_session_id
+    end
+  end
+
+  test "a CLI failure within the retry window is run again as a new session" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      now = 1_000.0
+      Designs::TurnJob.clock = -> { now }
+      scripted_claude do |_call, _keywords, _opts|
+        if @calls.one?
+          now += Designs::TurnJob::RETRY_WINDOW.to_f - 1
+          raise ClaudeCliService::ClaudeCliError, "Failed to parse Claude response"
+        end
+        { session_id: "s", response: "<summary>Answered.</summary>" }
+      end
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_equal %i[start_session start_session], @calls.map(&:first)
+    end
+  end
+
   test "a second failure of the CLI fails the turn" do
     with_design_remote do |repo, remote|
       task = design_task(repo)
@@ -521,6 +567,22 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  test "a task's first turn starts from its approved design when only this clone has it" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      approved = commit_files(repo, repo.worktree!("wip/OTHER-1"), { "designs/approved.html" => "<p>approved</p>" })
+      repo.point!("design/REC-1", to: approved)
+      fake_claude(files: { "designs/next.html" => "<p>next</p>" })
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_nil remote_branch_sha(remote, "design/REC-1"), "the approved design is only in this clone"
+      assert_equal approved, GitRunner.run!("rev-parse", "refs/heads/wip/REC-1^", chdir: remote).strip
+      assert_includes remote_files(remote, "wip/REC-1"), "designs/approved.html"
+    end
+  end
+
   # Ruling P2-R9: the chat shows the error as the turn keeps it, cut to fit.
   test "a failed turn says why in the chat, as the turn keeps it" do
     with_design_remote do |repo, remote|
@@ -621,9 +683,47 @@ class Designs::TurnJobTest < ActiveJob::TestCase
 
       assert turn.succeeded?, turn.error
       assert_equal turn.commit_sha, remote_branch_sha(remote, "wip/REC-1")
-      messages = assistant_messages(turn).pluck(:kind, :content)
-      assert_equal %w[summary system], messages.map(&:first)
-      assert_match(/\ASaved, but the preview could not be updated: .+[^.]\.\z/m, messages.last.last)
+      # Ruling P2-R30: what the publish failed on names the preview folder,
+      # and goes to the log only.
+      assert_equal [ [ "summary", "Added jobs." ],
+                     [ "system", "Saved, but the preview could not be updated. It refreshes with the next turn." ] ],
+                   assistant_messages(turn).pluck(:kind, :content)
+    end
+  end
+
+  # Ruling P2-R30: "It goes out with the next turn" holds for a next turn that
+  # changes nothing, and that turn publishes what it took out. A refused turn
+  # does no network work.
+  test "a turn that changes nothing still takes out what an earlier turn could not push, and publishes it" do
+    skip "root writes to a read-only remote" if Process.uid.zero?
+
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      not_a_folder = File.join(@preview_root, "not-a-folder")
+      File.write(not_a_folder, "")
+      fake_claude(files: { "designs/jobs.html" => "<p>jobs</p>" })
+      first = new_turn(task)
+      FileUtils.chmod_R("a-w", remote)
+      begin
+        first = with_env("DESIGNS_PREVIEW_ROOT" => not_a_folder) { run_turn(first, remote) }
+      ensure
+        FileUtils.chmod_R("u+w", remote)
+      end
+      assert first.succeeded?, first.error
+      assert_nil remote_branch_sha(remote, "wip/REC-1")
+
+      fake_claude(files: { "notes.md" => "x" })
+      assert run_turn(next_turn(first.chat_session, "Keep notes"), remote).failed?
+      assert_nil remote_branch_sha(remote, "wip/REC-1"), "a refused turn pushes nothing"
+
+      fake_claude(reply: "<summary>Admins can archive a job.</summary>")
+      second = run_turn(next_turn(first.chat_session, "Who can archive?"), remote)
+
+      assert second.succeeded?, second.error
+      assert_nil second.commit_sha
+      assert_equal first.commit_sha, remote_branch_sha(remote, "wip/REC-1")
+      assert File.exist?(File.join(@preview_root, repo.project.reload.design_preview_token, "wip", "REC-1", "designs", "jobs.html"))
+      assert_equal "summary", assistant_messages(second).last.kind, "nothing failed this time"
     end
   end
 
@@ -632,18 +732,18 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     with_design_remote do |repo, remote|
       task = design_task(repo)
       fake_claude(files: { "designs/jobs.html" => "<p>jobs</p>" })
-      publish = Designs::Publisher.instance_method(:publish!)
-      Designs::Publisher.define_method(:publish!) { |*| raise Designs::Publisher::Error, "x" * 20_000 }
+      push = Designs::Repo.instance_method(:push!)
+      Designs::Repo.define_method(:push!) { |*| raise GitRunner::Error, "x" * 20_000 }
       begin
         turn = run_turn(new_turn(task), remote)
       ensure
-        Designs::Publisher.define_method(:publish!, publish)
+        Designs::Repo.define_method(:push!, push)
       end
 
       assert turn.succeeded?, turn.error
       note = assistant_messages(turn).where(kind: "system").sole.content
       assert_equal DesignTurn::ERROR_LIMIT, note.length
-      assert note.start_with?("Saved, but the preview could not be updated: xxx")
+      assert note.start_with?("Saved, but not pushed to GitHub: xxx")
     end
   end
 
