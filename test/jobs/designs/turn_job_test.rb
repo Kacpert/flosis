@@ -691,6 +691,33 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  # Ruling P2-R31: "It refreshes with the next turn" holds for a next turn that
+  # only answers a question. It commits nothing and has nothing to push, but
+  # its branch has commits of its own, so it is published.
+  test "a turn that changes nothing refreshes a preview the turn before it could not update" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      not_a_folder = File.join(@preview_root, "not-a-folder")
+      File.write(not_a_folder, "")
+      fake_claude(files: { "designs/jobs.html" => "<p>jobs</p>" })
+
+      first = with_env("DESIGNS_PREVIEW_ROOT" => not_a_folder) { run_turn(new_turn(task), remote) }
+
+      assert first.succeeded?, first.error
+      assert_equal first.commit_sha, remote_branch_sha(remote, "wip/REC-1"), "pushed: only the publish failed"
+      assert_equal [ "not-a-folder" ], Dir.children(@preview_root), "nothing is published yet"
+
+      # with_env has put the real preview root back.
+      fake_claude(reply: "<summary>Admins can archive a job.</summary>")
+      second = run_turn(next_turn(first.chat_session, "Who can archive?"), remote)
+
+      assert second.succeeded?, second.error
+      assert_nil second.commit_sha
+      assert File.exist?(File.join(@preview_root, repo.project.reload.design_preview_token, "wip", "REC-1", "designs", "jobs.html"))
+      assert_equal "summary", assistant_messages(second).last.kind, "nothing failed this time"
+    end
+  end
+
   # Ruling P2-R30: "It goes out with the next turn" holds for a next turn that
   # changes nothing, and that turn publishes what it took out. A refused turn
   # does no network work.

@@ -232,9 +232,10 @@ class Designs::TurnJob < ApplicationJob
   # push or a publish would invite a retry that runs Claude again on work
   # already on the branch, so each failure is a note in the chat instead.
   # Every successful turn pushes what origin lacks, an earlier turn's commit
-  # included, and a turn that committed or pushed anything is published. The
-  # preview is served from this clone, so a commit is published even when its
-  # push failed.
+  # included. Every successful turn whose branch has commits of its own is
+  # published, so a preview that a failed publish left stale refreshes with the
+  # next turn, even one that only answers a question. The preview is served
+  # from this clone, so a commit is published even when its push failed.
   def save(turn, repo, task, worktree, summary)
     slug = Designs::BranchNames.slug(task)
     wip = Designs::BranchNames.wip(task)
@@ -246,17 +247,13 @@ class Designs::TurnJob < ApplicationJob
       raise Failure, "Refused: #{result.refusal}" unless result.ok?
 
       notes = []
-      pushed = false
       begin
-        if unpushed?(repo, wip)
-          repo.push!(wip)
-          pushed = true
-        end
+        repo.push!(wip) if unpushed?(repo, wip)
       rescue StandardError => e
         log(turn, e, "the commit stays on the local branch")
         notes << "Saved, but not pushed to GitHub: #{reason(e)}. It goes out with the next turn."
       end
-      if result.sha || pushed
+      if repo.commits_ahead(wip).positive?
         begin
           Designs::Publisher.new(task.project, repo).publish!(wip, "wip/#{slug}")
         rescue StandardError => e
