@@ -84,10 +84,22 @@ namespace :setup do
             "Use the preview domain's own document root."
     end
 
+    # Only this origin may put a preview in a frame (the Designs screen); Jira
+    # opens links top-level. It goes into a quoted header value, so it must be
+    # one bare https origin: anything else would widen the policy or break the
+    # file, and the preview host with it.
+    frame_ancestor = fetch(:designs_preview_frame_ancestor, "https://app.flosis.com").to_s
+    unless frame_ancestor.match?(%r{\Ahttps://[A-Za-z0-9.-]+(:\d+)?\z})
+      abort "designs_preview_frame_ancestor (#{frame_ancestor.inspect}) must be one https origin, " \
+            "such as https://app.flosis.com."
+    end
+
     # Single-quoted heredoc: the backslashes in the patterns stay as written.
-    htaccess_content = <<~'HTACCESS'
+    rules = <<~'HTACCESS'
       Options -Indexes -ExecCGI -Includes
       DirectoryIndex index.html
+      # Designs may load ES modules, and Apache's own types may not know .mjs.
+      AddType text/javascript .mjs
 
       RewriteEngine On
       RewriteCond %{HTTPS} off
@@ -102,7 +114,9 @@ namespace :setup do
       <FilesMatch "(?i)\.(php[0-9]?|phtml|phar|pht|phps|cgi|fcgi|pl|py|sh|asp|aspx|jsp|shtml|shtm|stm)(\.|$)">
         Require all denied
       </FilesMatch>
+    HTACCESS
 
+    headers = <<~HTACCESS
       <IfModule mod_headers.c>
         # The project token is in every path: never hand it to another site.
         Header always set Referrer-Policy "no-referrer"
@@ -110,10 +124,12 @@ namespace :setup do
         Header always set X-Content-Type-Options "nosniff"
         # Published files change in place: a browser asks again before it shows one.
         Header always set Cache-Control "no-cache"
-        # Only Flosis may frame a preview (the Designs screen); Jira opens links top-level.
-        Header always set Content-Security-Policy "frame-ancestors https://app.flosis.com"
+        # HTTPS only, for a year: the token in the path never travels in the clear.
+        Header always set Strict-Transport-Security "max-age=31536000"
+        Header always set Content-Security-Policy "frame-ancestors #{frame_ancestor}"
       </IfModule>
     HTACCESS
+    htaccess_content = "#{rules}\n#{headers}"
 
     on roles(:web) do
       # No mkdir: the root is made when the domain is added in the Hostido panel,

@@ -276,10 +276,11 @@ class Workshop::ConfigurationController < Workshop::BaseController
   end
 
   # Designs tab: the link to master is a slot of the preview host, and only a
-  # repo that has been set up has anything published there to open.
+  # repo that has been set up has anything published there to open. With
+  # Designs off nothing is offered, a repo set up before included.
   def load_designs_tab
     project = current_workshop_project
-    return unless project&.design_repo_status == "ready"
+    return unless project&.designs_enabled? && project.design_repo_status == "ready"
 
     @master_preview_url = Designs::Publisher.new(project, nil).url("master")
   end

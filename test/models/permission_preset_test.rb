@@ -62,4 +62,10 @@ class PermissionPresetTest < ActiveSupport::TestCase
 
     assert_equal "Briefing Configuration", PermissionPreset.label(:briefing_config)
   end
+
+  # The Designs tab is one of Configuration's: the sentence that says what the
+  # switch unlocks has to say so.
+  test "Configuration's explanation names Designs" do
+    assert_match(/\bDesigns\b/, PermissionPreset.description(:configuration))
+  end
 end

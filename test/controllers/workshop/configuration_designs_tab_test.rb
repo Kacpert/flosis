@@ -156,6 +156,7 @@ class Workshop::ConfigurationDesignsTabTest < ActionDispatch::IntegrationTest
     @project.update!(design_repo_status: "initializing")
     get workshop_configuration_path(tab: "designs")
     assert_select "[data-design-status]", /Setting up/
+    assert_select "[data-design-status]", /If this takes more than a few minutes, save again to retry\./
     assert_select "a", text: /Open master preview/, count: 0
 
     @project.update!(design_repo_status: "error", design_repo_error: "git push failed: permission denied")
@@ -163,14 +164,25 @@ class Workshop::ConfigurationDesignsTabTest < ActionDispatch::IntegrationTest
     assert_select "[data-design-status]", /Failed: git push failed: permission denied/
     assert_select "a", text: /Open master preview/, count: 0
 
-    @project.update!(design_repo_status: "ready", design_preview_token: "t0k")
+    @project.update!(designs_enabled: true, design_repo_status: "ready", design_preview_token: "t0k")
     get workshop_configuration_path(tab: "designs")
     assert_select "[data-design-status]", /Ready/
     assert_select "a", text: /Open master preview/
   end
 
+  # Off, nothing runs and nothing is offered: a repo set up before is not
+  # "Ready", and the tab links to none of its previews.
+  test "with Designs off a set-up repo is not shown as Ready, and its master preview is not linked" do
+    @project.update!(designs_enabled: false, design_repo_status: "ready", design_preview_token: "t0k")
+    get workshop_configuration_path(tab: "designs")
+    assert_select "[data-design-status=off]", /Designs is off/
+    assert_select "[data-design-status]", text: /Ready/, count: 0
+    assert_select "a", text: /Open master preview/, count: 0
+    assert_not_includes response.body, "/t0k/master/"
+  end
+
   test "the master preview opens in a new tab without handing over the opener" do
-    @project.update!(design_repo_status: "ready", design_preview_token: "t0k")
+    @project.update!(designs_enabled: true, design_repo_status: "ready", design_preview_token: "t0k")
     get workshop_configuration_path(tab: "designs")
     assert_select "a[href=?][target=_blank][rel='noopener noreferrer']",
                   "#{Designs::Publisher.base_url}/t0k/master/index.html", text: /Open master preview/

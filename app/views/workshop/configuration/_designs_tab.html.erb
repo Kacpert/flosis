@@ -17,6 +17,9 @@
     token_placeholder = stored_token.empty? ? "Not set" : "••••••••••••#{stored_token.last(4) if stored_token.length >= 12}"
     kit_labels = { "tailwind4" => "Tailwind v4", "plain" => "Plain CSS" }
     status = project.design_repo_status
+    # Off, nothing runs and nothing is offered: a repo set up before is not
+    # "Ready" (and the controller links to none of its previews).
+    status = "off" if status == "ready" && !project.designs_enabled?
     error = project.design_repo_error
     tone = { "ready" => "clar-text-success", "initializing" => "clar-text-warn", "error" => "clar-text-danger" }.fetch(status, "clar-text-faint")
   %>
@@ -70,7 +73,10 @@
           <% if status == "ready" %>
             <span>Ready</span>
           <% elsif status == "initializing" %>
-            <span>Setting up&hellip;</span>
+            <%# A save queues the set-up again, so a run that died (a deploy stops jobs) is retried that way. %>
+            <span>Setting up&hellip; <span class="font-normal clar-text-muted">If this takes more than a few minutes, save again to retry.</span></span>
+          <% elsif status == "off" %>
+            <span>Designs is off</span>
           <% elsif status == "error" %>
             <%# One line, so no template whitespace lands in the pre-wrapped text. %>
             <span class="min-w-0 break-words whitespace-pre-wrap">Failed<% if error.present? %>: <span class="font-normal clar-text-muted"><%= error %></span><% end %></span>

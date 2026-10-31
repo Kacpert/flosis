@@ -32,7 +32,7 @@ module PermissionPreset
     reporting: "Open Reporting: delivered work, velocity and time spent.",
     pricing: "See money — hourly rates, cost and revenue wherever they appear.",
     briefing_config: "Edit the Briefing tab: ticket statuses, Jira fields and the brief template.",
-    configuration: "Edit integration keys and AI settings, and manage who is on this project."
+    configuration: "Edit integration keys, AI settings and Designs, and manage who is on this project."
   }.freeze
 
   # Pricing is deliberately off by default. Reporting is on by default, so

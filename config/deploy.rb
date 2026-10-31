@@ -29,6 +29,11 @@ set :legacy_document_root, "/home/host420646/domains/clar.rubyonsaas.com/public_
 #
 set :designs_preview_document_root, ENV["DESIGNS_PREVIEW_DOCUMENT_ROOT"]
 
+# The one origin whose pages may put a preview in a frame (the Designs screen):
+# the preview host's Content-Security-Policy frame-ancestors. The task defaults
+# to the same origin.
+set :designs_preview_frame_ancestor, "https://app.flosis.com"
+
 # rbenv
 set :rbenv_type, :user
 set :rbenv_ruby, File.read(".ruby-version").strip

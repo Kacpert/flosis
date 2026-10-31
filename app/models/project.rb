@@ -49,6 +49,8 @@ class Project < ApplicationRecord
   # In the app this refusal is shown as an alert on the Designs tab, so it says
   # what to type rather than only that something is wrong.
   validates :design_repo, format: { with: %r{\A[\w.-]+/[\w.-]+\z}, message: "must look like owner/name" }, allow_blank: true
+  # GitHub's own limits: an owner of 39 characters, a name of 100.
+  validates :design_repo, length: { maximum: 140 }
   validate :design_repo_is_not_the_app_repo
 
   scope :active, -> { where(archived: false) }

@@ -56,6 +56,15 @@ class ProjectDesignSettingsTest < ActiveSupport::TestCase
     assert @project.valid?, "a project with no app repo can use any design repo"
   end
 
+  # GitHub's own limits: an owner of 39 characters, a name of 100.
+  test "the design repo is at most 140 characters" do
+    @project.design_repo = "#{"o" * 39}/#{"n" * 100}"
+    assert @project.valid?
+    @project.design_repo = "#{"o" * 40}/#{"n" * 100}"
+    assert_not @project.valid?
+    assert_equal [ "is too long (maximum is 140 characters)" ], @project.errors[:design_repo]
+  end
+
   # What gets pasted is what the address bar shows.
   test "a pasted GitHub address is reduced to owner/name" do
     {
