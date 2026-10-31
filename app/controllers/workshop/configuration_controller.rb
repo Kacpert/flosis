@@ -114,13 +114,19 @@ class Workshop::ConfigurationController < Workshop::BaseController
   # Gives the project a new preview token. Its published previews move under it,
   # so every link sent so far, Jira's included, stops working at once. The repo
   # is handed over so that a project with a design folder is rotated under the
-  # repo's lock, with no publish writing under the token being retired.
+  # repo's lock, with no publish writing under the token being retired. The
+  # lock is not waited for: a job can hold it for minutes, and this request
+  # would hold a web thread for as long.
   def rotate_design_preview_token
     project = current_workshop_project
     return redirect_with("No project selected.", "designs") unless project
 
-    Designs::Publisher.new(project, Designs::Repo.new(project)).rotate_token!
-    flash[:clar_toast] = "Preview links rotated. Every link sent so far has stopped working."
+    begin
+      Designs::Publisher.new(project, Designs::Repo.new(project)).rotate_token!(wait: false)
+      flash[:clar_toast] = "Preview links rotated. Every link sent so far has stopped working."
+    rescue Designs::Repo::Busy
+      flash[:clar_toast] = "The design repo is busy — try again in a minute."
+    end
     redirect_to workshop_configuration_path(tab: "designs")
   end
 

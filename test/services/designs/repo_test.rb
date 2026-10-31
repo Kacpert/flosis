@@ -227,6 +227,58 @@ class Designs::RepoTest < ActiveSupport::TestCase
     end
   end
 
+  # A deploy stops jobs mid-run. A git killed there left its lock file, and
+  # every later git in the repo failed on it ("index.lock: File exists").
+  test "taking the lock clears the lock files a killed git left, and keeps a fresh one" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      dir = repo.worktree!("wip/REC-1")
+      git_dir = repo.root.join(".git")
+      stale = %w[index.lock refs/heads/master.lock worktrees/wip__REC-1/index.lock].map { |name| git_dir.join(name) }
+      fresh = git_dir.join("fresh.lock")
+      long_ago = Time.now - 11 * 60
+      (stale + [ fresh ]).each { |lock| File.write(lock, "") }
+      stale.each { |lock| File.utime(long_ago, long_ago, lock) }
+
+      commit_files(repo, dir, { "designs/a.html" => "a" })
+      commit_files(repo, repo.root, { "designs/b.html" => "b" })
+
+      stale.each { |lock| assert_not lock.exist?, lock.to_s }
+      assert fresh.exist?, "a lock file younger than ten minutes can be a git that is still running"
+    end
+  end
+
+  # The Designs tab rotates preview links from a web request, which must not
+  # wait behind a job that holds the repo (a set-up can take minutes).
+  test "synchronize without waiting raises Busy at once while another holds the lock" do
+    with_design_remote do |repo, _|
+      repo.ensure_clone!
+      ran = false
+      File.open(repo.root.dirname.join("design-repo.lock")) do |job|
+        job.flock(File::LOCK_EX)
+        assert_raises(Designs::Repo::Busy) { repo.synchronize(wait: false) { ran = true } }
+      end
+      assert_not ran
+      assert_equal :free, repo.synchronize(wait: false) { :free }
+      assert_equal :nested, repo.synchronize { repo.synchronize(wait: false) { :nested } }, "re-entrant within the thread that holds it"
+    end
+  end
+
+  # Marked held, a lock this thread no longer holds would let every later
+  # synchronize in the thread run without it.
+  test "a failure as the lock is taken leaves it neither held nor marked held" do
+    with_design_remote do |repo, _|
+      repo.ensure_clone!
+      broken = Designs::Repo.new(repo.project, remote_url: repo.remote_url)
+      broken.define_singleton_method(:clear_stale_git_locks!) { raise "boom" }
+      assert_raises(RuntimeError) { broken.synchronize { flunk "ran after a failure" } }
+
+      lock_path = repo.root.dirname.join("design-repo.lock")
+      taken_elsewhere = repo.synchronize { File.open(lock_path) { |other| other.flock(File::LOCK_EX | File::LOCK_NB) } }
+      assert_equal false, taken_elsewhere, "the next synchronize in this thread ran without the lock"
+    end
+  end
+
   test "synchronize is re-entrant within a thread, across Repo objects of one project" do
     with_design_remote do |repo, _|
       other = Designs::Repo.new(repo.project, remote_url: repo.remote_url)

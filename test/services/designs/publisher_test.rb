@@ -480,6 +480,26 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     assert_empty Dir.children(@preview_root)
   end
 
+  # The Designs tab rotates from a web request, which must not wait behind a
+  # job that holds the repo: it is told the repo is busy, and nothing moves.
+  test "rotating without waiting while a job holds the repo raises Busy and changes nothing" do
+    with_design_remote do |repo, _|
+      seed_master(repo)
+      publisher = Designs::Publisher.new(repo.project, repo)
+      publisher.publish!("master", "master")
+      old = repo.project.reload.design_preview_token
+
+      File.open(repo.root.dirname.join("design-repo.lock")) do |job|
+        job.flock(File::LOCK_EX)
+        assert_raises(Designs::Repo::Busy) { publisher.rotate_token!(wait: false) }
+      end
+
+      assert_equal old, repo.project.reload.design_preview_token
+      assert_equal [ old ], Dir.children(@preview_root)
+      assert_not_equal old, publisher.rotate_token!(wait: false), "a free repo rotates without waiting"
+    end
+  end
+
   test "a rotation whose new token cannot be stored puts the previews back under the old one" do
     with_design_remote do |repo, _|
       seed_master(repo)
@@ -508,10 +528,10 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     seen = []
     holds = 0
     lock = repo.method(:synchronize)
-    repo.define_singleton_method(:synchronize) do |&block|
+    repo.define_singleton_method(:synchronize) do |**options, &block|
       holds += 1
       seen << probe.call if holds == 1
-      lock.call(&block).tap { seen << probe.call if holds == 1 }
+      lock.call(**options, &block).tap { seen << probe.call if holds == 1 }
     ensure
       holds -= 1
     end

@@ -44,6 +44,14 @@ class Designs::Repo
   # repository, say).
   class NotEmpty < StandardError; end
 
+  # Another holds the repo's lock, and the caller would rather not wait.
+  class Busy < StandardError; end
+
+  # A git lock file this old was left by a git that was killed (a deploy stops
+  # jobs mid-run). No git Flosis runs here takes that long, and a transfer that
+  # stalls gives up after a minute (GitRunner.env).
+  STALE_LOCK_AGE = 10.minutes
+
   class << self
     # Test seam: where the repo lives instead of GitHub (a bare repo on disk).
     attr_accessor :remote_url_override
@@ -71,17 +79,23 @@ class Designs::Repo
   # Holds an exclusive flock on design-repo.lock for the block. It is
   # re-entrant within a thread, whichever Repo of the project asks, and every
   # method below runs inside it. The lock file sits beside the clone, so
-  # replacing the clone never touches it.
-  def synchronize
+  # replacing the clone never touches it. With wait: false it raises Busy at
+  # once if another holds the lock: a web request must not wait behind a job.
+  #
+  # The thread marks the lock held only inside the begin, so nothing that
+  # fails or is interrupted on the way in leaves it marked held.
+  def synchronize(wait: true)
     held = Thread.current.thread_variable_get(:designs_repo_locks) ||
            Thread.current.thread_variable_set(:designs_repo_locks, Set.new)
     return yield if held.include?(lock_path)
 
     FileUtils.mkdir_p(base_dir)
     File.open(lock_path, File::RDWR | File::CREAT, 0o644) do |lock|
-      lock.flock(File::LOCK_EX)
-      held << lock_path
+      raise Busy, "the design repo is busy" unless lock.flock(wait ? File::LOCK_EX : File::LOCK_EX | File::LOCK_NB)
+
       begin
+        held << lock_path
+        clear_stale_git_locks!
         yield
       ensure
         held.delete(lock_path)
@@ -257,6 +271,24 @@ class Designs::Repo
 
   def lock_path
     base_dir.join("design-repo.lock").to_s
+  end
+
+  # Every git Flosis runs in this repo runs under the lock, so once it is taken
+  # a git lock file (index.lock, a ref's .lock, a worktree's) is one a killed
+  # git left behind, and every later git would fail on it. Old ones only: a
+  # git orphaned by a killed job can still be running for a while. objects/,
+  # by far the largest folder, is left out: none of the commands run here
+  # takes a lock file in it.
+  def clear_stale_git_locks!
+    git_dir = root.join(".git")
+    return unless git_dir.directory?
+
+    Dir.glob(%w[*.lock {refs,logs,worktrees}/**/*.lock], base: git_dir.to_s).each do |name|
+      lock = git_dir.join(name)
+      lock.delete if lock.file? && lock.mtime < STALE_LOCK_AGE.ago
+    rescue Errno::ENOENT
+      nil # gone in the meantime
+    end
   end
 
   def worktree_path(branch)

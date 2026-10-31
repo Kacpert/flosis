@@ -105,8 +105,11 @@ class Designs::Publisher
   # Gives the project a new token and moves its previews under it, which kills
   # every link under the old one. The folder moves first: if the process dies
   # between the two steps, the old links are dead rather than still open.
-  def rotate_token!
-    locked do
+  #
+  # With wait: false, a repo whose lock another holds raises Repo::Busy before
+  # anything changes: a web request must not wait behind a job.
+  def rotate_token!(wait: true)
+    locked(wait: wait) do
       previous = project.reload.design_preview_token.presence
       token = SecureRandom.alphanumeric(32)
       from = previous && root.join(previous)
@@ -141,10 +144,10 @@ class Designs::Publisher
   # a clone can exist and a publish can be running. For any other project the
   # lock would make its folders (and give it a workspace_dir), which rotating
   # the links of a project that never turned Designs on must not do.
-  def locked(&block)
+  def locked(wait: true, &block)
     return yield unless repo && stored_workspace_dir
 
-    repo.synchronize(&block)
+    repo.synchronize(wait: wait, &block)
   end
 
   # The folder on the project's row, never the instance's idea of it, for the

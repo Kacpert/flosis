@@ -353,6 +353,27 @@ class Workshop::ConfigurationDesignsTabTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # A web thread must not wait behind a job holding the repo (a set-up can take
+  # minutes): the rotation is refused at once, and nothing changes.
+  test "rotating while a job holds the design repo changes nothing and says to try again" do
+    with_preview_root do |root|
+      Dir.mktmpdir("designs-workspace") do |workspace|
+        @project.update_columns(workspace_dir: workspace, design_preview_token: "old-token-old-token-old-token-12")
+        FileUtils.mkdir_p(root.join("old-token-old-token-old-token-12/master"))
+
+        File.open(File.join(workspace, "design-repo.lock"), File::RDWR | File::CREAT) do |job|
+          job.flock(File::LOCK_EX)
+          post workshop_rotate_design_preview_token_configuration_path
+        end
+
+        assert_redirected_to workshop_configuration_path(tab: "designs")
+        assert_equal "The design repo is busy — try again in a minute.", flash[:clar_toast]
+        assert_equal "old-token-old-token-old-token-12", @project.reload.design_preview_token
+        assert root.join("old-token-old-token-old-token-12/master").exist?
+      end
+    end
+  end
+
   private
 
   def ready_project

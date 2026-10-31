@@ -16,6 +16,12 @@
 class Designs::InitializeRepoJob < ApplicationJob
   queue_as :default
 
+  # One run per project at a time. Every save that can set the repo up queues
+  # a run, and a run waiting for the repo's lock held one of Solid Queue's
+  # threads (there are three) while it waited; the others now wait in the
+  # queue. The duration only bounds a claim whose run was killed.
+  limits_concurrency to: 1, key: ->(project_id) { "designs-init-#{project_id}" }, duration: 1.hour
+
   COMMIT_MESSAGE = "Start the design repo".freeze
 
   # design_repo_error is read by the people using the project, and the

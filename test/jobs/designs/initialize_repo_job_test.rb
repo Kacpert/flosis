@@ -71,6 +71,20 @@ class Designs::InitializeRepoJobTest < ActiveJob::TestCase
     end
   end
 
+  # Every save that can set the repo up queues a run, and a run waiting for the
+  # repo's lock held one of Solid Queue's three threads while it waited. Runs
+  # for one project now wait in the queue instead; the duration only bounds a
+  # claim whose run was killed.
+  test "one run per project at a time, the others waiting their turn" do
+    assert_equal 1, Designs::InitializeRepoJob.concurrency_limit
+    assert_equal :block, Designs::InitializeRepoJob.concurrency_on_conflict
+    assert_equal 1.hour, Designs::InitializeRepoJob.concurrency_duration
+    key = Designs::InitializeRepoJob.new(7).concurrency_key
+    assert_includes key, "designs-init-7"
+    assert_equal key, Designs::InitializeRepoJob.new(7).concurrency_key
+    assert_not_equal key, Designs::InitializeRepoJob.new(8).concurrency_key
+  end
+
   test "does nothing for a project that no longer exists" do
     assert_nothing_raised { Designs::InitializeRepoJob.perform_now(0) }
   end
