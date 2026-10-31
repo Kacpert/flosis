@@ -15,13 +15,14 @@ class Designs::TurnJobTest < ActiveJob::TestCase
   end
 
   # A stand-in for Claude: edits the worktree, then answers. during is called
-  # with the options the CLI was built with, while the turn runs.
-  def fake_claude(files: {}, reply: "<summary>Did it.</summary>", raise_error: nil, during: nil)
+  # with the options the CLI was built with, while the turn runs. is_error is
+  # what the CLI says of a run that ended in an error.
+  def fake_claude(files: {}, reply: "<summary>Did it.</summary>", raise_error: nil, during: nil, is_error: false)
     scripted_claude do |_call, _keywords, opts|
       raise raise_error if raise_error
       files.each { |p, b| FileUtils.mkdir_p(File.dirname(File.join(opts[:codebase_path], p))); File.write(File.join(opts[:codebase_path], p), b) }
       during&.call(opts)
-      { session_id: "s", response: reply }
+      { session_id: "s", response: reply, is_error: is_error }
     end
   end
 
@@ -418,6 +419,41 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  # Ruling P2-R29. An overload past the CLI's own retries ends the run with
+  # the error as its answer, after Claude may have edited half the screens.
+  test "an answer the CLI marks as an error fails the turn, and nothing Claude wrote is kept" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      master = repo.head("master")
+      error = "API Error: 529 #{'{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}} ' * 8}"
+      fake_claude(files: { "designs/a.html" => "a" }, reply: error, is_error: true)
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.failed?
+      assert_operator error.length, :>, 300
+      assert_equal "Claude stopped with an error: #{error.strip.first(300)}", turn.error
+      assert_equal master, repo.head("wip/REC-1")
+      assert_nil remote_branch_sha(remote, "wip/REC-1")
+      assert_not repo.worktree!("wip/REC-1").join("designs/a.html").exist?
+      assert_equal [ [ "error", turn.error ] ], assistant_messages(turn).pluck(:kind, :content)
+    end
+  end
+
+  # The cost cap (error_max_budget_usd) ends a run with no text at all.
+  test "an error answer with no text is the cost cap's, and says so" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      fake_claude(files: { "designs/a.html" => "a" }, reply: "", is_error: true)
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.failed?
+      assert_equal "Claude returned no answer — it may have hit the cost cap or the time limit.", turn.error
+      assert_nil remote_branch_sha(remote, "wip/REC-1")
+    end
+  end
+
   # Ruling P2-R22: a turn a deploy killed left its edits in the worktree. The
   # person saw it fail, and the next commit must not carry them.
   test "a turn starts from the branch's last commit, whatever a killed turn left in the worktree" do
@@ -536,6 +572,78 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       assert_operator first_line.length, :>, 72
       assert_equal "REC-1: #{first_line.truncate(72)}",
                    GitRunner.run!("log", "-1", "--format=%s", "refs/heads/wip/REC-1", chdir: remote).strip
+    end
+  end
+
+  # Ruling P2-R28. Once the commit is made, it is the turn's outcome: failing
+  # the turn would invite a retry that runs Claude again on work already on
+  # the branch. The preview is served from this clone, so it is published all
+  # the same, and the next turn's push takes the commit out.
+  test "a commit that cannot be pushed is still the turn's: it is published, and goes out with the next turn" do
+    skip "root writes to a read-only remote" if Process.uid.zero?
+
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      fake_claude(files: { "designs/jobs.html" => "<p>jobs</p>" }, reply: "<summary>Added jobs.</summary>")
+      turn = new_turn(task)
+      FileUtils.chmod_R("a-w", remote)
+      begin
+        turn = run_turn(turn, remote)
+      ensure
+        FileUtils.chmod_R("u+w", remote)
+      end
+
+      assert turn.succeeded?, turn.error
+      assert_equal repo.head("wip/REC-1"), turn.commit_sha
+      assert_nil remote_branch_sha(remote, "wip/REC-1")
+      assert File.exist?(File.join(@preview_root, repo.project.reload.design_preview_token, "wip", "REC-1", "designs", "jobs.html"))
+      messages = assistant_messages(turn).pluck(:kind, :content)
+      assert_equal %w[summary system], messages.map(&:first)
+      assert_match(/\ASaved, but not pushed to GitHub: git push failed: .+[^.]\. It goes out with the next turn\.\z/m,
+                   messages.last.last)
+
+      fake_claude(files: { "designs/more.html" => "<p>more</p>" })
+      after = run_turn(next_turn(turn.chat_session), remote)
+      assert after.succeeded?, after.error
+      assert_equal after.commit_sha, remote_branch_sha(remote, "wip/REC-1")
+      assert_includes remote_files(remote, "wip/REC-1"), "designs/jobs.html"
+    end
+  end
+
+  test "a commit whose preview cannot be updated is still the turn's, and is pushed" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      not_a_folder = File.join(@preview_root, "not-a-folder")
+      File.write(not_a_folder, "")
+      fake_claude(files: { "designs/jobs.html" => "<p>jobs</p>" }, reply: "<summary>Added jobs.</summary>")
+
+      turn = with_env("DESIGNS_PREVIEW_ROOT" => not_a_folder) { run_turn(new_turn(task), remote) }
+
+      assert turn.succeeded?, turn.error
+      assert_equal turn.commit_sha, remote_branch_sha(remote, "wip/REC-1")
+      messages = assistant_messages(turn).pluck(:kind, :content)
+      assert_equal %w[summary system], messages.map(&:first)
+      assert_match(/\ASaved, but the preview could not be updated: .+[^.]\.\z/m, messages.last.last)
+    end
+  end
+
+  # chat_messages.content is TEXT on MariaDB too, so a note is cut as an error is.
+  test "a note on what did not go out is cut to fit" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      fake_claude(files: { "designs/jobs.html" => "<p>jobs</p>" })
+      publish = Designs::Publisher.instance_method(:publish!)
+      Designs::Publisher.define_method(:publish!) { |*| raise Designs::Publisher::Error, "x" * 20_000 }
+      begin
+        turn = run_turn(new_turn(task), remote)
+      ensure
+        Designs::Publisher.define_method(:publish!, publish)
+      end
+
+      assert turn.succeeded?, turn.error
+      note = assistant_messages(turn).where(kind: "system").sole.content
+      assert_equal DesignTurn::ERROR_LIMIT, note.length
+      assert note.start_with?("Saved, but the preview could not be updated: xxx")
     end
   end
 

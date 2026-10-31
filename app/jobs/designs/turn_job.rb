@@ -12,9 +12,11 @@ require "tmpdir"
 # Claude gets file tools only (no Bash, no git, no web), the project's own
 # key, a cost cap, a time limit, and the application as a read-only copy of
 # what its checkout has committed. A turn starts from its branch's last
-# commit, and whatever goes wrong once it has started is recorded on the turn
-# and in the chat, never re-raised: the worktree is put back, so the branch
-# stays where the last good turn left it.
+# commit. Whatever goes wrong before its own commit is made fails it, on the
+# turn and in the chat, and is never re-raised: the worktree is put back, so
+# the branch stays where the last good turn left it. Once the commit is made,
+# the turn has succeeded, and a push or a publish that fails is a note in the
+# chat.
 class Designs::TurnJob < ApplicationJob
   queue_as :designs
 
@@ -75,16 +77,28 @@ class Designs::TurnJob < ApplicationJob
     # the next commit must not carry them.
     repo.discard!(worktree)
 
-    output = Designs::TurnOutput.parse(ask_claude(turn, repo, worktree, key))
+    answer = ask_claude(turn, repo, worktree, key)
+    raise Failure, stopped(answer[:response]) if answer[:is_error]
+
+    output = Designs::TurnOutput.parse(answer[:response])
     raise Failure, NO_ANSWER if output.summary.blank?
 
-    sha = commit_and_publish(repo, task, worktree, output.summary)
+    sha, notes = save(turn, repo, task, worktree, output.summary)
     DesignTurn.transaction do
-      post_reply(turn.chat_session, output)
+      post_reply(turn.chat_session, output, notes)
       turn.succeed!(commit_sha: sha)
     end
   rescue StandardError => e
     fail_turn(turn, e, repo, worktree)
+  end
+
+  # A run the CLI says ended in an error: an API error (an overload past the
+  # CLI's own retries, say) comes back as an answer whose text is the error,
+  # and Claude may have left half its edits. The cost cap ends a run with no
+  # text at all.
+  def stopped(text)
+    text = text.to_s.strip
+    text.empty? ? NO_ANSWER : "Claude stopped with an error: #{text.first(300)}"
   end
 
   # The task's worktree, made on first use: from its working branch, here or
@@ -111,9 +125,9 @@ class Designs::TurnJob < ApplicationJob
     design
   end
 
-  # Claude's reply to the person's request. Nothing it is given lives in the
-  # worktree: the system prompt is a temp file and the app a temp copy, both
-  # gone when it is done.
+  # Claude's answer to the person's request, as the CLI gives it back. Nothing
+  # it is given lives in the worktree: the system prompt is a temp file and
+  # the app a temp copy, both gone when it is done.
   def ask_claude(turn, repo, worktree, key)
     task = turn.chat_session.task
     prompt = Designs::Prompt.turn_message(task: task, request: turn.chat_message.content)
@@ -124,7 +138,7 @@ class Designs::TurnJob < ApplicationJob
           append_system_prompt_file: system_prompt, add_dirs: [ app ].compact,
           max_budget_usd: DesignTurn.turn_budget_usd, timeout: DesignTurn.turn_timeout
         )
-        converse(cli, turn, prompt, repo, worktree)[:response].to_s
+        converse(cli, turn, prompt, repo, worktree)
       end
     end
   end
@@ -237,10 +251,17 @@ class Designs::TurnJob < ApplicationJob
     Rails.logger.warn("[#{self.class.name}] could not remove #{holder}: #{e.message}")
   end
 
-  # Staging, the guard, the commit, the push and the publish run under one hold
-  # of the repo's lock: what the guard passed is what is committed and
-  # published. A turn that changed no file pushes and publishes nothing.
-  def commit_and_publish(repo, task, worktree, summary)
+  # The commit's sha (nil for a turn that changed no file), and a note for
+  # each step after the commit that failed. Staging, the guard, the commit,
+  # the push and the publish run under one hold of the repo's lock: what the
+  # guard passed is what is committed, pushed and published.
+  #
+  # Once the commit is made, it is the turn's outcome. Failing the turn over a
+  # push or a publish would invite a retry that runs Claude again on work
+  # already on the branch, so each failure is a note in the chat instead. The
+  # next turn's push takes the commit out, and the preview is served from this
+  # clone, so it is published even when the push failed.
+  def save(turn, repo, task, worktree, summary)
     slug = Designs::BranchNames.slug(task)
     wip = Designs::BranchNames.wip(task)
     guard = Designs::LeakGuard.new(forbidden_texts: [ Designs::Prompt::BASE ],
@@ -249,13 +270,29 @@ class Designs::TurnJob < ApplicationJob
     repo.synchronize do
       result = Designs::Committer.new(repo, guard).commit!(worktree, message: message)
       raise Failure, refusal(result.violations) unless result.ok?
+      next [ nil, [] ] unless result.sha
 
-      if result.sha
+      notes = []
+      begin
         repo.push!(wip)
-        Designs::Publisher.new(task.project, repo).publish!(wip, "wip/#{slug}")
+      rescue StandardError => e
+        log(turn, e, "the commit stays on the local branch")
+        notes << "Saved, but not pushed to GitHub: #{reason(e)}. It goes out with the next turn."
       end
-      result.sha
+      begin
+        Designs::Publisher.new(task.project, repo).publish!(wip, "wip/#{slug}")
+      rescue StandardError => e
+        log(turn, e, "the preview shows the last turn it took")
+        notes << "Saved, but the preview could not be updated: #{reason(e)}."
+      end
+      [ result.sha, notes ]
     end
+  end
+
+  # An error's message as a clause: git's ends in a newline, and often in a
+  # full stop of its own.
+  def reason(error)
+    (error.message.presence || error.class.name).strip.delete_suffix(".")
   end
 
   # A violation names its path and rule, never the text that broke it.
@@ -264,11 +301,13 @@ class Designs::TurnJob < ApplicationJob
   end
 
   # The reply as the chat shows it: the summary, then each context Claude
-  # added and each question it left open, a message apiece.
-  def post_reply(session, output)
+  # added and each question it left open, a message apiece, then Flosis's
+  # notes on what did not go out, cut to fit as an error is.
+  def post_reply(session, output, notes)
     replies = [ [ "summary", output.summary ] ] +
               output.contexts.map { |text| [ "context", text ] } +
-              output.missing.map { |text| [ "missing", text ] }
+              output.missing.map { |text| [ "missing", text ] } +
+              notes.map { |note| [ "system", note.truncate(DesignTurn::ERROR_LIMIT) ] }
     replies.each { |kind, text| session.chat_messages.create!(role: "assistant", kind: kind, content: text) }
   end
 

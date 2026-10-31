@@ -56,7 +56,7 @@ class ClaudeCliService
   # Start a new Claude session with an initial prompt. A new_session_id (a UUID)
   # names the session up front (--session-id), so the caller has it before the run
   # is over and resume_session can find it later.
-  # Returns { session_id: String, response: String }
+  # Returns { session_id: String, response: String, is_error: Boolean }
   def start_session(prompt:, new_session_id: nil)
     run_session(build_command(streaming: false, new_session_id: new_session_id), prompt)
   end
@@ -64,7 +64,7 @@ class ClaudeCliService
   # Send a message to an existing session and return the whole answer once the
   # run is over (send_message_streaming is the line-by-line variant). A session the
   # CLI cannot find prints nothing on stdout, which raises ClaudeCliError.
-  # Returns { session_id: String, response: String }
+  # Returns { session_id: String, response: String, is_error: Boolean }
   def resume_session(session_id:, prompt:)
     run_session(build_command(session_id: session_id, streaming: false), prompt)
   end
@@ -238,13 +238,17 @@ class ClaudeCliService
   end
 
   # One non-streaming run: the prompt goes in, the CLI's JSON answer comes out.
+  # is_error is the CLI's word that the run ended in an error rather than an
+  # answer: an API error (an overload past its own retries, say) comes back as
+  # a result whose text is the error, and the cost cap as one with no text.
   def run_session(cmd, prompt)
     output = run_claude(cmd, prompt)
     data = JSON.parse(output)
 
     {
       session_id: data["session_id"],
-      response: data["result"] || ""
+      response: data["result"] || "",
+      is_error: data["is_error"] == true
     }
   rescue JSON::ParserError => e
     Rails.logger.error("[ClaudeCliService] Failed to parse response: #{e.message}")

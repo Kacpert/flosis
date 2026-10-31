@@ -300,7 +300,24 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
 
     assert_equal id, ran[:cmd][ran[:cmd].index("--session-id") + 1]
     assert_equal "Make a login page", ran[:message]
-    assert_equal({ session_id: id, response: "Hi" }, result)
+    assert_equal({ session_id: id, response: "Hi", is_error: false }, result)
+  end
+
+  # Ruling P2-R29. An API error (an overload past the CLI's own retries, say)
+  # ends the run with is_error set and the error as its result, an answer in
+  # form only. The cost cap ends it with no result at all.
+  test "a run that ended in an error says so" do
+    overloaded = { "type" => "result", "subtype" => "success", "is_error" => true,
+                   "result" => "API Error: 529 Overloaded", "session_id" => "s" }.to_json
+    assert_equal({ session_id: "s", response: "API Error: 529 Overloaded", is_error: true },
+                 build_fake_service(run_claude_output: overloaded).start_session(prompt: "Hi"))
+
+    capped = { "type" => "result", "subtype" => "error_max_budget_usd", "is_error" => true, "session_id" => "s" }.to_json
+    assert_equal({ session_id: "s", response: "", is_error: true },
+                 build_fake_service(run_claude_output: capped).resume_session(session_id: "s", prompt: "Hi"))
+
+    answered = { "type" => "result", "is_error" => false, "result" => "Done.", "session_id" => "s" }.to_json
+    assert_equal false, build_fake_service(run_claude_output: answered).start_session(prompt: "Hi")[:is_error]
   end
 
   test "start_session without an id leaves the naming to the CLI" do
@@ -325,7 +342,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
     refute_includes ran[:cmd], "--verbose"
     assert_includes ran[:cmd], "--restricted", "a resumed turn keeps the service's guard rails"
     assert_equal "Now the settings page", ran[:message]
-    assert_equal({ session_id: "abc", response: "Done." }, result)
+    assert_equal({ session_id: "abc", response: "Done.", is_error: false }, result)
   end
 
   # The CLI prints "No conversation found with session ID: ..." on stderr and
