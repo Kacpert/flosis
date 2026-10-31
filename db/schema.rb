@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_30_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_31_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -130,6 +130,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_30_120000) do
     t.bigint "chat_session_id", null: false
     t.text "content", null: false
     t.datetime "created_at", null: false
+    t.string "kind"
     t.string "role", null: false
     t.text "thinking"
     t.datetime "updated_at", null: false
@@ -186,6 +187,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_30_120000) do
     t.index ["project_id"], name: "index_delivered_issues_on_project_id"
   end
 
+  create_table "design_approvals", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "design_sha", null: false
+    t.string "master_sha", null: false
+    t.integer "number", null: false
+    t.string "tag", null: false
+    t.bigint "task_id", null: false
+    t.bigint "user_id", null: false
+    t.index ["task_id", "number"], name: "index_design_approvals_on_task_id_and_number", unique: true
+    t.index ["user_id"], name: "index_design_approvals_on_user_id"
+  end
+
   create_table "design_requests", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "delivered_at"
@@ -199,6 +212,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_30_120000) do
     t.index ["designer_id"], name: "index_design_requests_on_designer_id"
     t.index ["requester_id"], name: "index_design_requests_on_requester_id"
     t.index ["task_id"], name: "index_design_requests_on_task_id", unique: true
+  end
+
+  create_table "design_turns", force: :cascade do |t|
+    t.bigint "chat_message_id", null: false
+    t.bigint "chat_session_id", null: false
+    t.string "commit_sha"
+    t.datetime "created_at", null: false
+    t.text "error"
+    t.datetime "finished_at"
+    t.string "kind", default: "design", null: false
+    t.datetime "started_at"
+    t.string "status", default: "queued", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_message_id"], name: "index_design_turns_on_chat_message_id"
+    t.index ["chat_session_id", "status"], name: "index_design_turns_on_chat_session_id_and_status"
   end
 
   create_table "discord_reminder_pings", force: :cascade do |t|
@@ -753,9 +781,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_30_120000) do
   add_foreign_key "chat_sessions", "workspaces"
   add_foreign_key "clients", "workspaces"
   add_foreign_key "delivered_issues", "projects"
+  add_foreign_key "design_approvals", "tasks"
+  add_foreign_key "design_approvals", "users"
   add_foreign_key "design_requests", "tasks"
   add_foreign_key "design_requests", "users", column: "designer_id"
   add_foreign_key "design_requests", "users", column: "requester_id"
+  add_foreign_key "design_turns", "chat_messages"
+  add_foreign_key "design_turns", "chat_sessions"
   add_foreign_key "discord_reminder_pings", "discord_reminder_recipients"
   add_foreign_key "discord_reminder_recipients", "users"
   add_foreign_key "discord_reminder_recipients", "workspaces"

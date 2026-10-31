@@ -1,0 +1,79 @@
+# One run of Claude for one message of a Designs chat. A message creates a
+# turn, Designs::TurnJob runs it, and the screen polls for how it stands.
+#
+# queued -> running -> succeeded or failed. A failed turn can be retried: it
+# goes back to queued and is started again.
+class DesignTurn < ApplicationRecord
+  belongs_to :chat_session
+  # The user's message this turn answers.
+  belongs_to :chat_message
+
+  STATUSES = %w[queued running succeeded failed].freeze
+  # "design" answers a person's message. "resolve_conflicts" is the turn that
+  # "Update from master" starts when master changed the same files.
+  KINDS = %w[design resolve_conflicts].freeze
+  # Not finished yet: while a chat has one, the screen keeps polling and the
+  # work cannot be approved.
+  ACTIVE = %w[queued running].freeze
+
+  # What a turn that was cut off is failed with (see .fail_stale!).
+  INTERRUPTED = "Interrupted before it finished — retry it.".freeze
+
+  # The most characters of an error that are kept. MySQL refuses a TEXT past
+  # 65,535 bytes, which is 16,383 characters at four bytes each; 10,000 is well
+  # inside that and far more than anyone reads in a chat.
+  ERROR_LIMIT = 10_000
+
+  validates :status, inclusion: { in: STATUSES }
+  validates :kind, inclusion: { in: KINDS }
+
+  scope :active, -> { where(status: ACTIVE) }
+
+  STATUSES.each do |s|
+    define_method("#{s}?") { status == s }
+  end
+
+  # A turn that starts again (a retry, or a job delivered a second time after
+  # a deploy killed the first) begins with a clean slate: a running turn has no
+  # finish time and no error from its last attempt.
+  def start!
+    update!(status: "running", started_at: Time.current, finished_at: nil, error: nil)
+  end
+
+  # commit_sha is nil when Claude's answer changed no file.
+  def succeed!(commit_sha:)
+    update!(status: "succeeded", commit_sha: commit_sha, finished_at: Time.current)
+  end
+
+  # The job records every error here and never re-raises one, so this must not
+  # raise on a message that is too long for the column: it is cut to ERROR_LIMIT.
+  def fail!(message)
+    update!(status: "failed", error: message.to_s.truncate(ERROR_LIMIT), finished_at: Time.current)
+  end
+
+  # How long a turn may stay running before it counts as cut off: the timeout
+  # the CLI is run with (the same DESIGNS_TURN_TIMEOUT_SECONDS), plus five
+  # minutes for what Flosis does after Claude answers — committing, pushing and
+  # publishing. A deploy restarts the queue worker and kills a turn it was
+  # running, and nothing else would ever finish or fail that turn: its row
+  # would say "running" for good, and the screen would wait on it.
+  def self.stale_after
+    ENV.fetch("DESIGNS_TURN_TIMEOUT_SECONDS", "900").to_i.seconds + 5.minutes
+  end
+
+  # Fails every running turn older than stale_after and returns how many. One
+  # UPDATE, not a load and a save per turn: the screen calls this on every
+  # poll, and a job that took a turn over in the meantime (start! sets a fresh
+  # started_at) is no longer matched by the time the UPDATE runs.
+  def self.fail_stale!
+    now = Time.current
+    where(status: "running", started_at: ...(now - stale_after))
+      .update_all(status: "failed", error: INTERRUPTED, finished_at: now, updated_at: now)
+  end
+
+  # Running for longer than stale_after. Only a running turn can be: a queued
+  # one has not started, and a finished one was not cut off.
+  def stale?
+    running? && started_at.present? && started_at < self.class.stale_after.ago
+  end
+end

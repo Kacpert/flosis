@@ -24,6 +24,17 @@ class ChatMessageTest < ActiveSupport::TestCase
     assert_includes message.errors[:content], "can't be blank"
   end
 
+  # Most messages are plain; Designs marks the ones its screen draws differently.
+  test "kind is empty unless a message was given one" do
+    session = chat_sessions(:one)
+    assert_nil session.chat_messages.create!(role: "user", content: "hello").kind
+
+    %w[summary context missing error system].each do |kind|
+      message = session.chat_messages.create!(role: "assistant", content: "x", kind: kind)
+      assert_equal kind, message.reload.kind
+    end
+  end
+
   test "ordered scope returns messages in chronological order" do
     assert_equal chat_messages(:greeting), chat_sessions(:one).chat_messages.ordered.first
   end

@@ -47,6 +47,22 @@ class ProjectCredentials
     @project.anthropic_api_key.presence || ENV["ANTHROPIC_API_KEY"].presence
   end
 
+  # The key a Designs turn runs on: the project's own, and nothing else. The
+  # method above falls back to the machine's key, and this one must not.
+  #
+  # Licensing: Anthropic's terms do not let one party's Claude subscription
+  # serve other people. Claude Code's "Legal and compliance" page has each end
+  # user of a product built on it authenticate with their own key (Consumer
+  # Terms section 2 says the same of a subscription), and from 2026-11-12 the
+  # Usage Policy bans services that route requests through consumer
+  # subscriptions. The server is logged in to the owner's own, so a client's
+  # design work either runs on the client's key or does not run: a project
+  # without one is told to add it (Configuration › AI) and starts no turn,
+  # rather than quietly borrowing the server's.
+  def designs_api_key
+    @project.anthropic_api_key.presence
+  end
+
   # The design repo and its token come from the project and from nowhere else,
   # least of all github_repo and github_token. The design token has write
   # access (Designs pushes a branch per task), and the app repo's token is a

@@ -83,6 +83,25 @@ class ProjectCredentialsTest < ActiveSupport::TestCase
     ENV.delete("ANTHROPIC_API_KEY")
   end
 
+  # Designs works on a client's repository, so it runs on the client's own key
+  # and on nothing else: the machine's key and login are not theirs to use.
+  test "designs runs on the project's own AI key" do
+    @project.update!(anthropic_api_key: "project-key")
+
+    with_env("ANTHROPIC_API_KEY" => "env-key") do
+      assert_equal "project-key", ProjectCredentials.new(@project).designs_api_key
+    end
+  end
+
+  test "a blank project key is no designs key, whatever the environment holds" do
+    with_env("ANTHROPIC_API_KEY" => "env-key") do
+      [ nil, "", "  " ].each do |blank|
+        @project.update!(anthropic_api_key: blank)
+        assert_nil ProjectCredentials.new(@project).designs_api_key, blank.inspect
+      end
+    end
+  end
+
   test "jira_key comes from external_reference" do
     assert_equal "DEV", ProjectCredentials.new(@project).jira_key
   end
