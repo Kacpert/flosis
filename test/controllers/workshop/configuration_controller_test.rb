@@ -608,4 +608,28 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_equal "keep-me", @project.reload.github_token
     assert_equal "acme/new", @project.github_repo
   end
+
+  test "the AI tab takes the project's own Anthropic key, and a blank field keeps it" do
+    get workshop_configuration_path(tab: "ai")
+    assert_select "input[type=password][name='project[anthropic_api_key]']"
+    @project.update!(anthropic_api_key: "sk-ant-keep")
+    patch workshop_configuration_path, params: { tab: "ai", project: { anthropic_api_key: "" } }
+    assert_equal "sk-ant-keep", @project.reload.anthropic_api_key
+  end
+
+  test "the AI tab never shows the key, only its last four characters" do
+    @project.update!(anthropic_api_key: "sk-ant-secret-wxyz")
+    get workshop_configuration_path(tab: "ai")
+    assert_select "input[name='project[anthropic_api_key]']:not([value])"
+    assert_select "input[name='project[anthropic_api_key]'][placeholder$=?]", "wxyz"
+    assert_no_match(/sk-ant-secret/, response.body)
+    assert_select "body", /Designs runs only on this key\. Claude is billed to it, not to Flosis\./
+  end
+
+  test "the key's last characters are shown as text, never as markup" do
+    @project.update!(anthropic_api_key: %(sk-ant-x"<i>))
+    get workshop_configuration_path(tab: "ai")
+    assert_select "input[name='project[anthropic_api_key]'][placeholder$=?]", %("<i>)
+    assert_select ".clar-card i", count: 0
+  end
 end

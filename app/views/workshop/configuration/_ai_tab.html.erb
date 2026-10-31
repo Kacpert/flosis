@@ -12,6 +12,18 @@
     </div>
   </div>
 
+  <%# Write-only, as the GitHub token is: the form never carries the key back,
+      and a blank field keeps it (ConfigurationController::SECRETS). %>
+  <% anthropic_key = current_workshop_project&.anthropic_api_key %>
+  <div class="clar-card p-4.5">
+    <div class="font-bold text-[14px] clar-text-text mb-1">Anthropic API key</div>
+    <div class="text-[12.5px] clar-text-muted mb-3">Designs runs only on this key. Claude is billed to it, not to Flosis.</div>
+    <%= password_field_tag "project[anthropic_api_key]", nil,
+          placeholder: anthropic_key.present? ? "sk-ant-&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;#{anthropic_key.last(4)}".html_safe : "Not set",
+          autocomplete: "new-password", class: "clar-input clar-mono mb-1.5", data: { action: "change->auto-save#save" } %>
+    <div class="text-[11px] clar-text-faint">Write-only &mdash; leave blank to keep the current key.</div>
+  </div>
+
   <div class="clar-card p-4.5">
     <div class="font-bold text-[14px] clar-text-text mb-1">PR review prompt</div>
     <div class="text-[12.5px] clar-text-muted mb-3">Instructions the AI follows when reviewing pull requests.</div>
