@@ -22,6 +22,19 @@ class Designs::BranchNamesTest < ActiveSupport::TestCase
     end
   end
 
+  # Named after an id it does not have yet, every unsaved task would be
+  # "task-": one name shared by all, so one task's branches and approvals
+  # would be another's.
+  test "a task with neither a Jira key nor an id is refused" do
+    [ nil, "../master", "rec-1" ].each do |reference|
+      task = Task.new(external_reference: reference)
+      assert_raises(ArgumentError, reference.inspect) { Designs::BranchNames.slug(task) }
+      assert_raises(ArgumentError, reference.inspect) { Designs::BranchNames.wip(task) }
+      assert_raises(ArgumentError, reference.inspect) { Designs::BranchNames.design(task) }
+    end
+    assert_equal "REC-1", Designs::BranchNames.slug(Task.new(external_reference: "REC-1")), "a Jira key needs no id"
+  end
+
   test "approval tags number each approval of a task" do
     assert_equal "approved/REC-142/3", Designs::BranchNames.approval_tag("REC-142", 3)
   end
