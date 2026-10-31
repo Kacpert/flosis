@@ -1,0 +1,33 @@
+#!/usr/bin/env ruby
+# Development stand-in for the preview host: serves the folder Designs::Publisher
+# publishes into, on the port its development base URL names (http://localhost:3100).
+# Run it in a terminal beside bin/dev.
+#
+#   DESIGNS_PREVIEW_ROOT   the folder to serve; default tmp/designs_preview. Blank
+#                          counts as unset, as for the Publisher, and a relative path
+#                          is taken from the app root. Give the Rails server the same
+#                          value: it publishes into this folder.
+#   DESIGNS_PREVIEW_PORT   default 3100. The Rails server's DESIGNS_PREVIEW_URL has to
+#                          name it, or the links it builds will not reach this server.
+#
+# Bound to the loopback address only: the folder is the previews of every project, and
+# its listing names their tokens, which are all that locks a preview.
+require "fileutils"
+
+root = ENV["DESIGNS_PREVIEW_ROOT"].to_s.strip
+root = "tmp/designs_preview" if root.empty?
+root = File.expand_path(root, File.expand_path("..", __dir__))
+
+port = ENV["DESIGNS_PREVIEW_PORT"].to_s.strip
+port = "3100" if port.empty?
+
+FileUtils.mkdir_p(root)
+
+$stdout.sync = true
+puts "Serving #{root} on http://localhost:#{port}"
+
+begin
+  exec "python3", "-m", "http.server", port, "--bind", "127.0.0.1", "--directory", root
+rescue Errno::ENOENT
+  abort "bin/designs-preview needs python3 on the PATH: it serves the folder with python3 -m http.server."
+end
