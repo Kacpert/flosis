@@ -11,7 +11,8 @@ require "fileutils"
 # - an .erb file is rendered with `project` and `kit`, and loses its .erb;
 # - design_system/theme.css.<kit> becomes design_system/theme.css, and the
 #   other kits' themes are left out;
-# - runtime/kits/<kit>.js becomes runtime/kit.js if the kit has one, and
+# - runtime/kits/<kit>.js becomes runtime/kit.js if the kit has one, and its
+#   licence, runtime/kits/<kit>.LICENSE.txt, becomes runtime/kit-license.txt;
 #   runtime/kits/ itself is never copied.
 #
 # runtime/kits/tailwind4.js is the Tailwind CSS browser build, vendored
@@ -21,8 +22,12 @@ require "fileutils"
 # (SHA-256 29edc4b76dac05a8c27bb9bdd0ec6d6506a2f55c1db24f11fa5b7f509142e6bf,
 # the same bytes as in the package on the npm registry). 4.2.1 because it is
 # the tailwindcss-ruby version in Gold's Gemfile.lock: a design is compiled by
-# the same Tailwind that builds Gold. To upgrade, replace the file with another
-# version's build, unmodified, and update this comment.
+# the same Tailwind that builds Gold. Tailwind is MIT-licensed, and the MIT
+# licence asks for its notice in every copy, so runtime/kits/tailwind4.LICENSE.txt
+# is the same package's LICENSE, unmodified, from
+#   https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.1/LICENSE
+# To upgrade, replace both files with another version's, unmodified, and update
+# this comment.
 module Designs::Template
   SOURCE = Rails.root.join("lib/designs_template")
 
@@ -60,7 +65,10 @@ module Designs::Template
     # Where a template file lands in the repo, or nil when it stays out.
     def target_for(path, kit)
       if path.start_with?("runtime/kits/")
-        "runtime/kit.js" if path == "runtime/kits/#{kit}.js"
+        case path
+        when "runtime/kits/#{kit}.js" then "runtime/kit.js"
+        when "runtime/kits/#{kit}.LICENSE.txt" then "runtime/kit-license.txt"
+        end
       elsif path.start_with?("design_system/theme.css.")
         "design_system/theme.css" if path == "design_system/theme.css.#{kit}"
       else

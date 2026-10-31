@@ -1,3 +1,4 @@
+/* No CSS import rule in this file, not even in a comment (so this line cannot spell it): the in-browser compiler would then drop every utility. */
 /* The design system's tokens, read by Tailwind CSS v4 (runtime/kit.js).
    Each one is also a utility: bg-primary, text-on-surface, font-sans,
    rounded-md. These are neutral placeholders: the setup run replaces them

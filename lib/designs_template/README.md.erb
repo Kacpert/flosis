@@ -44,7 +44,7 @@ python3 -m http.server 8000
 | `design_system/` | the brand book, the tokens (`theme.css`), assets and fonts |
 | `components/` | one folder per component: its guidelines, a preview and the component itself |
 | `designs/` | clickable screens of the app, their fake data and the contexts (`contexts.json`) |
-| `runtime/` | what the browser needs: `flosis.js` (components and contexts) and `config.json`<% if kit == "tailwind4" %>, plus `kit.js` (the Tailwind CSS browser build)<% end %> |
+| `runtime/` | what the browser needs: `flosis.js` (components and contexts) and `config.json`<% if kit == "tailwind4" %>, plus `kit.js` (the Tailwind CSS browser build) and its MIT licence, `kit-license.txt`<% end %> |
 
 Nothing else belongs in the repository.
 
@@ -68,7 +68,7 @@ A screen never copies a component's markup. It includes the component:
 - In the component, each `{{name}}` placeholder is replaced with the include's attribute of that name, HTML-escaped (here `{{title}}`), or with nothing when the include has no such attribute.
 - The include's children take the place of the component's first `<slot></slot>`.
 - Components can include components.
-- An include becomes part of the page, so the links and images in a component resolve against the page that includes it. That is why a page one folder down gives the nav `root="../"`, and the nav links to `{{root}}index.html`.
+- Paths inside a component are relative to the repo root. That holds for its `src`, `href`, `srcset` and `poster` attributes, including paths passed in through a placeholder. It does not hold for the include's children: they belong to the page, and their paths stay relative to the page. A URL with a scheme (`https:`, `mailto:`, `data:`…), and one starting with `/`, `#` or `?`, is left as it is.
 - A component that cannot be loaded shows as a red "Missing component" box. A `<script>` in a component does not run: behaviour belongs to the page.
 
 ## Contexts

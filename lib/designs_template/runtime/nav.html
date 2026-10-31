@@ -1,13 +1,12 @@
 <!-- The repo's own navigation. A page includes it with
-     <x-include src="runtime/nav.html" current="designs" root="../"></x-include>
-     current: home, design_system, components or designs.
-     root: the way from the page back to the repo root ("../" one folder down,
-     nothing at the root), because links in an include resolve against the page. -->
+     <x-include src="runtime/nav.html" current="designs"></x-include>
+     current: home, design_system, components or designs. Like every path in
+     a component, its links are relative to the repo root. -->
 <nav class="flosis-nav" data-current="{{current}}" aria-label="Design repo">
-  <a href="{{root}}index.html" data-page="home">Overview</a>
-  <a href="{{root}}design_system/index.html" data-page="design_system">Design system</a>
-  <a href="{{root}}components/index.html" data-page="components">Components</a>
-  <a href="{{root}}designs/index.html" data-page="designs">Designs</a>
+  <a href="index.html" data-page="home">Overview</a>
+  <a href="design_system/index.html" data-page="design_system">Design system</a>
+  <a href="components/index.html" data-page="components">Components</a>
+  <a href="designs/index.html" data-page="designs">Designs</a>
 </nav>
 <style>
   /* The scaffold's own look: this nav, and the placeholder pages that the

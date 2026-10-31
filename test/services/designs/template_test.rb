@@ -81,6 +81,28 @@ class Designs::TemplateTest < ActiveSupport::TestCase
     end
   end
 
+  # Ruling R23: Tailwind is MIT-licensed, so its licence travels with the build.
+  test "the Tailwind kit ships Tailwind's licence beside the build, and the plain kit none" do
+    @project.design_base_kit = "tailwind4"
+    Designs::Template.render_into(@dir, project: @project)
+    assert_includes File.read(File.join(@dir, "runtime/kit-license.txt")), "MIT"
+
+    Dir.mktmpdir("template-plain") do |dir|
+      @project.design_base_kit = "plain"
+      Designs::Template.render_into(dir, project: @project)
+      assert_not File.exist?(File.join(dir, "runtime/kit-license.txt"))
+    end
+  end
+
+  # The browser build puts Tailwind itself in front of the theme only when the
+  # theme never spells out the import rule, in a comment or anywhere else: one
+  # mention, and every utility is gone.
+  test "the Tailwind theme never spells out the import rule" do
+    @project.design_base_kit = "tailwind4"
+    Designs::Template.render_into(@dir, project: @project)
+    assert_not_includes File.read(File.join(@dir, "design_system/theme.css")), "@import"
+  end
+
   # The kit names files in the template, so one it has no theme for is refused
   # before anything is written: a repo started without a theme stays that way.
   test "a kit the template has no theme for is refused, and nothing is written" do
