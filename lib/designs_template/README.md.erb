@@ -1,0 +1,105 @@
+# <%= project.name %> — designs
+
+The designs of <%= project.name %>: its design system, its components and clickable screens of the app. They open in a browser as they are, with no build step. Flosis keeps this repository; the application is built from it.
+
+## Branches
+
+- `master` — all approved designs: the target look, possibly ahead of production;
+- `design/<KEY>` — the last approved design of a Jira task;
+- `wip/<KEY>` — work in progress, not approved, do not build from it;
+- tags `approved/<KEY>/<n>` mark each approval.
+
+`<KEY>` is the task's Jira key, such as `ABC-123`, and `<n>` counts the task's approvals from 1.
+
+## What a task changed
+
+What approval `<n>` of a task changed:
+
+```sh
+git diff approved/<KEY>/<n>^1 approved/<KEY>/<n>
+```
+
+The task's latest approval, which gives the latest `<n>`:
+
+```sh
+git tag -l 'approved/<KEY>/*' --sort=-v:refname | head -1
+```
+
+## Run it locally
+
+In the repository's folder:
+
+```sh
+python3 -m http.server 8000
+```
+
+(or `npx http-server -p 8000 -c-1`), then open http://localhost:8000. `file://` is not supported: the pages load their parts over HTTP. Nor is `npx serve`: it redirects `page.html?ctx=…` to `page` and drops the contexts.
+
+## Structure
+
+| Path | What it holds |
+|---|---|
+| `README.md` | this file |
+| `index.html` | the entry point: links to the design system, the components and the screens |
+| `design_system/` | the brand book, the tokens (`theme.css`), assets and fonts |
+| `components/` | one folder per component: its guidelines, a preview and the component itself |
+| `designs/` | clickable screens of the app, their fake data and the contexts (`contexts.json`) |
+| `runtime/` | what the browser needs: `flosis.js` (components and contexts) and `config.json`<% if kit == "tailwind4" %>, plus `kit.js` (the Tailwind CSS browser build)<% end %> |
+
+Nothing else belongs in the repository.
+
+## Styling
+
+<% if kit == "tailwind4" -%>
+Pages use Tailwind CSS v4 utility classes. `runtime/kit.js`, the Tailwind browser build (version 4.2.1, vendored), compiles them in the browser with the tokens in `design_system/theme.css`: `--color-primary` there is `bg-primary` or `text-primary` on a page.
+<% else -%>
+Pages use plain CSS. The tokens are custom properties in `design_system/theme.css`, which every page gets: `background: var(--color-primary)`.
+<% end -%>
+
+## Components
+
+A screen never copies a component's markup. It includes the component:
+
+```html
+<x-include src="components/<name>/<name>.html" title="…">children</x-include>
+```
+
+- `src` starts at the repository's root, whichever page the include is on.
+- In the component, each `{{name}}` placeholder is replaced with the include's attribute of that name, HTML-escaped (here `{{title}}`), or with nothing when the include has no such attribute.
+- The include's children take the place of the component's first `<slot></slot>`.
+- Components can include components.
+- An include becomes part of the page, so the links and images in a component resolve against the page that includes it. That is why a page one folder down gives the nav `root="../"`, and the nav links to `{{root}}index.html`.
+- A component that cannot be loaded shows as a red "Missing component" box. A `<script>` in a component does not run: behaviour belongs to the page.
+
+## Contexts
+
+Screens can differ by context: who is looking, or which part of the product is on. `designs/contexts.json` groups the contexts into dimensions, and one value of each dimension is active at a time:
+
+```json
+{
+  "dimensions": [
+    {
+      "id": "role",
+      "name": "Role",
+      "values": [{ "id": "admin", "name": "Admin" }, { "id": "client", "name": "Client" }],
+      "default": "admin"
+    }
+  ]
+}
+```
+
+- The URL names the active values, `?ctx=<value>,<value>`, such as `designs/index.html?ctx=client`. A dimension that the URL leaves out uses its `default`, else its first value. Value ids are unique across dimensions.
+- Links between pages carry `?ctx=` along.
+- `data-ctx-show="admin client"` shows an element only while one of the values listed is active; `data-ctx-hide="client"` hides it while one is.
+- `<html>` gets a `data-ctx-<dimension>` attribute per dimension, for CSS: `html[data-ctx-role="client"] .price { … }`.
+- In a script, wait for `window.Flosis.ready` (or the `flosis:ready` event on `document`), then read `window.Flosis.ctx`: `{ "role": "client" }`.
+
+## For AI assistants
+
+To build a task's design into the application:
+
+1. Start from the Jira issue: its key is the `<KEY>` of the branches and tags above.
+2. Check out `design/<KEY>`, never `wip/<KEY>`.
+3. Read the screens the task changed (see "What a task changed"), in a browser and in their HTML.
+4. Implement them in the application's own stack, with its own components. The HTML here is a reference, not code to copy, and `runtime/` only shows the designs in a browser.
+5. Take colours, fonts, radii and the other tokens from `design_system/theme.css`, never from a screen's markup.

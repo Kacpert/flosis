@@ -27,7 +27,9 @@ module Gold
     # They run as their own process — never inside this one — so they must stay
     # out of the autoloader, which would otherwise demand Zeitwerk-shaped
     # constant names of a plain script and break eager loading in production.
-    config.autoload_lib(ignore: %w[assets tasks mcp])
+    # lib/designs_template is the design repo template (Designs::Template):
+    # HTML, CSS, JS and ERB files, with no Ruby code to load.
+    config.autoload_lib(ignore: %w[assets tasks mcp designs_template])
 
     # Configuration for the application, engines, and railties goes here.
     #

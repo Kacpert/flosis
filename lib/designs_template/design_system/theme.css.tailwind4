@@ -1,0 +1,14 @@
+/* The design system's tokens, read by Tailwind CSS v4 (runtime/kit.js).
+   Each one is also a utility: bg-primary, text-on-surface, font-sans,
+   rounded-md. These are neutral placeholders: the setup run replaces them
+   with the brand's own. */
+@theme {
+  --color-primary: #1f2937;
+  --color-on-primary: #ffffff;
+  --color-surface: #ffffff;
+  --color-on-surface: #111827;
+  --color-on-surface-variant: #6b7280;
+  --color-outline: #d1d5db;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius-md: 0.5rem;
+}
