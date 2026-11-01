@@ -33,7 +33,7 @@ v1 reached production on 2026-10-31 (release 20261031173533). When Kacper saw it
   v1 had a chat-and-preview screen per task.
 - **Merges.** Master changes when a thread is merged into it, by hand or automatically when the linked Jira task is Done. v1 had an approval per task.
 - **Setup.** Setup is a form in the product, followed by one long background run that rebuilds today's app 1:1. v1 had a three-phase run that Flosis staff reviewed.
-- **The app's own stack.** Designs are written in the app's own stack (framework, UI system and their versions). v1 wrote stack-neutral HTML.
+- **A chosen stack.** Designs are written in one of four stacks: Vue, React, Angular, or plain HTML + CSS. A UI system (Tailwind and others) sits on top. Flosis's own designs are HTML + CSS, close to v1's static designs. v1 offered no choice.
 
 ## Goals
 
@@ -41,7 +41,7 @@ v1 reached production on 2026-10-31 (release 20261031173533). When Kacper saw it
 2. **Show changes and let people bring them in.** The person sees when a thread's task description changes, and when master moves on under an open thread. Both show in Designs, on the task and in the pipeline. Either change comes in with one click.
    - The description change is designed in `ClearBacklog-3.html`.
    - The master change follows the approved mockup.
-3. **Work end to end on the pilot.** The pilot is Flosis's own project (Gold): Rails views with Tailwind v4.
+3. **Work end to end on the pilot.** The pilot is Flosis's own project (Gold): HTML + CSS with Tailwind v4.
 4. **Keep the v1 guarantees:**
    - the client's GitHub gets only the design files;
    - Flosis's prompts never leave Flosis;
@@ -51,7 +51,8 @@ v1 reached production on 2026-10-31 (release 20261031173533). When Kacper saw it
 
 - **The staff Admin panel "above everything".** It would hold MCP tools and each client's AI settings. Kacper: "on teraz nie jest potrzebny ale w przyszłości to zrobimy".
 - **Flosis running the setup for clients, and redesigning the setup logic.** Kacper: "na razie zróbmy to tak jak jest w designach a później omówimy logikę".
-- **Stacks other than Rails views + Tailwind v4.** They appear in the setup form as designed, but cannot be picked yet (Claude's call 3).
+- **Vue, React and Angular previews.** The setup form shows them, but they cannot be picked yet (Claude's call 3).
+- **Other stacks.** Svelte and Rails views are not offered at all. Kacper: "nie robimy widoków erb te to po prostu będą html + css są vue angular i react lub html i css innych rzeczy nie robimy".
 - **Figma, uploaded materials and brand inputs as setup inputs.** v1 had them; the design has none.
 - **Notifications outside the app**, such as email or Discord.
 
@@ -71,7 +72,9 @@ v1 reached production on 2026-10-31 (release 20261031173533). When Kacper saw it
 4. **2026-11-01** — The staff Admin panel comes later. What staff configure (MCP tools, AI settings) moves there when it exists.
 5. **2026-11-01** — Setup works as in the design for now. A person fills in the form. Then a long run scans the repositories and walks the screens, building the design system, components and screens so that they reproduce today's app 1:1. Flosis will probably run setup for clients later, and that logic is for a later discussion.
 6. **2026-11-02** — The pilot is Flosis (Gold), the project where Kacper tests every feature first.
-7. **2026-10-31** (from v1, still standing) — Design links live under `app.flosis.com/<organization>/<project>/…`. There is no separate preview domain.
+7. **2026-11-02** — The stacks are Vue, Angular, React, or HTML + CSS. Nothing else, and no ERB views: the pilot's designs are HTML + CSS.
+8. **2026-11-02** — Once the spec is ready, implementation starts straight away, inline: "jak będziesz miał już speca to możesz od razu inlinowo kodować".
+9. **2026-10-31** (from v1, still standing) — Design links live under `app.flosis.com/<organization>/<project>/…`. There is no separate preview domain.
    - `…/design/…` is master.
    - `…/<KEY>/design/…` is a task's design.
    - Both send a signed-in reader who has access on to `…/<grant>/design/…`, which is served sandboxed.
@@ -93,22 +96,30 @@ v1 reached production on 2026-10-31 (release 20261031173533). When Kacper saw it
 
 ```
 README.md        how developers and their AI use the repo (Flosis template, no Flosis IP)
+index.html       entry point (Flosis template)
+runtime/         what the browser needs: Flosis's runtime and the UI system's kit (Flosis template)
 design-system/   tokens and styles extracted from the app: colours, type, spacing, radius
 components/      the app's building blocks, rebuilt in its stack; screens are composed from them
-designs/         one folder per context (designs/admin/, …); one file per screen, with its fake data
+designs/         one folder per context (designs/admin/, …); one file per screen
 inspirations/    references the AI may borrow from: screenshots, links, notes; never shipped
 ```
 
-- **Names come from the design.** The folder names and descriptions are the design's (Design settings › Structure). The leak guard allows exactly these five paths.
-- **Files are in the project's stack.** For the pilot that is Rails views: screens and components are `.html.erb` files with Tailwind v4 classes.
-  - They follow the app's own conventions for partials, helpers and naming.
-  - The canvas and the merge dialog show the real paths, for example `designs/admin/pipeline.html.erb`.
-- **Fake data sits beside each screen** and reaches it as locals.
+- **The four folders come from the design.** Their names and descriptions are the design's (Design settings › Structure), and they are what turns may change.
+- **Flosis owns the rest.** `README.md`, `index.html` and `runtime/` come from the Flosis template, as in v1, so the repo opens from any static file server with no build step.
+  - Only Flosis's own commits (the template and the setup) write them.
+  - The leak guard refuses a turn that touches them, or anything outside the four folders.
+- **Files are in the project's stack.** For HTML + CSS:
+  - a screen is `designs/<context>/<screen>.html`;
+  - a component is `components/<name>.html`, which a screen pulls in with v1's `<x-include src>`;
+  - styles and tokens are in `design-system/`.
+
+  The canvas and the merge dialog show the real paths, for example `designs/admin/pipeline.html`.
+- **Fake data is written into the screens.** They are static pages with realistic content, as v1's are.
 - **Folders and files decide what exists.**
   - A context exists if it has a folder.
   - A screen exists in a context if it has a file in that context's folder.
   - "View as" offers the contexts the current screen exists in.
-- **Screens link to each other** through a screen helper, so the prototype stays clickable from screen to screen within a context.
+- **Screens link to each other** with plain relative links within a context folder, so the prototype stays clickable from screen to screen.
 - **The library pages have data to read.** The repo holds the tokens in a machine-readable file for the Design system page, and one example per component for the Components page.
 
 ### Threads and branches
@@ -133,26 +144,18 @@ inspirations/    references the AI may borrow from: screenshots, links, notes; n
 
 ### Previews
 
-- **Flosis renders every screen of a branch to static HTML** whenever the branch moves, then publishes the result as today:
-  - under `DESIGNS_PREVIEW_ROOT`, one folder per branch;
+- **Flosis publishes each branch whenever it moves,** as today:
+  - the branch's files, unchanged, under `DESIGNS_PREVIEW_ROOT`, one folder per branch;
   - served by `Designs::PreviewsController` behind a grant;
   - sandboxed with `allow-scripts allow-forms allow-popups allow-modals` and no `allow-same-origin`.
-- **Rails views are never run as Ruby.** Flosis parses each template with Prism and interprets it with a small evaluator of its own (Claude's call 1).
-  - The evaluator understands:
-    - locals and literals;
-    - string interpolation;
-    - hash and array access;
-    - `if`, `unless`, `case`, and loops over arrays;
-    - a short list of read-only methods on data;
-    - helpers that render components, link screens, build tags and build class lists.
-  - Anything else makes the screen fail to render: constants, globals, `send`, backticks, file access.
-  - When a screen fails, the thread names the file and line, and the AI hears the same on its next turn.
-  - The prompt teaches the subset.
-- **Tailwind v4 compiles in the browser** inside the preview, from the tokens and styles in `design-system/`, as v1's tailwind4 kit does. Nothing compiles CSS on the server (Claude's call 2).
-- **A small Flosis runtime is added to every published page.** It is never committed. It talks to the canvas with `postMessage` only, and it does three things:
-  - it tells the Designs canvas which screen and context are showing, which drives "AI sees <Context> › <Screen>";
-  - it turns a click on a page that is not designed into the design's toast;
-  - it draws the Changes outlines.
+- **Nothing in a design repo runs on the server.** HTML + CSS needs no build: the browser resolves `<x-include>` and loads the UI system's kit, inside the sandbox.
+- **The UI system's kit runs in the browser,** as v1's kits do (Claude's call 2):
+  - Tailwind v4 compiles in the browser from the tokens and styles in `design-system/`;
+  - Custom is plain CSS.
+- **Flosis's runtime (`runtime/flosis.js`) gains three jobs.** It talks to the canvas with `postMessage` only.
+  - It tells the canvas which screen and context are showing, which drives "AI sees <Context> › <Screen>".
+  - It turns a click on a screen that is not designed into the design's toast. Flosis publishes the list of screens beside each branch (never committed), so the runtime knows which exist.
+  - It draws the Changes outlines.
 - **Links.**
   - **"Open in new tab"** opens the current branch, context and screen under a grant: `/<org>/<project>/<grant>/design/<context>/<screen>`.
   - **Master's lasting link** is `/<org>/<project>/design/<context>/<screen>`.
@@ -160,12 +163,12 @@ inspirations/    references the AI may borrow from: screenshots, links, notes; n
 
 ### Changes
 
-- **Changes compares the branch with master, screen by screen,** using the rendered HTML.
+- **Changes compares the branch with master, screen by screen.** Each screen is compared with its components pulled in. Flosis expands `<x-include>` on the server the way the runtime does, as text, so nothing runs.
   - A screen that differs is listed in "Changed in this thread".
   - An element that master lacks gets the dashed outline labelled NEW.
   - An element that differs from master gets UPDATED.
   - A screen that master lacks is NEW as a whole.
-- **Chips under an AI reply** list the screens that turn changed: "M Candidate › Application form", or "+ …" for a new screen. Flosis computes them by rendering before and after the turn; the AI does not report them.
+- **Chips under an AI reply** list the screens that turn changed: "M Candidate › Application form", or "+ …" for a new screen. Flosis computes them by comparing the screens before and after the turn; the AI does not report them.
 
 ### When the task description changes
 
@@ -326,10 +329,10 @@ Copy is verbatim; `<…>` is filled in.
 - Intro: "The AI reads your repositories, signs in to staging as each context, and builds the design system, components and today’s screens in the designs repository. It runs in the background and usually takes about an hour. After that, every change happens in threads."
 
 **Card 1, "Technology":** "What the designs are built with. Components are generated in this stack and version."
-- FRAMEWORK chips: Vue.js, React, Angular, Svelte, Rails views, with a VERSION field.
+- FRAMEWORK chips: Vue.js, React, Angular, HTML + CSS, with a VERSION field. Kacper set these four on 2026-11-02, in place of the design's Svelte and Rails views.
 - UI SYSTEM chips: Foundation, Bootstrap, Tailwind, Material, Custom, with a VERSION field.
 - "The AI checks these against package.json and the lockfile and flags a mismatch."
-- *(ruling)* The chips other than Rails views and Tailwind are disabled and labelled "Soon".
+- *(ruling)* Vue.js, React and Angular, and every UI system except Tailwind and Custom, are disabled and labelled "Soon". HTML + CSS has no version field.
 
 **Card 2, "Repositories":** "Where the designs are stored, and the product code they are based on."
 - DESIGNS REPOSITORY (TARGET): "The AI commits here. master holds approved designs; each thread is a branch."
@@ -518,12 +521,13 @@ Copy is verbatim; `<…>` is filled in.
 |---|---|
 | `Designs::Repo`, `Committer`, `LeakGuard` | Kept. The guard's allowed paths become the five above. |
 | `Designs::PreviewGrant`, `PreviewsController`, `PreviewEntriesController`, routes | Kept. Slots become branch names. |
-| `Designs::Publisher` | Kept for publishing. It gains the renderer, the runtime injection and the Changes variant. |
+| `Designs::Publisher` | Kept for publishing. It gains the screen list and the Changes variant. |
+| `runtime/flosis.js` | Kept. Contexts come from folders instead of `?ctx=`, and it gains the three new jobs. |
 | `Designs::TurnJob`, the `designs` queue and worker | Kept. Turns belong to threads. |
 | The crawler (`lib/designs_crawler`, `CrawlJob`), `SetupPrompts` | Kept, driven by the unattended setup run. |
 | The library (entries, versions, staff page) | Kept as is and staff-only, until the Admin panel. |
 | `DescribeJob`, `JiraLinks` | Kept, fed from threads. |
-| `Designs::Template` (static runtime, `<x-include>`, kits) | Replaced by a Rails views + Tailwind v4 skeleton. |
+| `Designs::Template` (static runtime, `<x-include>`, kits) | Kept and adapted: `design_system/` becomes `design-system/`, contexts become folders, and `inspirations/` is added. |
 | `WorkingBranch` (`contexts.json`, task manifests) | Replaced: contexts are folders, and screens are files. |
 | `Approval`, `DesignApproval`, the `design/<KEY>`, `wip/<KEY>` and `wip/setup` branches, approval tags, `RenameForJiraJob` | Replaced by merges of thread branches. |
 | The per-task Designs screen, "Start in Designs" in New idea, the Workshop › Designs page | Removed. The module replaces them. |
@@ -534,14 +538,14 @@ Copy is verbatim; `<…>` is filled in.
 
 ## Claude's calls (please check)
 
-1. **Rails views are interpreted, not run.**
-   - Why: running a template as Ruby on the server would let anyone who can steer the AI read the server's secrets.
-   - The cost: the AI writes in a subset of ERB, which the prompt teaches.
+1. **The repo keeps v1's template files** (`README.md`, `index.html`, `runtime/`) next to the design's four folders.
+   - Why: the repo then opens on any static file server, with no build and no Flosis.
+   - The drawer's Structure lists only the design's four folders.
 2. **Tailwind v4 compiles in the browser,** inside the sandbox, as v1's kit does.
    - Why: the Tailwind command-line tool on the server could load plugins, and plugins run code.
-3. **Only Rails views + Tailwind v4 in this version.**
-   - The other chips stay visible as designed, disabled and labelled "Soon".
-   - Why: each other stack needs its own renderer.
+3. **This version supports only HTML + CSS, with Tailwind or Custom.**
+   - Vue.js, React, Angular, Foundation, Bootstrap and Material stay visible as designed, disabled and labelled "Soon".
+   - Why: each of them needs its own browser runtime or build, and the pilot needs none of them.
 4. **The setup form gets a token field for the designs repository.**
    - Why: the design has nowhere to put write access to that repo.
    - The app repositories are read with the project's GitHub token from Integrations.
@@ -580,30 +584,25 @@ Copy is verbatim; `<…>` is filled in.
 
 ## Risks to verify first
 
-1. **The ERB subset may not be enough for Gold's screens.**
-   - Check: before building the evaluator out, port two real screens by hand (the pipeline and the idea page) and confirm they come out 1:1.
-2. **Tailwind v4's browser build may not handle Gold's styles.**
-   - Gold uses `@theme`, `@apply` and its `clar-` component classes.
-   - Check: render Gold's own styles with the browser build.
-3. **The unattended setup run may be too slow or too costly.**
+1. **Gold's screens may not come out 1:1 in HTML with Tailwind's browser build.**
+   - Gold's styles use `@theme`, `@apply` and its `clar-` component classes.
+   - Check: port two real screens by hand (the pipeline and the idea page), and compare them with the app.
+2. **The unattended setup run may be too slow or too costly.**
    - The server is shared, and there is one `designs` worker.
    - Check: it should finish within an hour, at a sensible cost on the project's key.
-4. **Jira sync may not see Done reliably.**
+3. **Jira sync may not see Done reliably.**
    - It runs every 15 minutes and maps the status category to `Task#status`.
    - Check: a task moved to Done in Jira reaches `done` in Flosis.
 
 ## Testing
 
 - **Every line of "The screens, item by item" gets a test** that fails if the line goes missing. These are controller or system tests on the real screens.
-- **The evaluator gets one refusal test per construct it must refuse:**
-  - constants;
-  - globals;
-  - `send` and its relatives;
-  - backticks;
-  - `eval`;
-  - method calls outside the list.
+- **The leak guard and the server-side include expansion** get a test for each thing they must refuse:
+  - a turn that changes a path outside the four folders, or Flosis's own files;
+  - an include cycle;
+  - an include that leaves the repo.
 
-  Each refusal is also checked by mutation: allow the construct, and see the test fail.
+  Each refusal is also checked by mutation: allow it, and see the test fail.
 - **The thread lifecycle** is tested through each of these:
   - ahead and behind;
   - a description change;
