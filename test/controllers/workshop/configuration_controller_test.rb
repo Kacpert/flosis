@@ -30,6 +30,14 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /Estimation target/
   end
 
+  test "the users tab offers a Designs switch with its default" do
+    get workshop_configuration_path(tab: "users")
+
+    assert_response :success
+    assert_select "[data-permission=designs]"
+    assert_select "div", text: "Product Owners and Administrators by default"
+  end
+
   test "admin GET show with tab=integrations renders the integrations tab (Task 9.2: 4 cards, no longer a placeholder)" do
     get workshop_configuration_path(tab: "integrations")
 
@@ -77,7 +85,7 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "#project_membership_#{admin_row.id}" do
       assert_select ".clar-badge-warn", /Administrator/
-      assert_select "[role=switch][aria-checked=true]", 6
+      assert_select "[role=switch][aria-checked=true]", PermissionPreset::PERMISSIONS.size
     end
   end
 
@@ -140,7 +148,7 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
   # apart only by their panel id, so a wrong id is a button that opens the
   # other dialog. Each one is also where someone decides what a new person
   # will be able to see, which is why all six sentences have to be in both.
-  test "users tab renders both dialogs, each explaining all six permissions" do
+  test "users tab renders both dialogs, each explaining every permission" do
     get workshop_configuration_path(tab: "users")
 
     assert_response :success
@@ -159,7 +167,7 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-clar-modal-panel-id-value=?]", "add-existing" do
       assert_select "input[name=?]", "email_address", false,
                     "adding someone who already has an account must not ask for an address"
-      assert_select "[data-permission]", 6
+      assert_select "[data-permission]", PermissionPreset::PERMISSIONS.size
     end
   end
 

@@ -7,12 +7,20 @@ require "test_helper"
 class PermissionPresetTest < ActiveSupport::TestCase
   test "names the three presets" do
     assert_equal "Project Manager", PermissionPreset.label_for(%i[automations tasks reporting])
-    assert_equal "Product Owner", PermissionPreset.label_for(%i[automations tasks reporting briefing_config])
+    assert_equal "Product Owner", PermissionPreset.label_for(%i[automations tasks designs reporting briefing_config])
     assert_equal "Administrator", PermissionPreset.label_for(PermissionPreset::PERMISSIONS)
   end
 
+  test "Product Owners and Administrators get Designs by default, Project Managers do not" do
+    assert_includes PermissionPreset::PRESETS["Product Owner"], :designs
+    assert_includes PermissionPreset::PRESETS["Administrator"], :designs
+    assert_not_includes PermissionPreset::PRESETS["Project Manager"], :designs
+    assert_equal "Designs", PermissionPreset.label(:designs)
+    assert_equal "Product Owners and Administrators by default", PermissionPreset.default_note(:designs)
+  end
+
   test "the label does not depend on the order it is given" do
-    assert_equal "Product Owner", PermissionPreset.label_for(%i[briefing_config reporting tasks automations])
+    assert_equal "Product Owner", PermissionPreset.label_for(%i[briefing_config reporting designs tasks automations])
   end
 
   test "the label accepts strings as well as symbols" do

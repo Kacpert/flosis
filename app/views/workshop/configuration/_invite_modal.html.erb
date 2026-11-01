@@ -39,6 +39,9 @@
         <div>
           <div class="text-[13px] font-semibold clar-text-text"><%= PermissionPreset.label(permission) %></div>
           <div class="text-[11px] clar-text-faint leading-[1.4]"><%= PermissionPreset.description(permission) %></div>
+          <% if (note = PermissionPreset.default_note(permission)) %>
+            <div class="text-[11px] clar-text-faint leading-[1.4]"><%= note %></div>
+          <% end %>
         </div>
         <button type="button" role="switch" aria-checked="false"
                 class="flex items-center bg-transparent border-0 p-0 cursor-pointer flex-none"

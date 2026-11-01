@@ -13,6 +13,7 @@ class ProjectMembershipPermissionsTest < ActiveSupport::TestCase
     assert fresh.tasks
     assert fresh.reporting
     assert_not fresh.pricing
+    assert_not fresh.designs
     assert_not fresh.briefing_config
     assert_not fresh.configuration
   end
@@ -20,14 +21,14 @@ class ProjectMembershipPermissionsTest < ActiveSupport::TestCase
   test "granted lists the switches that are on, in interface order" do
     @membership.update!(PermissionPreset.attributes_for("Product Owner"))
 
-    assert_equal %i[automations tasks reporting briefing_config], @membership.granted
+    assert_equal %i[automations tasks designs reporting briefing_config], @membership.granted
   end
 
   test "the role label is read off the switches" do
     @membership.update!(PermissionPreset.attributes_for("Project Manager"))
     assert_equal "Project Manager", @membership.role_label
 
-    @membership.update!(briefing_config: true)
+    @membership.update!(designs: true, briefing_config: true)
     assert_equal "Product Owner", @membership.role_label
 
     @membership.update!(pricing: true)

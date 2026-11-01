@@ -1,4 +1,4 @@
-# The six things a person can be allowed to do inside a project, plus the
+# The seven things a person can be allowed to do inside a project, plus the
 # handful of named combinations worth a button in the invite dialog.
 #
 # A role is NOT stored anywhere. The switches are the truth and the name is
@@ -8,13 +8,14 @@
 module PermissionPreset
   # Interface order, used by every view that renders the switches. Briefing
   # Configuration precedes Configuration.
-  PERMISSIONS = %i[automations tasks reporting pricing briefing_config configuration].freeze
+  PERMISSIONS = %i[automations tasks designs reporting pricing briefing_config configuration].freeze
 
   # The display name of each switch. Not `humanize` — the product calls
   # briefing_config "Briefing Configuration", and that wording is the user's.
   LABELS = {
     automations: "Automations",
     tasks: "Tasks",
+    designs: "Designs",
     reporting: "Reporting",
     pricing: "Pricing",
     briefing_config: "Briefing Configuration",
@@ -29,6 +30,7 @@ module PermissionPreset
   DESCRIPTIONS = {
     automations: "See and run the AI agents and alerts, and edit their prompts.",
     tasks: "Open the task board, read tickets and work on their briefs.",
+    designs: "Open Designs: the project's clickable designs, its threads and merges.",
     reporting: "Open Reporting: delivered work, velocity and time spent.",
     pricing: "See money — hourly rates, cost and revenue wherever they appear.",
     briefing_config: "Edit the Briefing tab: ticket statuses, Jira fields and the brief template.",
@@ -39,8 +41,16 @@ module PermissionPreset
   # folding the two together would show every Project Manager the team's rates.
   PRESETS = {
     "Project Manager" => %i[automations tasks reporting].freeze,
-    "Product Owner" => %i[automations tasks reporting briefing_config].freeze,
+    "Product Owner" => %i[automations tasks designs reporting briefing_config].freeze,
     "Administrator" => PERMISSIONS
+  }.freeze
+
+  # Who holds a switch unless somebody changes it, said beside the switches
+  # that are not on for everyone.
+  DEFAULT_NOTES = {
+    designs: "Product Owners and Administrators by default",
+    briefing_config: "Product Owners and Administrators by default",
+    configuration: "Administrators only by default"
   }.freeze
 
   CUSTOM = "Custom".freeze
@@ -56,6 +66,10 @@ module PermissionPreset
 
   def self.label(permission)
     LABELS.fetch(permission.to_sym)
+  end
+
+  def self.default_note(permission)
+    DEFAULT_NOTES[permission.to_sym]
   end
 
   def self.description(permission)
@@ -74,7 +88,7 @@ module PermissionPreset
   end
 
   # A preset as a full hash of switches, ready for assign_attributes. Every one
-  # of the six keys is present, so applying a preset also turns things OFF.
+  # of the seven keys is present, so applying a preset also turns things OFF.
   def self.attributes_for(label)
     permissions = PRESETS.fetch(label.to_s, PRESETS[LEAST_PRIVILEGED])
     PERMISSIONS.index_with { |permission| permissions.include?(permission) }

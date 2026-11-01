@@ -9,7 +9,7 @@ class ProjectMembership < ApplicationRecord
   # role name is derived from them (see PermissionPreset).
   PERMISSIONS = PermissionPreset::PERMISSIONS
 
-  # Rows that actually grant something. A row with all six switches off is what
+  # Rows that actually grant something. A row with all seven switches off is what
   # the backfill leaves an HR-only employee holding — the row is there so their
   # hours and their hourly rate attach to a project, not because they work in
   # its Workshop. Existence alone therefore answers no access question: it put
@@ -45,7 +45,7 @@ class ProjectMembership < ApplicationRecord
     PermissionPreset.label_for(granted)
   end
 
-  # Applies a named preset. Deliberately assigns ALL six switches, so this
+  # Applies a named preset. Deliberately assigns ALL seven switches, so this
   # clears what the preset does not grant rather than only adding to it.
   def apply_preset(label)
     assign_attributes(PermissionPreset.attributes_for(label))

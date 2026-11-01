@@ -15,7 +15,7 @@ class Workshop::ProjectMembersControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "flipping a switch saves it and reports the new role name" do
-    @membership.update!(PermissionPreset.attributes_for("Project Manager"))
+    @membership.update!(PermissionPreset.attributes_for("Project Manager").merge(designs: true))
 
     patch workshop_project_member_path(@membership),
           params: { permission: "briefing_config", value: "1" }, as: :turbo_stream
