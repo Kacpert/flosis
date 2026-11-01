@@ -4,6 +4,11 @@
 **Status:** Approved (design), pending implementation plan
 **Author:** Kacper + Claude
 
+> **Superseded in part on 2026-11-02** by
+> `2026-11-02-workshop-designs-v2-design.md`, which follows Kacper's own design
+> of the screens. Its threads, setup form and stack-specific designs replace this
+> document's Designs screen, setup run, configurator tab and branch model.
+
 ## Problem
 
 Designs reach a Workshop task in two ways today, and both break:
