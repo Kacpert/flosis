@@ -12,6 +12,7 @@ class Task < ApplicationRecord
   has_one :design_request, dependent: :destroy
   # Each time this task's designs were approved into master (Workshop Designs).
   has_many :design_approvals, dependent: :destroy
+  has_one :design_thread, dependent: :nullify
   has_many_attached :attachments
 
   # The most recent AI-refined ticket description. Scoped to the "ai" source

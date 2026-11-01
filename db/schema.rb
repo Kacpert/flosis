@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_02_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_02_100300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -130,6 +130,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_100000) do
     t.bigint "chat_session_id", null: false
     t.text "content", null: false
     t.datetime "created_at", null: false
+    t.json "data"
     t.string "kind"
     t.string "role", null: false
     t.text "thinking"
@@ -203,6 +204,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_100000) do
     t.index ["user_id"], name: "index_design_approvals_on_user_id"
   end
 
+  create_table "design_merges", force: :cascade do |t|
+    t.string "branch", null: false
+    t.integer "commits", default: 1, null: false
+    t.datetime "created_at", null: false
+    t.bigint "design_thread_id"
+    t.string "how", null: false
+    t.datetime "merged_at", null: false
+    t.bigint "project_id", null: false
+    t.json "screens"
+    t.string "sha", null: false
+    t.text "summary"
+    t.bigint "task_id"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.json "what_changed"
+    t.index ["design_thread_id"], name: "index_design_merges_on_design_thread_id"
+    t.index ["project_id", "merged_at"], name: "index_design_merges_on_project_id_and_merged_at"
+    t.index ["project_id"], name: "index_design_merges_on_project_id"
+    t.index ["task_id"], name: "index_design_merges_on_task_id"
+    t.index ["user_id"], name: "index_design_merges_on_user_id"
+  end
+
   create_table "design_requests", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "delivered_at"
@@ -238,13 +262,43 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_100000) do
     t.datetime "crawl_requested_at"
     t.datetime "crawled_at"
     t.datetime "created_at", null: false
+    t.bigint "design_thread_id"
+    t.text "error"
+    t.datetime "finished_at"
+    t.integer "pages"
     t.string "phase", default: "design_system", null: false
     t.bigint "project_id", null: false
     t.bigint "started_by_id"
     t.string "status", default: "active", null: false
+    t.integer "step", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.index ["design_thread_id"], name: "index_design_setups_on_design_thread_id"
     t.index ["project_id"], name: "index_design_setups_on_project_id"
     t.index ["started_by_id"], name: "index_design_setups_on_started_by_id"
+  end
+
+  create_table "design_threads", force: :cascade do |t|
+    t.bigint "author_id"
+    t.string "base_sha"
+    t.string "branch"
+    t.bigint "chat_session_id"
+    t.datetime "created_at", null: false
+    t.text "described_text"
+    t.string "described_version"
+    t.string "focus_context"
+    t.string "focus_screen"
+    t.datetime "merged_at"
+    t.string "merged_sha"
+    t.bigint "project_id", null: false
+    t.string "status", default: "open", null: false
+    t.bigint "task_id"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_id"], name: "index_design_threads_on_author_id"
+    t.index ["chat_session_id"], name: "index_design_threads_on_chat_session_id"
+    t.index ["project_id", "branch"], name: "index_design_threads_on_project_id_and_branch", unique: true
+    t.index ["project_id"], name: "index_design_threads_on_project_id"
+    t.index ["task_id"], name: "index_design_threads_on_task_id", unique: true
   end
 
   create_table "design_turns", force: :cascade do |t|
@@ -496,6 +550,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_100000) do
     t.text "context_info"
     t.datetime "created_at", null: false
     t.string "currency", limit: 3, default: "USD", null: false
+    t.json "design_app_repos"
     t.string "design_app_url"
     t.string "design_base_kit", default: "tailwind4", null: false
     t.json "design_figma_urls"
@@ -506,6 +561,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_100000) do
     t.text "design_repo_token"
     t.string "design_style_pack_key"
     t.boolean "designs_enabled", default: false, null: false
+    t.string "designs_framework", default: "html", null: false
+    t.string "designs_framework_version"
+    t.string "designs_ui_system", default: "tailwind", null: false
+    t.string "designs_ui_version", default: "4"
     t.json "estimation_field_names"
     t.string "estimation_status_trigger", default: "Ready for dev"
     t.string "estimation_trigger", default: "manual", null: false
@@ -845,12 +904,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_100000) do
   add_foreign_key "delivered_issues", "projects"
   add_foreign_key "design_approvals", "tasks"
   add_foreign_key "design_approvals", "users"
+  add_foreign_key "design_merges", "design_threads", on_delete: :nullify
+  add_foreign_key "design_merges", "projects"
+  add_foreign_key "design_merges", "tasks", on_delete: :nullify
+  add_foreign_key "design_merges", "users", on_delete: :nullify
   add_foreign_key "design_requests", "tasks"
   add_foreign_key "design_requests", "users", column: "designer_id"
   add_foreign_key "design_requests", "users", column: "requester_id"
   add_foreign_key "design_setup_roles", "projects"
+  add_foreign_key "design_setups", "design_threads", on_delete: :nullify
   add_foreign_key "design_setups", "projects"
   add_foreign_key "design_setups", "users", column: "started_by_id", on_delete: :nullify
+  add_foreign_key "design_threads", "chat_sessions", on_delete: :nullify
+  add_foreign_key "design_threads", "projects"
+  add_foreign_key "design_threads", "tasks", on_delete: :nullify
+  add_foreign_key "design_threads", "users", column: "author_id", on_delete: :nullify
   add_foreign_key "design_turns", "chat_messages"
   add_foreign_key "design_turns", "chat_sessions"
   add_foreign_key "discord_reminder_pings", "discord_reminder_recipients"
