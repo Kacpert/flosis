@@ -566,6 +566,25 @@ Copy is verbatim; `<…>` is filled in.
     - the file and link picker for inspirations;
     - "and <n> more" in the master banner.
 
+### Settled after the builder check (2026-11-02, also Claude's calls)
+
+15. **"New thread" and "+" open an empty thread, as the prototype does.** Both buttons call `openNew`, and nothing in the design opens the New thread dialog.
+    - The empty thread shows "No changes yet" and the composer "What should change? Navigate the app on the right, AI sees the page you’re on."
+    - Its first message names the branch.
+    - The dialog is not built.
+    - A thread gets a task only through "Design with AI" or "Generate task".
+16. **Only a task with a Jira issue merges on Done.**
+    - A task that is not in Jira cannot reach Done, so its thread says "This thread merges when you merge it." instead of the Done line.
+    - Its strip leaves out "merges on Done".
+17. **Jira gets v1's Web links**, re-pointed at the thread's changed screens, plus one link to the branch. Jira sync overwrites descriptions, so the description is left alone. A generated task's description carries the "Designs: <repo> @ <branch>" line because the AI writes it there.
+18. **An app repository can name its branch,** as `owner/name@branch`. Without one, it is the repository's default branch. Gold's trunk is `production`, so the pilot enters `…@production`.
+19. **Flosis staff switch Designs on for a project** (v1's `designs_enabled`), until the Admin panel takes that over.
+    - Until then, people outside Flosis staff see neither the Designs item nor the task strip.
+    - Staff see the switch on the setup page.
+20. **Re-import is a full rebuild on a thread.** People trim it in the thread before merging. The progress page and the sidebar dot show while it runs. Kacper will settle the setup logic later.
+21. **Running the crawler on the production server is still unproven.** A crawl step that cannot start fails visibly, with "Retry". Whether to fall back to the code alone is decided when that happens.
+22. **The setup asks for test accounts,** as the form says. For Flosis, Kacper chooses where the crawl signs in. Gold has no staging, and production holds real data that would reach the design repo.
+
 ## Left to the builder
 
 - **Data and wiring:**
