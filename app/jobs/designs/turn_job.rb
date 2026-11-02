@@ -161,6 +161,7 @@ class Designs::TurnJob < ApplicationJob
 
     check_resolved!(worktree) if @conflicts
     sha, notes = save(turn, repo, subject, worktree, output.summary)
+    subject.after_turn(repo)
     finish(turn, output, sha, notes, subject.chips(repo, start, sha))
   rescue StandardError => e
     fail_turn(turn, e, repo, worktree)
@@ -212,6 +213,7 @@ class Designs::TurnJob < ApplicationJob
     turn.update!(library_version_ids: [])
     notes = repo.synchronize { send_out(turn, repo, subject) }
     head = repo.head(subject.wip_branch)
+    subject.after_turn(repo)
     output = Designs::TurnOutput::Result.new(summary: UP_TO_DATE, contexts: [], missing: [])
     finish(turn, output, (head unless head == start), notes)
   end

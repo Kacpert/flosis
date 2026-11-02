@@ -192,6 +192,13 @@ class Designs::Repo
     []
   end
 
+  # The last commit two branches share, or nil when either is missing.
+  def merge_base(a, b)
+    synchronize { git("merge-base", "refs/heads/#{a}", "refs/heads/#{b}").strip.presence }
+  rescue GitRunner::Error
+    nil
+  end
+
   # master's commits after sha, newest first, along master's own line: a
   # thread based on sha is behind each of them.
   def master_commits_since(sha)

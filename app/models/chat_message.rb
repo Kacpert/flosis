@@ -4,8 +4,11 @@ class ChatMessage < ApplicationRecord
 
   # What a Designs chat marks a message as, for its screen to draw it apart:
   # Claude's summary of a turn, a context it added, a question it left open,
-  # an error, or a note from Flosis itself. Other chats leave it empty.
-  KINDS = %w[summary context missing error system].freeze
+  # an error, or a note from Flosis itself. A design thread (Workshop Designs
+  # v2) adds the task description's diff, the merges that came in from master,
+  # and a request Flosis made on the person's behalf, which is not shown.
+  # Other chats leave it empty.
+  KINDS = %w[summary context missing error system diff master request].freeze
 
   validates :role, presence: true, inclusion: { in: %w[user assistant system] }
   validates :content, presence: true

@@ -60,6 +60,13 @@ module Designs::Subject
     def prepare! = nil
     def crawling? = false
 
+    # After a turn, the thread is based on the master commit its branch last
+    # took in: a turn that resolved a merge with master moves it.
+    def after_turn(repo)
+      base = repo.merge_base(wip_branch, Designs::Repo::MASTER)
+      @thread.update!(base_sha: base) if base && base != @thread.base_sha
+    end
+
     # The screens the turn changed, from the commit it started on to the one
     # it made, as chips: [screen, context, "M" | "+"]. The first becomes where
     # the thread opens.
@@ -119,6 +126,7 @@ module Designs::Subject
     def crawling? = false
     def publish_base = nil
     def chips(*) = []
+    def after_turn(_repo) = nil
   end
 
   class SetupSubject
@@ -186,6 +194,7 @@ module Designs::Subject
     def crawling? = setup.crawling?
     def publish_base = nil
     def chips(*) = []
+    def after_turn(_repo) = nil
 
     # The materials are copied out of Active Storage before each turn, afresh
     # (a removed one goes), and left read-only: files 0444, folders 0555.
