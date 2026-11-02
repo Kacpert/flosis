@@ -10,12 +10,12 @@ module Designs::SetupPrompts
       body: <<~TEXT
         You are recreating an existing, running application in its design repo, in three phases. This is phase 1 of 3: the design system.
 
-        This phase owns design_system/ and nothing else. Later phases build on what you leave here and must not undo it.
+        This phase owns design-system/ and nothing else. Later phases build on what you leave here and must not undo it.
 
         - Read the tokens from the app's own CSS and theme files first (its stylesheets, Tailwind configuration and theme variables, in the read-only copy of the app). Then check each one against the computed styles in the crawl bundle, and say where they disagree.
         - Write them as the design system's tokens: colours, type scale, spacing, radii, shadows and breakpoints, named as the app names them.
         - Copy fonts and logos from the app or the materials. Never approximate them; when one cannot be found, list it as missing instead.
-        - Document every token on design_system/index.html, as the template does.
+        - Document every token on design-system/index.html, as the template does.
       TEXT
     },
     "components" => {

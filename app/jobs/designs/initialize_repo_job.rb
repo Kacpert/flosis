@@ -79,7 +79,7 @@ class Designs::InitializeRepoJob < ApplicationJob
   # and failed to push it, and then there is nothing new to commit.
   def start_master(project, repo)
     Designs::Template.render_into(repo.root, project: project)
-    guard = Designs::LeakGuard.new(secrets: ProjectCredentials.new(project).all_secrets)
+    guard = Designs::LeakGuard.new(secrets: ProjectCredentials.new(project).all_secrets, flosis_files: true)
     result = Designs::Committer.new(repo, guard).commit!(repo.root, message: COMMIT_MESSAGE)
     raise Refused, "The design repo's first commit was refused: #{result.refusal}." unless result.ok?
 

@@ -179,10 +179,23 @@ class Designs::Repo
       elsif ref?("refs/remotes/origin/#{branch}")
         git("worktree", "add", "-b", branch, dir.to_s, "origin/#{branch}")
       else
-        git("worktree", "add", "-b", branch, dir.to_s, "refs/heads/#{from}")
+        git("worktree", "add", "-b", branch, dir.to_s, start_point(from))
       end
       dir
     end
+  end
+
+  # The files a ref has under a folder ("designs/"), sorted.
+  def ls_files(ref, prefix)
+    synchronize { git("ls-tree", "-r", "--name-only", ref, "--", prefix).split("\n").sort }
+  rescue GitRunner::Error
+    []
+  end
+
+  # master's commits after sha, newest first, along master's own line: a
+  # thread based on sha is behind each of them.
+  def master_commits_since(sha)
+    synchronize { git("rev-list", "--first-parent", "#{sha}..refs/heads/#{MASTER}").split("\n") }
   end
 
   # A task's worktree, made on first use after a fetch: from its working
@@ -337,6 +350,11 @@ class Designs::Repo
       git("merge", "--abort")
       raise Conflict, "#{branch} does not merge cleanly into #{MASTER}: #{paths.join(", ")}"
     end
+  end
+
+  # A branch's start: a commit named by its sha, else a local branch.
+  def start_point(from)
+    from.to_s.match?(/\A\h{7,40}\z/) ? from.to_s : "refs/heads/#{from}"
   end
 
   # A file as a commit has it: its content at ref (a full ref name or a sha),

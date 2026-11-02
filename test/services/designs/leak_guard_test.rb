@@ -5,9 +5,16 @@ class Designs::LeakGuardTest < ActiveSupport::TestCase
 
   def change(path, text = "x") = Designs::Repo::Change.new(path: path, added_text: text)
 
-  test "files in the six allowed places pass" do
-    paths = %w[README.md index.html design_system/README.md components/button/button.html designs/jobs.html runtime/flosis.js]
+  test "turns may change the four design folders, inspirations included" do
+    paths = %w[design-system/theme.css components/button/button.html designs/admin/jobs.html inspirations/shot.png]
     assert_empty Designs::LeakGuard.new.check(paths.map { change(_1) })
+  end
+
+  test "README.md, index.html and runtime/ are Flosis's: only its own commits change them" do
+    %w[README.md index.html runtime/flosis.js].each do |path|
+      assert_equal [ "is outside the design repo's allowed folders" ], Designs::LeakGuard.new.check([ change(path) ]).map(&:reason), path
+      assert_empty Designs::LeakGuard.new(flosis_files: true).check([ change(path) ]), path
+    end
   end
 
   test "anything else is refused, tool configuration included" do
@@ -45,7 +52,7 @@ class Designs::LeakGuardTest < ActiveSupport::TestCase
   test "git's own configuration files are refused in every folder, whatever their case" do
     %w[
       .gitignore .gitattributes .gitmodules
-      designs/.gitattributes components/x/.gitmodules runtime/.gitignore design_system/a/b/.gitattributes
+      designs/.gitattributes components/x/.gitmodules runtime/.gitignore design-system/a/b/.gitattributes
       designs/.GitAttributes .GITIGNORE
     ].each do |path|
       assert_equal [ "is outside the design repo's allowed folders" ],

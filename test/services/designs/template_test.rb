@@ -9,12 +9,12 @@ class Designs::TemplateTest < ActiveSupport::TestCase
   end
   teardown { FileUtils.remove_entry(@dir) }
 
-  test "renders exactly the six places the leak guard allows, and passes it" do
+  test "renders the design folders and Flosis's own files, and passes the guard as a Flosis commit" do
     Designs::Template.render_into(@dir, project: @project)
-    assert_equal %w[README.md components design_system designs index.html runtime], Dir.children(@dir).sort
+    assert_equal %w[README.md components design-system designs index.html inspirations runtime], Dir.children(@dir).sort
     changes = Dir.glob("**/*", base: @dir).select { |p| File.file?(File.join(@dir, p)) }
                  .map { |p| Designs::Repo::Change.new(path: p, added_text: File.read(File.join(@dir, p))) }
-    assert_empty Designs::LeakGuard.new.check(changes)
+    assert_empty Designs::LeakGuard.new(flosis_files: true).check(changes)
   end
 
   test "the README names the project and the conventions a developer needs" do
@@ -31,7 +31,7 @@ class Designs::TemplateTest < ActiveSupport::TestCase
   test "the Tailwind theme makes every token a CSS variable, used or not" do
     @project.design_base_kit = "tailwind4"
     Designs::Template.render_into(@dir, project: @project)
-    assert_match(/^@theme static \{$/, File.read(File.join(@dir, "design_system/theme.css")))
+    assert_match(/^@theme static \{$/, File.read(File.join(@dir, "design-system/theme.css")))
   end
 
   # The build is vendored unmodified (see Designs::Template): a changed byte is
@@ -66,7 +66,7 @@ class Designs::TemplateTest < ActiveSupport::TestCase
     Designs::Template.render_into(@dir, project: @project)
     assert_equal({ "kit" => "tailwind4" }, JSON.parse(File.read(File.join(@dir, "runtime/config.json"))))
     assert_includes File.read(File.join(@dir, "runtime/kit.js")), "tailwindcss"
-    assert_includes File.read(File.join(@dir, "design_system/theme.css")), "@theme"
+    assert_includes File.read(File.join(@dir, "design-system/theme.css")), "@theme"
     assert_not File.exist?(File.join(@dir, "runtime/kits"))
   end
 
@@ -74,12 +74,34 @@ class Designs::TemplateTest < ActiveSupport::TestCase
     @project.design_base_kit = "plain"
     Designs::Template.render_into(@dir, project: @project)
     assert_not File.exist?(File.join(@dir, "runtime/kit.js"))
-    assert_not_includes File.read(File.join(@dir, "design_system/theme.css")), "@theme"
+    assert_not_includes File.read(File.join(@dir, "design-system/theme.css")), "@theme"
+  end
+
+  test "the runtime tells the Designs canvas which screen it shows, and its changes view too" do
+    skip "Node is not installed" unless system("node", "--version", out: File::NULL, err: File::NULL)
+
+    %w[/designs/admin/pipeline.html /designs/admin/pipeline.changes.html].each do |pathname|
+      result = run_runtime({ "kit" => "plain" }, pathname: pathname, title: "Pipeline")
+      assert_equal [], result["errors"], pathname
+      assert_includes result["messages"], { "type" => "flosis:screen", "context" => "admin", "screen" => "pipeline", "title" => "Pipeline" }, pathname
+    end
+    assert_empty run_runtime({ "kit" => "plain" }, pathname: "/index.html")["messages"]
+  end
+
+  test "the runtime knows the designed screens, outlines changes and reads no contexts.json" do
+    runtime = Designs::Template::SOURCE.join("runtime/flosis.js").read
+    %w[flosis:missing __flosis/screens.json data-flosis-change].each { |word| assert_includes runtime, word }
+    assert_not_includes runtime, "contexts.json"
+  end
+
+  test "contexts are folders: a new repo has no contexts.json" do
+    Designs::Template.render_into(@dir, project: @project)
+    assert_not File.exist?(File.join(@dir, "designs/contexts.json"))
   end
 
   test "every page loads the runtime and includes the shared nav" do
     Designs::Template.render_into(@dir, project: @project)
-    %w[index.html design_system/index.html components/index.html designs/index.html].each do |page|
+    %w[index.html design-system/index.html components/index.html designs/index.html].each do |page|
       html = File.read(File.join(@dir, page))
       assert_match %r{<script src="(\.\./)?runtime/flosis\.js"}, html, page
       assert_includes html, %(<x-include src="runtime/nav.html"), page
@@ -94,7 +116,7 @@ class Designs::TemplateTest < ActiveSupport::TestCase
         @project.design_base_kit = kit
         Designs::Template.render_into(dir, project: @project)
         files = Dir.glob("**/*", base: dir)
-        assert_equal [ "design_system/theme.css" ], files.grep(/theme\.css/), kit
+        assert_equal [ "design-system/theme.css" ], files.grep(/theme\.css/), kit
         assert_empty files.grep(%r{\.erb\z|\Aruntime/kits}), kit
         assert_equal({ "kit" => kit }, JSON.parse(File.read(File.join(dir, "runtime/config.json"))), kit)
       end
@@ -106,12 +128,12 @@ class Designs::TemplateTest < ActiveSupport::TestCase
   test "the design-system swatch uses a Tailwind utility only in the Tailwind kit" do
     @project.design_base_kit = "tailwind4"
     Designs::Template.render_into(@dir, project: @project)
-    assert_includes File.read(File.join(@dir, "design_system/index.html")), "bg-primary text-on-primary"
+    assert_includes File.read(File.join(@dir, "design-system/index.html")), "bg-primary text-on-primary"
 
     Dir.mktmpdir("template-plain") do |dir|
       @project.design_base_kit = "plain"
       Designs::Template.render_into(dir, project: @project)
-      page = File.read(File.join(dir, "design_system/index.html"))
+      page = File.read(File.join(dir, "design-system/index.html"))
       assert_includes page, "background: var(--color-primary)"
       assert_not_includes page, "bg-primary"
     end
@@ -136,7 +158,7 @@ class Designs::TemplateTest < ActiveSupport::TestCase
   test "the Tailwind theme never spells out the import rule" do
     @project.design_base_kit = "tailwind4"
     Designs::Template.render_into(@dir, project: @project)
-    assert_not_includes File.read(File.join(@dir, "design_system/theme.css")), "@import"
+    assert_not_includes File.read(File.join(@dir, "design-system/theme.css")), "@import"
   end
 
   # The kit names files in the template, so one it has no theme for is refused
@@ -164,7 +186,7 @@ class Designs::TemplateTest < ActiveSupport::TestCase
 
       slot = Designs::Publisher.new(repo.project, repo).publish!("master", "master")
       assert_includes rendered, "runtime/kit.js"
-      assert_equal rendered, Dir.glob("**/*", base: slot).select { |p| slot.join(p).file? }.sort
+      assert_equal rendered, Dir.glob("**/*", base: slot).select { |p| slot.join(p).file? && !p.start_with?("__flosis/") }.sort
     end
   ensure
     ENV.delete("DESIGNS_PREVIEW_ROOT")
@@ -180,20 +202,23 @@ class Designs::TemplateTest < ActiveSupport::TestCase
   RUNTIME_PAGE = <<~'JS'.freeze
     const fs = require("fs");
     const vm = require("vm");
-    const [runtime, config] = process.argv.slice(2);
+    const [runtime, config, pathname = "/index.html", title = ""] = process.argv.slice(2);
     const files = {
       "/runtime/config.json": config,
-      "/design_system/theme.css": ":root {}",
+      "/design-system/theme.css": ":root {}",
       "/designs/contexts.json": '{"dimensions": []}',
     };
     const errors = [];
+    const messages = [];
     const element = (tag) => ({ tag, textContent: "", setAttribute() {}, append() {} });
     globalThis.window = globalThis;
-    globalThis.location = { protocol: "http:", search: "", origin: "http://preview.test" };
+    globalThis.parent = { postMessage(message) { messages.push(message); } };
+    globalThis.location = { protocol: "http:", search: "", origin: "http://preview.test", pathname };
     globalThis.Event = class { constructor(type) { this.type = type; } };
     globalThis.document = {
       currentScript: { src: "http://preview.test/runtime/flosis.js" },
       readyState: "complete",
+      title,
       baseURI: "http://preview.test/index.html",
       head: { append(child) { if (child.onload) setTimeout(child.onload); } },
       body: { prepend(box) { errors.push(box.textContent); } },
@@ -211,14 +236,18 @@ class Designs::TemplateTest < ActiveSupport::TestCase
     };
     console.error = () => {};
     vm.runInThisContext(fs.readFileSync(runtime, "utf8"), { filename: runtime });
-    window.Flosis.ready.then(() => setTimeout(() => console.log(JSON.stringify(errors))));
+    window.Flosis.ready.then(() => setTimeout(() => console.log(JSON.stringify({ errors, messages }))));
   JS
 
   def runtime_errors(config)
+    run_runtime(config)["errors"]
+  end
+
+  def run_runtime(config, pathname: "/index.html", title: "")
     Dir.mktmpdir("flosis-runtime") do |dir|
       page = File.join(dir, "page.js")
       File.write(page, RUNTIME_PAGE)
-      out, err, status = Open3.capture3("node", page, Designs::Template::SOURCE.join("runtime/flosis.js").to_s, config.to_json)
+      out, err, status = Open3.capture3("node", page, Designs::Template::SOURCE.join("runtime/flosis.js").to_s, config.to_json, pathname, title)
       assert status.success?, err
       JSON.parse(out)
     end

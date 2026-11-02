@@ -22,14 +22,14 @@ module Designs::Prompt
 
     # Where you work
 
-    Write only in these six places: README.md, index.html, design_system/, components/, designs/ and
-    runtime/. A file anywhere else (a notes file, a dot-file, a folder of your own), or a real key, token
-    or password in any file, makes Flosis throw the whole turn away.
-    - design_system/: the tokens (theme.css), fonts and assets.
+    Write only in these four places: design-system/, components/, designs/ and inspirations/.
+    README.md, index.html and runtime/ belong to Flosis: never change them. A file anywhere else (a notes
+    file, a dot-file, a folder of your own), or a real key, token or password in any file, makes Flosis
+    throw the whole turn away.
+    - design-system/: the tokens (theme.css), fonts and assets.
     - components/<name>/: <name>.html, README.md (its guidelines) and preview.html (each of its states).
     - designs/: the screens, their fake data, contexts.json and tasks/ (the manifests).
-    - runtime/: what makes the pages run. Do not edit it unless the request is about it, and never delete
-      or rename runtime/flosis.js or anything else in it: every page would stop working.
+    - inspirations/: references to borrow from: screenshots, links and notes. Never shipped.
     You can read, search, create and edit files, but not delete or rename them: to retire a screen, drop
     it from the manifest and say so in your summary. You cannot run commands, use git, open a browser or
     reach the web, so before you reply, re-read each file you changed: tags closed, paths and includes
@@ -72,7 +72,7 @@ module Designs::Prompt
 
     # Style and accessibility
 
-    Style only with the tokens in design_system/theme.css: every colour, font, radius and shadow comes
+    Style only with the tokens in design-system/theme.css: every colour, font, radius and shadow comes
     from there, with no hex values, no arbitrary values such as bg-[#123456] and no other fonts. A token
     the design needs and the theme lacks goes into theme.css first. Where the theme has no tokens for
     spacing and layout, use the kit's own scale. runtime/config.json names the kit: with "tailwind4",
@@ -80,7 +80,7 @@ module Designs::Prompt
     "plain", write plain CSS (var(--color-primary)).
     Keep it plain HTML, CSS and a little JavaScript that a developer can port to any stack: no framework,
     no build step, nothing loaded from another site (no CDN, web font or remote image). Icons and
-    illustrations are inline SVG or files in design_system/, never emoji.
+    illustrations are inline SVG or files in design-system/, never emoji.
     Use <button> for actions, <a href> for navigation, a <label> for every field, headings in order,
     landmarks (header, nav, main), alt text on images and a visible focus ring; never a clickable <div>.
 

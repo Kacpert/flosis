@@ -7,9 +7,11 @@
 # base and head are Designs::Screens of the two refs. A screen the base lacks is
 # new as a whole: its <body> is marked.
 class Designs::Changes
-  def initialize(base:, head:)
+  # root: as Designs::Includes takes it, for markup published beside a screen.
+  def initialize(base:, head:, root: nil)
     @base = base
     @head = head
+    @root = root
   end
 
   # [{ context:, screen:, kind: "new" | "updated" }], in the head's order.
@@ -41,7 +43,7 @@ class Designs::Changes
 
   def document(screens, context, id)
     html = screens.html(context, id) or return
-    Nokogiri::HTML5(Designs::Includes.expand(html, reader: screens.reader))
+    Nokogiri::HTML5(Designs::Includes.expand(html, reader: screens.reader, root: @root))
   end
 
   # Two element trees, compared child list by child list: first the children

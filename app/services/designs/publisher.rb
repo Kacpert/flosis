@@ -20,12 +20,12 @@ require "tmpdir"
 # grant (#url, #grant_url). What is published is still kept to static web
 # files, in case the root ever sits where a web server reaches it.
 class Designs::Publisher
-  # What may name a slot: master, a task's key, or work in progress under wip/.
-  # A slot becomes folders in the document root, so it is never a path of its
-  # own: no dots, no leading or doubled slashes, nothing after a newline. A bare
-  # "wip" is refused too: it would replace the wip/ folder and every work in
-  # progress in it.
-  SLOT = %r{\A(master|wip/setup|wip/[A-Za-z0-9_-]+|(?!wip\z)[A-Za-z0-9_-]+)\z}
+  # What may name a slot: master, a task's key, work in progress under wip/, or
+  # a design thread's branch under design/. A slot becomes folders in the
+  # document root, so it is never a path of its own: no dots, no leading or
+  # doubled slashes, nothing after a newline. A bare "wip" or "design" is
+  # refused too: it would replace that folder and every slot in it.
+  SLOT = %r{\A(master|wip/setup|wip/[A-Za-z0-9_-]+|design/[A-Za-z0-9_-]+|(?!(?:wip|design)\z)[A-Za-z0-9_-]+)\z}
 
   # Anything pushed to the design repo reaches the docroot, where Apache honours nested .htaccess and PHP runs as the Rails user.
   SERVABLE_EXTENSIONS = %w[
@@ -99,7 +99,12 @@ class Designs::Publisher
   #
   # Raises Error, before the repo is touched, for a project with no folder of its
   # own: asked for one, the repo would make it (and save it) just to fail.
-  def publish!(branch, slot)
+  #
+  # Beside the branch's files go two things that are never committed: the
+  # screens it has, as __flosis/screens.json for the runtime, and, given the
+  # commit a thread is based on, each changed screen marked up against it, as
+  # designs/<context>/<screen>.changes.html for the Changes view.
+  def publish!(branch, slot, base: nil)
     slot = check_slot!(slot)
     raise Error, "the project has no design repo folder yet, so there is nothing to publish" unless stored_workspace_dir
 
@@ -110,6 +115,8 @@ class Designs::Publisher
       begin
         unpack(sha, into: staging)
         strip_unservable!(staging)
+        write_screens!(staging)
+        write_changes!(staging, base) if base
         open_up!(staging)
         swap!(staging, folder.join(slot))
       ensure
@@ -305,6 +312,26 @@ class Designs::Publisher
   # Find does not follow links, and ignore_error: false makes an unreadable
   # folder raise instead of being skipped with whatever it holds. Whatever Find
   # is told to prune has just been deleted, so it must not look at it again.
+  def write_screens!(dir)
+    FileUtils.mkdir_p(dir.join("__flosis"))
+    File.write(dir.join("__flosis/screens.json"), screens_in(dir).as_json.to_json)
+  end
+
+  def write_changes!(dir, base)
+    before = Designs::Screens.new(paths: repo.ls_files(base, "designs/"), reader: ->(path) { repo.read_file(base, path) })
+    changes = Designs::Changes.new(base: before, head: screens_in(dir), root: "../../")
+    changes.changed.each do |change|
+      File.write(dir.join("designs", change[:context], "#{change[:screen]}.changes.html"),
+                 changes.marked_html(change[:context], change[:screen]))
+    end
+  end
+
+  # The screens of an unpacked, stripped copy, read from the copy itself.
+  def screens_in(dir)
+    reader = ->(path) { file = dir.join(path); file.file? ? file.read : nil }
+    Designs::Screens.new(paths: Dir.glob("designs/*/*.html", base: dir.to_s), reader: reader)
+  end
+
   def strip_unservable!(dir)
     Find.find(dir.to_s, ignore_error: false) do |path|
       next if path == dir.to_s

@@ -11,7 +11,7 @@ class Designs::CommitterTest < ActiveSupport::TestCase
     with_design_remote do |repo, _|
       seed_master(repo)
       dir = repo.worktree!("wip/REC-1")
-      File.write(dir.join("index.html"), "<h1>Hi</h1>")
+      File.write(dir.join("designs").tap(&:mkpath).join("index.html"), "<h1>Hi</h1>")
       result = Designs::Committer.new(repo, Designs::LeakGuard.new).commit!(dir, message: "Turn 1")
       assert result.ok?
       assert_equal repo.head("wip/REC-1"), result.sha
@@ -68,11 +68,11 @@ class Designs::CommitterTest < ActiveSupport::TestCase
     with_design_remote do |repo, _|
       seed_master(repo)
       dir = repo.worktree!("wip/REC-1")
-      File.write(dir.join("index.html"), "<script>const key = 'ghp_SECRET123'</script>")
+      File.write(dir.join("designs").tap(&:mkpath).join("index.html"), "<script>const key = 'ghp_SECRET123'</script>")
       result = committer(repo, secrets: [ "ghp_SECRET123" ]).commit!(dir, message: "Turn 1")
       assert_equal [ "contains a stored credential" ], result.violations.map(&:reason)
       assert_not_includes result.violations.inspect, "ghp_SECRET123"
-      assert_not dir.join("index.html").exist?
+      assert_not dir.join("designs/index.html").exist?
     end
   end
 
@@ -102,27 +102,30 @@ class Designs::CommitterTest < ActiveSupport::TestCase
       runtime = dir.join(Designs::Repo::RUNTIME)
       [ -> { runtime.delete }, -> { File.rename(runtime, dir.join("runtime/flosis-old.js")) } ].each do |change|
         change.call
-        File.write(dir.join("index.html"), "<h1>Hi</h1>")
+        File.write(dir.join("designs").tap(&:mkpath).join("index.html"), "<h1>Hi</h1>")
         result = committer(repo).commit!(dir, message: "Turn 1")
-        assert_equal [ [ "runtime/flosis.js", "would delete the design runtime" ] ],
-                     result.violations.map { [ _1.path, _1.reason ] }
+        # runtime/ is Flosis's: a turn may not touch it at all, deleting least of all.
+        assert_includes result.violations.map { [ _1.path, _1.reason ] }, [ "runtime/flosis.js", "would delete the design runtime" ]
         assert_nil result.sha
         assert_equal before, repo.head("wip/REC-1")
         assert_equal "// the runtime\n", runtime.read
-        assert_not dir.join("index.html").exist?
+        assert_not dir.join("designs/index.html").exist?
         assert_not dir.join("runtime/flosis-old.js").exist?
       end
     end
   end
 
-  test "a turn may edit the runtime, as long as it stays" do
+  # Workshop Designs v2: runtime/ is Flosis's own, so a turn may not edit it either.
+  test "a turn may not edit the runtime" do
     with_design_remote do |repo, _|
       seed_master(repo)
       dir = repo.worktree!("wip/REC-1")
+      before = repo.head("wip/REC-1")
       File.write(dir.join(Designs::Repo::RUNTIME), "// the runtime, extended\n")
       result = committer(repo).commit!(dir, message: "Turn 1")
-      assert result.ok?
-      assert_equal repo.head("wip/REC-1"), result.sha
+      assert_equal [ [ "runtime/flosis.js", "is outside the design repo's allowed folders" ] ],
+                   result.violations.map { [ _1.path, _1.reason ] }
+      assert_equal before, repo.head("wip/REC-1")
     end
   end
 
@@ -132,10 +135,10 @@ class Designs::CommitterTest < ActiveSupport::TestCase
     with_design_remote do |repo, _|
       seed_master(repo)
       dir = repo.worktree!("wip/REC-1")
-      File.write(dir.join("index.html"), "<p>ghp_SECRET123</p>")
+      File.write(dir.join("designs").tap(&:mkpath).join("index.html"), "<p>ghp_SECRET123</p>")
       File.write(dir.join("notes.md"), "scratch")
       result = committer(repo, secrets: [ "ghp_SECRET123" ]).commit!(dir, message: "Turn 1")
-      assert_equal "index.html contains a stored credential; notes.md is outside the design repo's allowed folders",
+      assert_equal "designs/index.html contains a stored credential; notes.md is outside the design repo's allowed folders",
                    result.refusal
     end
   end
@@ -165,7 +168,7 @@ class Designs::CommitterTest < ActiveSupport::TestCase
     with_design_remote do |repo, _|
       seed_master(repo)
       dir = repo.worktree!("wip/REC-1")
-      File.write(dir.join("index.html"), "<h1>Hi</h1>")
+      File.write(dir.join("designs").tap(&:mkpath).join("index.html"), "<h1>Hi</h1>")
 
       # flock locks per open file description: a second open in this very
       # process cannot take a lock the repo holds, and says so at once.

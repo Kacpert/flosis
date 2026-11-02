@@ -131,13 +131,13 @@ class Designs::InitializeRepoJobTest < ActiveJob::TestCase
   test "an initialized repo keeps what was committed to it since: the job only publishes" do
     with_design_remote do |repo, remote|
       with_remote_url(remote) { Designs::InitializeRepoJob.perform_now(repo.project.id) }
-      commit_files(repo, repo.root, { "design_system/theme.css" => "a theme the setup run wrote\n" })
+      commit_files(repo, repo.root, { "design-system/theme.css" => "a theme the setup run wrote\n" })
       repo.push!("master")
       set_up = remote_branch_sha(remote, "master")
 
       with_remote_url(remote) { Designs::InitializeRepoJob.perform_now(repo.project.id) }
       assert_equal set_up, remote_branch_sha(remote, "master")
-      theme = File.join(@preview_root, repo.project.reload.design_preview_token, "master", "design_system", "theme.css")
+      theme = File.join(@preview_root, repo.project.reload.design_preview_token, "master", "design-system", "theme.css")
       assert_equal "a theme the setup run wrote\n", File.read(theme)
     end
   end

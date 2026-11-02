@@ -6,7 +6,7 @@ class Designs::PromptTest < ActiveSupport::TestCase
 
   test "the system prompt names the rules a turn must follow" do
     text = Designs::Prompt.system_text(project: projects(:jira_project))
-    [ "design_system/", "components/", "designs/", "runtime/", "<x-include", "designs/contexts.json",
+    [ "design-system/", "components/", "designs/", "runtime/", "<x-include", "designs/contexts.json",
       "<summary>", "<missing>", "<context>", projects(:jira_project).name ].each { |fact| assert_includes text, fact }
   end
 
@@ -20,16 +20,15 @@ class Designs::PromptTest < ActiveSupport::TestCase
     assert message.rstrip.end_with?("Add an archive tab")
   end
 
-  test "the base prompt is frozen and names all six places the leak guard allows" do
+  test "the base prompt is frozen and names the four places a turn may change" do
     assert_predicate Designs::Prompt::BASE, :frozen?
-    allowed = Designs::LeakGuard::ALLOWED_FILES + Designs::LeakGuard::ALLOWED_DIRS
-    assert_equal 6, allowed.size
-    allowed.each { |path| assert_includes Designs::Prompt::BASE, path }
+    assert_equal 4, Designs::LeakGuard::DESIGN_DIRS.size
+    Designs::LeakGuard::DESIGN_DIRS.each { |path| assert_includes Designs::Prompt::BASE, path }
   end
 
   test "the base prompt states how to build: components, tokens, data, contexts, manifest, runtime, markup" do
     [ "A screen never copies a component's markup", "add it to components/", "include it in both places",
-      "design_system/theme.css", "fake data", "Vary it by context",
+      "design-system/theme.css", "fake data", "Vary it by context",
       "Add a dimension or a value only when the person asks",
       "designs/tasks/<slug>.json",
       "<script src=\"runtime/flosis.js\"></script>",
@@ -40,7 +39,7 @@ class Designs::PromptTest < ActiveSupport::TestCase
   test "the base prompt states the paths, ids, runtime and link rules" do
     [ "Paths inside a component are relative to the repo root",
       "use only letters, digits, _ and -",
-      "never delete or rename runtime/flosis.js",
+      "README.md, index.html and runtime/ belong to Flosis",
       "A link's own ?ctx= is replaced by the active contexts",
       "switches contexts in the preview's picker" ].each { |rule| assert_includes base, rule }
   end
@@ -77,7 +76,7 @@ class Designs::PromptTest < ActiveSupport::TestCase
   # screen starts as a copy of the repo's own pages: a prompt that quoted the
   # template would get every such turn refused.
   test "the files of a new design repo hold no passage of the base prompt" do
-    guard = Designs::LeakGuard.new(forbidden_texts: [ Designs::Prompt::BASE ])
+    guard = Designs::LeakGuard.new(forbidden_texts: [ Designs::Prompt::BASE ], flosis_files: true)
     Project::DESIGN_BASE_KITS.each do |kit|
       project = projects(:jira_project)
       project.design_base_kit = kit

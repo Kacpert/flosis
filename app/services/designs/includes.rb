@@ -14,14 +14,17 @@ module Designs::Includes
 
   module_function
 
-  def expand(html, reader:)
+  # root: what leads from the page to the repo's root ("../../" from a screen),
+  # put before every relative src, href and poster a component brings in, as
+  # the runtime makes them absolute; nil leaves them as written.
+  def expand(html, reader:, root: nil)
     document = Nokogiri::HTML5(html.to_s)
     cache = {}
     MAX_ROUNDS.times do
       includes = document.css("x-include[src]")
       break if includes.empty?
 
-      includes.each { |element| include!(element, reader, cache) }
+      includes.each { |element| include!(element, reader, cache, root) }
     end
     document.css("x-include[src]").each { |element| element.replace(marker(document, element["src"])) }
     document.to_html
@@ -36,14 +39,28 @@ module Designs::Includes
     path unless path == "." || path == ".." || path.start_with?("../")
   end
 
-  def include!(element, reader, cache)
+  def include!(element, reader, cache, root)
     path = path_for(element["src"])
     text = path && cache.fetch(path) { cache[path] = reader.call(path) }
     return element.replace(marker(element.document, element["src"])) if text.nil?
 
     fragment = element.document.fragment(text.gsub(PLACEHOLDER) { CGI.escapeHTML(element[$1].to_s) })
+    from_root!(fragment, root) if root
     fragment.at_css("slot")&.replace(element.children)
     element.replace(fragment)
+  end
+
+  # Left as they are, as in the runtime: URLs with a scheme, //host and /path,
+  # and #… or ?…, which point into the page itself.
+  def from_root!(fragment, root)
+    fragment.css("[src], [href], [poster]").each do |node|
+      next if node.name == "x-include"
+
+      %w[src href poster].each do |name|
+        value = node[name]
+        node[name] = root + value if value.present? && !value.strip.match?(%r{\A([a-z][a-z\d+.-]*:|[/#?])}i)
+      end
+    end
   end
 
   def marker(document, src)

@@ -142,6 +142,33 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     end
   end
 
+  test "the slot pattern takes a thread's branch, and nothing below it" do
+    %w[design/SP-1051-inline-validation design/fix-the-header-2].each { |slot| assert_match Designs::Publisher::SLOT, slot }
+    %w[design design/ design/a/b design/../x].each { |slot| assert_no_match Designs::Publisher::SLOT, slot }
+  end
+
+  test "a published ref lists its screens for the runtime" do
+    with_design_remote do |repo, _|
+      seed_master(repo, { "designs/admin/pipeline.html" => "<title>Pipeline</title><p>p</p>" })
+      dir = Designs::Publisher.new(repo.project, repo).publish!("master", "master")
+      json = JSON.parse(dir.join("__flosis/screens.json").read)
+      assert_equal [ { "id" => "admin", "name" => "Admin" } ], json["contexts"]
+      assert_equal [ [ "pipeline", "admin", "Pipeline" ] ], json["screens"].map { |s| s.values_at("id", "context", "name") }
+    end
+  end
+
+  test "a thread's branch is published with its changes against its base, which are never committed" do
+    with_design_remote do |repo, _|
+      base = seed_master(repo, { "designs/admin/pipeline.html" => "<html><body><h1>Pipeline</h1></body></html>" })
+      dir = repo.worktree!("design/x", from: base)
+      commit_files(repo, dir, { "designs/admin/pipeline.html" => "<html><body><h1>Pipeline</h1><p>New</p></body></html>" })
+      published = Designs::Publisher.new(repo.project, repo).publish!("design/x", "design/x", base: base)
+      marked = Nokogiri::HTML5(published.join("designs/admin/pipeline.changes.html").read)
+      assert_equal "new", marked.at("p")["data-flosis-change"]
+      assert_equal [ "designs/admin/pipeline.html" ], repo.ls_files("design/x", "designs/")
+    end
+  end
+
   test "a slot is matched whole: a newline cannot hide a path behind a valid line" do
     publisher = Designs::Publisher.new(projects(:jira_project), nil)
     [ "master\n", "master\n../../x", "x\nwip/y" ].each do |slot|
@@ -167,7 +194,7 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     project = projects(:jira_project)
     project.update!(design_preview_token: "t0k")
     publisher = Designs::Publisher.new(project, nil)
-    [ "wip", "../x", "design/REC-1", "REC 1", "master\n" ].each do |slot|
+    [ "wip", "design", "../x", "design/a/b", "REC 1", "master\n" ].each do |slot|
       assert_raises(ArgumentError, slot.inspect) { publisher.url(slot) }
     end
   end
@@ -246,8 +273,8 @@ class Designs::PublisherTest < ActiveSupport::TestCase
       [ wip.dirname.dirname, wip.dirname, wip ].each { |folder| assert_equal "755", mode.(folder), folder.to_s }
 
       master = with_umask(0o027) { publisher.publish!("master", "master") }
-      assert_equal [ "designs", "runtime" ], Dir.children(master).sort
-      [ master, master.join("designs"), master.join("runtime") ].each { |folder| assert_equal "755", mode.(folder), folder.to_s }
+      assert_equal [ "__flosis", "designs", "runtime" ], Dir.children(master).sort
+      [ master, master.join("__flosis"), master.join("designs"), master.join("runtime") ].each { |folder| assert_equal "755", mode.(folder), folder.to_s }
       [ master.join("designs/jobs.html"), master.join("runtime/run.js"), wip.join("designs/jobs.html") ].each do |file|
         assert_equal "644", mode.(file), file.to_s
       end
@@ -295,15 +322,15 @@ class Designs::PublisherTest < ActiveSupport::TestCase
         "designs/x/.user.ini" => "auto_prepend_file=/etc/passwd\n",
         "designs/shell.php" => "<?php system($_GET['c']);\n",
         "runtime/a.cgi" => "#!/bin/sh\n",
-        "design_system/.hidden/a.css" => "a { color: red }\n",
-        "design_system/tokens.css" => "b { color: blue }\n",
+        "design-system/.hidden/a.css" => "a { color: red }\n",
+        "design-system/tokens.css" => "b { color: blue }\n",
         "designs/deep/.cache/inner/c.css" => "c { color: green }\n"
       })
 
       dir = Designs::Publisher.new(repo.project, repo).publish!("master", "master")
 
-      assert_equal [ "README.md", "design_system/tokens.css", "designs/page.html", "runtime/flosis.js" ], published_files(dir)
-      assert_not dir.join("design_system/.hidden").exist?, "a dot folder was published"
+      assert_equal [ "README.md", "design-system/tokens.css", "designs/page.html", "runtime/flosis.js" ], published_files(dir)
+      assert_not dir.join("design-system/.hidden").exist?, "a dot folder was published"
       assert_not dir.join("designs/deep/.cache").exist?, "a nested dot folder was published"
     end
   end
@@ -601,8 +628,10 @@ class Designs::PublisherTest < ActiveSupport::TestCase
   private
 
   # Every file in a slot, relative to it, dotfiles included.
+  # What the branch brought: the screens list Flosis adds beside it is left out.
   def published_files(dir)
-    Find.find(dir.to_s).select { |path| File.file?(path) }.map { |path| Pathname(path).relative_path_from(dir).to_s }.sort
+    Find.find(dir.to_s).select { |path| File.file?(path) }.map { |path| Pathname(path).relative_path_from(dir).to_s }
+        .reject { |path| path.start_with?("__flosis/") }.sort
   end
 
   # What `probe` finds on entering and on leaving the repo's lock. Only the

@@ -8,8 +8,11 @@
 # violations are reported to the people using the project, and quoting a
 # passage or a credential there would leak it a second time.
 class Designs::LeakGuard
-  ALLOWED_FILES = %w[README.md index.html].freeze
-  ALLOWED_DIRS = %w[design_system/ components/ designs/ runtime/].freeze
+  # The four folders a turn may change (Workshop Designs v2).
+  DESIGN_DIRS = %w[design-system/ components/ designs/ inspirations/].freeze
+  # Flosis's own files: only its own commits (the template) change them.
+  FLOSIS_FILES = %w[README.md index.html].freeze
+  FLOSIS_DIRS = %w[runtime/].freeze
 
   # Git's own configuration files, in any folder and in any case (a
   # case-insensitive filesystem reads .GitAttributes as .gitattributes). None
@@ -35,7 +38,10 @@ class Designs::LeakGuard
 
   # forbidden_texts: the library texts that no design may quote. secrets: the
   # credentials stored for the project; nil, blank and short ones are ignored.
-  def initialize(forbidden_texts: [], secrets: [])
+  # flosis_files: a commit of Flosis's own (the template), which may also write
+  # README.md, index.html and runtime/.
+  def initialize(forbidden_texts: [], secrets: [], flosis_files: false)
+    @flosis_files = flosis_files
     @passages = Set.new
     Array(forbidden_texts).each { |text| @passages.merge(runs(text)) }
     @secrets = Array(secrets).map { |secret| secret.to_s.strip }
@@ -77,7 +83,9 @@ class Designs::LeakGuard
     return false if segments.empty? || segments.any? { |segment| segment.empty? || %w[. ..].include?(segment) }
     return false if GIT_CONFIG_FILES.include?(segments.last.downcase)
 
-    ALLOWED_FILES.include?(path) || path.start_with?(*ALLOWED_DIRS)
+    return true if path.start_with?(*DESIGN_DIRS)
+
+    @flosis_files && (FLOSIS_FILES.include?(path) || path.start_with?(*FLOSIS_DIRS))
   end
 
   def passage?(text)

@@ -10,8 +10,8 @@ class Designs::PreviewsControllerTest < ActionDispatch::IntegrationTest
     write("master/designs/jobs.html", "<p>jobs</p>")
     write("master/runtime/flosis.js", "console.log(1)")
     write("master/designs/contexts.json", "{}")
-    write("master/design_system/theme.css", "a{}")
-    write("master/design_system/logo.svg", "<svg/>")
+    write("master/design-system/theme.css", "a{}")
+    write("master/design-system/logo.svg", "<svg/>")
     write("wip/REC-1/index.html", "<p>work in progress</p>")
     @grant = Designs::PreviewGrant.issue(@project, "master")
   end
@@ -58,7 +58,7 @@ class Designs::PreviewsControllerTest < ActionDispatch::IntegrationTest
   test "each file goes out as its kind" do
     {
       "index.html" => "text/html", "runtime/flosis.js" => "text/javascript", "designs/contexts.json" => "application/json",
-      "design_system/theme.css" => "text/css", "design_system/logo.svg" => "image/svg+xml"
+      "design-system/theme.css" => "text/css", "design-system/logo.svg" => "image/svg+xml"
     }.each do |path, type|
       get "/acme/hiring/#{@grant}/design/#{path}"
       assert_equal type, response.media_type, path

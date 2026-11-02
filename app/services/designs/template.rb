@@ -9,7 +9,7 @@ require "fileutils"
 # The template is lib/designs_template, rendered for one project:
 #
 # - an .erb file is rendered with `project` and `kit`, and loses its .erb;
-# - design_system/theme.css.<kit> becomes design_system/theme.css, and the
+# - design-system/theme.css.<kit> becomes design-system/theme.css, and the
 #   other kits' themes are left out;
 # - runtime/kits/<kit>.js becomes runtime/kit.js if the kit has one, and its
 #   licence, runtime/kits/<kit>.LICENSE.txt, becomes runtime/kit-license.txt;
@@ -62,7 +62,7 @@ module Designs::Template
     # The kits the template has a theme for. A kit is only ever compared with
     # these names, never put into a path, so it cannot reach outside SOURCE.
     def kits
-      Dir.glob("theme.css.*", base: SOURCE.join("design_system").to_s).map { |name| name.delete_prefix("theme.css.") }
+      Dir.glob("theme.css.*", base: SOURCE.join("design-system").to_s).map { |name| name.delete_prefix("theme.css.") }
     end
 
     # Where a template file lands in the repo, or nil when it stays out.
@@ -72,8 +72,8 @@ module Designs::Template
         when "runtime/kits/#{kit}.js" then "runtime/kit.js"
         when "runtime/kits/#{kit}.LICENSE.txt" then "runtime/kit-license.txt"
         end
-      elsif path.start_with?("design_system/theme.css.")
-        "design_system/theme.css" if path == "design_system/theme.css.#{kit}"
+      elsif path.start_with?("design-system/theme.css.")
+        "design-system/theme.css" if path == "design-system/theme.css.#{kit}"
       else
         path.delete_suffix(".erb")
       end

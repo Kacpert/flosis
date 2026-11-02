@@ -37,6 +37,33 @@ class Designs::RepoTest < ActiveSupport::TestCase
     end
   end
 
+  test "ls_files lists a ref's files under a folder" do
+    with_design_remote do |repo, _|
+      seed_master(repo, { "designs/admin/a.html" => "a", "designs/admin/b.html" => "b", "README.md" => "r" })
+      assert_equal %w[designs/admin/a.html designs/admin/b.html], repo.ls_files("master", "designs/")
+      assert_empty repo.ls_files("master", "components/")
+    end
+  end
+
+  test "a thread's branch can start from an older master commit" do
+    with_design_remote do |repo, _|
+      first = seed_master(repo)
+      commit_files(repo, repo.root, { "designs/admin/a.html" => "a" })
+      repo.worktree!("design/x", from: first)
+      assert_equal first, repo.head("design/x")
+    end
+  end
+
+  test "master's commits since a thread's base, newest first" do
+    with_design_remote do |repo, _|
+      first = seed_master(repo)
+      second = commit_files(repo, repo.root, { "designs/admin/a.html" => "a" })
+      third = commit_files(repo, repo.root, { "designs/admin/b.html" => "b" })
+      assert_equal [ third, second ], repo.master_commits_since(first)
+      assert_empty repo.master_commits_since(third)
+    end
+  end
+
   test "commit! returns nil when nothing changed" do
     with_design_remote do |repo, _|
       seed_master(repo)

@@ -41,7 +41,7 @@ python3 -m http.server 8000
 |---|---|
 | `README.md` | this file |
 | `index.html` | the entry point: links to the design system, the components and the screens |
-| `design_system/` | the brand book, the tokens (`theme.css`), assets and fonts |
+| `design-system/` | the brand book, the tokens (`theme.css`), assets and fonts |
 | `components/` | one folder per component: its guidelines, a preview and the component itself |
 | `designs/` | clickable screens of the app, their fake data and the contexts (`contexts.json`) |
 | `runtime/` | what the browser needs: `flosis.js` (components and contexts), `nav.html` (the navigation the repo's own pages include) and `config.json`<% if kit == "tailwind4" %>, plus `kit.js` (the Tailwind CSS browser build) and its MIT licence, `kit-license.txt`<% end %> |
@@ -51,9 +51,9 @@ Nothing else belongs in the repository.
 ## Styling
 
 <% if kit == "tailwind4" -%>
-Pages use Tailwind CSS v4 utility classes. `runtime/kit.js`, the Tailwind browser build (version <%= Designs::Template::TAILWIND_VERSION %>, vendored), compiles them in the browser with the tokens in `design_system/theme.css`: `--color-primary` there is `bg-primary` or `text-primary` on a page, and `var(--color-primary)` in CSS.
+Pages use Tailwind CSS v4 utility classes. `runtime/kit.js`, the Tailwind browser build (version <%= Designs::Template::TAILWIND_VERSION %>, vendored), compiles them in the browser with the tokens in `design-system/theme.css`: `--color-primary` there is `bg-primary` or `text-primary` on a page, and `var(--color-primary)` in CSS.
 <% else -%>
-Pages use plain CSS. The tokens are custom properties in `design_system/theme.css`, which every page gets: `background: var(--color-primary)`.
+Pages use plain CSS. The tokens are custom properties in `design-system/theme.css`, which every page gets: `background: var(--color-primary)`.
 <% end -%>
 
 ## Components
@@ -103,4 +103,4 @@ To build a task's design into the application:
 2. Check out `design/<KEY>`, never `wip/<KEY>`.
 3. Read the screens the task changed (see "What a task changed"), in a browser and in their HTML.
 4. Implement them in the application's own stack, with its own components. The HTML here is a reference, not code to copy, and `runtime/` only shows the designs in a browser.
-5. Take colours, fonts, radii and the other tokens from `design_system/theme.css`, never from a screen's markup.
+5. Take colours, fonts, radii and the other tokens from `design-system/theme.css`, never from a screen's markup.

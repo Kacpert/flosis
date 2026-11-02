@@ -91,12 +91,12 @@ class Workshop::DesignSetupsControllerTest < ActionDispatch::IntegrationTest
     with_design_remote(@project) do |repo, remote|
       seed_master(repo)
       post start_workshop_design_setup_path
-      commit_files(repo, repo.worktree!("wip/setup"), { "design_system/tokens.css" => ":root {}" })
+      commit_files(repo, repo.worktree!("wip/setup"), { "design-system/tokens.css" => ":root {}" })
       @project.design_setups.active.sole.update!(phase: "designs")
       with_remote_url(remote) { post approve_workshop_design_setup_path }
       assert_equal "Setup approved as version 1.", flash[:clar_toast]
       assert_equal "approved", @project.design_setups.sole.status
-      assert_includes GitRunner.run!("ls-tree", "-r", "--name-only", "refs/heads/master", chdir: remote), "design_system/tokens.css"
+      assert_includes GitRunner.run!("ls-tree", "-r", "--name-only", "refs/heads/master", chdir: remote), "design-system/tokens.css"
     end
   end
 end

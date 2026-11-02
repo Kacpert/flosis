@@ -989,13 +989,13 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       seed_master(repo)
       ENV["FLOSIS_DESIGNS_SETUP_API_KEY"] = "sk-flosis"
       options = nil
-      fake_claude(files: { "design_system/tokens.css" => ":root { --brand: #123456; }" },
+      fake_claude(files: { "design-system/tokens.css" => ":root { --brand: #123456; }" },
                   reply: "<summary>Tokens read from the app.</summary>", during: ->(opts) { options = opts })
       turn = run_turn(setup_turn(repo.project), remote)
       assert turn.succeeded?, turn.error
       assert_equal "sk-flosis", options[:api_key]
       assert_equal turn.commit_sha, remote_branch_sha(remote, "wip/setup")
-      assert File.exist?(File.join(@preview_root, repo.project.reload.design_preview_token, "wip", "setup", "design_system", "tokens.css"))
+      assert File.exist?(File.join(@preview_root, repo.project.reload.design_preview_token, "wip", "setup", "design-system", "tokens.css"))
     ensure
       ENV.delete("FLOSIS_DESIGNS_SETUP_API_KEY")
     end
