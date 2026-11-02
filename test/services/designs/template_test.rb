@@ -20,8 +20,8 @@ class Designs::TemplateTest < ActiveSupport::TestCase
   test "the README names the project and the conventions a developer needs" do
     Designs::Template.render_into(@dir, project: @project)
     readme = File.read(File.join(@dir, "README.md"))
-    [ @project.name, "design/<KEY>", "wip/<KEY>", "approved/<KEY>/<n>", "python3 -m http.server 8000", "?ctx=",
-      "`nav.html`", "`[A-Za-z0-9_-]`" ].each do |fact|
+    [ @project.name, "design/<KEY>-<slug>", "git diff master...design/<KEY>-<slug>", "python3 -m http.server 8000",
+      "designs/<context>/", "`nav.html`", "`[A-Za-z0-9_-]`" ].each do |fact|
       assert_includes readme, fact
     end
   end

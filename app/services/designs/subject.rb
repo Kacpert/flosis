@@ -179,10 +179,21 @@ module Designs::Subject
     def forbidden_texts = composition.texts
     def library_version_ids = composition.version_ids
 
+    # The stack and the app's repositories come with every setup turn
+    # (Workshop Designs v2's form), for the phases to check them.
     def turn_message(request)
+      ui = Workshop::DesignsModuleController::UI_SYSTEMS.fetch(project.designs_ui_system, project.designs_ui_system.to_s.humanize)
+      framework = Workshop::DesignsModuleController::FRAMEWORKS.fetch(project.designs_framework, project.designs_framework.to_s.humanize)
+      repos = Array(project.design_app_repos).filter_map { |row| "#{row['role']}: #{row['repo']}" if row.is_a?(Hash) }
       <<~MESSAGE
         ## Setup run
         Phase #{DesignSetup::PHASES.index(setup.phase) + 1} of #{DesignSetup::PHASES.size}: #{setup.phase.humanize.downcase}
+
+        ## Stack
+        #{[ framework, project.designs_framework_version ].compact_blank.join(' ')} with #{[ ui, project.designs_ui_version ].compact_blank.join(' ')}
+
+        ## App repositories
+        #{repos.join("\n").presence || "(the project's own repository)"}
 
         ## Request
         #{request.to_s.strip}

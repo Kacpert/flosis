@@ -1,0 +1,8 @@
+This is phase 2 of 3 of a setup run: the components.
+
+This phase owns components/. The design system from phase 1 stays as it is; use its tokens, never values of your own. Phase 3 will build every screen from what you leave here.
+
+- Find the app's real UI building blocks in its views, partials and front-end components (buttons, fields, tables, cards, navigation, modals, empty states...), and check them against the crawled pages.
+- Make one component per building block, in its own folder, with the states and variants the app uses.
+- Give each component a README with its guidelines (when to use it, its variants, what not to do), and a preview page that shows every variant.
+- Do not invent components the app does not have.

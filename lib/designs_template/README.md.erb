@@ -4,25 +4,17 @@ The designs of <%= project.name %>: its design system, its components and clicka
 
 ## Branches
 
-- `master` — all approved designs: the target look, possibly ahead of production;
-- `design/<KEY>` — the last approved design of a Jira task;
-- `wip/<KEY>` — work in progress, not approved, do not build from it;
-- tags `approved/<KEY>/<n>` mark each approval.
+- `master` — all merged designs: the target look, possibly ahead of production. Nobody changes it directly.
+- `design/<KEY>-<slug>` — a design thread started from a task, such as `design/ABC-123-inline-validation`; `design/<slug>` — a thread with no task. A thread is merged into `master` by hand, or when its task is Done.
 
-`<KEY>` is the task's Jira key, such as `ABC-123`, and `<n>` counts the task's approvals from 1.
+`<KEY>` is the task's Jira key (`task-<id>` for a task that had none when its thread started); a thread's branch keeps its name. A task's Jira issue links to its thread's screens and names its branch.
 
-## What a task changed
+## What a thread changed
 
-What approval `<n>` of a task changed:
+What a thread changes against `master`:
 
 ```sh
-git diff approved/<KEY>/<n>^1 approved/<KEY>/<n>
-```
-
-The task's latest approval, which gives the latest `<n>`:
-
-```sh
-git tag -l 'approved/<KEY>/*' --sort=-v:refname | head -1
+git diff master...design/<KEY>-<slug>
 ```
 
 ## Run it locally
@@ -33,7 +25,7 @@ In the repository's folder:
 python3 -m http.server 8000
 ```
 
-(or `npx http-server -p 8000 -c-1`), then open http://localhost:8000. `file://` is not supported: the pages load their parts over HTTP. Nor is `npx serve`: it redirects `page.html?ctx=…` to `page` and drops the contexts.
+(or `npx http-server -p 8000 -c-1`), then open http://localhost:8000. `file://` is not supported: the pages load their parts over HTTP.
 
 ## Structure
 
@@ -43,8 +35,9 @@ python3 -m http.server 8000
 | `index.html` | the entry point: links to the design system, the components and the screens |
 | `design-system/` | the brand book, the tokens (`theme.css`), assets and fonts |
 | `components/` | one folder per component: its guidelines, a preview and the component itself |
-| `designs/` | clickable screens of the app, their fake data and the contexts (`contexts.json`) |
-| `runtime/` | what the browser needs: `flosis.js` (components and contexts), `nav.html` (the navigation the repo's own pages include) and `config.json`<% if kit == "tailwind4" %>, plus `kit.js` (the Tailwind CSS browser build) and its MIT licence, `kit-license.txt`<% end %> |
+| `designs/<context>/` | one folder per context (a role the app is seen as): the clickable screens that role sees, one `.html` file each |
+| `inspirations/` | references the designs borrow from: screenshots, links and notes; never shipped |
+| `runtime/` | what the browser needs: `flosis.js` (components, and the Designs canvas's messages), `nav.html` (the navigation the repo's own pages include) and `config.json`<% if kit == "tailwind4" %>, plus `kit.js` (the Tailwind CSS browser build) and its MIT licence, `kit-license.txt`<% end %> |
 
 Nothing else belongs in the repository.
 
@@ -73,34 +66,16 @@ A screen never copies a component's markup. It includes the component:
 
 ## Contexts
 
-Screens can differ by context: who is looking, or which part of the product is on. `designs/contexts.json` groups the contexts into dimensions, and one value of each dimension is active at a time:
+Every role the app is seen as (an administrator, a client…) has its own folder under `designs/<context>/`, with the screens it can open, drawn the way it sees them. A screen missing from a role's folder is one that role cannot reach. Screens in one folder link to each other by relative links, as the app's navigation does. Folder and file names are made of letters, digits, `_` and `-` (`[A-Za-z0-9_-]`), and every screen has a `<title>`, its name in Designs.
 
-```json
-{
-  "dimensions": [
-    {
-      "id": "role",
-      "name": "Role",
-      "values": [{ "id": "admin", "name": "Admin" }, { "id": "client", "name": "Client" }],
-      "default": "admin"
-    }
-  ]
-}
-```
-
-- Dimension and value ids are made of letters, digits, `_` and `-` (`[A-Za-z0-9_-]`), and value ids are unique across dimensions.
-- The URL names the active values, `?ctx=<value>,<value>`, such as `designs/index.html?ctx=client`. A dimension that the URL leaves out uses its `default`, else its first value.
-- Clicking a link within the repo replaces the link's own `?ctx=` with the active contexts, so the contexts stay as they are from page to page. They are switched in the preview's context picker, or by editing `?ctx=` in the address bar, never by a link.
-- `data-ctx-show="admin client"` shows an element only while one of the values listed is active; `data-ctx-hide="client"` hides it while one is.
-- `<html>` gets a `data-ctx-<dimension>` attribute per dimension, for CSS: `html[data-ctx-role="client"] .price { … }`.
-- In a script, wait for `window.Flosis.ready` (or the `flosis:ready` event on `document`), then read `window.Flosis.ctx`: `{ "role": "client" }`.
+In a script, wait for `window.Flosis.ready` (or the `flosis:ready` event on `document`) before touching included components.
 
 ## For AI assistants
 
 To build a task's design into the application:
 
-1. Start from the Jira issue: its key is the `<KEY>` of the branches and tags above.
-2. Check out `design/<KEY>`, never `wip/<KEY>`.
-3. Read the screens the task changed (see "What a task changed"), in a browser and in their HTML.
+1. Start from the Jira issue: it names its thread's branch, `design/<KEY>-<slug>`, and links to the screens it changed.
+2. Check out that branch, or `master` once the thread is merged.
+3. Read the screens the thread changed (see "What a thread changed"), in a browser and in their HTML.
 4. Implement them in the application's own stack, with its own components. The HTML here is a reference, not code to copy, and `runtime/` only shows the designs in a browser.
 5. Take colours, fonts, radii and the other tokens from `design-system/theme.css`, never from a screen's markup.

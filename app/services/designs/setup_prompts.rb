@@ -16,6 +16,7 @@ module Designs::SetupPrompts
         - Write them as the design system's tokens: colours, type scale, spacing, radii, shadows and breakpoints, named as the app names them.
         - Copy fonts and logos from the app or the materials. Never approximate them; when one cannot be found, list it as missing instead.
         - Document every token on design-system/index.html, as the template does.
+        - Check the stack the setup names against the app's own lockfiles and package files (package.json, Gemfile.lock and the like). Report any mismatch in a <missing> block.
       TEXT
     },
     "components" => {
@@ -40,9 +41,9 @@ module Designs::SetupPrompts
 
         This phase owns designs/. Use only the components from phase 2 and the tokens from phase 1; when a screen needs something they lack, say so instead of drawing it ad hoc.
 
-        - Each page the crawl visited becomes a screen under designs/, as it looked for each role that could see it.
-        - Write designs/contexts.json with a "permissions" dimension whose values are the crawled role names, and show each screen's differences between roles through those contexts.
-        - Link the screens to each other as the app's navigation does, so the designs can be clicked through.
+        - Each role the crawl signed in as is a context: a folder designs/<context>/ named for the role, in letters, digits, _ and -.
+        - Each page the crawl visited becomes a screen designs/<context>/<screen>.html in the folder of every role that could see it, as that role saw it. Give each screen a <title>: its name in Designs.
+        - Link the screens of a context to each other as the app's navigation does, by relative links, so the designs can be clicked through.
       TEXT
     }
   }.freeze
