@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Building designs · Flosis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  :root{
+    --bg:#f6f7f9;--surface:#ffffff;--surface-2:#f1f3f5;--border:#e6e8ec;
+    --text:#1a1d24;--muted:#6b7280;--faint:#9aa3af;
+    --primary:#4f46e5;--primary-soft:#eef2ff;
+    --success:#16a34a;--success-soft:#ecfdf3;
+    --warn:#d97706;--warn-soft:#fffbeb;
+    --danger:#dc2626;--danger-soft:#fef2f2;
+    --ai:#7c3aed;--ai-soft:#f5f3ff;
+  }
+  [data-theme="dark"]{
+    --bg:#0e1014;--surface:#161a20;--surface-2:#1d222a;--border:#272d36;
+    --text:#e7eaef;--muted:#9aa3b2;--faint:#6b7480;
+    --primary:#6366f1;--primary-soft:#1f2138;
+    --success:#22c55e;--success-soft:#10241a;
+    --warn:#f59e0b;--warn-soft:#2a210f;
+    --danger:#ef4444;--danger-soft:#2a1414;
+    --ai:#a78bfa;--ai-soft:#1c1830;
+  }
+  body{background:var(--bg);color:var(--text);font-family:'Instrument Sans',system-ui,sans-serif}
+  @keyframes clarBlink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+  .wrap{max-width:860px;margin:0 auto;padding:34px 30px 60px}
+  .live{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--ai);margin-bottom:8px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--ai);animation:clarBlink 1s infinite}
+  h1{margin:0;font-size:23px;font-weight:700;letter-spacing:-.5px}
+  .lead{margin:7px 0 6px;color:var(--muted);font-size:14px;line-height:1.55}
+  .where{margin:0 0 20px;color:var(--faint);font-size:12.5px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:16px}
+  .meta{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-bottom:8px}
+  .bar{height:6px;border-radius:4px;background:var(--surface-2);overflow:hidden;margin-bottom:14px}
+  .bar>div{height:6px;width:45%;background:var(--ai);border-radius:4px}
+  .step{display:flex;align-items:center;gap:11px;padding:7px 0;font-size:13.5px}
+  .step.todo{color:var(--faint)}
+  .ic{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:0 0 20px;color:#fff}
+  .ic.done{background:var(--success)}
+  .ic.cur{background:var(--ai-soft)}
+  .ic.todo{background:var(--surface-2)}
+  .ic.note{background:var(--warn)}
+  .grow{flex:1;min-width:0}
+  .min{font-size:11.5px;color:var(--faint);white-space:nowrap}
+  .card-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:4px}
+  .card-h h2{margin:0;font-size:15px;font-weight:700}
+  .counts{font-size:12.5px;color:var(--muted)}
+  .row{display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-top:1px solid var(--border)}
+  .row.first{border-top:0}
+  .row .ic{margin-top:1px}
+  .name{font-size:13.5px;font-weight:600}
+  .row.todo .name{color:var(--muted);font-weight:500}
+  .sub{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.45}
+  .right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:0 0 auto}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap}
+  .pill.ok{background:var(--success-soft);color:var(--success)}
+  .pill.note{background:var(--warn-soft);color:var(--warn)}
+  .pill.run{background:var(--ai-soft);color:var(--ai)}
+  .pill.todo{background:var(--surface-2);color:var(--faint)}
+  .pill .dot{width:6px;height:6px}
+  .screens{margin-top:9px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .scr{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);background:var(--surface-2);border-radius:8px;padding:6px 9px;min-width:0}
+  .scr span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .scr .d{width:7px;height:7px;border-radius:50%;flex:0 0 7px}
+  .d.ok{background:var(--success)} .d.run{background:var(--ai);animation:clarBlink 1s infinite} .d.todo{background:var(--border)}
+  .feature-of{font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.2px}
+  .ntext{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.5}
+  .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+  .btn{display:inline-flex;align-items:center;gap:7px;font:600 13px 'Instrument Sans',system-ui,sans-serif;padding:9px 14px;border-radius:9px;border:1px solid transparent;cursor:pointer}
+  .btn.primary{background:var(--primary);color:#fff}
+  @media (max-width:640px){ .wrap{padding:24px 16px 48px} .screens{grid-template-columns:1fr 1fr} .row{flex-wrap:wrap} .right{align-items:flex-start;flex-direction:row} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="live"><span class="dot"></span>Running in the background</div>
+  <h1>Building designs for Flosis</h1>
+  <p class="lead">This takes several hours: the features are built one by one, and each is checked against the app before the next one starts. You can leave this page and keep working. We’ll notify you when master is ready.</p>
+  <p class="where">Started today at 16:40 · test workspace on app.flosis.com, as Admin and Member</p>
+
+  <div class="card">
+    <div class="meta"><span>45%</span><span>About 6 h left</span></div>
+    <div class="bar"><div></div></div>
+    <div class="step"><span class="ic done"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="grow">Reading RubyOnSaas-wiki/clar @ production</span><span class="min">12 min</span></div>
+    <div class="step"><span class="ic done"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="grow">Signing in as Admin, Member</span><span class="min">2 min</span></div>
+    <div class="step"><span class="ic done"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="grow">Mapping features: 18 found</span><span class="min">21 min</span></div>
+    <div class="step"><span class="ic done"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="grow">Design system: tokens, fonts and icons from Tailwind 4</span><span class="min">34 min</span></div>
+    <div class="step"><span class="ic cur"><span class="dot"></span></span><span class="grow">Building features one by one: 7 of 18 done</span><span class="min">~5 h 50 min</span></div>
+    <div class="step todo"><span class="ic todo"></span><span class="grow">Committing to RubyOnSaas-wiki/flosis-app-design @ master</span><span class="min">~3 min</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h2>Notes for you</h2><span class="counts">3 · nothing is blocked</span></div>
+    <div class="row first">
+      <span class="ic note"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 7v6M12 17h.01"/></svg></span>
+      <div class="grow">
+        <div class="feature-of">HOLIDAYS · DONE</div>
+        <div class="ntext">The test data has no pending requests, so Approve and Reject were built from the code, not checked in the app.</div>
+      </div>
+    </div>
+    <div class="row">
+      <span class="ic note"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 7v6M12 17h.01"/></svg></span>
+      <div class="grow">
+        <div class="feature-of">CREATE TASKS PIPELINE · IN PROGRESS</div>
+        <div class="ntext">Push to Jira was not clicked: it would create a real Jira issue. Its result screen is built from the code.</div>
+      </div>
+    </div>
+    <div class="row">
+      <span class="ic note"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 7v6M12 17h.01"/></svg></span>
+      <div class="grow">
+        <div class="feature-of">JIRA BROWSER · UP NEXT</div>
+        <div class="ntext">The test workspace has no Jira connection, so this feature will be built from the code only.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h2>Features</h2><span class="counts">7 done · 1 in progress · 10 to do</span></div>
+
+    <div class="row first">
+      <span class="ic done"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <div class="grow"><div class="name">App shell and sign-in</div><div class="sub">Admin, Member · 4 screens · 9 new components</div></div>
+      <div class="right"><span class="pill ok">Matches the app</span><span class="min">38 min</span></div>
+    </div>
+    <div class="row">
+      <span class="ic done"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <div class="grow"><div class="name">Timer and time entries</div><div class="sub">Admin, Member · 5 screens · 3 new components, 6 reused</div></div>
+      <div class="right"><span class="pill ok">Matches the app</span><span class="min">31 min</span></div>
+    </div>
+    <div class="row">
+      <span class="ic done"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <div class="grow"><div class="name">Timesheet</div><div class="sub">Admin, Member · 3 screens · 1 new component, 7 reused</div></div>
+      <div class="right"><span class="pill ok">Matches the app</span><span class="min">24 min</span></div>
+    </div>
+    <div class="row">
+      <span class="ic done"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <div class="grow"><div class="name">Reports</div><div class="sub">Admin · 6 screens · 2 new components, 8 reused</div></div>
+      <div class="right"><span class="pill ok">Matches the app</span><span class="min">42 min</span></div>
+    </div>
+    <div class="row">
+      <span class="ic note"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 7v6M12 17h.01"/></svg></span>
+      <div class="grow"><div class="name">Holidays</div><div class="sub">Admin, Member · 4 screens · 1 new component, 6 reused</div></div>
+      <div class="right"><span class="pill note">Done · 1 note</span><span class="min">29 min</span></div>
+    </div>
+    <div class="row">
+      <span class="ic done"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <div class="grow"><div class="name">Clients and projects</div><div class="sub">Admin · 5 screens · 9 components reused</div></div>
+      <div class="right"><span class="pill ok">Matches the app</span><span class="min">27 min</span></div>
+    </div>
+    <div class="row">
+      <span class="ic done"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <div class="grow"><div class="name">Workspace members</div><div class="sub">Admin · 3 screens · 1 new component, 5 reused</div></div>
+      <div class="right"><span class="pill ok">Matches the app</span><span class="min">18 min</span></div>
+    </div>
+
+    <div class="row">
+      <span class="ic cur"><span class="dot"></span></span>
+      <div class="grow">
+        <div class="name">Create Tasks pipeline</div>
+        <div class="sub">Admin, Member · 6 screens · 2 new components so far, 11 reused</div>
+        <div class="screens">
+          <div class="scr"><span class="d ok"></span><span>Pipeline</span></div>
+          <div class="scr"><span class="d ok"></span><span>Briefing</span></div>
+          <div class="scr"><span class="d ok"></span><span>Details gathering</span></div>
+          <div class="scr"><span class="d run"></span><span>Ready · checking</span></div>
+          <div class="scr"><span class="d todo"></span><span>Versions</span></div>
+          <div class="scr"><span class="d todo"></span><span>Push to Jira</span></div>
+        </div>
+      </div>
+      <div class="right"><span class="pill run"><span class="dot"></span>Checking against the app</span><span class="min">screen 4 of 6</span></div>
+    </div>
+
+    <div class="row todo"><span class="ic todo"></span><div class="grow"><div class="name">Jira browser</div><div class="sub">Admin · about 3 screens</div></div><div class="right"><span class="pill todo">Up next</span></div></div>
+    <div class="row todo"><span class="ic todo"></span><div class="grow"><div class="name">Bugs</div><div class="sub">Admin · about 2 screens</div></div><div class="right"><span class="pill todo">To do</span></div></div>
+    <div class="row todo"><span class="ic todo"></span><div class="grow"><div class="name">Automations</div><div class="sub">Admin · about 4 screens</div></div><div class="right"><span class="pill todo">To do</span></div></div>
+    <div class="row todo"><span class="ic todo"></span><div class="grow"><div class="name">Workshop reporting</div><div class="sub">Admin · about 3 screens</div></div><div class="right"><span class="pill todo">To do</span></div></div>
+    <div class="row todo"><span class="ic todo"></span><div class="grow"><div class="name">Process</div><div class="sub">Admin · about 1 screen</div></div><div class="right"><span class="pill todo">To do</span></div></div>
+    <div class="row todo"><span class="ic todo"></span><div class="grow"><div class="name">Configuration</div><div class="sub">Admin · about 6 screens</div></div><div class="right"><span class="pill todo">To do</span></div></div>
+    <div class="row todo"><span class="ic todo"></span><div class="grow"><div class="name">Designs</div><div class="sub">Admin · about 5 screens</div></div><div class="right"><span class="pill todo">To do</span></div></div>
+    <div class="row todo"><span class="ic todo"></span><div class="grow"><div class="name">Library</div><div class="sub">Admin · about 2 screens</div></div><div class="right"><span class="pill todo">To do</span></div></div>
+    <div class="row todo"><span class="ic todo"></span><div class="grow"><div class="name">Profile</div><div class="sub">Admin, Member · about 1 screen</div></div><div class="right"><span class="pill todo">To do</span></div></div>
+    <div class="row todo"><span class="ic todo"></span><div class="grow"><div class="name">Feedback meetings</div><div class="sub">Admin · about 3 screens</div></div><div class="right"><span class="pill todo">To do</span></div></div>
+  </div>
+
+  <div class="actions"><button class="btn primary">Continue working</button></div>
+</div>
+</body>
+</html>
