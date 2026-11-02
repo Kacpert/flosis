@@ -138,6 +138,7 @@ module Designs::Threads
   # came in; a collision is left to a turn that resolves it.
   def update_master!(thread, user:)
     merges = behind(thread)
+    from = thread.base_sha
     repo = Designs::Repo.new(thread.project)
     outcome = repo.synchronize(wait: false) do
       refuse_while_turns_run!(thread)
@@ -159,7 +160,7 @@ module Designs::Threads
       :merged
     end
     publish(thread) if outcome == :merged
-    came_in!(thread, merges)
+    came_in!(thread, merges, from: from)
     if outcome == :merged
       queue_turn(thread, user, check_request(merges), visible: false)
     else
@@ -254,11 +255,11 @@ module Designs::Threads
     thread.chat_session.chat_messages.create!(role: "assistant", kind: "system", content: text)
   end
 
-  def came_in!(thread, merges)
+  def came_in!(thread, merges, from:)
     return if merges.empty?
 
     thread.chat_session.chat_messages.create!(
-      role: "assistant", kind: "master", content: "master #{short(merges.last.sha)}… → #{short(merges.first.sha)} brought into this branch",
+      role: "assistant", kind: "master", content: "master #{short(from)} → #{short(merges.first.sha)} brought into this branch",
       data: { "merges" => merges.map { |merge| { "sha" => merge.sha, "title" => merge.title, "changes" => Array(merge.what_changed) } } }
     )
   end

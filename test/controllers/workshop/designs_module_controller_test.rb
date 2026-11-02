@@ -192,4 +192,26 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+
+  test "a thread of a local task merges by hand, and its merge dialog says so" do
+    with_designs do |repo|
+      task = @project.tasks.create!(name: "Local idea")
+      task.enter_pipeline!(author: users(:one), stage: "briefing")
+      thread = thread_with_work(repo, "x", { "designs/candidate/apply.html" => SCREEN.("Application form", "<em>1</em>") }, task: task)
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_includes response.body, "This thread merges when you merge it."
+      assert_not_includes response.body, "This thread has no task"
+    end
+  end
+
+  test "Designs opened from a task leads back to it" do
+    with_designs do
+      task = tasks(:jira_task)
+      task.update!(project: @project, external_reference: "SP-1051")
+      task.enter_pipeline!(author: users(:one), stage: "briefing")
+      get workshop_designs_overview_path(back: task.id)
+      assert_select "a[href=?]", workshop_idea_path(task), text: /Back to SP-1051 · #{Regexp.escape(task.name)}/
+    end
+  end
+
 end

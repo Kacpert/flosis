@@ -13,7 +13,7 @@
   <h1 class="m-0 text-[23px] font-bold tracking-[-.5px] clar-text-text"><%= @editing ? "Edit Designs setup" : "Set up Designs for #{project.name}" %></h1>
   <p class="mt-1.5 mb-5.5 clar-text-muted text-[14px] leading-[1.55] max-w-[740px]">The AI reads your repositories, signs in to staging as each context, and builds the design system, components and today’s screens in the designs repository. It runs in the background and usually takes about an hour. After that, every change happens in threads.</p>
 
-  <%= form_with url: workshop_design_setup_run_path, method: (@editing ? :patch : :post), data: { controller: "designs-setup-form" } do %>
+  <%= form_with url: workshop_design_setup_run_path, method: (@editing ? :patch : :post), data: { controller: "designs-setup-form", action: "input->designs-setup-form#check" } do %>
     <div class="clar-card p-5 mb-3.5">
       <div class="flex gap-3 mb-4"><span class="w-6 h-6 rounded-full bg-[var(--primary-soft)] clar-text-primary text-[12px] font-bold flex items-center justify-center flex-none">1</span><div><div class="font-bold text-[14.5px] clar-text-text">Technology</div><div class="text-[12.5px] clar-text-muted mt-0.5 leading-[1.45]">What the designs are built with. Components are generated in this stack and version.</div></div></div>
       <label class="clar-field-label">FRAMEWORK</label>
@@ -25,8 +25,6 @@
             <span class="<%= soon %>" title="Soon"><%= label %><span class="text-[10px] font-bold tracking-[.3px]">SOON</span></span>
           <% end %>
         <% end %>
-        <span class="text-[11.5px] font-bold clar-text-faint ml-1">VERSION</span>
-        <input name="framework_version" value="<%= project.designs_framework_version %>" placeholder="—" class="clar-input !w-[90px]">
       </div>
       <label class="clar-field-label">UI SYSTEM</label>
       <div class="flex gap-2 flex-wrap items-center">
@@ -73,7 +71,9 @@
     </div>
 
     <div class="flex items-center justify-end gap-3.5 flex-wrap mt-1.5">
-      <span class="text-[12.5px] clar-text-faint">About an hour, in the background. You can keep working.</span>
+      <span class="text-[12.5px] clar-text-faint" data-designs-setup-form-target="hint"
+            data-ready="About an hour, in the background. You can keep working."
+            data-incomplete="<%= Workshop::DesignSetupRunsController::INCOMPLETE %>">About an hour, in the background. You can keep working.</span>
       <button type="submit" class="clar-btn clar-btn-primary !py-2.5 !px-4 !text-[13px]"><%= designs_icon(:ai, 14) %><%= @editing ? "Save and re-import" : "Build designs" %></button>
     </div>
   <% end %>

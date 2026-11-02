@@ -144,14 +144,16 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
       DesignTurn.update_all(status: "succeeded")
       merge = Designs::Threads.merge!(other, user: @user)
       clear_enqueued_jobs
+      base_before = waiting.reload.base_sha
 
-      Designs::Threads.update_master!(waiting.reload, user: @user)
+      Designs::Threads.update_master!(waiting, user: @user)
       waiting.reload
       assert_equal repo.head("master"), waiting.base_sha
       assert_empty Designs::Threads.behind(waiting)
       assert_includes repo.ls_files(waiting.branch, "designs/"), "designs/admin/pipeline.html"
       came = waiting.chat_session.chat_messages.find_by!(kind: "master")
       assert_equal [ merge.sha ], came.data["merges"].map { |m| m["sha"] }
+      assert_equal "master #{base_before.first(7)} → #{repo.head('master').first(7)} brought into this branch", came.content
       assert_enqueued_jobs 1, only: Designs::TurnJob
       assert_equal "design", DesignTurn.order(:id).last.kind
     end

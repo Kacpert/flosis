@@ -1,6 +1,11 @@
 <%# The threads list: master, every open thread, and the library. %>
 <% last = @merges.first %>
 <div class="px-3.5 py-3 border-b border-[color:var(--border)]">
+  <% if @back %>
+    <%= link_to workshop_idea_path(@back), class: "flex items-center gap-2 text-[12.5px] font-semibold clar-text-muted no-underline rounded-lg py-1 pr-2 mb-2.5" do %>
+      <span class="w-6 h-6 rounded-[7px] border border-[color:var(--border)] bg-[var(--surface)] flex items-center justify-center clar-text-text flex-none"><%= designs_icon(:back, 14) %></span><span class="truncate">Back to <%= Designs::ThreadNames.key(@back) %> · <%= @back.name %></span>
+    <% end %>
+  <% end %>
   <div class="flex items-center gap-2">
     <h1 class="m-0 text-[17px] font-bold tracking-[-.3px] clar-text-text flex-1">Designs</h1>
     <button type="button" class="clar-btn !p-0 w-7 h-7 justify-center" title="Show menu" data-action="designs-immersive#peekNav"><%= designs_icon(:panel, 15) %></button>

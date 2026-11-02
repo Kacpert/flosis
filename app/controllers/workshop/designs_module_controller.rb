@@ -30,6 +30,7 @@ class Workshop::DesignsModuleController < Workshop::BaseController
     @behind = @thread ? Designs::Threads.behind(@thread) : []
     @description_change = @thread && Designs::Threads.description_change(@thread)
     @rows = @threads.map { |thread| row_for(thread) }
+    @back = @project.tasks.pipeline.find_by(id: params[:back]) if params[:back].present?
     load_canvas
     load_library
   end

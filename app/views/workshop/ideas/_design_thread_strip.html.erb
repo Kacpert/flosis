@@ -25,7 +25,7 @@
     <%= button_to "Update from master", update_master_workshop_design_thread_path(thread), class: "clar-btn clar-btn-primary !text-[12.5px] !py-[7px] !px-[13px]", form: { class: "contents" } %>
   <% end %>
   <% if thread %>
-    <%= link_to "Open in Designs", workshop_designs_overview_path(thread: thread.id), class: "clar-btn !text-[12.5px] !py-[7px] !px-3 no-underline" %>
+    <%= link_to "Open in Designs", workshop_designs_overview_path(thread: thread.id, back: idea.id), class: "clar-btn !text-[12.5px] !py-[7px] !px-3 no-underline" %>
   <% else %>
     <%= button_to workshop_start_idea_design_thread_path(idea), class: "clar-btn clar-btn-primary !text-[12.5px] !py-[7px] !px-[13px]", form: { class: "contents" } do %><%= designs_icon(:ai, 13) %>Design with AI<% end %>
   <% end %>

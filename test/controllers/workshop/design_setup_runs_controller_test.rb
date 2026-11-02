@@ -35,6 +35,7 @@ class Workshop::DesignSetupRunsControllerTest < ActionDispatch::IntegrationTest
       "Build designs" ].each { |copy| assert_includes response.body, CGI.escapeHTML(copy), copy }
     assert_select "input[name=framework][value=vue]", count: 0
     assert_select "input[name=framework][value=html]"
+    assert_select "input[name=framework_version]", count: 0
   end
 
   test "an incomplete form says what is missing and starts nothing" do

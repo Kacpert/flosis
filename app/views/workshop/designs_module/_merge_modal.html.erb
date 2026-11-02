@@ -14,7 +14,7 @@
       <% if @changed.empty? %><div class="px-3 py-2 text-[12.5px] clar-text-faint">No screen differs from master yet.</div><% end %>
     </div>
     <p class="mt-0 mb-5 text-[12.5px] clar-text-muted leading-[1.55]">
-      <% if key && @thread.task.external_type == "jira" %>If you don’t merge now, this thread merges automatically when <%= key %> moves to Done.<% else %>This thread has no task, so it only merges when you merge it.<% end %>
+      <% if key && @thread.task.external_type == "jira" %>If you don’t merge now, this thread merges automatically when <%= key %> moves to Done.<% elsif key %>This thread merges when you merge it.<% else %>This thread has no task, so it only merges when you merge it.<% end %>
       After merging, master stays read-only and further changes need a new thread.
     </p>
     <div class="flex gap-2 justify-end">

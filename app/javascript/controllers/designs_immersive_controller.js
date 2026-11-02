@@ -21,15 +21,17 @@ export default class extends Controller {
     this.apply(on)
   }
 
-  peekTop() {
-    this.app.classList.toggle("designs-peek-top")
+  peekTop(event) {
+    const shown = this.app.classList.toggle("designs-peek-top")
+    if (event?.currentTarget) event.currentTarget.title = shown ? "Hide top bar" : "Show top bar"
   }
 
   // The panel's menu button: peeks the sidebar while menus are hidden, and
   // collapses it otherwise.
-  peekNav() {
+  peekNav(event) {
     if (this.app.classList.contains("designs-immersive")) {
-      this.app.classList.toggle("designs-peek-nav")
+      const shown = this.app.classList.toggle("designs-peek-nav")
+      if (event?.currentTarget) event.currentTarget.title = shown ? "Hide menu" : "Show menu"
     } else {
       document.querySelector('[data-action="click->clar-sidebar#toggle"]')?.click()
     }
