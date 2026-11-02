@@ -11,6 +11,17 @@ class JiraClientTest < ActiveSupport::TestCase
     @base_url = "https://test.atlassian.net/rest/api/3"
   end
 
+  # Every call made for a project goes to that project's Jira: a new
+  # organization's own site, or the server's when the project sets none.
+  test "a project's client talks to the project's own Jira" do
+    project = projects(:jira_project)
+    project.update!(jira_site: "flosis-test.atlassian.net", jira_email: "kacper@example.test", jira_api_token: "project-token")
+    stub = stub_request(:get, %r{\Ahttps://flosis-test\.atlassian\.net/rest/api/3/project/search}).with(basic_auth: [ "kacper@example.test", "project-token" ])
+                                                                                            .to_return(status: 200, body: { values: [] }.to_json)
+    JiraClient.for(project).fetch_projects
+    assert_requested stub
+  end
+
   test "fetch_projects returns list of projects" do
     stub_request(:get, "#{@base_url}/project/search")
       .with(

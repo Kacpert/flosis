@@ -23,12 +23,18 @@ class ProjectCredentials
     @project.jira_site.presence || ENV["JIRA_DOMAIN"].presence
   end
 
+  # A project on a Jira site of its own (another organization's) never gets
+  # the machine's login: that would send the server's token to that site.
   def jira_email
-    @project.jira_email.presence || ENV["JIRA_EMAIL"].presence
+    @project.jira_email.presence || (ENV["JIRA_EMAIL"].presence unless own_jira_site?)
   end
 
   def jira_api_token
-    @project.jira_api_token.presence || ENV["JIRA_API_TOKEN"].presence
+    @project.jira_api_token.presence || (ENV["JIRA_API_TOKEN"].presence unless own_jira_site?)
+  end
+
+  def own_jira_site?
+    @project.jira_site.present? && @project.jira_site != ENV["JIRA_DOMAIN"]
   end
 
   def jira_key

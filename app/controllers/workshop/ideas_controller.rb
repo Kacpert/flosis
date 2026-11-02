@@ -101,7 +101,7 @@ class Workshop::IdeasController < Workshop::BaseController
     had_key = @idea.external_reference.present?
     case @idea.workshop_stage
     when "details"
-      result = JiraWriter.new.commit_detail(@idea.current_detail_draft)
+      result = JiraWriter.for(@idea.project).commit_detail(@idea.current_detail_draft)
 
       if result[:ok]
         rename_designs_for_jira(had_key)
@@ -117,7 +117,7 @@ class Workshop::IdeasController < Workshop::BaseController
       # idea at "ready" — it's already done; pushing must not regress the stage.
       # Prefer the details draft (the richer, implementation-ready description); a
       # task that skipped details straight from briefing pushes the brief instead.
-      writer = JiraWriter.new
+      writer = JiraWriter.for(@idea.project)
       detail = @idea.current_detail_draft
       result = detail.present? ? writer.commit_detail(detail) : writer.commit_brief(@idea.current_brief)
 
@@ -153,7 +153,7 @@ class Workshop::IdeasController < Workshop::BaseController
   def sync_jira
     @idea = current_workshop_project.tasks.pipeline.find(params[:id])
     stage = params[:stage].presence_in(%w[briefing details]) || "briefing"
-    writer = JiraWriter.new
+    writer = JiraWriter.for(@idea.project)
     had_key = @idea.external_reference.present?
 
     result =

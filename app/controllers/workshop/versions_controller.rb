@@ -109,7 +109,7 @@ class Workshop::VersionsController < Workshop::BaseController
     @idea.update!(description: JiraWriter.plain_text(brief.content))
 
     if @idea.external_reference.present?
-      result = JiraClient.new.update_issue_description(
+      result = JiraClient.for(@idea.project).update_issue_description(
         issue_key: @idea.external_reference, description_text: JiraWriter.plain_text(brief.content)
       )
       unless result[:ok]
@@ -128,7 +128,7 @@ class Workshop::VersionsController < Workshop::BaseController
     draft.make_current!
 
     if @idea.external_reference.present?
-      result = JiraClient.new.update_issue_description(
+      result = JiraClient.for(@idea.project).update_issue_description(
         issue_key: @idea.external_reference, description_text: JiraWriter.plain_text(draft.content)
       )
       unless result[:ok]

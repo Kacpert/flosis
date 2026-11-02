@@ -8,6 +8,12 @@ class JiraWriterTest < ActiveSupport::TestCase
     @project.update!(jira_ai_actions_field_id: "customfield_10050")
   end
 
+  test "a project's writer writes to the project's own Jira" do
+    @project.update!(jira_site: "flosis-test.atlassian.net", jira_email: "kacper@example.test", jira_api_token: "project-token")
+    client = JiraWriter.for(@project).instance_variable_get(:@client)
+    assert_equal "flosis-test.atlassian.net", client.instance_variable_get(:@domain)
+  end
+
   # Minimal fake client recording calls.
   def fake_client(create: { ok: true, key: "JW-1", url: "u" },
                   update: { ok: true }, action: { ok: true })

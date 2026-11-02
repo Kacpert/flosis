@@ -84,7 +84,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
     project = current_workshop_project
     return redirect_with("No project selected.", "integrations") unless project
 
-    client = JiraClient.new
+    client = JiraClient.for(project)
     project.update!(
       jira_ai_actions_field_id: client.fetch_field_id("AI actions"),
       jira_ai_estimation_field_id: client.fetch_field_id("AI estimation"),

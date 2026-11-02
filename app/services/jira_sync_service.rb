@@ -1,7 +1,7 @@
 class JiraSyncService
   def initialize(project, client: nil)
     @project = project
-    @client = client || JiraClient.new
+    @client = client || JiraClient.for(project)
   end
 
   def sync
