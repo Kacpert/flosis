@@ -134,16 +134,17 @@ class ProjectSwitcherTest < ActionDispatch::IntegrationTest
   # a key of its own. Jira, Figma and the AI key all fall back to the machine's
   # environment or the Claude CLI's login, so a project can work perfectly while
   # its own columns are blank, and offering it would copy nothing in silence.
-  # Discord owns no column at all: its webhooks are rows added afterwards.
+  # Discord owns no column at all: its webhooks are rows added afterwards. With
+  # nothing to copy there is no choice to offer, so no list is shown at all.
   test "the new-project dialog offers only projects that hold the key themselves" do
     projects(:jira_project).update!(jira_api_token: "jt")
     sign_in_as(users(:one))
     get workshop_pipeline_path
 
-    assert_select 'select[name="reuse_from[jira]"] option', text: "Reuse key from Elvium"
-    assert_select 'select[name="reuse_from[figma]"] option', 1,
+    assert_select 'select[name="reuse_from[jira]"] option', text: "Copy keys from Elvium"
+    assert_select 'select[name="reuse_from[figma]"]', 0,
                   "no project holds a Figma token, so there is nothing to reuse"
-    assert_select 'select[name="reuse_from[discord]"] option', 1
+    assert_select 'select[name="reuse_from[discord]"]', 0
   end
 
   # Jira credentials with no project key sync nothing — JiraSyncService has no

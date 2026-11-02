@@ -1,0 +1,17 @@
+<%# One integration in the New project dialog: what it is for, an optional
+    copy from a project that has the keys, and the fields themselves (the
+    block). What is typed beats what is copied — ProjectCreator. %>
+<section class="clar-card p-4 mb-3">
+  <div class="flex items-start justify-between gap-3 mb-3">
+    <div>
+      <div class="text-[13.5px] font-bold clar-text-text"><%= title %></div>
+      <div class="text-[12px] clar-text-muted"><%= purpose %></div>
+    </div>
+    <% if lenders.any? %>
+      <%= select_tag "reuse_from[#{key}]",
+            options_for_select([ [ "Enter keys below", "" ] ] + lenders.map { |source| [ "Copy keys from #{source.name}", source.id ] }),
+            class: "clar-select !w-[220px] flex-none !py-2 text-[12.5px]" %>
+    <% end %>
+  </div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3"><%= yield %></div>
+</section>

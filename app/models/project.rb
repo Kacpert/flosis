@@ -37,9 +37,18 @@ class Project < ApplicationRecord
   # typed, so a GitHub address is forgiven: surrounding whitespace, a leading
   # https://github.com/ and a trailing .git or slash are dropped, and
   # "https://github.com/acme/designs.git" is "acme/designs". Anything else is
-  # left as it came, for the format below to refuse.
-  normalizes :design_repo, with: ->(repo) {
+  # left as it came, for the format below to refuse. The project's own
+  # repository is forgiven the same way, wherever it is typed (the New project
+  # dialog, Configuration › GitHub).
+  normalizes :design_repo, :github_repo, with: ->(repo) {
     repo.strip.sub(%r{\Ahttps://github\.com/}i, "").sub(%r{(?:\.git|/)+\z}i, "")
+  }
+
+  # JiraClient puts "https://" in front of the site itself, so only the host is
+  # kept: a link copied from a board, "https://acme.atlassian.net/jira/…", is
+  # "acme.atlassian.net".
+  normalizes :jira_site, with: ->(site) {
+    site.strip.sub(%r{\Ahttps?://}i, "").sub(%r{/.*\z}m, "")
   }
 
   # A setup run's inputs (Workshop::DesignSetupInputsController), for staff.

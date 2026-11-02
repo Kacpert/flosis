@@ -15,16 +15,17 @@
                       .where(project_memberships: { project_id: current_workspace.projects.select(:id) }),
      current_workspace
    ).distinct.order(:name) %>
-<% integrations = [ [ "jira", "Jira Cloud", "API token + site" ],
-                    [ "github", "GitHub", "Personal access token" ],
-                    [ "discord", "Discord", "Webhook URLs" ],
-                    [ "figma", "Figma", "Read token" ],
-                    [ "ai", "AI provider", "Claude API key" ] ] %>
+<%# Where each kind of key comes from, and the projects that have one to lend.
+    A key is COPIED, not shared: rotating it later means visiting each project,
+    which is the price of deleting a project never becoming a question about
+    another project's keys. Only a project that holds the key in its own column
+    is offered (ProjectCreator.reusable?), so the copy is never of blanks. %>
+<% lenders = %w[jira github ai figma].index_with { |key| sources.select { |source| ProjectCreator.reusable?(source, key) } } %>
 
 <%# open: shown on arrival, for a page with nothing to do until a project exists. %>
 <div class="<%= "hidden " unless local_assigns[:open] %>clar-modal-overlay" data-clar-modal-target="panel"
      data-clar-modal-panel-id-value="new-project" data-action="click->clar-modal#close">
-  <div class="clar-modal p-5.5 max-w-[620px] max-h-[calc(100vh-48px)] overflow-y-auto"
+  <div class="clar-modal p-5.5 max-w-[640px] max-h-[calc(100vh-48px)] overflow-y-auto"
        data-action="click->clar-modal#stopPropagation">
     <div class="flex items-center justify-between mb-1">
       <h2 class="text-lg font-bold clar-text-text m-0">New project</h2>
@@ -33,96 +34,122 @@
       </button>
     </div>
     <p class="text-[13px] leading-normal clar-text-muted mb-4.5">
-      Each project has its own integrations, AI settings, briefing context and users.
-      Reuse keys from an existing project where they&rsquo;re the same.
+      Only the name is needed now. Whatever you leave empty can be connected later in
+      Configuration &rsaquo; Integrations.
     </p>
 
     <%= form_with url: workshop_projects_path, method: :post, data: { turbo: false } do %>
-      <label class="clar-field-label">PROJECT NAME <span class="clar-text-danger">*</span></label>
-      <%= text_field_tag "project[name]", nil, required: true, placeholder: "e.g. Partner Portal",
+      <label class="clar-field-label" for="new_project_name">PROJECT NAME <span class="clar-text-danger">*</span></label>
+      <%= text_field_tag "project[name]", nil, id: "new_project_name", required: true, placeholder: "e.g. Partner Portal",
             class: "clar-input mb-4" %>
 
-      <div class="grid grid-cols-2 gap-3 mb-4">
+      <%= render layout: "layouts/clar_new_project_integration",
+                 locals: { key: "jira", title: "Jira", lenders: lenders["jira"],
+                           purpose: "Where the tickets live: the Workshop creates, syncs and estimates them." } do %>
         <div>
-          <label class="clar-field-label">TEAM</label>
-          <%= text_field_tag "project[team]", nil, placeholder: "e.g. Apps team", class: "clar-input" %>
+          <label class="clar-field-label" for="new_project_jira_site">JIRA ADDRESS</label>
+          <%= text_field_tag "project[jira_site]", nil, id: "new_project_jira_site", placeholder: "acme.atlassian.net",
+                class: "clar-input !py-2.5 text-[13px]", autocomplete: "off" %>
+          <div class="text-[11px] clar-text-faint mt-1">A link from your browser works too.</div>
         </div>
         <div>
-          <label class="clar-field-label">GITHUB REPO</label>
-          <%= text_field_tag "project[github_repo]", nil, placeholder: "acme/partner-portal",
-                class: "clar-input" %>
+          <label class="clar-field-label" for="new_project_jira_email">JIRA ACCOUNT EMAIL</label>
+          <%= email_field_tag "project[jira_email]", nil, id: "new_project_jira_email", placeholder: "you@acme.com",
+                class: "clar-input !py-2.5 text-[13px]", autocomplete: "off" %>
         </div>
-      </div>
-
-      <label class="clar-field-label">INTEGRATIONS &amp; AI KEYS</label>
-      <div class="clar-card p-0 mb-4">
-        <% integrations.each_with_index do |(key, label, hint), i| %>
-          <div class="flex items-center justify-between gap-3 py-2.5 px-3.5 <%= "border-t border-[color:var(--border)]" if i.positive? %>">
-            <div>
-              <div class="text-[13px] font-semibold clar-text-text"><%= label %></div>
-              <div class="text-[11px] clar-text-faint"><%= hint %></div>
-            </div>
-            <%# A key is COPIED, not shared: rotating it later means visiting
-                each project, which is the price of deleting a project never
-                becoming a question about another project's keys.
-
-                Only a project that holds the key in its own column is offered
-                — ProjectCreator.reusable?. Jira, Figma and the AI key all fall
-                back to the machine's environment or the Claude CLI's login, so
-                a project can work perfectly with nothing to lend, and offering
-                it would copy blanks and say nothing. Discord owns no column at
-                all, so it is always the one row with nothing to reuse. %>
-            <% options = [ [ "Set up later", "" ] ] %>
-            <% options += sources.select { |source| ProjectCreator.reusable?(source, key) }
-                                 .map { |source| [ "Reuse key from #{source.name}", source.id ] } %>
-            <div class="flex flex-col gap-1.5 w-[230px] flex-none">
-              <%= select_tag "reuse_from[#{key}]", options_for_select(options),
-                    class: "clar-select w-full text-[12.5px]" %>
-              <%# A "jira" project with no key syncs nothing while its health
-                  check still succeeds, so the chip would go green on a project
-                  that can never return a ticket. %>
-              <% if key == "jira" %>
-                <%= text_field_tag "project[external_reference]", nil, placeholder: "PROJECT KEY, e.g. PP",
-                      class: "clar-input clar-mono w-full text-[12.5px]" %>
-              <% end %>
-            </div>
+        <div>
+          <label class="clar-field-label" for="new_project_jira_api_token">API TOKEN</label>
+          <%= password_field_tag "project[jira_api_token]", nil, id: "new_project_jira_api_token",
+                class: "clar-input clar-mono !py-2.5 text-[13px]", autocomplete: "new-password" %>
+          <div class="text-[11px] clar-text-faint mt-1">
+            Create one at <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener" class="clar-text-primary">id.atlassian.com</a>, signed in as that account.
           </div>
-        <% end %>
-      </div>
-
-      <label class="clar-field-label">USERS FROM OTHER PROJECTS</label>
-      <div class="flex flex-wrap gap-1.5 mb-4">
-        <% addable.each do |user| %>
-          <%# Same self-painting chip as the Add-to-project dialog: the three
-              utilities spell out .clar-chip-active because a component class in
-              @layer components cannot be put behind a Tailwind variant. %>
-          <label class="clar-chip cursor-pointer has-[:checked]:border-[color:var(--primary)] has-[:checked]:bg-[color:var(--primary-soft)] has-[:checked]:text-[color:var(--primary)]">
-            <%= check_box_tag "user_ids[]", user.id, false, class: "sr-only",
-                  id: "new_project_user_#{user.id}" %>
-            <%= user.name %>
-          </label>
-        <% end %>
-      </div>
-
-      <label class="clar-field-label">WHAT THOSE PEOPLE MAY DO HERE</label>
-      <%= select_tag :preset,
-            options_for_select(PermissionPreset::PRESETS.keys, PermissionPreset::LEAST_PRIVILEGED),
-            class: "clar-select mb-2.5" %>
-      <div class="clar-card p-3">
-        <%# Spelled out rather than named: whoever creates the project is
-            deciding what a group of people will be able to see in it. %>
-        <% PermissionPreset::PRESETS.each do |label, permissions| %>
-          <div class="text-[11.5px] leading-[1.45]">
-            <span class="font-semibold clar-text-text"><%= label %></span>
-            <span class="clar-text-faint">
-              &mdash; <%= permissions.map { |permission| PermissionPreset.label(permission) }.to_sentence %>
-            </span>
-          </div>
-        <% end %>
-        <div class="text-[11.5px] clar-text-faint leading-[1.45] pt-1">
-          Each person&rsquo;s switches can be tuned afterwards in Configuration &rsaquo; Users.
         </div>
+        <div>
+          <label class="clar-field-label" for="new_project_external_reference">PROJECT KEY</label>
+          <%= text_field_tag "project[external_reference]", nil, id: "new_project_external_reference", placeholder: "PP",
+                class: "clar-input clar-mono !py-2.5 text-[13px]" %>
+          <div class="text-[11px] clar-text-faint mt-1">The letters before ticket numbers: PP in PP-123.</div>
+        </div>
+      <% end %>
+
+      <%= render layout: "layouts/clar_new_project_integration",
+                 locals: { key: "github", title: "GitHub", lenders: lenders["github"],
+                           purpose: "The code the AI reads before it writes or reviews anything." } do %>
+        <div>
+          <label class="clar-field-label" for="new_project_github_repo">REPOSITORY</label>
+          <%= text_field_tag "project[github_repo]", nil, id: "new_project_github_repo", placeholder: "https://github.com/acme/partner-portal",
+                class: "clar-input clar-mono !py-2.5 text-[13px]", autocomplete: "off" %>
+          <div class="text-[11px] clar-text-faint mt-1">Paste the repository's address.</div>
+        </div>
+        <div>
+          <label class="clar-field-label" for="new_project_github_token">ACCESS TOKEN</label>
+          <%= password_field_tag "project[github_token]", nil, id: "new_project_github_token", placeholder: "github_pat_…",
+                class: "clar-input clar-mono !py-2.5 text-[13px]", autocomplete: "new-password" %>
+          <div class="text-[11px] clar-text-faint mt-1">
+            <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener" class="clar-text-primary">Create a token</a>
+            for this repository: Contents read, Pull requests read &amp; write.
+          </div>
+        </div>
+      <% end %>
+
+      <%= render layout: "layouts/clar_new_project_integration",
+                 locals: { key: "ai", title: "Claude", lenders: lenders["ai"],
+                           purpose: "The organization's own Anthropic key: the AI work is billed to it." } do %>
+        <div class="sm:col-span-2">
+          <label class="clar-field-label" for="new_project_anthropic_api_key">ANTHROPIC API KEY</label>
+          <%= password_field_tag "project[anthropic_api_key]", nil, id: "new_project_anthropic_api_key", placeholder: "sk-ant-…",
+                class: "clar-input clar-mono !py-2.5 text-[13px]", autocomplete: "new-password" %>
+          <div class="text-[11px] clar-text-faint mt-1">
+            Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" class="clar-text-primary">console.anthropic.com</a>.
+          </div>
+        </div>
+      <% end %>
+
+      <div class="flex items-center justify-between gap-3 text-[12px] clar-text-muted mb-4 px-0.5">
+        <span>Discord and Figma are connected afterwards, in Configuration &rsaquo; Integrations.</span>
+        <% if lenders["figma"].any? %>
+          <%= select_tag "reuse_from[figma]",
+                options_for_select([ [ "Figma later", "" ] ] + lenders["figma"].map { |source| [ "Copy Figma from #{source.name}", source.id ] }),
+                class: "clar-select !w-[220px] flex-none !py-2 text-[12.5px]" %>
+        <% end %>
       </div>
+
+      <% if addable.any? %>
+        <label class="clar-field-label">PEOPLE FROM YOUR OTHER PROJECTS</label>
+        <div class="flex flex-wrap gap-1.5 mb-4">
+          <% addable.each do |user| %>
+            <%# Same self-painting chip as the Add-to-project dialog: the three
+                utilities spell out .clar-chip-active because a component class in
+                @layer components cannot be put behind a Tailwind variant. %>
+            <label class="clar-chip cursor-pointer has-[:checked]:border-[color:var(--primary)] has-[:checked]:bg-[color:var(--primary-soft)] has-[:checked]:text-[color:var(--primary)]">
+              <%= check_box_tag "user_ids[]", user.id, false, class: "sr-only",
+                    id: "new_project_user_#{user.id}" %>
+              <%= user.name %>
+            </label>
+          <% end %>
+        </div>
+
+        <label class="clar-field-label">WHAT THOSE PEOPLE MAY DO HERE</label>
+        <%= select_tag :preset,
+              options_for_select(PermissionPreset::PRESETS.keys, PermissionPreset::LEAST_PRIVILEGED),
+              class: "clar-select mb-2.5" %>
+        <div class="clar-card p-3">
+          <%# Spelled out rather than named: whoever creates the project is
+              deciding what a group of people will be able to see in it. %>
+          <% PermissionPreset::PRESETS.each do |label, permissions| %>
+            <div class="text-[11.5px] leading-[1.45]">
+              <span class="font-semibold clar-text-text"><%= label %></span>
+              <span class="clar-text-faint">
+                &mdash; <%= permissions.map { |permission| PermissionPreset.label(permission) }.to_sentence %>
+              </span>
+            </div>
+          <% end %>
+          <div class="text-[11.5px] clar-text-faint leading-[1.45] pt-1">
+            Each person&rsquo;s switches can be tuned afterwards in Configuration &rsaquo; Users.
+          </div>
+        </div>
+      <% end %>
 
       <div class="mt-5 flex items-center justify-end gap-2.5">
         <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>

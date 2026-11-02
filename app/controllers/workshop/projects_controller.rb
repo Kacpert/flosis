@@ -8,7 +8,9 @@ class Workshop::ProjectsController < Workshop::BaseController
   def create
     project = ProjectCreator.new(
       workspace: current_workspace,
-      attributes: params.require(:project).permit(:name, :team, :github_repo, :external_reference),
+      attributes: params.require(:project).permit(:name, :team, :external_reference, :jira_site, :jira_email,
+                                                  :jira_api_token, :github_repo, :github_token, :anthropic_api_key)
+                        .to_h.compact_blank,
       reuse_from: reuse_from,
       member_ids: params[:user_ids],
       preset: params[:preset]

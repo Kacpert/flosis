@@ -22,6 +22,29 @@ class Workshop::ProjectsControllerTest < ActionDispatch::IntegrationTest
   # Configuration — so the switcher has to be standing in it. A switcher scoped
   # to Jira projects silently fell back to the first project instead, and every
   # key typed on the page that opened was saved onto that one.
+  # The dialog takes the keys themselves, not only copies of another
+  # project's: the first project of an organization has nothing to copy.
+  test "keys typed into the dialog are saved, links included" do
+    sign_in_as(users(:one))
+
+    post workshop_projects_path, params: { project: {
+      name: "Partner Portal",
+      jira_site: "https://acme.atlassian.net/jira/software/projects/PP/boards/1", jira_email: "jane@acme.com",
+      jira_api_token: "jira-secret", external_reference: "PP",
+      github_repo: "https://github.com/acme/partner-portal.git", github_token: "ghp_secret",
+      anthropic_api_key: "sk-ant-secret"
+    } }
+
+    project = workspaces(:one).projects.find_by!(name: "Partner Portal")
+    assert_equal "acme.atlassian.net", project.jira_site
+    assert_equal "jane@acme.com", project.jira_email
+    assert_equal "jira-secret", project.jira_api_token
+    assert_equal "jira", project.external_type, "a site and a key make it a Jira project"
+    assert_equal "acme/partner-portal", project.github_repo
+    assert_equal "ghp_secret", project.github_token
+    assert_equal "sk-ant-secret", project.anthropic_api_key
+  end
+
   test "a project created with no integrations is the one the page then edits" do
     workspace_memberships(:one_owner).update!(workspace_admin: true)
     sign_in_as(users(:one))
