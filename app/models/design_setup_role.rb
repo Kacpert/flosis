@@ -1,6 +1,7 @@
-# One login a setup run crawls the app as (see AddDesignSetupInputs). The
-# password is encrypted, never rendered back and never logged; it reaches the
-# crawler only on its stdin.
+# One context a setup run signs in to the test environment as (see
+# AddDesignSetupInputs). The password is encrypted, never rendered back and
+# never logged; it reaches the sign-in script only on its stdin
+# (Designs::SignIn), and never the browser or Claude.
 class DesignSetupRole < ApplicationRecord
   belongs_to :project
 
