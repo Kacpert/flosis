@@ -80,6 +80,7 @@
 
 <%= render "messages", thread: thread %>
 
+<%= form_with url: attach_workshop_design_thread_path(thread), method: :post, multipart: true, id: "design-attach-form", class: "hidden" do %><% end %>
 <div class="p-3 border-t border-[color:var(--border)]">
   <% if merged %>
     <div class="text-[12.5px] clar-text-muted leading-[1.5] py-1 px-0.5">Merged into master as <span class="clar-mono"><%= thread.merged_sha.to_s.first(7) %></span>. Start a new thread for further changes.</div>
@@ -94,8 +95,10 @@
                 data-controller="designs-composer" data-action="keydown->designs-composer#key"></textarea>
       <div class="flex items-center gap-2">
         <span class="text-[11px] clar-text-faint flex-1 min-w-0 truncate" data-designs-canvas-target="sees"><%= @current ? "AI sees #{designs_context_name(@contexts, @context)} › #{@current[:name]}" : "AI sees nothing yet" %></span>
-        <button type="button" class="clar-btn !p-0 w-[30px] h-[30px] justify-center" title="Attach inspiration"
-                data-action="designs-canvas#toast" data-designs-canvas-message-param="Add screenshots or links · saved to inspirations/"><%= designs_icon(:attach, 14) %></button>
+        <%# The file picker belongs to the form below, outside this one. %>
+        <label for="design-inspirations" class="clar-btn !p-0 w-[30px] h-[30px] justify-center cursor-pointer" title="Attach inspiration"><%= designs_icon(:attach, 14) %></label>
+        <input id="design-inspirations" type="file" name="files[]" multiple form="design-attach-form" class="hidden"
+               accept=".png,.jpg,.jpeg,.gif,.webp,.svg,.pdf,.txt,.md" data-controller="designs-attach" data-action="change->designs-attach#submit">
         <button type="submit" class="clar-btn clar-btn-primary !p-0 w-[30px] h-[30px] justify-center" title="Send"><%= designs_icon(:send, 14) %></button>
       </div>
     <% end %>

@@ -16,6 +16,10 @@ module Designs::Threads
   BUSY = "The design repo is busy — try again in a minute.".freeze
   NOTHING_TO_MERGE = "Nothing to merge yet: this thread has no changes of its own.".freeze
   IMPORTING = "Re-import from staging is still running on this thread. You can talk here and merge it once it finishes.".freeze
+  NOT_AN_INSPIRATION = "Inspirations are images, PDFs or notes (.png, .jpg, .gif, .webp, .svg, .pdf, .txt, .md), up to 10 MB each.".freeze
+  NO_BRANCH_YET = "Describe the change first: the thread gets its branch, and its inspirations/, with its first message.".freeze
+  INSPIRATION_TYPES = %w[png jpg jpeg gif webp svg pdf txt md].freeze
+  INSPIRATION_LIMIT = 10.megabytes
   START_FROM_TASK = <<~REQUEST.freeze
     Design this task. Read its current description and compare it with master. Where a screen already
     covers it, update that screen instead of making a new one; where nothing does, draft it as a new
@@ -51,6 +55,47 @@ module Designs::Threads
     name!(thread, text) if thread.fresh?
     thread.update!(focus_context: context, focus_screen: screen) if context.present? && screen.present?
     queue_turn(thread, user, text)
+  end
+
+  # Files a person adds for the AI to borrow from (Workshop Designs v2's
+  # "Attach inspiration"): committed to the thread's inspirations/ through the
+  # leak guard, pushed and published, and said in the thread.
+  def attach!(thread, user:, files:)
+    raise Busy, IMPORTING if importing?(thread)
+    raise ArgumentError, NO_BRANCH_YET if thread.fresh?
+
+    uploads = Array(files).compact_blank.first(5)
+    raise ArgumentError, NOT_AN_INSPIRATION if uploads.empty? || uploads.any? { |file| !inspiration?(file) }
+
+    repo = Designs::Repo.new(thread.project)
+    names = repo.synchronize(wait: false) do
+      refuse_while_turns_run!(thread)
+      repo.ensure_clone!
+      dir = repo.worktree!(thread.branch, from: thread.base_sha.presence || Designs::Repo::MASTER)
+      repo.follow_origin!(thread.branch)
+      repo.discard!(dir)
+      FileUtils.mkdir_p(dir.join("inspirations"))
+      saved = uploads.map do |file|
+        name = ActiveStorage::Filename.new(file.original_filename.to_s).sanitized
+        File.binwrite(dir.join("inspirations", name), file.read)
+        name
+      end
+      guard = Designs::LeakGuard.new(secrets: ProjectCredentials.new(thread.project).all_secrets)
+      result = Designs::Committer.new(repo, guard).commit!(dir, message: "#{thread.branch.delete_prefix('design/')}: add inspirations")
+      raise ArgumentError, "Refused: #{result.refusal}" unless result.ok?
+
+      repo.push!(thread.branch)
+      saved
+    end
+    publish(thread)
+    note(thread, "Added to inspirations/: #{names.join(', ')}")
+    names
+  rescue Designs::Repo::Busy
+    raise Busy, BUSY
+  end
+
+  def inspiration?(file)
+    INSPIRATION_TYPES.include?(File.extname(file.original_filename.to_s).delete_prefix(".").downcase) && file.size.to_i <= INSPIRATION_LIMIT
   end
 
   # What changed in the task's description since the thread last designed

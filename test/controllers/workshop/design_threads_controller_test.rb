@@ -129,4 +129,32 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+
+  test "an inspiration is added to the thread's inspirations/ and said in the thread" do
+    with_designs do |repo|
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      Designs::Threads.message!(thread, user: users(:one), text: "Errors under the field")
+      thread.reload
+      repo.worktree!(thread.branch, from: thread.base_sha)
+      DesignTurn.update_all(status: "succeeded")
+
+      post attach_workshop_design_thread_path(thread), params: { files: [ fixture_file_upload("inspiration.png", "image/png") ] }
+
+      assert_redirected_to workshop_designs_overview_path(thread: thread.id)
+      assert_includes repo.ls_files(thread.branch, "inspirations/"), "inspirations/inspiration.png"
+      assert_equal "Added to inspirations/: inspiration.png", thread.chat_session.chat_messages.where(kind: "system").ordered.last.content
+    end
+  end
+
+  test "a file that is not an inspiration is refused" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      Designs::Threads.message!(thread, user: users(:one), text: "Errors under the field")
+      DesignTurn.update_all(status: "succeeded")
+
+      post attach_workshop_design_thread_path(thread), params: { files: [ Rack::Test::UploadedFile.new(StringIO.new("#!/bin/sh"), "text/x-sh", original_filename: "run.sh") ] }
+      assert_equal Designs::Threads::NOT_AN_INSPIRATION, flash[:alert]
+    end
+  end
+
 end

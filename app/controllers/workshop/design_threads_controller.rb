@@ -70,6 +70,13 @@ class Workshop::DesignThreadsController < Workshop::BaseController
     redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
   end
 
+  def attach
+    Designs::Threads.attach!(@thread, user: current_user, files: params[:files])
+    redirect_to workshop_designs_overview_path(thread: @thread.id)
+  rescue Designs::Threads::Busy, ArgumentError => e
+    redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
+  end
+
   def create_task
     title = params[:title].to_s.strip
     return redirect_to(workshop_designs_overview_path(thread: @thread.id), alert: "A task needs a title.") if title.blank?

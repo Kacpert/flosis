@@ -106,7 +106,7 @@ Rails.application.routes.draw do
       post :reimport
     end
     resources :design_threads, only: :create, path: "designs/threads" do
-      member { post :message; post :merge; post :update_description; post :update_master; post :create_task }
+      member { post :message; post :merge; post :update_description; post :update_master; post :create_task; post :attach }
     end
     get "jira_browser", to: "jira_browser#show", as: :jira_browser
     resources :ideas, only: [ :create, :show, :update, :destroy ] do
