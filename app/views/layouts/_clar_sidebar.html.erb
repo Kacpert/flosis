@@ -39,7 +39,7 @@
           path: respond_to?(:workshop_designs_overview_path) ? workshop_designs_overview_path : fallback_path,
           icon: '<path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/>', permission: :designs,
           visible: current_workshop_project&.designs_enabled? || current_user&.flosis_staff?,
-          building: current_workshop_project&.design_setups&.where(status: "running")&.exists? },
+          building: current_workshop_project&.design_setups&.running&.exists? },
         { key: "reporting", label: "Reporting", real: respond_to?(:workshop_reporting_path),
           path: respond_to?(:workshop_reporting_path) ? workshop_reporting_path : fallback_path,
           icon: '<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="13" y="7" width="3" height="10"/>', permission: :reporting },

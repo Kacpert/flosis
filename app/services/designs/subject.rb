@@ -140,9 +140,10 @@ module Designs::Subject
 
     def project = @session.project
     def slug = "setup"
-    def wip_branch = Designs::BranchNames::SETUP
+    # A re-import (Workshop Designs v2) works on its own thread's branch.
+    def wip_branch = setup.design_thread&.branch || Designs::BranchNames::SETUP
     def preview_slot = wip_branch
-    def base_branch_for_new_worktree = Designs::Repo::MASTER
+    def base_branch_for_new_worktree = setup.design_thread&.base_sha.presence || Designs::Repo::MASTER
 
     # The run's latest active setup.
     def setup
@@ -178,7 +179,9 @@ module Designs::Subject
       MESSAGE
     end
 
-    def api_key = ENV["FLOSIS_DESIGNS_SETUP_API_KEY"].presence
+    # Workshop Designs v2: the project's own key, as its turns use; Flosis's
+    # setup key only for a project that has none.
+    def api_key = ProjectCredentials.new(project).designs_api_key || ENV["FLOSIS_DESIGNS_SETUP_API_KEY"].presence
     def missing_key_message = NO_KEY
 
     # Ruling P5-R1/P5-R3: the crawl bundle and the materials, both under the

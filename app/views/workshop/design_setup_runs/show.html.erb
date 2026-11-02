@@ -1,0 +1,38 @@
+<% content_for :title, "Building designs · Flosis" %>
+<%# The setup's progress (Workshop Designs v2): the design's seven steps, with
+    a failed one in red and Retry, which the design does not draw. %>
+<% steps = @setup.steps %>
+<div class="max-w-[760px] mx-auto pt-2">
+  <% if @setup.failed? %>
+    <div class="flex items-center gap-2 text-[12.5px] font-bold clar-text-danger mb-2">The build stopped</div>
+  <% else %>
+    <div class="flex items-center gap-2 text-[12.5px] font-bold clar-text-ai mb-2"><span class="w-[7px] h-[7px] rounded-full clar-blink" style="background: var(--ai);"></span>Running in the background</div>
+  <% end %>
+  <h1 class="m-0 text-[23px] font-bold tracking-[-.5px] clar-text-text">Building designs for <%= @project.name %></h1>
+  <p class="mt-1.5 mb-5 clar-text-muted text-[14px] leading-[1.55]">This usually takes about an hour. You can leave this page and keep working. We’ll notify you when master is ready.</p>
+  <div class="clar-card px-5.5 py-5" <% unless @setup.failed? %>data-controller="designs-refresh" data-designs-refresh-interval-value="15000"<% end %>>
+    <div class="flex justify-between text-[12.5px] clar-text-muted mb-2"><span><%= @setup.percent %>%</span><span>About <%= @setup.minutes_left %> min left</span></div>
+    <div class="h-1.5 rounded bg-[var(--surface-2)] overflow-hidden mb-3.5"><div class="h-1.5 rounded" style="width: <%= @setup.percent %>%; background: var(--ai);"></div></div>
+    <% steps.each_with_index do |(label, minutes), i| %>
+      <% done = @setup.step > i %>
+      <% current = @setup.step == i %>
+      <% failed = current && @setup.failed? %>
+      <div class="flex items-center gap-2.5 py-[7px] text-[13.5px] <%= (done || current) ? 'clar-text-text' : 'clar-text-faint' %>">
+        <span class="w-5 h-5 rounded-full flex items-center justify-center flex-none text-white" style="background: <%= done ? 'var(--success)' : failed ? 'var(--danger)' : current ? 'var(--ai-soft)' : 'var(--surface-2)' %>;">
+          <% if done %><%= designs_icon(:check, 12) %><% elsif failed %><%= designs_icon(:close, 12) %><% elsif current %><span class="w-[7px] h-[7px] rounded-full clar-blink" style="background: var(--ai);"></span><% end %>
+        </span>
+        <span class="flex-1 min-w-0 <%= 'clar-text-danger' if failed %>"><%= label %></span>
+        <span class="text-[11.5px] clar-text-faint">~<%= minutes %> min</span>
+      </div>
+      <% if failed %>
+        <div class="ml-[30px] mb-2 text-[12.5px] clar-text-danger leading-[1.5] whitespace-pre-line"><%= @setup.error %></div>
+      <% end %>
+    <% end %>
+  </div>
+  <div class="flex justify-end gap-2 mt-4">
+    <% if @setup.failed? && can?(:configuration) %>
+      <%= button_to "Retry", retry_workshop_design_setup_run_path, class: "clar-btn", form: { class: "contents" } %>
+    <% end %>
+    <%= link_to "Continue working", workshop_pipeline_path, class: "clar-btn clar-btn-primary no-underline" %>
+  </div>
+</div>

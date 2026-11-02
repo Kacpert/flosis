@@ -1,0 +1,80 @@
+<% content_for :title, "Designs setup · Flosis" %>
+<%# The Designs setup form (Workshop Designs v2), as Kacper's design draws it:
+    technology, repositories, staging and contexts. %>
+<% project = @project %>
+<% roles = project.design_setup_roles.to_a %>
+<% repos = Array(project.design_app_repos).select { |row| row.is_a?(Hash) }.presence || [ { "role" => "Frontend", "repo" => project.github_repo.to_s }, { "role" => "Backend", "repo" => "" } ] %>
+<% chip = "inline-flex items-center gap-1.5 text-[13px] font-semibold px-3.5 py-2 rounded-[9px] border border-[color:var(--border)] bg-[var(--surface)] clar-text-text cursor-pointer has-[:checked]:border-[color:var(--primary)] has-[:checked]:bg-[var(--primary-soft)] has-[:checked]:text-[var(--primary)]" %>
+<% soon = "inline-flex items-center gap-1.5 text-[13px] font-semibold px-3.5 py-2 rounded-[9px] border border-[color:var(--border)] bg-[var(--surface)] clar-text-faint opacity-60 cursor-not-allowed" %>
+<div class="max-w-[960px] mx-auto">
+  <% if @editing %>
+    <%= link_to workshop_designs_overview_path, class: "inline-flex items-center gap-1.5 clar-text-muted text-[12.5px] no-underline mb-3" do %><%= designs_icon(:back, 15) %>Designs<% end %>
+  <% end %>
+  <h1 class="m-0 text-[23px] font-bold tracking-[-.5px] clar-text-text"><%= @editing ? "Edit Designs setup" : "Set up Designs for #{project.name}" %></h1>
+  <p class="mt-1.5 mb-5.5 clar-text-muted text-[14px] leading-[1.55] max-w-[740px]">The AI reads your repositories, signs in to staging as each context, and builds the design system, components and today’s screens in the designs repository. It runs in the background and usually takes about an hour. After that, every change happens in threads.</p>
+
+  <%= form_with url: workshop_design_setup_run_path, method: (@editing ? :patch : :post), data: { controller: "designs-setup-form" } do %>
+    <div class="clar-card p-5 mb-3.5">
+      <div class="flex gap-3 mb-4"><span class="w-6 h-6 rounded-full bg-[var(--primary-soft)] clar-text-primary text-[12px] font-bold flex items-center justify-center flex-none">1</span><div><div class="font-bold text-[14.5px] clar-text-text">Technology</div><div class="text-[12.5px] clar-text-muted mt-0.5 leading-[1.45]">What the designs are built with. Components are generated in this stack and version.</div></div></div>
+      <label class="clar-field-label">FRAMEWORK</label>
+      <div class="flex gap-2 flex-wrap items-center mb-4">
+        <% Workshop::DesignSetupRunsController::FRAMEWORKS.each do |key, label, _| %>
+          <% if Workshop::DesignSetupRunsController::SUPPORTED.include?(key) %>
+            <label class="<%= chip %>"><input type="radio" name="framework" value="<%= key %>" class="sr-only" <%= "checked" if project.designs_framework == key %>><%= label %></label>
+          <% else %>
+            <span class="<%= soon %>" title="Soon"><%= label %><span class="text-[10px] font-bold tracking-[.3px]">SOON</span></span>
+          <% end %>
+        <% end %>
+        <span class="text-[11.5px] font-bold clar-text-faint ml-1">VERSION</span>
+        <input name="framework_version" value="<%= project.designs_framework_version %>" placeholder="—" class="clar-input !w-[90px]">
+      </div>
+      <label class="clar-field-label">UI SYSTEM</label>
+      <div class="flex gap-2 flex-wrap items-center">
+        <% Workshop::DesignSetupRunsController::UI_SYSTEMS.each do |key, label, _| %>
+          <% if Workshop::DesignSetupRunsController::SUPPORTED.include?(key) %>
+            <label class="<%= chip %>"><input type="radio" name="ui" value="<%= key %>" class="sr-only" <%= "checked" if project.designs_ui_system == key %>><%= label %></label>
+          <% else %>
+            <span class="<%= soon %>" title="Soon"><%= label %><span class="text-[10px] font-bold tracking-[.3px]">SOON</span></span>
+          <% end %>
+        <% end %>
+        <span class="text-[11.5px] font-bold clar-text-faint ml-1">VERSION</span>
+        <input name="ui_version" value="<%= project.designs_ui_version %>" placeholder="e.g. 4" class="clar-input !w-[90px]">
+      </div>
+      <div class="text-[11.5px] clar-text-faint mt-1.5 leading-[1.45]">The AI checks these against package.json and the lockfile and flags a mismatch.</div>
+    </div>
+
+    <div class="clar-card p-5 mb-3.5">
+      <div class="flex gap-3 mb-4"><span class="w-6 h-6 rounded-full bg-[var(--primary-soft)] clar-text-primary text-[12px] font-bold flex items-center justify-center flex-none">2</span><div><div class="font-bold text-[14.5px] clar-text-text">Repositories</div><div class="text-[12.5px] clar-text-muted mt-0.5 leading-[1.45]">Where the designs are stored, and the product code they are based on.</div></div></div>
+      <label class="clar-field-label">DESIGNS REPOSITORY (TARGET)</label>
+      <input name="repo" value="<%= project.design_repo.present? ? "github.com/#{project.design_repo}" : "" %>" placeholder="github.com/acme/app-designs" class="clar-input">
+      <div class="text-[11.5px] clar-text-faint mt-1.5 leading-[1.45]">The AI commits here. master holds approved designs; each thread is a branch.</div>
+      <input type="password" name="repo_token" autocomplete="new-password" placeholder="<%= project.design_repo_token.present? ? 'Token saved — leave blank to keep it' : 'Token with write access to this repository only' %>" class="clar-input mt-2.5">
+      <label class="clar-field-label mt-4">CURRENT APP REPOSITORIES · READ-ONLY</label>
+      <div class="grid gap-2 items-center" style="grid-template-columns: minmax(0, .55fr) minmax(0, 1.6fr) 34px;" data-designs-setup-form-target="repos">
+        <% repos.each_with_index do |row, i| %>
+          <%= render "repo_row", index: i, row: row %>
+        <% end %>
+      </div>
+      <button type="button" class="clar-btn mt-2.5" data-action="designs-setup-form#addRepo"><%= designs_icon(:plus, 14) %>Add repository</button>
+      <div class="text-[11.5px] clar-text-faint mt-1.5 leading-[1.45]">Frontend, backend, shared UI library… The AI uses them to match real components, copy, routes and data. Name a branch with @, as in owner/app@production.</div>
+      <template data-designs-setup-form-target="repoTemplate"><%= render "repo_row", index: "NEW_INDEX", row: { "role" => "", "repo" => "" } %></template>
+    </div>
+
+    <div class="clar-card p-5 mb-3.5">
+      <div class="flex gap-3 mb-4"><span class="w-6 h-6 rounded-full bg-[var(--primary-soft)] clar-text-primary text-[12px] font-bold flex items-center justify-center flex-none">3</span><div><div class="font-bold text-[14.5px] clar-text-text">Staging and contexts</div><div class="text-[12.5px] clar-text-muted mt-0.5 leading-[1.45]">The AI signs in as each context to capture what that role sees. Each context can have its own login page. Use test accounts.</div></div></div>
+      <div class="grid gap-2 items-center" style="grid-template-columns: minmax(0, .7fr) minmax(0, 1.5fr) minmax(0, 1.1fr) minmax(0, .8fr) 34px;" data-designs-setup-form-target="contexts">
+        <span class="clar-field-label !m-0">CONTEXT</span><span class="clar-field-label !m-0">LOGIN URL</span><span class="clar-field-label !m-0">LOGIN</span><span class="clar-field-label !m-0">PASSWORD</span><span></span>
+        <% (roles.presence || [ nil, nil, nil ]).each_with_index do |role, i| %>
+          <%= render "context_row", index: i, role: role %>
+        <% end %>
+      </div>
+      <button type="button" class="clar-btn mt-3" data-action="designs-setup-form#addContext"><%= designs_icon(:plus, 14) %>Add context</button>
+      <template data-designs-setup-form-target="contextTemplate"><%= render "context_row", index: "NEW_INDEX", role: nil %></template>
+    </div>
+
+    <div class="flex items-center justify-end gap-3.5 flex-wrap mt-1.5">
+      <span class="text-[12.5px] clar-text-faint">About an hour, in the background. You can keep working.</span>
+      <button type="submit" class="clar-btn clar-btn-primary !py-2.5 !px-4 !text-[13px]"><%= designs_icon(:ai, 14) %><%= @editing ? "Save and re-import" : "Build designs" %></button>
+    </div>
+  <% end %>
+</div>

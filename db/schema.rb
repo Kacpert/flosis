@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_02_100300) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_02_100400) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -265,6 +265,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_100300) do
     t.bigint "design_thread_id"
     t.text "error"
     t.datetime "finished_at"
+    t.datetime "notified_at"
     t.integer "pages"
     t.string "phase", default: "design_system", null: false
     t.bigint "project_id", null: false
