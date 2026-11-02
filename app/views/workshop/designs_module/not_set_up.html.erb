@@ -1,0 +1,13 @@
+<% content_for :title, "Designs · Flosis" %>
+<div class="max-w-[760px]">
+  <h1 class="clar-h1">Designs</h1>
+  <div class="clar-card p-5 mt-5">
+    <div class="font-bold text-[14px] clar-text-text mb-1">Designs isn't set up for this project</div>
+    <% if can?(:configuration) && respond_to?(:new_workshop_design_setup_run_path) %>
+      <p class="text-[13px] clar-text-muted mb-3">The AI reads your repositories, signs in to staging as each context, and builds the design system, components and today’s screens.</p>
+      <%= link_to "Set up Designs for #{@project.name}", new_workshop_design_setup_run_path, class: "clar-btn clar-btn-primary no-underline" %>
+    <% else %>
+      <p class="text-[13px] clar-text-muted m-0">An administrator sets it up.</p>
+    <% end %>
+  </div>
+</div>

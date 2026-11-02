@@ -1,0 +1,17 @@
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="generate-task" data-action="click->clar-modal#close">
+  <div class="clar-modal p-5.5 max-w-[640px]" data-action="click->clar-modal#stopPropagation">
+    <div class="flex items-center justify-between gap-3 mb-1"><h2 class="m-0 text-[18px] font-bold clar-text-text">Generate task</h2><button type="button" class="bg-transparent border-0 cursor-pointer clar-text-faint flex p-1" data-action="clar-modal#close"><%= designs_icon(:close, 18) %></button></div>
+    <p class="mt-0 mb-4 text-[13px] clar-text-muted leading-[1.5]">Written from this conversation and the design changes. The task starts in Details Gathering with this description.</p>
+    <%= form_with url: create_task_workshop_design_thread_path(@thread), method: :post do %>
+      <label class="clar-field-label">TITLE</label>
+      <input type="text" name="title" value="<%= @thread.title %>" required class="clar-input mb-3.5 font-semibold">
+      <label class="clar-field-label">DESCRIPTION</label>
+      <textarea name="description" rows="13" class="clar-textarea mb-3 text-[13px] leading-[1.55]"><%= @generate_draft %></textarea>
+      <div class="flex items-center gap-2 text-[12px] clar-text-muted mb-4.5"><%= designs_icon(:branch, 13) %>Linked to <%= @thread.branch %>. The thread merges into master when the task is Done.</div>
+      <div class="flex gap-2 justify-end">
+        <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+        <button type="submit" class="clar-btn clar-btn-primary"><%= designs_icon(:task, 14) %>Create task · start Details Gathering</button>
+      </div>
+    <% end %>
+  </div>
+</div>

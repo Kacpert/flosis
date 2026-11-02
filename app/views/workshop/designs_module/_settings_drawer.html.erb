@@ -1,0 +1,44 @@
+<%# Design settings: what the designs repo is, its stack, its folders and where
+    the designs came from. Changing them is the setup's, under Configuration. %>
+<div class="hidden clar-modal-overlay !items-stretch !justify-end !p-0" data-clar-modal-target="panel" data-clar-modal-panel-id-value="design-settings" data-action="click->clar-modal#close">
+  <div class="w-full max-w-[500px] h-full overflow-y-auto bg-[var(--surface)] border-l border-[color:var(--border)] shadow-xl p-5.5 pb-7.5" data-action="click->clar-modal#stopPropagation">
+    <div class="flex items-center justify-between gap-3 mb-1"><h2 class="m-0 text-[18px] font-bold clar-text-text">Design settings</h2><button type="button" class="bg-transparent border-0 cursor-pointer clar-text-faint flex p-1" data-action="clar-modal#close"><%= designs_icon(:close, 18) %></button></div>
+    <p class="mt-0 mb-4.5 text-[12.5px] clar-text-muted leading-[1.5]">Per project · <b class="clar-text-text"><%= @project.name %></b>. Changing these needs the Configuration permission.</p>
+    <% section = lambda do |title, sub, rows| %>
+      <div class="mb-5">
+        <div class="text-[11px] font-bold tracking-[.6px] clar-text-faint mb-1"><%= title %></div>
+        <% if sub %><div class="text-[12px] clar-text-muted mb-2 leading-[1.45]"><%= sub %></div><% end %>
+        <div class="border border-[color:var(--border)] rounded-[11px] overflow-hidden">
+          <% rows.each_with_index do |(label, value, note), i| %>
+            <div class="flex items-start justify-between gap-3.5 px-3 py-2.5 <%= 'border-t border-[color:var(--border)]' if i.positive? %>">
+              <span class="text-[12.5px] clar-text-muted flex-none w-[120px]"><%= label %></span>
+              <span class="text-[12.5px] clar-text-text text-right min-w-0 break-words"><%= value %><% if note %><span class="block text-[11px] clar-text-faint"><%= note %></span><% end %></span>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+    <% branch = @thread&.branch || "master" %>
+    <% section.call("REPOSITORY", nil, [ [ "Designs repository", @project.design_repo ],
+         [ "Branch", branch, (@thread&.branch ? "from master #{@thread.base_sha.to_s.first(7)}#{" · master is now #{@behind.first.short_sha}" if @behind.any?}" : "read-only") ],
+         *@app_repos.map { |repo| [ "App repository", repo, "read-only · current product code" ] },
+         [ "Sync", "Synced #{designs_ago(@project.design_threads.maximum(:updated_at) || @project.updated_at)}" ] ]) %>
+    <% section.call("STACK", nil, [ [ "Technology", "#{@stack[:framework]} #{@stack[:framework_version]}".strip ],
+         [ "UI system", "#{@stack[:ui]} #{@stack[:ui_version]}".strip ], [ "Styles", @stack[:styles] ] ]) %>
+    <% section.call("STRUCTURE", "What each folder in #{@project.design_repo} holds. The AI follows this when it changes designs.", [
+         [ "design-system/", "Tokens extracted from staging and the app repository: colours, type scale, spacing, radius. Every screen uses only these." ],
+         [ "components/", "Reusable components rebuilt from the live app with the UI system’s classes. Screens are composed from them." ],
+         [ "designs/", "Screens, one folder per context: #{@contexts.map { |c| "#{c[:id]}/" }.join(', ').presence || 'one per role'}. This is what threads change." ],
+         [ "inspirations/", "References the AI may borrow from: screenshots, links, notes. Never shipped." ] ]) %>
+    <% section.call("INITIAL SOURCES", "Where the designs came from. The AI used these to build the design system, components and screens.", [
+         *@project.design_setup_roles.map { |role| [ role.name, role.login_url, "#{role.username} · ••••••••" ] },
+         [ "App code", "#{@app_repos.join(', ').presence || '—'} @ master" ],
+         [ "Captured", "#{@setup&.pages || 0} pages · #{(@setup&.finished_at || @project.created_at).strftime('%-d %b %Y')}" ] ]) %>
+    <% if can?(:configuration) && respond_to?(:edit_workshop_design_setup_run_path) %>
+      <div class="flex gap-2 flex-wrap">
+        <%= link_to "Edit setup", edit_workshop_design_setup_run_path, class: "clar-btn no-underline" %>
+        <%= button_to reimport_workshop_design_setup_run_path, method: :post, class: "clar-btn", form: { class: "contents" } do %><%= designs_icon(:reload, 14) %>Re-import<% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

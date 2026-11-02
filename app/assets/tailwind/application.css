@@ -2372,3 +2372,10 @@ span.flatpickr-weekday {
      position:fixed;inset:0 and swallows every click. */
   .clar-modal-overlay.hidden { display:none; }
 }
+
+/* Workshop Designs v2: "Hide menus" steps the top bar and the sidebar aside
+   on the Designs module; the edge tabs peek each one back. */
+.clar-app.designs-immersive:not(.designs-peek-top) .clar-topbar { display: none; }
+.clar-app.designs-immersive:not(.designs-peek-nav) .clar-sidebar { display: none; }
+.designs-peek-tab { display: none; }
+.clar-app.designs-immersive .designs-peek-tab { display: flex; }

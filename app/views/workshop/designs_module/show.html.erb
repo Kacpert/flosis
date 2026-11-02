@@ -1,0 +1,38 @@
+<% content_for :title, "Designs · Flosis" %>
+<% content_for :clar_full_bleed, true %>
+<%# The Designs module (Workshop Designs v2), after Kacper's ClearBacklog-3.html:
+    the threads or one thread's conversation on the left, the canvas or a library
+    page on the right. "Hide menus" (on by default) steps the shell's top bar and
+    sidebar aside; the two edge tabs peek them back. %>
+<div class="h-full grid" style="grid-template-columns: clamp(280px, 26%, 340px) minmax(0, 1fr);"
+     data-controller="designs-immersive clar-modal designs-canvas" data-designs-module
+     data-designs-canvas-contexts-value="<%= (@contexts || []).to_h { |context| [ context[:id], context[:name] ] }.to_json %>">
+  <button type="button" class="designs-peek-tab clar-btn !p-0 fixed z-40 items-center justify-center"
+          style="top: 0; left: 50%; transform: translateX(-50%); width: 52px; height: 15px; border-top: none; border-radius: 0 0 9px 9px;"
+          title="Show top bar" data-action="designs-immersive#peekTop"><%= designs_icon(:down, 13) %></button>
+  <button type="button" class="designs-peek-tab clar-btn !p-0 fixed z-40 items-center justify-center"
+          style="left: 0; top: 50%; transform: translateY(-50%); width: 15px; height: 52px; border-left: none; border-radius: 0 9px 9px 0;"
+          title="Show menu" data-action="designs-immersive#peekNav"><%= designs_icon(:next, 13) %></button>
+
+  <div class="flex flex-col min-h-0 border-r border-[color:var(--border)] bg-[var(--surface)]">
+    <% if @thread %>
+      <%= render "thread_panel" %>
+    <% else %>
+      <%= render "list_panel" %>
+    <% end %>
+  </div>
+
+  <div class="flex flex-col min-h-0 min-w-0">
+    <% if @tab == "canvas" %>
+      <%= render "canvas" %>
+    <% else %>
+      <%= render "library" %>
+    <% end %>
+  </div>
+
+  <%= render "settings_drawer" %>
+  <% if @thread&.open? && !@thread.fresh? %>
+    <%= render "merge_modal" %>
+    <%= render "generate_modal" unless @thread.task %>
+  <% end %>
+</div>

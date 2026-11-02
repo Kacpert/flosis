@@ -1,0 +1,25 @@
+<% key = @thread.task && Designs::ThreadNames.key(@thread.task) %>
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="merge-thread" data-action="click->clar-modal#close">
+  <div class="clar-modal p-5.5 max-w-[520px]" data-action="click->clar-modal#stopPropagation">
+    <div class="flex items-center justify-between gap-3 mb-1"><h2 class="m-0 text-[18px] font-bold clar-text-text">Merge into master?</h2><button type="button" class="bg-transparent border-0 cursor-pointer clar-text-faint flex p-1" data-action="clar-modal#close"><%= designs_icon(:close, 18) %></button></div>
+    <div class="flex items-center gap-2 flex-wrap mt-1.5 mb-4"><span class="clar-mono text-[11.5px] clar-text-ai bg-[var(--ai-soft)] px-2 py-0.5 rounded-md"><%= @thread.branch %></span><span class="clar-text-faint">→</span><span class="clar-mono text-[11.5px] clar-text-success bg-[var(--success-soft)] px-2 py-0.5 rounded-md">master</span></div>
+    <% if @behind.any? %>
+      <div class="mb-3.5 px-3 py-2.5 rounded-[9px] bg-[var(--warn-soft)] text-[12.5px] clar-text-text leading-[1.5]"><b class="clar-text-warn">master changed</b> since this thread branched. Update from master first to see the result before it lands.</div>
+    <% end %>
+    <label class="clar-field-label">CHANGED SCREENS</label>
+    <div class="border border-[color:var(--border)] rounded-[11px] overflow-hidden mb-3.5">
+      <% @changed.each_with_index do |(context, screen), i| %>
+        <div class="flex items-center justify-between gap-3 px-3 py-2 flex-wrap <%= 'border-t border-[color:var(--border)]' if i.positive? %>"><span class="text-[13px] font-semibold clar-text-text"><%= designs_context_name(@contexts, context) %> › <%= designs_screen_name(@screens, context, screen) %></span><span class="clar-mono text-[11px] clar-text-faint">designs/<%= context %>/<%= screen %>.html</span></div>
+      <% end %>
+      <% if @changed.empty? %><div class="px-3 py-2 text-[12.5px] clar-text-faint">No screen differs from master yet.</div><% end %>
+    </div>
+    <p class="mt-0 mb-5 text-[12.5px] clar-text-muted leading-[1.55]">
+      <% if key && @thread.task.external_type == "jira" %>If you don’t merge now, this thread merges automatically when <%= key %> moves to Done.<% else %>This thread has no task, so it only merges when you merge it.<% end %>
+      After merging, master stays read-only and further changes need a new thread.
+    </p>
+    <div class="flex gap-2 justify-end">
+      <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+      <%= button_to merge_workshop_design_thread_path(@thread), class: "clar-btn clar-btn-primary", form: { class: "contents" } do %><%= designs_icon(:merge, 14) %>Merge into master<% end %>
+    </div>
+  </div>
+</div>

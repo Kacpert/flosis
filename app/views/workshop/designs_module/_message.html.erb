@@ -1,0 +1,47 @@
+<%# One message of a design thread, drawn by its kind. %>
+<% case message.kind %>
+<% when "system" %>
+  <div class="flex items-start gap-1.5 text-[11.5px] clar-text-faint leading-[1.5] px-0.5"><span class="flex mt-0.5"><%= designs_icon(:branch, 12) %></span><span><%= message.content %></span></div>
+<% when "diff" %>
+  <div class="flex-none border border-[color:var(--border)] rounded-[10px] overflow-hidden bg-[var(--bg)]">
+    <div class="flex items-center gap-1.5 px-2.5 py-2 text-[12px] font-bold clar-text-warn bg-[var(--warn-soft)] border-b border-[color:var(--border)]"><%= designs_icon(:task, 13) %><%= message.content %></div>
+    <div class="clar-mono px-2.5 py-2 text-[11.5px] leading-[1.6] flex flex-col gap-0.5">
+      <% Array(message.data&.dig("lines")).each do |sign, line| %>
+        <div class="<%= sign == '+' ? 'clar-text-success' : 'clar-text-danger line-through' %>"><%= sign %> <%= line %></div>
+      <% end %>
+    </div>
+  </div>
+<% when "master" %>
+  <div class="flex-none border border-[color:var(--border)] rounded-[10px] overflow-hidden bg-[var(--bg)]">
+    <div class="flex items-center gap-1.5 px-2.5 py-2 text-[12px] font-bold clar-text-success bg-[var(--success-soft)] border-b border-[color:var(--border)]"><%= designs_icon(:merge, 13) %><%= message.content %></div>
+    <div class="px-2.5 py-2 text-[12px] leading-[1.55] flex flex-col gap-1.5 clar-text-text">
+      <% Array(message.data&.dig("merges")).each do |merge| %>
+        <div><span class="clar-mono text-[11px] clar-text-success"><%= merge["sha"].to_s.first(7) %></span> <b><%= merge["title"] %></b>
+          <% if Array(merge["changes"]).any? %><ul class="mt-1 pl-[18px] clar-text-muted list-disc"><% merge["changes"].each do |change| %><li><%= change %></li><% end %></ul><% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% else %>
+  <% ai = message.role == "assistant" %>
+  <div>
+    <div class="flex items-center gap-1.5 text-[12px] font-bold clar-text-text mb-1">
+      <% if ai %>
+        <span class="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-none" style="background: var(--ai-soft); color: var(--ai);"><%= designs_icon(:ai, 10) %></span>Flosis AI
+      <% else %>
+        <span class="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-none text-[8px] font-bold text-white" style="background: #64748b;"><%= designs_initials(message.user&.name) %></span><%= message.user&.name || "Someone" %>
+      <% end %>
+    </div>
+    <div class="text-[13px] leading-[1.55] <%= message.kind == 'error' ? 'clar-text-danger' : 'clar-text-text' %> whitespace-pre-line"><%= message.kind == "missing" ? "Open question: #{message.content}" : message.content %></div>
+    <% chips = Array(message.data&.dig("chips")) %>
+    <% if chips.any? %>
+      <div class="flex flex-wrap gap-1.5 mt-2">
+        <% chips.each do |screen, context, mark| %>
+          <%= link_to workshop_designs_overview_path(thread: @thread&.id, ctx: context, screen: screen), class: "inline-flex items-center gap-1.5 text-[11.5px] font-semibold clar-text-text bg-[var(--surface-2)] border border-[color:var(--border)] rounded-[7px] px-2 py-1 no-underline", data: { turbo_frame: "_top" } do %>
+            <span class="clar-mono text-[10.5px] font-bold <%= mark == '+' ? 'clar-text-success' : 'clar-text-ai' %>"><%= mark %></span><%= designs_context_name(@contexts || [], context) %> › <%= designs_screen_name(@screens || [], context, screen) %>
+          <% end %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+<% end %>

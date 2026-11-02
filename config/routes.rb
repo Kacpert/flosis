@@ -99,7 +99,10 @@ Rails.application.routes.draw do
   # landed in Task 5.3).
   namespace :workshop do
     get "pipeline", to: "pipeline#index", as: :pipeline
-    get "designs", to: "project_designs#show", as: :designs_overview
+    get "designs", to: "designs_module#show", as: :designs_overview
+    resources :design_threads, only: :create, path: "designs/threads" do
+      member { post :message; post :merge; post :update_description; post :update_master; post :create_task }
+    end
     get "jira_browser", to: "jira_browser#show", as: :jira_browser
     resources :ideas, only: [ :create, :show, :update, :destroy ] do
       member { post :advance; post :save_locally; post :push_jira; post :sync_jira; post :estimate }

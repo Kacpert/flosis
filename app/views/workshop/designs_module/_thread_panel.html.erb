@@ -1,0 +1,102 @@
+<%# One thread: its header, what changed under it, the conversation and the
+    composer. A merged thread is read-only. %>
+<% thread = @thread %>
+<% merged = thread.merged? %>
+<% key = thread.task && Designs::ThreadNames.key(thread.task) %>
+<% jira_done = thread.task&.external_type == "jira" %>
+<div class="px-3.5 py-3 border-b border-[color:var(--border)]">
+  <div class="flex items-center justify-between gap-2.5 mb-2">
+    <%= link_to workshop_designs_overview_path, class: "inline-flex items-center gap-2 text-[12.5px] font-semibold clar-text-muted no-underline rounded-lg py-1 pr-2" do %>
+      <span class="w-6 h-6 rounded-[7px] border border-[color:var(--border)] bg-[var(--surface)] flex items-center justify-center clar-text-text"><%= designs_icon(:back, 14) %></span>Threads
+    <% end %>
+    <div class="flex items-center gap-2.5">
+      <%= render "menus_switch" %>
+      <button type="button" class="clar-btn !p-0 w-7 h-7 justify-center" title="Show menu" data-action="designs-immersive#peekNav"><%= designs_icon(:panel, 15) %></button>
+    </div>
+  </div>
+  <div class="text-[15px] font-bold tracking-[-.2px] clar-text-text leading-[1.35]"><%= thread.title %></div>
+  <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
+    <% if thread.branch %>
+      <span class="inline-flex items-center gap-1 clar-mono text-[11px] clar-text-ai bg-[var(--ai-soft)] px-1.5 py-0.5 rounded-md max-w-full truncate"><%= designs_icon(:branch, 11) %><%= thread.branch %></span>
+    <% end %>
+    <% if merged %>
+      <span class="clar-badge-success inline-flex items-center gap-1"><%= designs_icon(:merge, 11) %>Merged · <%= thread.merged_sha.to_s.first(7) %></span>
+    <% elsif thread.fresh? %>
+      <span class="text-[11.5px] clar-text-faint">No changes yet</span>
+    <% else %>
+      <% ahead = @repo.commits_ahead(thread.branch) rescue 0 %>
+      <span class="text-[11.5px] clar-text-faint"><%= ahead %> commits ahead<%= " · #{@behind.size} merge#{'s' unless @behind.size == 1} behind master" if @behind.any? %></span>
+    <% end %>
+  </div>
+  <div class="flex gap-1.5 flex-wrap mt-2.5">
+    <% if thread.task %>
+      <%= link_to workshop_idea_path(thread.task), class: "clar-btn !py-1.5 !px-2.5 !text-[12px] no-underline", title: "Open task" do %>
+        <%= designs_icon(:task, 13) %><span class="clar-mono text-[11px] clar-text-primary"><%= key %></span><span class="clar-text-faint font-medium">· <%= { "new" => "New", "briefing" => "Briefing", "details" => "Details", "ready" => "Ready" }[thread.task.workshop_stage] %></span>
+      <% end %>
+    <% elsif !merged && !thread.fresh? %>
+      <button type="button" class="clar-btn !py-1.5 !px-2.5 !text-[12px] clar-text-ai" data-action="clar-modal#open" data-clar-modal-id-param="generate-task">
+        <%= designs_icon(:ai, 13) %>Generate task
+      </button>
+    <% end %>
+  </div>
+  <% unless merged %>
+    <div class="text-[11.5px] clar-text-faint mt-2 leading-[1.45]">
+      <% if thread.task && jira_done %>
+        Merges automatically when <%= key %> moves to Done.
+      <% elsif thread.task %>
+        This thread merges when you merge it.
+      <% else %>
+        Generate a task when the scope is clear. It starts in Details Gathering.
+      <% end %>
+    </div>
+  <% end %>
+</div>
+
+<% if @description_change && !merged %>
+  <div class="mx-3 mt-3 px-3 py-2.5 rounded-[10px] bg-[var(--warn-soft)] border border-[color:var(--border)] flex items-center gap-2.5 flex-wrap">
+    <div class="flex-1 min-w-[150px] text-[12.5px] clar-text-text leading-[1.45]"><b class="clar-text-warn"><%= key %> changed</b> since the last design update (<%= @description_change[:from] %> → <%= @description_change[:to] %>).</div>
+    <%= button_to "Update designs", update_description_workshop_design_thread_path(thread), class: "clar-btn clar-btn-primary !py-1.5 !px-2.5 !text-[12px]", form: { class: "contents" } %>
+  </div>
+<% end %>
+
+<% if @behind.any? && !merged %>
+  <div class="mx-3 mt-3 px-3 py-2.5 rounded-[10px] bg-[var(--warn-soft)] border border-[color:var(--border)]">
+    <div class="flex items-center gap-2.5 flex-wrap">
+      <div class="flex-1 min-w-[150px] text-[12.5px] clar-text-text leading-[1.45]"><b class="clar-text-warn">master changed</b> since this thread branched (<%= thread.base_sha.to_s.first(7) %> → <%= @behind.first.short_sha %>).</div>
+      <%= button_to "Update from master", update_master_workshop_design_thread_path(thread), class: "clar-btn clar-btn-primary !py-1.5 !px-2.5 !text-[12px]", form: { class: "contents" } %>
+    </div>
+    <div class="flex flex-col gap-1.5 mt-2">
+      <% @behind.first(3).each do |merge| %>
+        <%= link_to workshop_designs_overview_path(tab: "history", merge: merge.id), class: "flex items-start gap-2 no-underline bg-[var(--surface)] border border-[color:var(--border)] rounded-lg px-2 py-1.5" do %>
+          <span class="clar-mono text-[10.5px] font-semibold clar-text-success bg-[var(--success-soft)] px-1.5 rounded-[5px] flex-none"><%= merge.short_sha %></span>
+          <span class="min-w-0"><span class="block text-[12px] font-semibold clar-text-text"><%= merge.title %></span><span class="block text-[11.5px] clar-text-muted leading-[1.45] mt-0.5"><%= Array(merge.what_changed).join(" · ") %></span></span>
+        <% end %>
+      <% end %>
+      <% if @behind.size > 3 %>
+        <div class="text-[11.5px] clar-text-faint pl-1">and <%= @behind.size - 3 %> more</div>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+
+<%= render "messages", thread: thread %>
+
+<div class="p-3 border-t border-[color:var(--border)]">
+  <% if merged %>
+    <div class="text-[12.5px] clar-text-muted leading-[1.5] py-1 px-0.5">Merged into master as <span class="clar-mono"><%= thread.merged_sha.to_s.first(7) %></span>. Start a new thread for further changes.</div>
+  <% else %>
+    <%= form_with url: message_workshop_design_thread_path(thread), method: :post, class: "border border-[color:var(--border)] rounded-xl bg-[var(--bg)] pt-2 pr-2 pb-2 pl-3" do |f| %>
+      <%= hidden_field_tag :ctx, @context, data: { designs_canvas_target: "context" } %>
+      <%= hidden_field_tag :screen, @screen, data: { designs_canvas_target: "screen" } %>
+      <textarea name="text" rows="2" required class="w-full resize-none border-0 outline-none bg-transparent text-[13px] leading-[1.5] clar-text-text"
+                placeholder="<%= thread.fresh? ? 'What should change? Navigate the app on the right, AI sees the page you’re on.' : 'Describe a change…' %>"
+                data-controller="designs-composer" data-action="keydown->designs-composer#key"></textarea>
+      <div class="flex items-center gap-2">
+        <span class="text-[11px] clar-text-faint flex-1 min-w-0 truncate" data-designs-canvas-target="sees"><%= @current ? "AI sees #{designs_context_name(@contexts, @context)} › #{@current[:name]}" : "AI sees nothing yet" %></span>
+        <button type="button" class="clar-btn !p-0 w-[30px] h-[30px] justify-center" title="Attach inspiration"
+                data-action="designs-canvas#toast" data-designs-canvas-message-param="Add screenshots or links · saved to inspirations/"><%= designs_icon(:attach, 14) %></button>
+        <button type="submit" class="clar-btn clar-btn-primary !p-0 w-[30px] h-[30px] justify-center" title="Send"><%= designs_icon(:send, 14) %></button>
+      </div>
+    <% end %>
+  <% end %>
+</div>
