@@ -20,7 +20,7 @@
     which is the price of deleting a project never becoming a question about
     another project's keys. Only a project that holds the key in its own column
     is offered (ProjectCreator.reusable?), so the copy is never of blanks. %>
-<% lenders = %w[jira github ai figma].index_with { |key| sources.select { |source| ProjectCreator.reusable?(source, key) } } %>
+<% lenders = %w[jira github figma].index_with { |key| sources.select { |source| ProjectCreator.reusable?(source, key) } } %>
 
 <%# open: shown on arrival, for a page with nothing to do until a project exists. %>
 <div class="<%= "hidden " unless local_assigns[:open] %>clar-modal-overlay" data-clar-modal-target="panel"
@@ -93,18 +93,8 @@
         </div>
       <% end %>
 
-      <%= render layout: "layouts/clar_new_project_integration",
-                 locals: { key: "ai", title: "Claude", lenders: lenders["ai"],
-                           purpose: "The organization's own Anthropic key: the AI work is billed to it." } do %>
-        <div class="sm:col-span-2">
-          <label class="clar-field-label" for="new_project_anthropic_api_key">ANTHROPIC API KEY</label>
-          <%= password_field_tag "project[anthropic_api_key]", nil, id: "new_project_anthropic_api_key", placeholder: "sk-ant-…",
-                class: "clar-input clar-mono !py-2.5 text-[13px]", autocomplete: "new-password" %>
-          <div class="text-[11px] clar-text-faint mt-1">
-            Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" class="clar-text-primary">console.anthropic.com</a>.
-          </div>
-        </div>
-      <% end %>
+      <%# No Claude key here, deliberately: for now the AI runs on Flosis's own
+          key (2026-11-02), so organizations are not asked for theirs. %>
 
       <div class="flex items-center justify-between gap-3 text-[12px] clar-text-muted mb-4 px-0.5">
         <span>Discord and Figma are connected afterwards, in Configuration &rsaquo; Integrations.</span>

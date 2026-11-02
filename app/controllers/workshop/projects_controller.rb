@@ -9,7 +9,7 @@ class Workshop::ProjectsController < Workshop::BaseController
     project = ProjectCreator.new(
       workspace: current_workspace,
       attributes: params.require(:project).permit(:name, :team, :external_reference, :jira_site, :jira_email,
-                                                  :jira_api_token, :github_repo, :github_token, :anthropic_api_key)
+                                                  :jira_api_token, :github_repo, :github_token)
                         .to_h.compact_blank,
       reuse_from: reuse_from,
       member_ids: params[:user_ids],

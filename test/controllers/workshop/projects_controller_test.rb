@@ -31,8 +31,7 @@ class Workshop::ProjectsControllerTest < ActionDispatch::IntegrationTest
       name: "Partner Portal",
       jira_site: "https://acme.atlassian.net/jira/software/projects/PP/boards/1", jira_email: "jane@acme.com",
       jira_api_token: "jira-secret", external_reference: "PP",
-      github_repo: "https://github.com/acme/partner-portal.git", github_token: "ghp_secret",
-      anthropic_api_key: "sk-ant-secret"
+      github_repo: "https://github.com/acme/partner-portal.git", github_token: "ghp_secret"
     } }
 
     project = workspaces(:one).projects.find_by!(name: "Partner Portal")
@@ -42,7 +41,15 @@ class Workshop::ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "jira", project.external_type, "a site and a key make it a Jira project"
     assert_equal "acme/partner-portal", project.github_repo
     assert_equal "ghp_secret", project.github_token
-    assert_equal "sk-ant-secret", project.anthropic_api_key
+  end
+
+  # For now the AI runs on Flosis's own key, so the dialog asks for none.
+  test "the dialog does not ask for a Claude key" do
+    sign_in_as(users(:one))
+    get workshop_pipeline_path
+
+    assert_select "[name='project[anthropic_api_key]']", 0
+    assert_select "[name='reuse_from[ai]']", 0
   end
 
   test "a project created with no integrations is the one the page then edits" do
