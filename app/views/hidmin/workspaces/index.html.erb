@@ -13,7 +13,7 @@
     <span class="flex-1">NAME</span>
     <span class="w-24 text-right">PEOPLE</span>
     <span class="w-24 text-right">PROJECTS</span>
-    <span class="w-44 pl-6">PRODUCTS</span>
+    <span class="w-64 pl-6">PRODUCTS</span>
     <span class="w-28 text-right">CREATED</span>
   </div>
   <div class="divide-y divide-[color:var(--border)]">
@@ -22,8 +22,9 @@
         <span class="flex-1 min-w-0 font-semibold text-[13.5px] clar-text-text truncate"><%= workspace.name %></span>
         <span class="w-24 text-right clar-text-muted"><%= @member_counts.fetch(workspace.id, 0) %></span>
         <span class="w-24 text-right clar-text-muted"><%= @project_counts.fetch(workspace.id, 0) %></span>
-        <span class="w-44 pl-6 flex gap-1.5">
+        <span class="w-64 pl-6 flex gap-1.5">
           <% if workspace.workshop_enabled? %><span class="clar-badge clar-badge-ai">Workshop</span><% end %>
+          <% if workspace.hr_access? %><span class="clar-badge clar-badge-primary">Time &amp; HR</span><% end %>
           <% if workspace.clients_enabled? %><span class="clar-badge clar-badge-muted">Clients</span><% end %>
         </span>
         <span class="w-28 text-right clar-text-faint"><%= l(workspace.created_at.to_date, format: :long) %></span>

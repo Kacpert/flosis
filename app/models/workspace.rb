@@ -1,3 +1,6 @@
+# An organization. Which products it has is Flosis's call, made in /hidmin:
+# hr_access (Time & HR, off for new organizations), workshop_enabled and
+# clients_enabled.
 class Workspace < ApplicationRecord
   has_many :workspace_memberships, dependent: :destroy
   has_many :users, through: :workspace_memberships

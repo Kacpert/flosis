@@ -51,7 +51,11 @@ class User < ApplicationRecord
   # account exists in both places, rather than when two checkboxes on one form
   # happen to agree.
 
+  # Both the organization and the person must have it: an organization without
+  # Time & HR (workspaces.hr_access, set by Flosis staff) shows it to nobody.
   def can_access_time_hr?(workspace)
+    return false unless workspace&.hr_access?
+
     membership_for(workspace)&.time_hr_access || false
   end
 

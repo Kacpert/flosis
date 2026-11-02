@@ -32,6 +32,14 @@ class UserTest < ActiveSupport::TestCase
     assert_equal [ :workshop ], user.accessible_products(ws)
   end
 
+  test "an organization without Time & HR shows it to nobody, its admins included" do
+    workspaces(:one).update!(hr_access: false)
+
+    assert workspace_memberships(:one_owner).time_hr_access, "arrangement: the admin holds Time & HR as a person"
+    refute users(:one).can_access_time_hr?(workspaces(:one))
+    refute_includes users(:one).accessible_products(workspaces(:one)), :time_hr
+  end
+
   test "workspace_client granted Time & HR gains the product" do
     ws = workspaces(:one)
     user = workspace_client_user(ws, time_hr_access: true)

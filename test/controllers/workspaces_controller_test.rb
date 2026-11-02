@@ -17,6 +17,17 @@ class WorkspacesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Your account is managed by an administrator.", flash[:alert]
   end
 
+  # Time & HR held in an organization that doesn't have it is no HR access.
+  test "HR access in an organization without Time & HR does not lift the restriction" do
+    workspace_memberships(:client_membership).update!(time_hr_access: true)
+    workspaces(:one).update!(hr_access: false)
+    sign_in_as(users(:client_user))
+
+    get new_workspace_path
+
+    assert_redirected_to jira_tasks_path
+  end
+
   test "a restricted account switches between the workspaces it belongs to" do
     WorkspaceMembership.create!(user: users(:client_user), workspace: workspaces(:two), time_hr_access: false)
     sign_in_as(users(:client_user))

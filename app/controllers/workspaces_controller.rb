@@ -41,7 +41,7 @@ class WorkspacesController < ApplicationController
     memberships = current_user&.workspace_memberships
     return if memberships.blank?
     return if memberships.where(workspace_admin: true).exists?
-    return if memberships.where(time_hr_access: true).exists?
+    return if memberships.joins(:workspace).where(time_hr_access: true, workspaces: { hr_access: true }).exists?
 
     redirect_to jira_tasks_path, alert: "Your account is managed by an administrator."
   end

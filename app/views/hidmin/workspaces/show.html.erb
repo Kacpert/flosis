@@ -30,7 +30,7 @@
           </span>
           <span class="w-40 flex gap-1.5">
             <% if membership.workspace_admin? %><span class="clar-badge clar-badge-primary">Admin</span><% end %>
-            <% if membership.time_hr_access? %><span class="clar-badge clar-badge-muted">Time &amp; HR</span><% end %>
+            <% if @workspace.hr_access? && membership.time_hr_access? %><span class="clar-badge clar-badge-muted">Time &amp; HR</span><% end %>
           </span>
           <span class="w-36 whitespace-nowrap clar-text-muted">
             <%= sign_ins[user.id] ? "#{time_ago_in_words(sign_ins[user.id])} ago" : "never" %>
@@ -67,9 +67,11 @@
       <label class="flex items-center gap-1.5 text-[13px] clar-text-text pb-2.5 cursor-pointer">
         <%= check_box_tag :workspace_admin, "1", false, id: "member_workspace_admin" %> Admin
       </label>
-      <label class="flex items-center gap-1.5 text-[13px] clar-text-text pb-2.5 cursor-pointer">
-        <%= check_box_tag :time_hr_access, "1", false, id: "member_time_hr_access" %> Time &amp; HR
-      </label>
+      <% if @workspace.hr_access? %>
+        <label class="flex items-center gap-1.5 text-[13px] clar-text-text pb-2.5 cursor-pointer">
+          <%= check_box_tag :time_hr_access, "1", false, id: "member_time_hr_access" %> Time &amp; HR
+        </label>
+      <% end %>
       <%= submit_tag "Add person", class: "clar-btn clar-btn-primary !py-2" %>
     <% end %>
   </div>

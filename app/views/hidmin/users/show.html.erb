@@ -22,7 +22,7 @@
         <%= link_to hidmin_workspace_path(membership.workspace), class: "flex items-center gap-2 px-4 py-3 no-underline text-[13px]" do %>
           <span class="flex-1 min-w-0 font-semibold clar-text-text truncate"><%= membership.workspace.name %></span>
           <% if membership.workspace_admin? %><span class="clar-badge clar-badge-primary">Admin</span><% end %>
-          <% if membership.time_hr_access? %><span class="clar-badge clar-badge-muted">Time &amp; HR</span><% end %>
+          <% if membership.workspace.hr_access? && membership.time_hr_access? %><span class="clar-badge clar-badge-muted">Time &amp; HR</span><% end %>
         <% end %>
       <% end %>
       <% if memberships.empty? %>
