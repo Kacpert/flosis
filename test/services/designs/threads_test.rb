@@ -214,4 +214,17 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     end
   end
 
+
+  test "how far behind a thread is never waits on the repo's lock" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      holder = Thread.new { Designs::Repo.new(repo.project).synchronize { sleep 3 } }
+      sleep 0.3
+      assert_equal [], Timeout.timeout(1.5) { Designs::Threads.behind(thread) }
+    ensure
+      holder&.join
+    end
+  end
+
 end

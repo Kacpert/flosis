@@ -1,6 +1,7 @@
 require "test_helper"
 
 class Designs::SubjectTest < ActiveSupport::TestCase
+  include DesignRepoTestHelper
   setup do
     @project = projects(:jira_project)
     @setup = DesignSetup.create!(project: @project, started_by: users(:one))
@@ -106,6 +107,29 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     assert_equal "abc1234", subject.base_branch_for_new_worktree
     assert_equal "abc1234", subject.publish_base
     assert_equal "fix-the-header", subject.slug
+  end
+
+
+  test "after master is brought in, the base moves and the chips name only what differs from master too" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        base = seed_master(repo, { "designs/admin/a.html" => "<title>A</title>a" })
+        project = repo.project
+        session = ChatSession.create!(project: project, workspace: project.workspace, user: users(:one), purpose: "designs_thread",
+                                      claude_session_id: SecureRandom.uuid, codebase_path: "/tmp")
+        thread = DesignThread.create!(project: project, author: users(:one), title: "x", branch: "design/x", base_sha: base, chat_session: session)
+        worktree = repo.worktree!("design/x", from: base)
+        own = commit_files(repo, worktree, { "designs/admin/mine.html" => "<title>Mine</title>m" })
+        commit_files(repo, repo.root, { "designs/admin/theirs.html" => "<title>Theirs</title>t" })
+        repo.push!("master")
+        repo.merge_master_into!(worktree)
+        subject = Designs::Subject.for(session.reload)
+
+        subject.refresh_base(repo)
+        assert_equal repo.head("master"), thread.reload.base_sha
+        assert_equal [], subject.chips(repo, own, repo.head("design/x"))
+      end
+    end
   end
 
 end

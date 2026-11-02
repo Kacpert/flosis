@@ -78,7 +78,8 @@ module Designs::Threads
   def behind(thread)
     return [] if thread.base_sha.blank? || thread.merged?
 
-    shas = Designs::Repo.new(thread.project).master_commits_since(thread.base_sha)
+    # A page reads this for every thread it lists: it never waits on a job.
+    shas = Designs::Repo.new(thread.project).master_commits_since(thread.base_sha, lock: false)
     shas.empty? ? [] : thread.project.design_merges.where(sha: shas).newest_first.to_a
   rescue GitRunner::Error
     []

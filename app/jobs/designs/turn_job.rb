@@ -338,6 +338,7 @@ class Designs::TurnJob < ApplicationJob
     end
     begin
       if repo.commits_ahead(wip).positive?
+        subject.refresh_base(repo)
         Designs::Publisher.new(subject.project, repo).publish!(wip, subject.preview_slot, base: subject.publish_base)
       end
     rescue StandardError => e

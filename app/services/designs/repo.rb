@@ -201,8 +201,8 @@ class Designs::Repo
 
   # master's commits after sha, newest first, along master's own line: a
   # thread based on sha is behind each of them.
-  def master_commits_since(sha)
-    synchronize { git("rev-list", "--first-parent", "#{sha}..refs/heads/#{MASTER}").split("\n") }
+  def master_commits_since(sha, lock: true)
+    reading(lock) { git("rev-list", "--first-parent", "#{sha}..refs/heads/#{MASTER}").split("\n") }
   end
 
   # A task's worktree, made on first use after a fetch: from its working

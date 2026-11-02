@@ -60,23 +60,32 @@ module Designs::Subject
     def prepare! = nil
     def crawling? = false
 
-    # After a turn, the thread is based on the master commit its branch last
-    # took in: a turn that resolved a merge with master moves it.
-    def after_turn(repo)
+    # The thread is based on the master commit its branch last took in: a turn
+    # that resolved a merge with master moves it. Read before the branch is
+    # published, so Changes is drawn against the new base.
+    def refresh_base(repo)
       base = repo.merge_base(wip_branch, Designs::Repo::MASTER)
       @thread.update!(base_sha: base) if base && base != @thread.base_sha
+    end
+
+    def after_turn(repo)
+      refresh_base(repo)
       Designs::SyncJiraLinksJob.perform_later(@thread.task_id) if @thread.task&.external_reference.present?
     end
 
     # The screens the turn changed, from the commit it started on to the one
-    # it made, as chips: [screen, context, "M" | "+"]. The first becomes where
-    # the thread opens.
+    # it made, as chips: [screen, context, "M" | "+"]. A screen counts only if
+    # it also differs from the thread's base, so what master brought in is not
+    # put down to the turn. The first becomes where the thread opens.
     def chips(repo, from, to)
       return [] unless to
 
       before = from ? screens_at(repo, from) : Designs::Screens.new(paths: [], reader: ->(_path) { nil })
-      chips = Designs::Changes.new(base: before, head: screens_at(repo, to)).changed.map do |change|
-        [ change[:screen], change[:context], change[:kind] == "new" ? "+" : "M" ]
+      head = screens_at(repo, to)
+      own = Designs::Changes.new(base: screens_at(repo, @thread.base_sha.presence || Designs::Repo::MASTER), head: head)
+                            .changed.map { |change| [ change[:context], change[:screen] ] }
+      chips = Designs::Changes.new(base: before, head: head).changed.filter_map do |change|
+        [ change[:screen], change[:context], change[:kind] == "new" ? "+" : "M" ] if own.include?([ change[:context], change[:screen] ])
       end
       @thread.update!(focus_screen: chips.first[0], focus_context: chips.first[1]) if chips.any?
       chips
@@ -127,6 +136,7 @@ module Designs::Subject
     def crawling? = false
     def publish_base = nil
     def chips(*) = []
+    def refresh_base(_repo) = nil
     def after_turn(_repo) = nil
   end
 
@@ -198,6 +208,7 @@ module Designs::Subject
     def crawling? = setup.crawling?
     def publish_base = nil
     def chips(*) = []
+    def refresh_base(_repo) = nil
     def after_turn(_repo) = nil
 
     # The materials are copied out of Active Storage before each turn, afresh
