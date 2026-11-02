@@ -28,6 +28,15 @@ class InvitationMailerTest < ActionMailer::TestCase
     end
   end
 
+  test "a workspace named Flosis is not Flosis on Flosis" do
+    @workspace.update!(name: "Flosis")
+    { InvitationMailer.welcome(@user, @workspace) => "You've been invited to Flosis",
+      InvitationMailer.added_to_workspace(@user, @workspace) => "You've been added to Flosis" }.each do |mail, subject|
+      assert_equal subject, mail.subject
+      [ mail.html_part.body.to_s, mail.text_part.body.to_s ].each { |body| assert_not_includes body, "Flosis on Flosis" }
+    end
+  end
+
   test "every mail is signed by Flosis" do
     body = InvitationMailer.welcome(@user, @workspace).html_part.body.to_s
     assert_includes body, "Sent by Flosis"

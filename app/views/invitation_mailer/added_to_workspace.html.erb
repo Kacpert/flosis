@@ -1,5 +1,5 @@
 <p>Hi <%= @user.name %>,</p>
 
-<p>You've been added to <strong><%= @workspace.name %></strong> on Flosis.</p>
+<p>You've been added to <strong><%= @workspace.name %></strong><%= " on Flosis" if @on_flosis %>.</p>
 
 <p>Sign in with your existing account at <%= link_to "app.flosis.com", root_url %> to get started.</p>
