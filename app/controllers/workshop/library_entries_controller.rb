@@ -6,6 +6,7 @@
 # library is one for all of Flosis; the Workshop shell only lends it a layout.
 class Workshop::LibraryEntriesController < Workshop::BaseController
   include FlosisStaffOnly
+  skip_before_action :require_current_project! # one library for all of Flosis
   before_action :set_entry, only: %i[show edit update restore]
 
   HEADINGS = { "base_prompt" => "Base prompt", "skill" => "Skills", "style_pack" => "Style packs" }.freeze

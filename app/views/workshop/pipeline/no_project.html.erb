@@ -1,12 +1,20 @@
 <% content_for :title, "Create Tasks · Flosis" %>
+<%# An administrator here has nothing to work in yet, so the New project
+    dialog in the topbar opens on arrival. %>
+<% content_for :open_new_project, "1" if workspace_admin? %>
 
 <div class="flex items-center justify-center min-h-[60vh]">
   <div class="clar-card text-center p-8 max-w-md">
-    <p class="clar-text-muted text-[14px] leading-relaxed">
-      No Jira project connected. Connect a project in Projects (Time &amp; HR) to use the Workshop.
-    </p>
-    <% if can?(:configuration) %>
-      <%= link_to "Go to Projects", projects_path, class: "clar-btn clar-btn-primary clar-btn-block mt-4 no-underline" %>
+    <% if workspace_admin? %>
+      <h2 class="text-[17px] font-bold clar-text-text">Create the first project</h2>
+      <p class="clar-text-muted text-[14px] leading-relaxed mt-2">
+        <%= current_workspace.name %> has no project yet. Everything in the Workshop — tasks, automations,
+        reporting — happens in one. You can also start one from the project switcher above.
+      </p>
+    <% else %>
+      <p class="clar-text-muted text-[14px] leading-relaxed">
+        You are not on any project in <%= current_workspace.name %> yet. Its administrator adds people to projects.
+      </p>
     <% end %>
   </div>
 </div>

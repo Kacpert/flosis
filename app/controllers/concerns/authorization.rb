@@ -29,9 +29,12 @@ module Authorization
     current_user&.workspace_admin?(current_workspace) || false
   end
 
-  # Access to the Workshop project currently being viewed.
+  # Access to the Workshop project currently being viewed. The admin privilege
+  # is handed in from the workspace: with no project yet, ProjectAccess cannot
+  # find one to ask, and a new organization's administrator was locked out of
+  # the Workshop, where the first project is created.
   def current_project_access
-    @current_project_access ||= ProjectAccess.new(current_user, current_workshop_project)
+    @current_project_access ||= ProjectAccess.new(current_user, current_workshop_project, workspace_admin: workspace_admin?)
   end
 
   def can?(permission)

@@ -21,7 +21,8 @@
                     [ "figma", "Figma", "Read token" ],
                     [ "ai", "AI provider", "Claude API key" ] ] %>
 
-<div class="hidden clar-modal-overlay" data-clar-modal-target="panel"
+<%# open: shown on arrival, for a page with nothing to do until a project exists. %>
+<div class="<%= "hidden " unless local_assigns[:open] %>clar-modal-overlay" data-clar-modal-target="panel"
      data-clar-modal-panel-id-value="new-project" data-action="click->clar-modal#close">
   <div class="clar-modal p-5.5 max-w-[620px] max-h-[calc(100vh-48px)] overflow-y-auto"
        data-action="click->clar-modal#stopPropagation">

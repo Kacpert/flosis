@@ -1,0 +1,18 @@
+<%# The profile is where someone with nothing to open lands, a new member not
+    yet on any project among them. Whoever is in other organizations switches
+    back from here rather than being stranded. %>
+<% others = current_user.workspaces.where.not(id: current_workspace.id).order(:name).to_a %>
+<% if others.any? %>
+  <div class="m3-card-elevated p-6">
+    <h2 class="text-lg font-semibold mb-1" style="color: var(--color-on-surface)">Organizations</h2>
+    <p class="text-sm mb-4" style="color: var(--color-on-surface-variant)">
+      You are in <strong><%= current_workspace.name %></strong>. Switch to another of yours:
+    </p>
+    <div class="flex flex-wrap gap-2">
+      <% others.each do |workspace| %>
+        <%= button_to "Switch to #{workspace.name}", switch_workspace_path(workspace), method: :post,
+              class: "m3-btn m3-btn-outlined" %>
+      <% end %>
+    </div>
+  </div>
+<% end %>
