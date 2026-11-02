@@ -976,6 +976,38 @@ class Designs::TurnJobTest < ActiveJob::TestCase
   end
 
   # Plan 5: a project's setup run, on its own session.
+  def thread_turn(repo, base, request = "Add a counter under long answers")
+    project = repo.project
+    session = ChatSession.create!(project: project, workspace: project.workspace, user: users(:one), purpose: "designs_thread",
+                                  claude_session_id: SecureRandom.uuid, codebase_path: "/tmp")
+    DesignThread.create!(project: project, author: users(:one), title: request, branch: "design/add-a-counter-under",
+                         base_sha: base, chat_session: session)
+    msg = session.chat_messages.create!(role: "user", content: request, user: users(:one))
+    DesignTurn.create!(chat_session: session, chat_message: msg)
+  end
+
+  test "a thread's turn commits on its branch, publishes it with its changes and names the screens it changed" do
+    with_design_remote do |repo, remote|
+      page = ->(body) { "<html><head><title>Application form</title></head><body><h1>Apply</h1>#{body}</body></html>" }
+      base = seed_master(repo, { "designs/candidate/apply.html" => page.call("") })
+      repo.project.update!(anthropic_api_key: "sk-ant")
+      fake_claude(files: { "designs/candidate/apply.html" => page.call("<p>121 / 500</p>"),
+                           "designs/candidate/status.html" => "<html><head><title>Status</title></head><body>s</body></html>" },
+                  reply: "<summary>Added a character counter.</summary>")
+      turn = run_turn(thread_turn(repo, base), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_equal turn.commit_sha, remote_branch_sha(remote, "design/add-a-counter-under")
+      slot = Pathname(@preview_root).join(repo.project.reload.design_preview_token, "design", "add-a-counter-under")
+      assert slot.join("designs/candidate/apply.html").exist?
+      assert_equal "new", Nokogiri::HTML5(slot.join("designs/candidate/apply.changes.html").read).at("p")["data-flosis-change"]
+      reply = assistant_messages(turn).find_by(kind: "summary")
+      assert_equal [ [ "apply", "candidate", "M" ], [ "status", "candidate", "+" ] ], reply.data["chips"]
+      thread = DesignThread.find_by!(branch: "design/add-a-counter-under")
+      assert_equal [ "candidate", "apply" ], [ thread.focus_context, thread.focus_screen ]
+    end
+  end
+
   def setup_turn(project, request = "Recreate the design system")
     DesignSetup.find_or_create_by!(project: project, status: "active") { |setup| setup.started_by = users(:one) }
     session = ChatSession.create!(project: project, workspace: project.workspace, user: users(:one), purpose: "designs_setup",

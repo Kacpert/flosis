@@ -92,4 +92,19 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     assert_not ChatSession.new(purpose: "designs", task: tasks(:jira_task), project: @project, workspace: @project.workspace,
                                user: users(:one), claude_session_id: "x", codebase_path: "/tmp").valid?
   end
+
+  test "a thread's turn works on the thread's branch, from its base, and publishes its changes against it" do
+    project = projects(:jira_project)
+    session = ChatSession.create!(project: project, workspace: project.workspace, user: users(:one), purpose: "designs_thread",
+                                  claude_session_id: SecureRandom.uuid, codebase_path: "/tmp")
+    DesignThread.create!(project: project, author: users(:one), title: "x", branch: "design/fix-the-header", base_sha: "abc1234", chat_session: session)
+    subject = Designs::Subject.for(session.reload)
+
+    assert_equal "design/fix-the-header", subject.wip_branch
+    assert_equal "design/fix-the-header", subject.preview_slot
+    assert_equal "abc1234", subject.base_branch_for_new_worktree
+    assert_equal "abc1234", subject.publish_base
+    assert_equal "fix-the-header", subject.slug
+  end
+
 end

@@ -147,6 +147,23 @@ module Designs::Prompt
     "#{composition.text}\n\n# The project\n\nName: #{project.name}\n\n#{context}\n"
   end
 
+  # The user's message of a design thread's turn (Workshop Designs v2): the
+  # thread, the screen the person has open, the task and its current
+  # description when the thread has one, then the request, last.
+  def thread_message(thread:, request:)
+    sections = [ "## Thread\n#{thread.title}\nBranch: #{thread.branch}" ]
+    if thread.focus_context.present? && thread.focus_screen.present?
+      sections << "## The person is looking at\n#{thread.focus_context.humanize} › #{thread.focus_screen.humanize} " \
+                  "(designs/#{thread.focus_context}/#{thread.focus_screen}.html)"
+    end
+    if (task = thread.task)
+      sections << "## Task\n#{Designs::ThreadNames.key(task)} — #{task.name}"
+      sections << "## Current description\n#{Designs::CurrentDescription.for(task)&.strip || "(none yet)"}"
+    end
+    sections << "## Request\n#{request.to_s.strip}"
+    "#{sections.join("\n\n")}\n"
+  end
+
   # The user's message of a turn. The request comes last, so that a long
   # description cannot bury it.
   def turn_message(task:, request:)

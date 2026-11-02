@@ -37,6 +37,8 @@ class Designs::TurnJob < ApplicationJob
 
   # A setup run's turns hold the project's setup, apart from its tasks.
   def self.concurrency_key_for_session(session)
+    return "designs-thread-#{session.design_thread&.id || session.id}" if session.purpose == "designs_thread"
+
     session.task_id ? concurrency_key_for(session.task_id) : "designs-setup-#{session.project_id}"
   end
 
@@ -159,7 +161,7 @@ class Designs::TurnJob < ApplicationJob
 
     check_resolved!(worktree) if @conflicts
     sha, notes = save(turn, repo, subject, worktree, output.summary)
-    finish(turn, output, sha, notes)
+    finish(turn, output, sha, notes, subject.chips(repo, start, sha))
   rescue StandardError => e
     fail_turn(turn, e, repo, worktree)
   end
@@ -214,9 +216,9 @@ class Designs::TurnJob < ApplicationJob
     finish(turn, output, (head unless head == start), notes)
   end
 
-  def finish(turn, output, sha, notes)
+  def finish(turn, output, sha, notes, chips = [])
     DesignTurn.transaction do
-      post_reply(turn.chat_session, output, notes)
+      post_reply(turn.chat_session, output, notes, chips)
       turn.succeed!(commit_sha: sha)
     end
   end
@@ -334,7 +336,7 @@ class Designs::TurnJob < ApplicationJob
     end
     begin
       if repo.commits_ahead(wip).positive?
-        Designs::Publisher.new(subject.project, repo).publish!(wip, subject.preview_slot)
+        Designs::Publisher.new(subject.project, repo).publish!(wip, subject.preview_slot, base: subject.publish_base)
       end
     rescue StandardError => e
       log(turn, e, "the preview shows the last turn it took")
@@ -352,12 +354,16 @@ class Designs::TurnJob < ApplicationJob
   # The reply as the chat shows it: the summary, then each context Claude
   # added and each question it left open, a message apiece, then Flosis's
   # notes on what did not go out, cut to fit as an error is.
-  def post_reply(session, output, notes)
+  # A design thread's summary carries the screens the turn changed, as chips.
+  def post_reply(session, output, notes, chips = [])
     replies = [ [ "summary", output.summary ] ] +
               output.contexts.map { |text| [ "context", text ] } +
               output.missing.map { |text| [ "missing", text ] } +
               notes.map { |note| [ "system", note.truncate(DesignTurn::ERROR_LIMIT) ] }
-    replies.each { |kind, text| session.chat_messages.create!(role: "assistant", kind: kind, content: text) }
+    replies.each do |kind, text|
+      data = { "chips" => chips } if kind == "summary" && chips.any?
+      session.chat_messages.create!(role: "assistant", kind: kind, content: text, data: data)
+    end
   end
 
   # The worktree goes back to its branch's last commit, the turn keeps the

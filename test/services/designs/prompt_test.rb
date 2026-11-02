@@ -132,4 +132,24 @@ class Designs::PromptTest < ActiveSupport::TestCase
     assert_includes message, "## Current description\n(none yet)\n"
     assert_includes message, "## Manifest path\ndesigns/tasks/task-#{task.id}.json\n"
   end
+
+  test "a thread's turn says where the person is looking, the task and its description, and the request last" do
+    task = tasks(:jira_task)
+    task.update!(external_reference: "SP-1051", description: "Validate on blur")
+    thread = DesignThread.new(project: task.project, task: task, title: "Inline validation", branch: "design/SP-1051-inline-validation",
+                              focus_context: "candidate", focus_screen: "apply")
+    message = Designs::Prompt.thread_message(thread: thread, request: "Errors under the field")
+
+    assert_equal [ "## Thread", "## The person is looking at", "## Task", "## Current description", "## Request" ], message.scan(/^## .+$/)
+    assert_includes message, "design/SP-1051-inline-validation"
+    assert_includes message, "designs/candidate/apply.html"
+    assert_includes message, "Validate on blur"
+    assert message.rstrip.end_with?("Errors under the field")
+  end
+
+  test "a thread with no task and no screen in view says only what it is and what is asked" do
+    thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x")
+    assert_equal [ "## Thread", "## Request" ], Designs::Prompt.thread_message(thread: thread, request: "Do it").scan(/^## .+$/)
+  end
+
 end

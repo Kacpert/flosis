@@ -10,7 +10,75 @@ module Designs::Subject
   module_function
 
   def for(chat_session)
-    chat_session.purpose == "designs_setup" ? SetupSubject.new(chat_session) : TaskSubject.new(chat_session)
+    case chat_session.purpose
+    when "designs_setup" then SetupSubject.new(chat_session)
+    when "designs_thread" then ThreadSubject.new(chat_session)
+    else TaskSubject.new(chat_session)
+    end
+  end
+
+  # Workshop Designs v2: a design thread's turn works on the thread's branch,
+  # made from the master commit the thread is based on, on the project's own
+  # key. It is published with its Changes against that base, and its reply
+  # names the screens the turn changed.
+  class ThreadSubject
+    NO_THREAD = "This conversation has no design thread.".freeze
+
+    attr_reader :thread
+
+    def initialize(session)
+      @session = session
+      @thread = session.design_thread || raise(Designs::TurnJob::Failure, NO_THREAD)
+    end
+
+    def project = @thread.project
+    def slug = @thread.branch.delete_prefix(Designs::ThreadNames::PREFIX)
+    def wip_branch = @thread.branch
+    def preview_slot = @thread.branch
+    def base_branch_for_new_worktree = @thread.base_sha.presence || Designs::Repo::MASTER
+    def publish_base = @thread.base_sha.presence
+
+    def checkout!(repo)
+      repo.synchronize do
+        repo.ensure_clone!
+        repo.worktree!(wip_branch, from: base_branch_for_new_worktree)
+      end
+    end
+
+    def composition
+      @composition ||= Designs::Library.compose(project)
+    end
+
+    def system_text = Designs::Prompt.system_text(project: project, composition: composition)
+    def forbidden_texts = composition.texts
+    def library_version_ids = composition.version_ids
+    def turn_message(request) = Designs::Prompt.thread_message(thread: @thread, request: request)
+    def api_key = ProjectCredentials.new(project).designs_api_key
+    def missing_key_message = Designs::TurnJob::NO_KEY
+    def add_dirs = []
+    def secrets = ProjectCredentials.new(project).all_secrets
+    def prepare! = nil
+    def crawling? = false
+
+    # The screens the turn changed, from the commit it started on to the one
+    # it made, as chips: [screen, context, "M" | "+"]. The first becomes where
+    # the thread opens.
+    def chips(repo, from, to)
+      return [] unless to
+
+      before = from ? screens_at(repo, from) : Designs::Screens.new(paths: [], reader: ->(_path) { nil })
+      chips = Designs::Changes.new(base: before, head: screens_at(repo, to)).changed.map do |change|
+        [ change[:screen], change[:context], change[:kind] == "new" ? "+" : "M" ]
+      end
+      @thread.update!(focus_screen: chips.first[0], focus_context: chips.first[1]) if chips.any?
+      chips
+    end
+
+    private
+
+    def screens_at(repo, ref)
+      Designs::Screens.new(paths: repo.ls_files(ref, "designs/"), reader: ->(path) { repo.read_file(ref, path) })
+    end
   end
 
   class TaskSubject
@@ -49,6 +117,8 @@ module Designs::Subject
     def secrets = ProjectCredentials.new(project).all_secrets
     def prepare! = nil
     def crawling? = false
+    def publish_base = nil
+    def chips(*) = []
   end
 
   class SetupSubject
@@ -114,6 +184,8 @@ module Designs::Subject
     end
 
     def crawling? = setup.crawling?
+    def publish_base = nil
+    def chips(*) = []
 
     # The materials are copied out of Active Storage before each turn, afresh
     # (a removed one goes), and left read-only: files 0444, folders 0555.
