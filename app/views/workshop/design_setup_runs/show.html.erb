@@ -1,34 +1,102 @@
 <% content_for :title, "Building designs · Flosis" %>
-<%# The setup's progress (Workshop Designs v2): the design's seven steps, with
-    a failed one in red and Retry, which the design does not draw. %>
-<% steps = @setup.steps %>
-<div class="max-w-[760px] mx-auto pt-2">
+<%# The setup's progress (the Designs setup, feature by feature), as the mockup
+    Kacper approved draws it: the run's steps, the notes for him, and every
+    feature of the map with where it stands. A stopped run shows its error and
+    Retry, which the mockup does not draw. %>
+<% check = designs_icon(:check, 12) %>
+<% note_icon = tag.svg(tag.path(d: "M12 7v6M12 17h.01"), width: 12, height: 12, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": 3, "stroke-linecap": "round", "aria-hidden": true) %>
+<% blink = tag.span(class: "w-[7px] h-[7px] rounded-full clar-blink", style: "background: var(--ai);") %>
+<% circle = "w-5 h-5 rounded-full flex items-center justify-center flex-none text-white" %>
+<% notes = setup_notes(@setup, @features, @up_next) %>
+<div class="max-w-[860px] mx-auto pt-2" <% unless @setup.failed? %>data-controller="designs-refresh" data-designs-refresh-interval-value="15000"<% end %>>
   <% if @setup.failed? %>
     <div class="flex items-center gap-2 text-[12.5px] font-bold clar-text-danger mb-2">The build stopped</div>
   <% else %>
-    <div class="flex items-center gap-2 text-[12.5px] font-bold clar-text-ai mb-2"><span class="w-[7px] h-[7px] rounded-full clar-blink" style="background: var(--ai);"></span>Running in the background</div>
+    <div class="flex items-center gap-2 text-[12.5px] font-bold clar-text-ai mb-2"><%= blink %>Running in the background</div>
   <% end %>
   <h1 class="m-0 text-[23px] font-bold tracking-[-.5px] clar-text-text">Building designs for <%= @project.name %></h1>
-  <p class="mt-1.5 mb-5 clar-text-muted text-[14px] leading-[1.55]">This usually takes about an hour. You can leave this page and keep working. We’ll notify you when master is ready.</p>
-  <div class="clar-card px-5.5 py-5" <% unless @setup.failed? %>data-controller="designs-refresh" data-designs-refresh-interval-value="15000"<% end %>>
-    <div class="flex justify-between text-[12.5px] clar-text-muted mb-2"><span><%= @setup.percent %>%</span><span>About <%= @setup.minutes_left %> min left</span></div>
+  <p class="mt-1.5 mb-1.5 clar-text-muted text-[14px] leading-[1.55]">This takes several hours: the features are built one by one, and each is checked against the app before the next one starts. You can leave this page and keep working. We’ll notify you when master is ready.</p>
+  <p class="mt-0 mb-5 clar-text-faint text-[12.5px]"><%= @where %></p>
+
+  <div class="clar-card px-5.5 py-5 mb-4">
+    <div class="flex justify-between text-[12.5px] clar-text-muted mb-2"><span><%= @setup.percent %>%</span><span><%= @setup.time_left %></span></div>
     <div class="h-1.5 rounded bg-[var(--surface-2)] overflow-hidden mb-3.5"><div class="h-1.5 rounded" style="width: <%= @setup.percent %>%; background: var(--ai);"></div></div>
-    <% steps.each_with_index do |(label, minutes), i| %>
+    <% @setup.steps.each_with_index do |(label, minutes), i| %>
       <% done = @setup.step > i %>
       <% current = @setup.step == i %>
       <% failed = current && @setup.failed? %>
       <div class="flex items-center gap-2.5 py-[7px] text-[13.5px] <%= (done || current) ? 'clar-text-text' : 'clar-text-faint' %>">
-        <span class="w-5 h-5 rounded-full flex items-center justify-center flex-none text-white" style="background: <%= done ? 'var(--success)' : failed ? 'var(--danger)' : current ? 'var(--ai-soft)' : 'var(--surface-2)' %>;">
-          <% if done %><%= designs_icon(:check, 12) %><% elsif failed %><%= designs_icon(:close, 12) %><% elsif current %><span class="w-[7px] h-[7px] rounded-full clar-blink" style="background: var(--ai);"></span><% end %>
+        <span class="<%= circle %>" style="background: <%= done ? 'var(--success)' : failed ? 'var(--danger)' : current ? 'var(--ai-soft)' : 'var(--surface-2)' %>;">
+          <% if done %><%= check %><% elsif failed %><%= designs_icon(:close, 12) %><% elsif current %><%= blink %><% end %>
         </span>
         <span class="flex-1 min-w-0 <%= 'clar-text-danger' if failed %>"><%= label %></span>
-        <span class="text-[11.5px] clar-text-faint">~<%= minutes %> min</span>
+        <% taken = @setup.minutes_taken(i) if done %>
+        <span class="text-[11.5px] clar-text-faint whitespace-nowrap"><%= done ? (taken ? setup_duration(taken) : "") : "~#{setup_duration(minutes)}" %></span>
       </div>
       <% if failed %>
         <div class="ml-[30px] mb-2 text-[12.5px] clar-text-danger leading-[1.5] whitespace-pre-line"><%= @setup.error %></div>
       <% end %>
     <% end %>
   </div>
+
+  <% if notes.any? %>
+    <div class="clar-card px-5.5 py-5 mb-4">
+      <div class="flex items-baseline justify-between gap-3 mb-1"><h2 class="m-0 text-[15px] font-bold clar-text-text">Notes for you</h2><span class="text-[12.5px] clar-text-muted"><%= notes.size %> · nothing is blocked</span></div>
+      <% notes.each_with_index do |(label, text), i| %>
+        <div class="flex items-start gap-2.5 py-2.5 <%= 'border-t border-[color:var(--border)]' unless i.zero? %>">
+          <span class="<%= circle %> mt-px" style="background: var(--warn);"><%= note_icon %></span>
+          <div class="flex-1 min-w-0">
+            <div class="text-[11.5px] font-bold tracking-[.2px] clar-text-muted"><%= label %></div>
+            <div class="text-[12.5px] clar-text-muted mt-0.5 leading-[1.5]"><%= text %></div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if @features.any? %>
+    <% counts = @features.group_by(&:status).transform_values(&:size) %>
+    <div class="clar-card px-5.5 py-5">
+      <div class="flex items-baseline justify-between gap-3 mb-1">
+        <h2 class="m-0 text-[15px] font-bold clar-text-text">Features</h2>
+        <span class="text-[12.5px] clar-text-muted"><%= ([ "#{counts.fetch('done', 0)} done" ] + ([ "#{counts['failed']} couldn’t finish" ] if counts['failed']).to_a + [ "#{counts.fetch('running', 0)} in progress", "#{counts.fetch('todo', 0)} to do" ]).join(" · ") %></span>
+      </div>
+      <% @features.each_with_index do |feature, i| %>
+        <% running = feature.running? %>
+        <% progress = running ? @progress : {} %>
+        <% screens = running ? setup_screens(feature, progress) : [] %>
+        <% label = running && progress.value?("checking") ? "Checking against the app" : feature.label(up_next: feature == @up_next) %>
+        <div class="flex items-start gap-2.5 py-2.5 <%= 'border-t border-[color:var(--border)]' unless i.zero? %>">
+          <span class="<%= circle %> mt-px" style="background: <%= feature.failed? ? 'var(--danger)' : feature.done? ? (feature.notes.empty? ? 'var(--success)' : 'var(--warn)') : running ? 'var(--ai-soft)' : 'var(--surface-2)' %>;">
+            <% if feature.failed? %><%= designs_icon(:close, 12) %><% elsif feature.done? %><%= feature.notes.empty? ? check : note_icon %><% elsif running %><%= blink %><% end %>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="text-[13.5px] <%= feature.status == 'todo' ? 'font-medium clar-text-muted' : 'font-semibold clar-text-text' %>"><%= feature.name %></div>
+            <div class="text-[12px] clar-text-muted mt-0.5 leading-[1.45]"><%= setup_feature_sub(feature, @names) %></div>
+            <% if screens.any? %>
+              <div class="mt-2 grid gap-1.5 grid-cols-2 sm:grid-cols-3">
+                <% screens.each do |screen, status| %>
+                  <div class="flex items-center gap-1.5 min-w-0 text-[12px] clar-text-muted bg-[var(--surface-2)] rounded-lg px-2.5 py-1.5">
+                    <span class="w-[7px] h-[7px] rounded-full flex-none <%= 'clar-blink' if %w[building checking].include?(status) %>" style="background: <%= status == 'done' ? 'var(--success)' : %w[building checking].include?(status) ? 'var(--ai)' : 'var(--border)' %>;"></span>
+                    <span class="truncate"><%= %w[building checking].include?(status) ? "#{screen} · #{status}" : screen %></span>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+          <div class="flex flex-col items-end gap-1 flex-none">
+            <span class="inline-flex items-center gap-1.5 text-[11.5px] font-semibold px-2.5 py-[3px] rounded-full whitespace-nowrap" style="<%= setup_pill_style(feature) %>"><%= blink if running %><%= label %></span>
+            <% if running && screens.any? %>
+              <span class="text-[11.5px] clar-text-faint whitespace-nowrap">screen <%= [ screens.index { |_, status| status != "done" } || screens.size - 1, screens.size - 1 ].min + 1 %> of <%= screens.size %></span>
+            <% elsif feature.duration %>
+              <span class="text-[11.5px] clar-text-faint whitespace-nowrap"><%= setup_duration([ (feature.duration / 60.0).round, 1 ].max) %></span>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
   <div class="flex justify-end gap-2 mt-4">
     <% if @setup.failed? && can?(:configuration) %>
       <%= button_to "Retry", retry_workshop_design_setup_run_path, class: "clar-btn", form: { class: "contents" } %>

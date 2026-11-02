@@ -35,7 +35,7 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
 
     setup = @project.design_setups.create!(status: "active", phase: "map", step: 0, started_by: current_user)
     Designs::SetupRunJob.perform_later(setup.id)
-    flash[:clar_toast] = "Building designs in the background · about an hour"
+    flash[:clar_toast] = "Building designs in the background · several hours"
     redirect_to workshop_design_setup_run_path
   end
 
@@ -50,7 +50,14 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
   def show
     @project = current_workshop_project
     @setup = @project.design_setups.where(design_thread_id: nil).order(:id).last
-    redirect_to(workshop_designs_overview_path) if @setup.nil? || @setup.done?
+    return redirect_to(workshop_designs_overview_path) if @setup.nil? || @setup.done?
+
+    @features = @setup.features.to_a
+    @up_next = @features.find { |feature| feature.status == "todo" }
+    @progress = Designs::RunProgress.screens(@setup, @features.find(&:running?))
+    roles = @project.design_setup_roles.to_a
+    @names = roles.to_h { |role| [ Designs::SignIn.slug(role), role.name ] }
+    @where = where_line(roles)
   end
 
   def retry
@@ -77,6 +84,19 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
   end
 
   private
+
+  # "Started today at 16:40 · staging.acme.test, as Admin and Member".
+  def where_line(roles)
+    started = @setup.created_at.in_time_zone
+    day = started.to_date == Time.zone.today ? "today" : started.strftime("%-d %b")
+    host = begin
+      URI.parse(@project.design_app_url.to_s).host
+    rescue URI::InvalidURIError
+      nil
+    end
+    place = [ host, ("as #{roles.map(&:name).to_sentence}" if roles.any?) ].compact.join(", ").presence
+    [ "Started #{day} at #{started.strftime('%H:%M')}", place ].compact.join(" · ")
+  end
 
   def incomplete
     flash.now[:alert] = INCOMPLETE

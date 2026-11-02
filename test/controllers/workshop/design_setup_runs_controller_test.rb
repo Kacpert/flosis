@@ -1,7 +1,8 @@
 require "test_helper"
 
-# The Designs setup form and its progress (Workshop Designs v2), against the
-# copy of Kacper's ClearBacklog-3.html.
+# The Designs setup form (Workshop Designs v2, against the copy of Kacper's
+# ClearBacklog-3.html) and its progress screen (the Designs setup, feature by
+# feature, against the mockup he approved).
 class Workshop::DesignSetupRunsControllerTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
 
@@ -20,18 +21,18 @@ class Workshop::DesignSetupRunsControllerTest < ActionDispatch::IntegrationTest
     contexts: { "0" => { name: "Admin", url: "https://staging.acme.test/login", login: "admin@staging.test", password: "secret-pass" } }
   }.freeze
 
-  test "the form is the design's: technology, repositories, staging and contexts" do
+  test "the form is the design's: technology, repositories, the test environment and contexts" do
     get new_workshop_design_setup_run_path
     assert_response :success
-    [ "Set up Designs for #{@project.name}", "The AI reads your repositories, signs in to staging as each context, and builds the design system, components and today’s screens in the designs repository. It runs in the background and usually takes about an hour. After that, every change happens in threads.",
+    [ "Set up Designs for #{@project.name}", "The AI reads your repositories, signs in to your test environment as each context, maps the app’s features and builds them one by one: the design system, the components and every screen, in the designs repository. It runs in the background and takes several hours. After that, every change happens in threads.",
       "Technology", "What the designs are built with. Components are generated in this stack and version.", "FRAMEWORK",
       "Vue.js", "React", "Angular", "HTML + CSS", "SOON", "UI SYSTEM", "Foundation", "Bootstrap", "Tailwind", "Material", "Custom",
       "The AI checks these against package.json and the lockfile and flags a mismatch.",
       "Repositories", "Where the designs are stored, and the product code they are based on.", "DESIGNS REPOSITORY (TARGET)",
       "The AI commits here. master holds approved designs; each thread is a branch.", "CURRENT APP REPOSITORIES · READ-ONLY",
       "Add repository", "Frontend, backend, shared UI library… The AI uses them to match real components, copy, routes and data.",
-      "Staging and contexts", "The AI signs in as each context to capture what that role sees. Each context can have its own login page. Use test accounts.",
-      "CONTEXT", "LOGIN URL", "LOGIN", "PASSWORD", "Add context", "About an hour, in the background. You can keep working.",
+      "Test environment and contexts", "The AI signs in as each context and uses the app on test data: it may create, change and delete what it needs. Use a test environment (staging, or a test workspace on production) and a test account per context. Each context can have its own login page.",
+      "CONTEXT", "LOGIN URL", "LOGIN", "PASSWORD", "Add context", "Several hours, in the background. You can keep working.",
       "Build designs" ].each { |copy| assert_includes response.body, CGI.escapeHTML(copy), copy }
     assert_select "input[name=framework][value=vue]", count: 0
     assert_select "input[name=framework][value=html]"
@@ -59,28 +60,71 @@ class Workshop::DesignSetupRunsControllerTest < ActionDispatch::IntegrationTest
     setup = @project.design_setups.sole
     assert_enqueued_with(job: Designs::SetupRunJob, args: [ setup.id ])
     assert_redirected_to workshop_design_setup_run_path
-    assert_equal "Building designs in the background · about an hour", flash[:clar_toast]
+    assert_equal "Building designs in the background · several hours", flash[:clar_toast]
   end
 
-  test "the progress page shows the seven steps, and a failed one with Retry" do
-    @project.update!(design_repo: "acme/app-designs", github_repo: "acme/app")
-    @project.design_setup_roles.create!(name: "Admin", login_url: "https://s.test/login", username: "a", password: "p")
-    setup = @project.design_setups.create!(status: "active", phase: "design_system", step: 2, started_by: users(:one))
+  # A run four features long, half way: the app shell matched, Holidays done
+  # with a note, the pipeline being checked (its progress file says so), and
+  # the Jira browser up next, with a note the map left.
+  def run_half_way
+    @project.update!(workspace_dir: Dir.mktmpdir("setup-progress"), design_repo: "acme/app-designs", designs_ui_system: "tailwind",
+                     designs_ui_version: "4", design_app_url: "https://staging.acme.test",
+                     design_app_repos: [ { "role" => "Frontend", "repo" => "acme/app@production" } ])
+    @project.design_setup_roles.create!(name: "Admin", login_url: "https://staging.acme.test/login", username: "a", password: "p", position: 0)
+    setup = @project.design_setups.create!(status: "active", phase: "feature", step: 4, started_by: users(:one), step_seconds: [ 720, 120, 1260, 2040 ])
+    setup.add_features!([
+      { "name" => "App shell", "contexts" => %w[1-admin], "screens" => [ "Home", "Sign in" ] },
+      { "name" => "Holidays", "contexts" => %w[1-admin], "screens" => [ "Requests" ] },
+      { "name" => "Create Tasks pipeline", "contexts" => %w[1-admin], "screens" => %w[Pipeline Ready Versions] },
+      { "name" => "Jira browser", "contexts" => %w[1-admin], "screens" => %w[Board Issue Sprint], "notes" => [ "The test Jira project has no sprints yet." ] }
+    ])
+    shell, holidays, pipeline = setup.features.to_a
+    shell.update!(status: "done", components_new: 9, started_at: 38.minutes.ago, finished_at: Time.current)
+    holidays.update!(status: "done", components_new: 1, components_reused: 6, notes: [ "No pending requests in the test data." ],
+                     started_at: 29.minutes.ago, finished_at: Time.current)
+    pipeline.update!(status: "running", stage: "building", started_at: 10.minutes.ago)
+    File.write(setup.run_dir.tap(&:mkpath).join("progress.json"), { feature: pipeline.key, screens: { "Pipeline" => "done", "Ready" => "checking" } }.to_json)
+    setup
+  end
 
-    get workshop_design_setup_run_path
-    [ "Running in the background", "Building designs for #{@project.name}",
-      "This usually takes about an hour. You can leave this page and keep working. We’ll notify you when master is ready.",
-      "#{setup.percent}%", "About #{setup.minutes_left} min left", "Reading acme/app", "Signing in to staging as Admin",
-      "Capturing pages for every context", "Extracting design tokens from Tailwind 4 settings", "Building components in HTML + CSS",
-      "Generating screens across 1 contexts", "Committing to acme/app-designs @ master", "~8 min", "Continue working" ].each do |copy|
-      assert_includes response.body, CGI.escapeHTML(copy), copy
-    end
+  def page_has(*copies)
+    copies.each { |copy| assert_includes response.body, CGI.escapeHTML(copy), copy }
+  end
 
-    setup.update!(status: "failed", error: "The crawl could not sign in as Admin.")
+  test "the progress screen shows the run's steps, as the run stands" do
+    setup = run_half_way
     get workshop_design_setup_run_path
-    assert_includes response.body, "The crawl could not sign in as Admin."
+    assert_response :success
+    page_has "Running in the background", "Building designs for #{@project.name}",
+             "This takes several hours: the features are built one by one, and each is checked against the app before the next one starts. You can leave this page and keep working. We’ll notify you when master is ready.",
+             "staging.acme.test, as Admin", "#{setup.percent}%", setup.time_left,
+             "Reading acme/app @ production", "Signing in as Admin", "Mapping features: 4 found",
+             "Design system: tokens, fonts and icons from Tailwind 4", "Building features one by one: 2 of 4 done",
+             "Committing to acme/app-designs @ master", "12 min", "21 min", "34 min", "~3 min", "Continue working"
+    assert_select "button", text: "Retry", count: 0
+  end
+
+  test "the progress screen lists the features and the notes for you" do
+    run_half_way
+    get workshop_design_setup_run_path
+    page_has "Notes for you", "2 · nothing is blocked", "HOLIDAYS · DONE", "No pending requests in the test data.",
+             "JIRA BROWSER · UP NEXT", "The test Jira project has no sprints yet.",
+             "Features", "2 done · 1 in progress · 1 to do",
+             "App shell", "Admin · 2 screens · 9 new components", "Matches the app", "38 min",
+             "Holidays", "Admin · 1 screen · 1 new component, 6 reused", "Done · 1 note", "29 min",
+             "Create Tasks pipeline", "Checking against the app", "screen 2 of 3", "Ready · checking", "Versions",
+             "Jira browser", "Admin · about 3 screens", "Up next"
+  end
+
+  test "a stopped run shows its error and Retry, which goes on from where it stopped" do
+    setup = run_half_way
+    setup.update!(status: "failed", error: "No context could sign in to the test environment: login failed.")
+    get workshop_design_setup_run_path
+    page_has "The build stopped", "No context could sign in to the test environment: login failed."
+    assert_select "button", text: "Retry"
+
     post retry_workshop_design_setup_run_path
-    assert_equal "active", setup.reload.status
+    assert_equal [ "active", nil ], [ setup.reload.status, setup.error ]
     assert_enqueued_with(job: Designs::SetupRunJob, args: [ setup.id ])
   end
 
