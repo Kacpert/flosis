@@ -1,5 +1,5 @@
 Hi <%= @user.name %>,
 
-You've been added to <%= @workspace.name %> on Flosis.
+You've been added to <%= @workspace.name %><%= " on Flosis" if @on_flosis %>.
 
 Sign in with your existing account at <%= root_url %> to get started.

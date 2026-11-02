@@ -1,6 +1,6 @@
 Hi <%= @user.name %>,
 
-You've been invited to join <%= @workspace.name %> on Flosis.
+You've been invited to join <%= @workspace.name %><%= " on Flosis" if @on_flosis %>.
 
 To get started, set your password here:
 <%= edit_password_url(@user.generate_token_for(:invitation)) %>
