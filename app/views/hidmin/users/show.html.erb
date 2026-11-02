@@ -1,0 +1,58 @@
+<% content_for :title, "#{@user.name_was} · Hidmin" %>
+<% memberships = @user.workspace_memberships.includes(:workspace).sort_by { _1.workspace.name } %>
+<% last_sign_in = last_sign_ins([ @user.id ])[@user.id] %>
+
+<div class="mb-6">
+  <%= link_to "← People", hidmin_users_path, class: "text-[12.5px] font-semibold clar-text-muted no-underline" %>
+  <h1 class="clar-h1 mt-2 flex items-center gap-2">
+    <%= @user.name_was %>
+    <% if @user.flosis_staff_was %><span class="clar-badge clar-badge-warn">Flosis staff</span><% end %>
+  </h1>
+  <p class="clar-text-muted text-[13px] mt-1">
+    Joined <%= l(@user.created_at.to_date, format: :long) %> ·
+    last signed in <%= last_sign_in ? "#{time_ago_in_words(last_sign_in)} ago" : "never" %>
+  </p>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <section>
+    <h2 class="clar-section-label mb-2.5">Organizations</h2>
+    <div class="clar-card divide-y divide-[color:var(--border)]">
+      <% memberships.each do |membership| %>
+        <%= link_to hidmin_workspace_path(membership.workspace), class: "flex items-center gap-2 px-4 py-3 no-underline text-[13px]" do %>
+          <span class="flex-1 min-w-0 font-semibold clar-text-text truncate"><%= membership.workspace.name %></span>
+          <% if membership.workspace_admin? %><span class="clar-badge clar-badge-primary">Admin</span><% end %>
+          <% if membership.time_hr_access? %><span class="clar-badge clar-badge-muted">Time &amp; HR</span><% end %>
+        <% end %>
+      <% end %>
+      <% if memberships.empty? %>
+        <p class="px-4 py-3 clar-text-faint text-[13px]">In no organization.</p>
+      <% end %>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="clar-section-label mb-2.5">Account</h2>
+    <%= form_with model: @user, url: hidmin_user_path(@user), class: "clar-card p-5 flex flex-col gap-4" do |f| %>
+      <% if @user.errors.any? %>
+        <div class="clar-text-danger text-[13px]"><%= @user.errors.full_messages.to_sentence %></div>
+      <% end %>
+      <div>
+        <label class="clar-field-label" for="user_name">NAME</label>
+        <%= f.text_field :name, class: "clar-input" %>
+      </div>
+      <div>
+        <label class="clar-field-label" for="user_email_address">EMAIL</label>
+        <%= f.email_field :email_address, class: "clar-input" %>
+      </div>
+      <label class="flex items-start gap-2.5 cursor-pointer">
+        <%= f.check_box :flosis_staff, class: "mt-1", disabled: @user == current_user %>
+        <span>
+          <span class="block text-[13.5px] font-semibold clar-text-text">Flosis staff</span>
+          <span class="block text-[12.5px] clar-text-muted">Opens this panel and the design library. Only for people who work at Flosis.</span>
+        </span>
+      </label>
+      <div><%= f.submit "Save", class: "clar-btn clar-btn-primary" %></div>
+    <% end %>
+  </section>
+</div>

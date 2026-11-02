@@ -1,0 +1,42 @@
+<% content_for :title, "New organization · Hidmin" %>
+
+<div class="mb-6">
+  <%= link_to "← Organizations", hidmin_workspaces_path, class: "text-[12.5px] font-semibold clar-text-muted no-underline" %>
+  <h1 class="clar-h1 mt-2">New organization</h1>
+  <p class="clar-text-muted text-[13px] mt-1">The organization and its first administrator are created together. They get an email with a link to set their password, and invite the rest of their team themselves.</p>
+</div>
+
+<%= form_with model: @workspace, url: hidmin_workspaces_path, class: "max-w-[560px] flex flex-col gap-6" do |f| %>
+  <% errors = @workspace.errors.full_messages + @invite.errors.full_messages %>
+  <% if errors.any? %>
+    <div class="clar-card p-3 clar-text-danger text-[13px]"><%= errors.to_sentence %></div>
+  <% end %>
+
+  <section class="clar-card p-5 flex flex-col gap-4">
+    <h2 class="clar-section-label">Organization</h2>
+    <%= render "settings_fields", f: f %>
+  </section>
+
+  <section class="clar-card p-5 flex flex-col gap-4">
+    <h2 class="clar-section-label">First administrator</h2>
+    <div>
+      <label class="clar-field-label" for="admin_name">NAME</label>
+      <%= text_field_tag "admin[name]", params.dig(:admin, :name), id: "admin_name", class: "clar-input", placeholder: "Jane Doe" %>
+    </div>
+    <div>
+      <label class="clar-field-label" for="admin_email_address">EMAIL</label>
+      <%= email_field_tag "admin[email_address]", params.dig(:admin, :email_address), id: "admin_email_address", class: "clar-input", placeholder: "jane@acme.com" %>
+      <div class="text-[11.5px] clar-text-faint mt-1.5">If this address already has an account, that account is made the administrator as it is.</div>
+    </div>
+    <label class="flex items-center gap-2.5 cursor-pointer text-[13px] clar-text-text">
+      <%= hidden_field_tag "admin[time_hr_access]", "0", id: nil %>
+      <%= check_box_tag "admin[time_hr_access]", "1", params.dig(:admin, :time_hr_access) == "1", id: "admin_time_hr_access" %>
+      Also uses Time &amp; HR (tracks their hours)
+    </label>
+  </section>
+
+  <div class="flex gap-2">
+    <%= f.submit "Create organization", class: "clar-btn clar-btn-primary" %>
+    <%= link_to "Cancel", hidmin_workspaces_path, class: "clar-btn no-underline" %>
+  </div>
+<% end %>

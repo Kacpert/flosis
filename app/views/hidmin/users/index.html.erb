@@ -1,0 +1,48 @@
+<% content_for :title, "People · Hidmin" %>
+<% sign_ins = last_sign_ins(@users.map(&:id)) %>
+
+<div class="flex items-start justify-between gap-4 mb-6">
+  <div>
+    <h1 class="clar-h1">People</h1>
+    <p class="clar-text-muted text-[13px] mt-1">Everyone with an account. People are added from their organization's page.</p>
+  </div>
+  <%= form_with url: hidmin_users_path, method: :get, class: "w-[280px]" do %>
+    <%= search_field_tag :q, @query, class: "clar-input !py-2", placeholder: "Search name or email", autofocus: @query.present? %>
+  <% end %>
+</div>
+
+<div class="clar-card">
+  <div class="clar-table-head">
+    <span class="flex-1">NAME</span>
+    <span class="flex-1">ORGANIZATIONS</span>
+    <span class="w-36">LAST SIGN-IN</span>
+  </div>
+  <div class="divide-y divide-[color:var(--border)]">
+    <% @users.each do |user| %>
+      <%= link_to hidmin_user_path(user), class: "flex items-center px-5 py-3 no-underline text-[13px]" do %>
+        <span class="flex-1 min-w-0">
+          <span class="flex items-center gap-1.5">
+            <span class="font-semibold text-[13.5px] clar-text-text truncate"><%= user.name %></span>
+            <% if user.flosis_staff? %><span class="clar-badge clar-badge-warn">Staff</span><% end %>
+          </span>
+          <span class="block text-[12px] clar-text-faint truncate"><%= user.email_address %></span>
+        </span>
+        <span class="flex-1 min-w-0 clar-text-muted truncate"><%= user.workspaces.map(&:name).sort.join(", ").presence || "—" %></span>
+        <span class="w-36 whitespace-nowrap clar-text-muted"><%= sign_ins[user.id] ? "#{time_ago_in_words(sign_ins[user.id])} ago" : "never" %></span>
+      <% end %>
+    <% end %>
+    <% if @users.empty? %>
+      <p class="px-5 py-3 clar-text-faint text-[13px]">Nobody matches “<%= @query %>”.</p>
+    <% end %>
+  </div>
+</div>
+
+<% if @pagy.pages > 1 %>
+  <div class="flex items-center justify-between mt-3 text-[12.5px] clar-text-muted">
+    <span>Page <%= @pagy.page %> of <%= @pagy.pages %></span>
+    <span class="flex gap-2">
+      <% if @pagy.prev %><%= link_to "← Previous", hidmin_users_path(q: @query.presence, page: @pagy.prev), class: "clar-btn !py-1.5 no-underline" %><% end %>
+      <% if @pagy.next %><%= link_to "Next →", hidmin_users_path(q: @query.presence, page: @pagy.next), class: "clar-btn !py-1.5 no-underline" %><% end %>
+    </span>
+  </div>
+<% end %>

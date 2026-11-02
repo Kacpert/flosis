@@ -1,0 +1,106 @@
+<% content_for :title, "#{@workspace.name_was} · Hidmin" %>
+<% sign_ins = last_sign_ins(@memberships.map(&:user_id)) %>
+
+<div class="mb-6">
+  <%= link_to "← Organizations", hidmin_workspaces_path, class: "text-[12.5px] font-semibold clar-text-muted no-underline" %>
+  <h1 class="clar-h1 mt-2"><%= @workspace.name_was %></h1>
+  <p class="clar-text-muted text-[13px] mt-1">
+    Created <%= l(@workspace.created_at.to_date, format: :long) %> ·
+    <%= pluralize(@memberships.size, "person", plural: "people") %> ·
+    <%= pluralize(@projects.count { !_1.archived? }, "active project") %>
+  </p>
+</div>
+
+<section class="mb-8">
+  <h2 class="clar-section-label mb-2.5">People</h2>
+  <div class="clar-card">
+    <div class="clar-table-head">
+      <span class="flex-1">NAME</span>
+      <span class="w-40">ACCESS</span>
+      <span class="w-36">LAST SIGN-IN</span>
+      <span class="w-[300px] text-right"></span>
+    </div>
+    <div class="divide-y divide-[color:var(--border)]">
+      <% @memberships.each do |membership| %>
+        <% user = membership.user %>
+        <div class="flex items-center px-5 py-3 text-[13px]">
+          <span class="flex-1 min-w-0">
+            <%= link_to user.name, hidmin_user_path(user), class: "block font-semibold text-[13.5px] clar-text-text no-underline truncate" %>
+            <span class="block text-[12px] clar-text-faint truncate"><%= user.email_address %></span>
+          </span>
+          <span class="w-40 flex gap-1.5">
+            <% if membership.workspace_admin? %><span class="clar-badge clar-badge-primary">Admin</span><% end %>
+            <% if membership.time_hr_access? %><span class="clar-badge clar-badge-muted">Time &amp; HR</span><% end %>
+          </span>
+          <span class="w-36 whitespace-nowrap clar-text-muted">
+            <%= sign_ins[user.id] ? "#{time_ago_in_words(sign_ins[user.id])} ago" : "never" %>
+          </span>
+          <span class="w-[300px] flex justify-end gap-1.5">
+            <%= button_to membership.workspace_admin? ? "Remove admin" : "Make admin",
+                  hidmin_workspace_membership_path(@workspace, membership),
+                  method: :patch, params: { workspace_admin: membership.workspace_admin? ? "0" : "1" },
+                  class: "clar-btn !py-1.5 !px-2.5 !text-[12px]" %>
+            <% unless sign_ins[user.id] %>
+              <%= button_to "Resend invite", resend_invitation_hidmin_workspace_membership_path(@workspace, membership),
+                    class: "clar-btn !py-1.5 !px-2.5 !text-[12px]" %>
+            <% end %>
+            <%= button_to "Remove", hidmin_workspace_membership_path(@workspace, membership), method: :delete,
+                  class: "clar-btn clar-btn-danger !py-1.5 !px-2.5 !text-[12px]",
+                  form: { data: { turbo_confirm: "Remove #{user.name} from #{@workspace.name}? Their project access here goes too." } } %>
+          </span>
+        </div>
+      <% end %>
+      <% if @memberships.empty? %>
+        <p class="px-5 py-3 clar-text-faint text-[13px]">Nobody yet.</p>
+      <% end %>
+    </div>
+
+    <%= form_with url: hidmin_workspace_memberships_path(@workspace), class: "flex flex-wrap items-end gap-3 px-5 py-4 border-t clar-divider" do %>
+      <div class="flex-1 min-w-[160px]">
+        <label class="clar-field-label" for="member_name">NAME</label>
+        <%= text_field_tag :name, nil, id: "member_name", class: "clar-input !py-2", placeholder: "Jane Doe" %>
+      </div>
+      <div class="flex-1 min-w-[200px]">
+        <label class="clar-field-label" for="member_email_address">EMAIL</label>
+        <%= email_field_tag :email_address, nil, id: "member_email_address", class: "clar-input !py-2", placeholder: "jane@acme.com", required: true %>
+      </div>
+      <label class="flex items-center gap-1.5 text-[13px] clar-text-text pb-2.5 cursor-pointer">
+        <%= check_box_tag :workspace_admin, "1", false, id: "member_workspace_admin" %> Admin
+      </label>
+      <label class="flex items-center gap-1.5 text-[13px] clar-text-text pb-2.5 cursor-pointer">
+        <%= check_box_tag :time_hr_access, "1", false, id: "member_time_hr_access" %> Time &amp; HR
+      </label>
+      <%= submit_tag "Add person", class: "clar-btn clar-btn-primary !py-2" %>
+    <% end %>
+  </div>
+  <p class="text-[11.5px] clar-text-faint mt-1.5">Someone new gets an account and an email to set their password. Which projects they see is set per project, by the organization's admin in Configuration › Users.</p>
+</section>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <section>
+    <h2 class="clar-section-label mb-2.5">Settings</h2>
+    <%= form_with model: @workspace, url: hidmin_workspace_path(@workspace), class: "clar-card p-5 flex flex-col gap-4" do |f| %>
+      <% if @workspace.errors.any? %>
+        <div class="clar-text-danger text-[13px]"><%= @workspace.errors.full_messages.to_sentence %></div>
+      <% end %>
+      <%= render "settings_fields", f: f %>
+      <div><%= f.submit "Save", class: "clar-btn clar-btn-primary" %></div>
+    <% end %>
+  </section>
+
+  <section>
+    <h2 class="clar-section-label mb-2.5">Projects</h2>
+    <div class="clar-card divide-y divide-[color:var(--border)]">
+      <% @projects.each do |project| %>
+        <div class="flex items-center gap-3 px-4 py-3 text-[13px]">
+          <span class="flex-1 min-w-0 font-semibold clar-text-text truncate"><%= project.name %></span>
+          <% if project.archived? %><span class="clar-badge clar-badge-muted">archived</span><% end %>
+          <span class="text-[12px] clar-text-faint"><%= l(project.created_at.to_date, format: :long) %></span>
+        </div>
+      <% end %>
+      <% if @projects.empty? %>
+        <p class="px-4 py-3 clar-text-faint text-[13px]">No projects yet. The organization's admin creates them in the app.</p>
+      <% end %>
+    </div>
+  </section>
+</div>

@@ -1,0 +1,20 @@
+<div>
+  <label class="clar-field-label" for="workspace_name">NAME</label>
+  <%= f.text_field :name, class: "clar-input", placeholder: "Acme Inc." %>
+</div>
+
+<label class="flex items-start gap-2.5 cursor-pointer">
+  <%= f.check_box :workshop_enabled, class: "mt-1" %>
+  <span>
+    <span class="block text-[13.5px] font-semibold clar-text-text">Workshop</span>
+    <span class="block text-[12.5px] clar-text-muted">Flosis itself: tasks, automations, reporting, designs. On for every client.</span>
+  </span>
+</label>
+
+<label class="flex items-start gap-2.5 cursor-pointer">
+  <%= f.check_box :clients_enabled, class: "mt-1" %>
+  <span>
+    <span class="block text-[13.5px] font-semibold clar-text-text">Clients in Time &amp; HR</span>
+    <span class="block text-[12.5px] clar-text-muted">Shows the Clients tab in the time tracker.</span>
+  </span>
+</label>

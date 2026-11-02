@@ -170,6 +170,19 @@ Rails.application.routes.draw do
     end
   end
 
+  # Flosis's own back office, for Flosis staff only (users.flosis_staff):
+  # organizations (workspaces), the people in them, and a few counts. Everyone
+  # else gets a 404.
+  namespace :hidmin do
+    root "dashboard#show"
+    resources :workspaces, path: "organizations", only: %i[index show new create update] do
+      resources :memberships, only: %i[create update destroy] do
+        member { post :resend_invitation }
+      end
+    end
+    resources :users, path: "people", only: %i[index show update]
+  end
+
   get "up" => "rails/health#show", as: :rails_health_check
 
   # A project's designs (Designs::Publisher). The lasting links ask whoever
