@@ -10,6 +10,11 @@ class ChatMessage < ApplicationRecord
   # Other chats leave it empty.
   KINDS = %w[summary context missing error system diff master request].freeze
 
+  # Structured parts of a design thread's message (chips, a description's
+  # diff, the merges that came in). Declared :json, as MariaDB would type the
+  # column :text (see DesignRequest#links).
+  attribute :data, :json
+
   validates :role, presence: true, inclusion: { in: %w[user assistant system] }
   validates :content, presence: true
   validates :kind, inclusion: { in: KINDS }, allow_nil: true

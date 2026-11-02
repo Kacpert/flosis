@@ -51,6 +51,8 @@ class Project < ApplicationRecord
   # JSON with no database default, which MySQL could not give (see
   # DesignRequest#links).
   attribute :design_figma_urls, :json, default: []
+  # The app repositories the Designs setup names: [{ "role", "repo" }].
+  attribute :design_app_repos, :json, default: []
 
   validates :name, presence: true
   validates :design_app_url, format: { with: %r{\Ahttps?://[^\s]+\z}i, message: "must be an http(s) address" }, allow_blank: true
