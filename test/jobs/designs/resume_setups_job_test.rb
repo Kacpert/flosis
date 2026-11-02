@@ -6,7 +6,13 @@ require "test_helper"
 class Designs::ResumeSetupsJobTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-  setup { @project = projects(:jira_project) }
+  setup do
+    @project = projects(:jira_project)
+    @killed = []
+    Designs::SetupRunJob.killer = ->(session_id) { @killed << session_id }
+  end
+
+  teardown { Designs::SetupRunJob.killer = nil }
 
   def setup_turn(started_at:)
     session = ChatSession.create!(project: @project, workspace: @project.workspace, user: users(:one), purpose: "designs_setup",
@@ -26,6 +32,7 @@ class Designs::ResumeSetupsJobTest < ActiveSupport::TestCase
     assert_equal 1, enqueued_jobs.count { _1["job_class"] == "Designs::SetupRunJob" }
     assert_nil stalled.reload.unit_job_id
     assert_equal [ "failed", DesignTurn::INTERRUPTED ], [ turn.reload.status, turn.error ]
+    assert_equal [ turn.chat_session.claude_session_id ], @killed, "its Claude is stopped, if it still runs"
     assert_equal "running", stalled.features.first.status, "the feature is built again from its start"
     assert_equal "alive", live.reload.unit_job_id
   end

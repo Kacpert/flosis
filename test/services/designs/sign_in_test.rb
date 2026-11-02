@@ -13,10 +13,12 @@ class Designs::SignInTest < ActiveSupport::TestCase
     @project.design_setup_roles.create!(name: "Hiring manager", login_url: "https://s.test/login", username: "hm@s.test", password: "hm-secret", position: 1)
     @setup = DesignSetup.create!(project: @project, started_by: users(:one))
     @calls = []
+    Designs::SignIn.pause = 0
   end
 
   teardown do
     Designs::SignIn.runner = nil
+    Designs::SignIn.pause = nil
     FileUtils.remove_entry(@dir)
   end
 
@@ -77,9 +79,21 @@ class Designs::SignInTest < ActiveSupport::TestCase
     assert_not @setup.run_dir.join("auth", "2-hiring-manager.json").exist?
   end
 
+  # The test environment may be down for a minute (a deploy of it): a
+  # sign-in nobody passes is tried again before it stops the run.
+  test "a sign-in nobody passes is tried again, and goes on once it works" do
+    attempts = 0
+    failing = runner(ok: [])
+    working = runner
+    Designs::SignIn.runner = ->(**args) { (attempts += 1) < 3 ? failing.call(**args) : working.call(**args) }
+    assert_equal({ "1-admin" => true, "2-hiring-manager" => true }, Designs::SignIn.new(@setup).call)
+    assert_equal 3, attempts
+  end
+
   test "a run nobody can sign in to stops, with the reason" do
     Designs::SignIn.runner = runner(ok: [])
     error = assert_raises(Designs::SignIn::Failure) { Designs::SignIn.new(@setup).call }
+    assert_equal Designs::SignIn::ATTEMPTS, @calls.size
     assert_match(/No context could sign in to the test environment/, error.message)
     assert_match(/login failed/, error.message)
   end

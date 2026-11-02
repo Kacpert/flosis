@@ -1096,6 +1096,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       assert_equal options[:codebase_path], config["worktree"]
       assert_equal setup.run_dir.join("progress.json").to_s, config["progressPath"]
       assert_includes options[:allowed_tools], "mcp__flosis_browser__compare"
+      assert_includes options[:allowed_tools], "mcp__flosis_browser__click_design"
       assert_includes options[:allowed_tools], "Read"
       assert_not_includes options[:allowed_tools], "mcp__flosis_browser__save_features", "only the map saves features"
       assert_equal [ DesignTurn.setup_timeout, DesignTurn.setup_budget_usd ], options.values_at(:timeout, :max_budget_usd)

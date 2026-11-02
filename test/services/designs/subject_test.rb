@@ -44,8 +44,14 @@ class Designs::SubjectTest < ActiveSupport::TestCase
   test "a setup turn is told the contexts by the names the browser knows them by" do
     @project.design_setup_roles.create!(name: "Hiring manager", login_url: "https://s.test/login", username: "h", password: "p", position: 1)
     message = Designs::Subject.for(@session).turn_message("Build the timesheet")
-    assert_includes message, "Hiring manager: 2-hiring-manager"
+    assert_includes message, "Hiring manager: browser 2-hiring-manager, designs/hiring-manager/"
     assert message.rstrip.end_with?("Build the timesheet")
+  end
+
+  # The base prompt says a turn has no browser: a setup turn is told that
+  # does not hold for it.
+  test "a setup turn is told it has a browser" do
+    assert_includes Designs::Subject.for(@session).system_text, "This turn has a browser"
   end
 
   test "the setup prompt follows the phase" do

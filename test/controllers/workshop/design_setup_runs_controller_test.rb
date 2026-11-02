@@ -39,6 +39,20 @@ class Workshop::DesignSetupRunsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name=framework_version]", count: 0
   end
 
+  # A run lasts hours: a second click of Build designs, or a re-import while
+  # it runs, must not start another on the same branch.
+  test "a second Build while a run goes starts nothing" do
+    running = @project.design_setups.create!(status: "active", phase: "feature", step: 4, started_by: users(:one))
+    assert_no_difference -> { DesignSetup.count } do
+      post workshop_design_setup_run_path, params: FORM
+      patch workshop_design_setup_run_path, params: FORM
+    end
+    assert_redirected_to workshop_design_setup_run_path
+    assert_equal "A setup is already running. It goes on from where it is.", flash[:clar_toast]
+    assert_no_enqueued_jobs only: Designs::SetupRunJob
+    assert running.reload.status == "active"
+  end
+
   test "an incomplete form says what is missing and starts nothing" do
     post workshop_design_setup_run_path, params: FORM.merge(repo: "")
     assert_response :unprocessable_entity

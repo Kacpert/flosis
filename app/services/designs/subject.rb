@@ -161,7 +161,13 @@ module Designs::Subject
     NO_SETUP = "This project has no setup run.".freeze
     # The browser's tools (lib/designs_crawler/browser.mjs), as the CLI names
     # them; only the map's turn may save the features.
-    BROWSER_TOOLS = %w[open click fill_form screenshot design compare check_design progress].map { |name| "mcp__flosis_browser__#{name}" }.freeze
+    BROWSER_TOOLS = %w[open click fill_form screenshot design click_design compare check_design progress].map { |name| "mcp__flosis_browser__#{name}" }.freeze
+    # The base prompt says a turn has no browser; this one has.
+    BROWSER_NOTE = <<~TEXT.freeze
+      # This turn's browser
+
+      This turn has a browser: the flosis_browser tools, signed in to the client's test environment as each context of the run. What the base prompt says about opening no browser does not hold for this turn; everything else in it does. A context's designs go in the folder the message names for it, never in a folder named after its browser slug.
+    TEXT
     MAP_TOOLS = %w[mcp__flosis_browser__save_features].freeze
     PHASE_TITLES = { "map" => "the feature map", "design_system" => "the design system", "feature" => "one feature" }.freeze
     VIEWPORT = { width: 1440, height: 900 }.freeze
@@ -195,7 +201,7 @@ module Designs::Subject
     end
 
     def system_text
-      "#{Designs::Prompt.system_text(project: project, composition: composition)}\n#{readable}"
+      "#{Designs::Prompt.system_text(project: project, composition: composition)}\n#{readable}\n#{BROWSER_NOTE}"
     end
 
     def forbidden_texts = composition.texts
@@ -207,7 +213,9 @@ module Designs::Subject
       ui = Workshop::DesignsModuleController::UI_SYSTEMS.fetch(project.designs_ui_system, project.designs_ui_system.to_s.humanize)
       framework = Workshop::DesignsModuleController::FRAMEWORKS.fetch(project.designs_framework, project.designs_framework.to_s.humanize)
       repos = Array(project.design_app_repos).filter_map { |row| "#{row['role']}: #{row['repo']}" if row.is_a?(Hash) }
-      contexts = project.design_setup_roles.map { |role| "#{role.name}: #{Designs::SignIn.slug(role)}" }
+      contexts = project.design_setup_roles.map do |role|
+        "#{role.name}: browser #{Designs::SignIn.slug(role)}, designs/#{role.name.parameterize.presence || "context-#{role.position.to_i + 1}"}/"
+      end
       <<~MESSAGE
         ## Setup run
         This turn: #{PHASE_TITLES.fetch(setup.phase, setup.phase.humanize.downcase)}

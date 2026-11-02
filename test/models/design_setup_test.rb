@@ -59,8 +59,19 @@ class DesignSetupTest < ActiveSupport::TestCase
     travel 2.hours do
       assert @setup.claim_unit!("job-b", limit: 1.hour)
     end
-    @setup.release_unit!
+    @setup.release_unit!("job-b")
     assert_nil @setup.reload.unit_job_id
+  end
+
+  test "only the job that holds the unit releases it, and a released run is found stalled until its next job takes it" do
+    assert @setup.claim_unit!("job-a", limit: 1.hour)
+    @setup.release_unit!("job-b")
+    assert_equal "job-a", @setup.reload.unit_job_id
+    @setup.release_unit!("job-a")
+    assert_nil @setup.reload.unit_job_id
+    assert_includes DesignSetup.stalled, @setup, "a run whose next job never came is picked up"
+    assert @setup.claim_unit!("job-c", limit: 1.hour)
+    assert_not_includes DesignSetup.stalled, @setup
   end
 
   test "a run whose unit outlived its deadline is stalled" do
@@ -84,6 +95,12 @@ class DesignSetupTest < ActiveSupport::TestCase
     assert_equal %w[timesheet timesheet-2 feature], features.map(&:key)
     assert_equal [ %w[1-admin], [ "Week" ], "Week and month views.", [ "No data." ] ],
                  [ features.first.contexts, features.first.screens, features.first.brief, features.first.notes ]
+  end
+
+  test "two long names alike are two features" do
+    long = "Workshop reporting for every developer across all the projects and their sprints"
+    @setup.add_features!([ { "name" => long }, { "name" => long } ])
+    assert_equal 2, @setup.features.map(&:key).uniq.size
   end
 
   test "a note is kept once" do

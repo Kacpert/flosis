@@ -9,9 +9,12 @@
 #
 # One execution runs one unit, a step or one feature, and enqueues the next,
 # so a deploy that kills the worker costs that unit at most. A unit is claimed
-# until a deadline (DesignSetup#claim_unit!): the job delivered again after a
-# restart takes its unit over at once, and a run whose job is gone is found
-# stalled and picked up again (Designs::ResumeSetupsJob).
+# until a deadline (DesignSetup#claim_unit!) that a heartbeat moves on while
+# the unit runs: the job delivered again after a restart takes its unit over
+# at once, and a run whose job is gone is found stalled once the heartbeat has
+# stopped for UNIT_GRACE, and picked up again (Designs::ResumeSetupsJob).
+# Whoever takes a unit over first stops what the killed attempt left: its
+# turn, and its Claude, which a killed worker does not take with it.
 #
 # What the run cannot go past stops it, failed with its error: no designs
 # repository, no app repository read, nobody signed in, an empty map, a step's
@@ -24,44 +27,89 @@ class Designs::SetupRunJob < ApplicationJob
   class Failure < StandardError; end
 
   STOPS = [ Failure, Designs::AppRepos::Failure, Designs::SignIn::Failure ].freeze
+  # How long a unit's claim lasts without a heartbeat.
+  UNIT_GRACE = 15.minutes
   MAP_REQUEST = "Map the app's features, in the order they are to be built, and save the map.".freeze
   DESIGN_SYSTEM_REQUEST = "Build the design system: the tokens, fonts, icons and logos, from the app's code and its pages.".freeze
   IMPORT_SUMMARY = "Initial import: the design system, the components and the screens of every feature, " \
                    "built from the test environment and the app's repositories.".freeze
 
   class << self
-    # What runs a setup turn, signs the contexts in and reads the app's
-    # repositories, here and now; tests stand in for them.
-    attr_writer :turn_runner, :sign_in, :app_repos
+    # What runs a setup turn, signs the contexts in, reads the app's
+    # repositories and stops a Claude a killed worker left (by its session
+    # id, which only its command line carries), here and now; and how often
+    # the heartbeat beats, in seconds. Tests stand in for them.
+    attr_writer :turn_runner, :sign_in, :app_repos, :killer, :heartbeat_every
 
     def turn_runner = @turn_runner || ->(turn_id) { Designs::TurnJob.perform_now(turn_id) }
     def sign_in = @sign_in || ->(setup) { Designs::SignIn.new(setup).call }
     def app_repos = @app_repos || ->(setup) { Designs::AppRepos.new(setup).fetch! }
+    def killer = @killer || ->(session_id) { system("pkill", "-TERM", "-f", session_id, out: File::NULL, err: File::NULL) }
+    def heartbeat_every = @heartbeat_every || 300
 
-    # How long one unit may hold the run: a setup turn and what follows it.
-    def unit_limit = DesignTurn.setup_timeout.seconds + 15.minutes
+    # Stops what an earlier attempt at the run left: its setup turns still
+    # marked running or queued, whose jobs are gone (whoever calls this holds
+    # the run's unit), and the Claude each may still be running.
+    def stop_attempts!(setup)
+      DesignTurn.joins(:chat_session).includes(:chat_session).where(kind: "setup", status: DesignTurn::ACTIVE)
+                .where(chat_sessions: { project_id: setup.project_id, purpose: "designs_setup" }).find_each do |turn|
+        killer.call(turn.chat_session.claude_session_id)
+        turn.fail!(DesignTurn::INTERRUPTED)
+      end
+    end
   end
 
   def perform(setup_id)
     setup = DesignSetup.find_by(id: setup_id)
     return unless setup&.status == "active" && setup.finished_at.nil?
-    return unless setup.claim_unit!(job_id, limit: self.class.unit_limit)
+    return unless setup.claim_unit!(job_id, limit: UNIT_GRACE)
 
+    self.class.stop_attempts!(setup)
+    heartbeat = beat(setup)
     setup.start_step!
     send(DesignSetup::STEPS.fetch(setup.step), setup)
-    setup.release_unit!
+    heartbeat.kill
+    setup.release_unit!(job_id)
     self.class.perform_later(setup.id) if setup.reload.status == "active" && setup.finished_at.nil?
   rescue *STOPS => e
     stop(setup, e.message)
   rescue StandardError => e
     Rails.logger.error("[#{self.class.name}] setup #{setup_id}: #{e.class}: #{e.message}")
     stop(setup, "#{e.class.name}: #{e.message}")
+  ensure
+    heartbeat&.kill
   end
 
   private
 
+  # A run stops only by the job that holds its unit: one that lost it (its
+  # run was picked up again) leaves the run to the job that has it.
   def stop(setup, message)
-    setup&.update!(status: "failed", error: message.to_s.truncate(1_000), unit_job_id: nil, unit_deadline_at: nil)
+    return unless setup
+
+    setup.with_lock do
+      next if setup.unit_job_id.present? && setup.unit_job_id != job_id
+
+      setup.update!(status: "failed", error: message.to_s.truncate(1_000), unit_job_id: nil, unit_deadline_at: nil)
+    end
+  end
+
+  # Keeps the unit's claim alive while it runs. A job killed with its worker
+  # stops beating, and its run is found stalled UNIT_GRACE later.
+  def beat(setup)
+    id = setup.id
+    job = job_id
+    every = self.class.heartbeat_every
+    Thread.new do
+      loop do
+        sleep every
+        ActiveRecord::Base.connection_pool.with_connection do
+          DesignSetup.where(id: id, unit_job_id: job).update_all(unit_deadline_at: UNIT_GRACE.from_now)
+        end
+      end
+    rescue StandardError => e
+      Rails.logger.warn("[#{self.class.name}] setup #{id}: the heartbeat stopped: #{e.class}: #{e.message}")
+    end
   end
 
   def read_repos(setup)
@@ -87,6 +135,7 @@ class Designs::SetupRunJob < ApplicationJob
     File.chmod(0o700, setup.run_dir)
     map = setup.run_dir.join("features.json")
     FileUtils.rm_f(map)
+    self.class.sign_in.call(setup)
     setup.update!(phase: "map")
     run_turn!(setup, MAP_REQUEST)
     rows = begin
@@ -102,6 +151,7 @@ class Designs::SetupRunJob < ApplicationJob
   end
 
   def design_system(setup)
+    self.class.sign_in.call(setup)
     setup.update!(phase: "design_system")
     run_turn!(setup, DESIGN_SYSTEM_REQUEST)
     setup.finish_step!
@@ -153,8 +203,7 @@ class Designs::SetupRunJob < ApplicationJob
                                                     "#{setup.features.where(status: 'done').size} features, every context" ],
                                     merged_at: Time.current)
     end
-    setup.finish_step!
-    setup.update!(status: "approved", finished_at: Time.current)
+    setup.finish_step!(status: "approved", finished_at: Time.current)
   end
 
   # A setup turn, run here and now: the run waits for it, and a step's turn

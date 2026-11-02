@@ -3,8 +3,10 @@ require "find"
 # The app's repositories as a setup run reads them (the Designs setup, feature
 # by feature): each one the setup form names, as owner/name or
 # owner/name@branch, cloned shallow at that branch (or the repository's
-# default one) into the run's folder, without its .git, and left read-only:
-# files 0444, folders 0555, so that Claude's Edit and Write fail on them. The
+# default one) into the run's folder, without its .git or any link it tracks
+# (on a shared host a link could reach Flosis's own files or another
+# client's, as AppCopy knows), and left read-only: files 0444, folders 0555,
+# so that Claude's Edit and Write fail on them. The
 # project's GitHub token reads them through GitRunner, which never puts it on
 # a command line; a public repository needs none.
 #
@@ -72,6 +74,7 @@ class Designs::AppRepos
     GitRunner.run!("clone", "--quiet", "--depth", "1", *([ "--branch", branch ] if branch), "--",
                    self.class.url_for.call(name), dir.to_s, chdir: root, token: ProjectCredentials.new(@project).github_token)
     FileUtils.rm_rf(dir.join(".git"))
+    Find.find(dir.to_s) { |path| File.delete(path) if File.symlink?(path) }
     seal(dir)
   end
 

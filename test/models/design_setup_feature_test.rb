@@ -28,6 +28,16 @@ class DesignSetupFeatureTest < ActiveSupport::TestCase
     assert_equal "feature", DesignSetupFeature.key_for("!!!", [])
   end
 
+  test "long names keep unique keys of at most sixty characters" do
+    long = "Workshop reporting for every developer across all the projects and their sprints"
+    first = DesignSetupFeature.key_for(long, [])
+    second = DesignSetupFeature.key_for(long, [ first ])
+    assert_operator first.length, :<=, 60
+    assert_operator second.length, :<=, 60
+    assert_not_equal first, second
+    assert second.end_with?("-2"), second
+  end
+
   test "a finished feature knows how long it took" do
     done = feature(status: "done", started_at: 38.minutes.ago, finished_at: Time.current)
     assert_in_delta 38 * 60, done.duration, 2

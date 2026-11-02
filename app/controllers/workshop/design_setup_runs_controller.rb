@@ -10,6 +10,8 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
   before_action { require_permission!(:designs) }
   before_action(except: :show) { require_permission!(:configuration) }
   include DesignsVisibility
+  # A run lasts hours: another one on the same branch would undo it.
+  before_action :refuse_while_running, only: %i[create update reimport]
 
   FRAMEWORKS = [ [ "vue", "Vue.js", "3.4" ], [ "react", "React", "18.3" ], [ "angular", "Angular", "17" ], [ "html", "HTML + CSS", nil ] ].freeze
   UI_SYSTEMS = [ [ "foundation", "Foundation", "6.8" ], [ "bootstrap", "Bootstrap", "5.3" ], [ "tailwind", "Tailwind", "4" ],
@@ -84,6 +86,13 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
   end
 
   private
+
+  def refuse_while_running
+    return unless current_workshop_project.design_setups.running.exists?
+
+    flash[:clar_toast] = "A setup is already running. It goes on from where it is."
+    redirect_to workshop_design_setup_run_path
+  end
 
   # "Started today at 16:40 · staging.acme.test, as Admin and Member".
   def where_line(roles)

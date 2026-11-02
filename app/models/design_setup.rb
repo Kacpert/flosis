@@ -75,10 +75,12 @@ class DesignSetup < ApplicationRecord
     update!(step_started_at: Time.current) unless step_started_at
   end
 
-  def finish_step!
+  # more: what changes with it, in the same update (the last step lands the
+  # run as approved).
+  def finish_step!(**more)
     seconds = step_seconds.dup
     seconds[step] = step_started_at ? (Time.current - step_started_at).round : 0
-    update!(step: step + 1, step_started_at: nil, step_seconds: seconds)
+    update!(step: step + 1, step_started_at: nil, step_seconds: seconds, **more)
   end
 
   # The minutes a finished step took (at least one), nil for one not finished.
@@ -107,8 +109,10 @@ class DesignSetup < ApplicationRecord
     end
   end
 
-  def release_unit!
-    update!(unit_job_id: nil, unit_deadline_at: nil)
+  # Gives the unit back, if job_id still holds it. The deadline is left
+  # passed, so a run whose next job never comes is found stalled.
+  def release_unit!(job_id)
+    with_lock { update!(unit_job_id: nil, unit_deadline_at: 1.second.ago) if unit_job_id == job_id }
   end
 
   # The map's features, after those the run has: rows of "name", "contexts",
@@ -119,7 +123,7 @@ class DesignSetup < ApplicationRecord
       position = features.maximum(:position).to_i
       rows.each do |row|
         name = row["name"].to_s.strip.presence || "Feature"
-        key = DesignSetupFeature.key_for(name, taken).first(60)
+        key = DesignSetupFeature.key_for(name, taken)
         taken << key
         features.create!(position: position += 1, key: key, name: name.truncate(120),
                          contexts: Array(row["contexts"]).map(&:to_s), screens: Array(row["screens"]).map(&:to_s),

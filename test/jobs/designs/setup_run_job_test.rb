@@ -22,6 +22,8 @@ class Designs::SetupRunJobTest < ActiveSupport::TestCase
     @signed_in = 0
     Designs::SetupRunJob.sign_in = ->(_setup) { @signed_in += 1; { "1-admin" => true } }
     Designs::SetupRunJob.app_repos = ->(_setup) { [ { "role" => "Frontend", "repo" => "acme/app", "branch" => nil, "dir" => "/tmp/app" } ] }
+    @killed = []
+    Designs::SetupRunJob.killer = ->(session_id) { @killed << session_id }
   end
 
   teardown do
@@ -30,6 +32,8 @@ class Designs::SetupRunJobTest < ActiveSupport::TestCase
     Designs::SetupRunJob.turn_runner = nil
     Designs::SetupRunJob.sign_in = nil
     Designs::SetupRunJob.app_repos = nil
+    Designs::SetupRunJob.killer = nil
+    Designs::SetupRunJob.heartbeat_every = nil
   end
 
   # Claude, as each setup turn leaves it: the map saves the features, the
@@ -98,7 +102,7 @@ class Designs::SetupRunJobTest < ActiveSupport::TestCase
         assert_equal [ [ 1, 0 ], [ 0, 1 ], [ 0, 1 ] ], setup.features.map { [ _1.components_new, _1.components_reused ] }
         assert_equal [ [ "No entries in the test data." ], [ "No reports in the test data." ] ], setup.features.drop(1).map(&:notes)
         assert setup.features.all? { _1.design_turn&.setup? }, "each feature's turn is a setup turn"
-        assert_equal 4, @signed_in, "the run signs in, then again for every feature"
+        assert_equal 6, @signed_in, "the run signs in, then again before the map, the design system and every feature"
         assert_match(/Build the feature "Timesheet" \(2 of 3\)/, @requests[3])
         assert_equal 5, @requests.size
         sessions = setup.features.map { _1.design_turn.chat_session_id }
@@ -129,6 +133,38 @@ class Designs::SetupRunJobTest < ActiveSupport::TestCase
     end
   end
 
+  # A deploy killed the job mid-unit: its Claude may still run, and its turn is
+  # still marked running. The job delivered again stops both before it goes
+  # on, so the commit is not refused over a turn nobody runs.
+  test "a unit taken over stops the killed attempt's Claude and turn, and the run still lands on master" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        setup = new_setup(repo.project)
+        session = ChatSession.create!(project: repo.project, workspace: repo.project.workspace, user: users(:one), purpose: "designs_setup",
+                                      claude_session_id: SecureRandom.uuid, codebase_path: "/tmp")
+        message = session.chat_messages.create!(role: "user", content: "Map the app", user: users(:one))
+        orphan = DesignTurn.create!(chat_session: session, chat_message: message, kind: "setup", status: "running", started_at: 1.minute.ago)
+        setup.update!(unit_job_id: "job-a", unit_deadline_at: 1.hour.from_now)
+        Designs::SetupRunJob.turn_runner = fake_turns(repo, setup)
+        perform_enqueued_jobs(only: Designs::SetupRunJob) { job_as(setup, "job-a").perform_now }
+
+        assert_includes @killed, session.claude_session_id
+        assert_equal [ "failed", DesignTurn::INTERRUPTED ], [ orphan.reload.status, orphan.error ]
+        assert_equal "approved", setup.reload.status, setup.error
+      end
+    end
+  end
+
+  test "the unit's claim is kept alive while it runs" do
+    Designs::SetupRunJob.heartbeat_every = 0.05
+    setup = new_setup(projects(:jira_project))
+    deadlines = []
+    Designs::SetupRunJob.app_repos = ->(run) { 3.times { sleep 0.15; deadlines << run.reload.unit_deadline_at }; [] }
+    job_as(setup, "job-a").perform_now
+    assert deadlines.each_cons(2).all? { |earlier, later| later > earlier }, "the deadline moves on while the unit runs: #{deadlines}"
+  end
+
   test "a job delivered again takes its unit over, another one leaves it alone" do
     setup = new_setup(projects(:jira_project))
     setup.update!(unit_job_id: "job-a", unit_deadline_at: 1.hour.from_now)
@@ -138,6 +174,7 @@ class Designs::SetupRunJobTest < ActiveSupport::TestCase
 
     assert_enqueued_with(job: Designs::SetupRunJob, args: [ setup.id ]) { job_as(setup, "job-a").perform_now }
     assert_equal [ 1, nil ], [ setup.reload.step, setup.unit_job_id ]
+    assert_empty @killed, "there was no attempt to stop"
   end
 
   test "a run nobody can sign in to stops, with the reason" do

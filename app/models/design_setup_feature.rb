@@ -20,16 +20,23 @@ class DesignSetupFeature < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :stage, inclusion: { in: STAGES }, allow_nil: true
 
+  # The longest key, suffix and all.
+  MAX_KEY = 60
+
   scope :pending, -> { where(status: %w[todo running]) }
   scope :finished, -> { where(status: %w[done failed]) }
 
   # The key a feature named name gets beside the taken ones: its name as a
-  # slug, "feature" when nothing of it is left, then -2, -3… until it is free.
+  # slug of at most MAX_KEY characters, "feature" when nothing of it is left,
+  # then -2, -3… until it is free, cut so that the suffix always fits.
   def self.key_for(name, taken)
-    base = name.to_s.parameterize.presence || "feature"
+    base = (name.to_s.parameterize.presence || "feature").first(MAX_KEY).delete_suffix("-")
     key = base
     n = 1
-    key = "#{base}-#{n += 1}" while taken.include?(key)
+    while taken.include?(key)
+      suffix = "-#{n += 1}"
+      key = "#{base.first(MAX_KEY - suffix.length).delete_suffix('-')}#{suffix}"
+    end
     key
   end
 

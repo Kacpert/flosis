@@ -16,6 +16,9 @@ class Designs::SignIn
   class Failure < StandardError; end
 
   TIMEOUT = 5.minutes
+  # A sign-in nobody passes is tried this many times, a minute apart, before
+  # it stops the run: the test environment may be restarting.
+  ATTEMPTS = 3
   # How long a sign-in that outlived its time gets to stop after TERM.
   KILL_GRACE = 5.seconds
   MASK = "••••••".freeze
@@ -23,10 +26,15 @@ class Designs::SignIn
   class << self
     # Test seam: what runs the sign-in. Called with argv:, env: and stdin:;
     # returns [stdout, stderr, exit status]. Set to nil, it is the real one.
-    attr_writer :runner
+    attr_writer :runner, :pause
 
     def runner
       @runner || method(:run_node)
+    end
+
+    # Seconds between two attempts; tests set it to 0.
+    def pause
+      @pause.nil? ? 60 : @pause
     end
 
     # The tools' folder, where their node_modules live: the script runs from
@@ -35,9 +43,9 @@ class Designs::SignIn
       ENV["DESIGNS_CRAWLER_DIR"].presence || Rails.root.join("lib/designs_crawler").to_s
     end
 
-    # What the Node tools run with, and nothing more of the app's environment:
-    # where Playwright keeps Chromium, the temp folder, and the libraries
-    # headless Chromium needs that the host lacks (Hostido has no libasound,
+    # What the Node tools get on top of the environment they inherit: where
+    # Playwright keeps Chromium, the temp folder, and the libraries headless
+    # Chromium needs that the host lacks (Hostido has no libasound,
     # libatk-bridge, libatspi, libgbm or libwayland-server), from the folder
     # DESIGNS_BROWSER_LIBS names. Only the browser's processes get them.
     def node_env
@@ -81,31 +89,46 @@ class Designs::SignIn
     @project = setup.project
   end
 
-  # Signs in as every context and returns { slug => signed in? }.
+  # Signs in as every context and returns { slug => signed in? }. Only the
+  # last attempt's failures are noted.
   def call
     roles = @project.design_setup_roles.to_a
     raise Failure, "The setup has no context to sign in as." if roles.empty?
 
     prepare
+    attempt = 0
+    begin
+      attempt += 1
+      results = sign_in_once(roles)
+    rescue Failure
+      raise if attempt >= ATTEMPTS
+
+      sleep self.class.pause
+      retry
+    end
+    results.to_h { |row| [ row["slug"], row["ok"] == true ] }
+  end
+
+  private
+
+  def sign_in_once(roles)
     out, errors, status = self.class.runner.call(argv: [ "node", File.join(self.class.crawler_dir, "sign_in.mjs"), auth.to_s ],
                                                  env: self.class.node_env, stdin: input(roles).to_json)
     results = parse(out)
     raise Failure, scrub("The sign-in could not run: #{errors.to_s.strip.presence || "exit #{status}"}") unless results
 
     auth.glob("*.json").each { |file| File.chmod(0o600, file) }
+    failures = results.reject { |row| row["ok"] }
+    failures.each { |row| FileUtils.rm_f(auth.join("#{row['slug']}.json")) }
+    messages = failures.map { |row| scrub(row["error"].to_s.presence || "it did not say why").delete_suffix(".") }
+    raise Failure, "No context could sign in to the test environment: #{messages.uniq.join('; ')}." if results.none? { |row| row["ok"] }
+
     names = roles.to_h { |role| [ self.class.slug(role), role.name ] }
-    failures = results.reject { |row| row["ok"] }.map do |row|
-      FileUtils.rm_f(auth.join("#{row['slug']}.json"))
-      message = scrub(row["error"].to_s.presence || "it did not say why").delete_suffix(".")
+    failures.zip(messages).each do |row, message|
       @setup.note!("Signing in", "#{names.fetch(row['slug'], row['slug'])} could not sign in: #{message}.")
-      message
     end
-    raise Failure, "No context could sign in to the test environment: #{failures.uniq.join('; ')}." if results.none? { |row| row["ok"] }
-
-    results.to_h { |row| [ row["slug"], row["ok"] == true ] }
+    results
   end
-
-  private
 
   def auth = @setup.run_dir.join("auth")
 

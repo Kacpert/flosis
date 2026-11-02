@@ -50,6 +50,22 @@ class Designs::AppReposTest < ActiveSupport::TestCase
     assert_equal [ dir.to_s ], Designs::AppRepos.new(@setup).dirs
   end
 
+  # A shared host: a link the repository tracks must not let Claude read
+  # beyond it (Flosis's .env, another client's folder), as AppCopy ensures.
+  test "a link a repository tracks is dropped" do
+    work = File.join(@dir, "app-work")
+    system("git", "-C", work, "checkout", "--quiet", "main", exception: true)
+    File.symlink("/etc/hosts", File.join(work, "hosts"))
+    system("git", "-C", work, "add", ".", exception: true)
+    system("git", "-C", work, "-c", "user.email=t@example.test", "-c", "user.name=T", "commit", "--quiet", "-m", "link", exception: true)
+    system("git", "-C", work, "push", "--quiet", @remotes["acme/app"], "main", exception: true)
+    repos("acme/app")
+    dir = Pathname(Designs::AppRepos.new(@setup).fetch!.first["dir"])
+    assert_not dir.join("hosts").symlink?
+    assert_not dir.join("hosts").exist?
+    assert_equal "main\n", dir.join("BRANCH.txt").read
+  end
+
   test "a repository named without a branch is read at its default one" do
     repos("acme/app")
     fetched = Designs::AppRepos.new(@setup).fetch!
