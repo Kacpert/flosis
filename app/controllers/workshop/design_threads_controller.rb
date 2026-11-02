@@ -47,6 +47,8 @@ class Workshop::DesignThreadsController < Workshop::BaseController
     redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
   rescue Designs::Repo::Conflict
     redirect_to workshop_designs_overview_path(thread: @thread.id), alert: "Master changed the same lines. Update from master, then merge."
+  rescue Designs::Repo::Diverged => e
+    redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
   rescue GitRunner::Error => e
     redirect_to workshop_designs_overview_path(thread: @thread.id),
                 alert: "The merge did not reach GitHub, so master stays as it was: #{e.message.to_s.lines.first.to_s.strip.truncate(200)}"
@@ -62,7 +64,7 @@ class Workshop::DesignThreadsController < Workshop::BaseController
     Designs::Threads.update_master!(@thread, user: current_user)
     flash[:clar_toast] = "Updated from master · #{Designs::Threads.short(to)}"
     redirect_to workshop_designs_overview_path(thread: @thread.id, mode: "changes")
-  rescue Designs::Threads::Busy => e
+  rescue Designs::Threads::Busy, Designs::Repo::Diverged => e
     redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
   end
 

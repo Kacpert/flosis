@@ -187,6 +187,8 @@ class Workshop::IdeasController < Workshop::BaseController
     if @idea.external_reference.present?
       key = @idea.external_reference
       @idea.update!(in_pipeline: false)
+      # Its design thread stays, as a thread with no task (Workshop Designs v2).
+      @idea.design_thread&.update!(task: nil)
       flash[:clar_toast] = "Removed #{key} from Create Tasks · the Jira ticket still exists"
     else
       name = @idea.name

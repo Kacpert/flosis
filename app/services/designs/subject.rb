@@ -41,7 +41,7 @@ module Designs::Subject
     def checkout!(repo)
       repo.synchronize do
         repo.ensure_clone!
-        repo.worktree!(wip_branch, from: base_branch_for_new_worktree)
+        repo.worktree!(wip_branch, from: base_branch_for_new_worktree).tap { repo.follow_origin!(wip_branch) }
       end
     end
 

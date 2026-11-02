@@ -102,6 +102,7 @@ module Designs::Threads
 
       dir = repo.worktree!(thread.branch, from: thread.base_sha)
       repo.discard!(dir)
+      repo.follow_origin!(thread.branch)
       conflicts = repo.merge_master_into!(dir)
       next conflicts.tap { repo.discard!(dir) } if conflicts.any?
 
@@ -134,6 +135,7 @@ module Designs::Threads
       refuse_while_turns_run!(thread)
       repo.ensure_clone!
       repo.worktree!(thread.branch, from: thread.base_sha.presence || Designs::Repo::MASTER)
+      repo.follow_origin!(thread.branch)
       commits = repo.commits_ahead(thread.branch)
       raise NothingToMerge, NOTHING_TO_MERGE unless commits.positive?
 

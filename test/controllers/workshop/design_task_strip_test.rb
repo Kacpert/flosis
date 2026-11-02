@@ -84,4 +84,11 @@ class Workshop::DesignTaskStripTest < ActionDispatch::IntegrationTest
       assert_includes response.body, "Designs merged"
     end
   end
+
+  test "a Jira task taken out of Create Tasks leaves its thread with no task" do
+    thread = DesignThread.create!(project: @project, task: @task, author: users(:one), title: "x", branch: "design/SP-1051-x")
+    delete workshop_idea_path(@task)
+    assert_nil thread.reload.task_id
+  end
+
 end

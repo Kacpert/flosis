@@ -227,4 +227,39 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     end
   end
 
+
+  # A commit on a thread's branch made on GitHub (a developer, another clone).
+  def commit_on_github(remote, branch, files)
+    Dir.mktmpdir("github") do |dir|
+      system("git", "clone", "--quiet", "--branch", branch, remote, dir, exception: true, err: File::NULL)
+      files.each { |path, body| FileUtils.mkdir_p(File.dirname(File.join(dir, path))); File.write(File.join(dir, path), body) }
+      system("git", "-C", dir, "add", "-A", exception: true)
+      system("git", "-C", dir, "-c", "user.name=Dev", "-c", "user.email=dev@example.com", "commit", "--quiet", "-m", "On GitHub", exception: true)
+      system("git", "-C", dir, "push", "--quiet", "origin", branch, exception: true, err: File::NULL)
+    end
+  end
+
+  test "a branch that moved on GitHub is followed, so nothing made there is lost" do
+    with_threads_remote do |repo, remote|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      commit_on_github(remote, thread.branch, { "designs/admin/extra.html" => "<title>Extra</title>" })
+
+      Designs::Threads.merge!(thread, user: @user)
+      assert_includes GitRunner.run!("ls-tree", "-r", "--name-only", "master", chdir: remote), "designs/admin/extra.html"
+    end
+  end
+
+  test "a branch that moved both on GitHub and here stops the merge, saying so" do
+    with_threads_remote do |repo, remote|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      commit_on_github(remote, thread.branch, { "designs/admin/extra.html" => "<title>Extra</title>" })
+      commit_files(repo, repo.worktree_path(thread.branch), { "designs/admin/local.html" => "<title>Local</title>" })
+
+      assert_raises(Designs::Repo::Diverged) { Designs::Threads.merge!(thread, user: @user) }
+      assert thread.reload.open?
+    end
+  end
+
 end

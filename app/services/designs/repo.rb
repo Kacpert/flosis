@@ -59,6 +59,7 @@ class Designs::Repo
   # its .git was changed, and git run there would act on whatever that file
   # names now. No git is run in it.
   class Tampered < StandardError; end
+  class Diverged < StandardError; end
 
   # A git lock file this old was left by a git that was killed (a deploy stops
   # jobs mid-run). No git Flosis runs here takes that long, and a transfer that
@@ -182,6 +183,26 @@ class Designs::Repo
         git("worktree", "add", "-b", branch, dir.to_s, start_point(from))
       end
       dir
+    end
+  end
+
+  # A branch someone moved on GitHub (a developer, another clone) since this
+  # clone last had it: ours is fast-forwarded when it is behind origin's, and
+  # left when it is ahead (the next push carries it). When both have moved on,
+  # the work stops rather than drop either side.
+  def follow_origin!(branch)
+    synchronize do
+      local = head(branch)
+      remote = remote_head(branch)
+      next if local.nil? || remote.nil? || local == remote || ancestor?(remote, local)
+      raise Diverged, "#{branch} changed on GitHub as well as here: bring the two together before going on" unless ancestor?(local, remote)
+
+      dir = worktree_path(branch)
+      if dir.exist?
+        git("merge", "--ff-only", "refs/remotes/origin/#{branch}", chdir: dir)
+      else
+        git("branch", "--force", branch, "refs/remotes/origin/#{branch}")
+      end
     end
   end
 
@@ -357,6 +378,13 @@ class Designs::Repo
       git("merge", "--abort")
       raise Conflict, "#{branch} does not merge cleanly into #{MASTER}: #{paths.join(", ")}"
     end
+  end
+
+  def ancestor?(older, newer)
+    git("merge-base", "--is-ancestor", older, newer)
+    true
+  rescue GitRunner::Error
+    false
   end
 
   # A branch's start: a commit named by its sha, else a local branch.
