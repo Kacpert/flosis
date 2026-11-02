@@ -1099,6 +1099,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       assert_includes options[:allowed_tools], "Read"
       assert_not_includes options[:allowed_tools], "mcp__flosis_browser__save_features", "only the map saves features"
       assert_equal [ DesignTurn.setup_timeout, DesignTurn.setup_budget_usd ], options.values_at(:timeout, :max_budget_usd)
+      assert_equal Designs::SignIn.node_env.merge("FLOSIS_BROWSER_CONFIG" => setup.run_dir.join("browser.json").to_s), server["env"]
       assert_not File.exist?(options[:mcp_config]), "the MCP config is gone after the turn"
     end
   end

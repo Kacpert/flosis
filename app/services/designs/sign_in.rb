@@ -35,6 +35,17 @@ class Designs::SignIn
       ENV["DESIGNS_CRAWLER_DIR"].presence || Rails.root.join("lib/designs_crawler").to_s
     end
 
+    # What the Node tools run with, and nothing more of the app's environment:
+    # where Playwright keeps Chromium, the temp folder, and the libraries
+    # headless Chromium needs that the host lacks (Hostido has no libasound,
+    # libatk-bridge, libatspi, libgbm or libwayland-server), from the folder
+    # DESIGNS_BROWSER_LIBS names. Only the browser's processes get them.
+    def node_env
+      env = ENV.slice("PLAYWRIGHT_BROWSERS_PATH", "TMPDIR")
+      env["LD_LIBRARY_PATH"] = ENV["DESIGNS_BROWSER_LIBS"] if ENV["DESIGNS_BROWSER_LIBS"].present?
+      env
+    end
+
     # What the browser knows a context by: "2-hiring-manager".
     def slug(role)
       "#{role.position.to_i + 1}-#{role.name.to_s.parameterize.presence || 'context'}"
@@ -77,7 +88,7 @@ class Designs::SignIn
 
     prepare
     out, errors, status = self.class.runner.call(argv: [ "node", File.join(self.class.crawler_dir, "sign_in.mjs"), auth.to_s ],
-                                                 env: ENV.slice("PLAYWRIGHT_BROWSERS_PATH", "TMPDIR"), stdin: input(roles).to_json)
+                                                 env: self.class.node_env, stdin: input(roles).to_json)
     results = parse(out)
     raise Failure, scrub("The sign-in could not run: #{errors.to_s.strip.presence || "exit #{status}"}") unless results
 

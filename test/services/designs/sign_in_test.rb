@@ -49,6 +49,16 @@ class Designs::SignInTest < ActiveSupport::TestCase
                  roles.map { |role| role.values_at("slug", "name", "username", "password") }
   end
 
+  # Hostido lacks libraries headless Chromium needs; they live in a folder of
+  # our own, named in DESIGNS_BROWSER_LIBS, and reach the browser alone.
+  test "the browser's own libraries reach the sign-in, and nothing else of the app" do
+    Designs::SignIn.runner = runner
+    with_env("DESIGNS_BROWSER_LIBS" => "/home/flosis/browser-libs") { Designs::SignIn.new(@setup).call }
+    assert_equal "/home/flosis/browser-libs", @calls.sole[:env]["LD_LIBRARY_PATH"]
+    assert_equal({ "LD_LIBRARY_PATH" => "/x" }, with_env("DESIGNS_BROWSER_LIBS" => "/x") { Designs::SignIn.node_env.slice("LD_LIBRARY_PATH") })
+    assert_not with_env("DESIGNS_BROWSER_LIBS" => nil) { Designs::SignIn.node_env.key?("LD_LIBRARY_PATH") }
+  end
+
   test "the states are private, and each context's is known by its slug" do
     Designs::SignIn.runner = runner
     result = Designs::SignIn.new(@setup).call

@@ -241,7 +241,7 @@ module Designs::Subject
       config = setup.run_dir.join("browser.json")
       File.write(config, JSON.generate(browser_config(worktree)), perm: 0o600)
       server = { command: "node", args: [ File.join(Designs::SignIn.crawler_dir, "browser.mjs") ],
-                 env: { "FLOSIS_BROWSER_CONFIG" => config.to_s }.merge(ENV.slice("PLAYWRIGHT_BROWSERS_PATH", "TMPDIR")) }
+                 env: Designs::SignIn.node_env.merge("FLOSIS_BROWSER_CONFIG" => config.to_s) }
       Tempfile.create([ "#{Designs::TurnJob::PROMPT_PREFIX}-mcp", ".json" ]) do |file|
         file.write(JSON.generate(mcpServers: { flosis_browser: server }))
         file.close

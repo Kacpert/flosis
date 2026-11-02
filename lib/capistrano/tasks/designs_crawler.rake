@@ -5,6 +5,13 @@ namespace :setup do
   # user's cache. DESIGNS_CRAWLER_DIR in the server's .env points there, and
   # PLAYWRIGHT_BROWSERS_PATH at the cache. Node writes temp files under
   # $HOME/tmp: the host's /tmp is small. The tests stay behind.
+  #
+  # Hostido lacks five libraries headless Chromium needs, and there is no root
+  # to install them: they sit in shared/designs_crawler/lib, unpacked from
+  # AlmaLinux 8 packages (alsa-lib 1.2.10, at-spi2-atk 2.26.2, at-spi2-core
+  # 2.28.0, mesa-libgbm 23.1.4, libwayland-server 1.21.0, from
+  # repo.almalinux.org AppStream), and DESIGNS_BROWSER_LIBS names that folder
+  # (see Designs::SignIn.node_env). This task leaves them alone.
   desc "Install the Designs setup's browser tools (Node + Playwright + Chromium) in shared/designs_crawler"
   task :designs_crawler do
     on roles(:app) do
