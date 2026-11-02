@@ -4,7 +4,9 @@ class HolidayYearlyGrantJob < ApplicationJob
   def perform
     year = Date.current.year
 
-    WorkspaceMembership.where(time_hr_access: true).includes(:user, :workspace).find_each do |membership|
+    # Holidays live in Time & HR, so an organization without it is granted none.
+    WorkspaceMembership.where(time_hr_access: true).joins(:workspace).where(workspaces: { hr_access: true })
+                       .includes(:user, :workspace).find_each do |membership|
       already_granted = HolidayBalanceEntry.exists?(
         user: membership.user,
         workspace: membership.workspace,

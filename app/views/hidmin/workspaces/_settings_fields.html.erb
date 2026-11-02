@@ -12,6 +12,14 @@
 </label>
 
 <label class="flex items-start gap-2.5 cursor-pointer">
+  <%= f.check_box :hr_access, class: "mt-1" %>
+  <span>
+    <span class="block text-[13.5px] font-semibold clar-text-text">Time &amp; HR</span>
+    <span class="block text-[12.5px] clar-text-muted">Time tracking, timesheets, holidays. Off: nobody in the organization sees it.</span>
+  </span>
+</label>
+
+<label class="flex items-start gap-2.5 cursor-pointer">
   <%= f.check_box :clients_enabled, class: "mt-1" %>
   <span>
     <span class="block text-[13.5px] font-semibold clar-text-text">Clients in Time &amp; HR</span>

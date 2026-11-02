@@ -29,7 +29,7 @@
       <% else %>
         You are not on any project yet.
       <% end %>
-      <% if current_membership&.time_hr_access? %>
+      <% if current_user.can_access_time_hr?(current_workspace) %>
         You do have access to Time &amp; HR, where you log your own hours and holidays.
       <% end %>
     </p>

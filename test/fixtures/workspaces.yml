@@ -1,5 +1,7 @@
 one:
   name: Test Workspace
+  hr_access: true
 
 two:
   name: Other Workspace
+  hr_access: true

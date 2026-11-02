@@ -15,6 +15,14 @@ class HolidayYearlyGrantJobTest < ActiveSupport::TestCase
     assert_match "Annual holiday grant for #{Date.current.year}", entry.note
   end
 
+  test "an organization without Time & HR is granted no holidays" do
+    workspaces(:one).update!(hr_access: false)
+
+    assert_no_difference "HolidayBalanceEntry.count" do
+      HolidayYearlyGrantJob.perform_now
+    end
+  end
+
   test "skips members without Time & HR access" do
     # Add a membership with Time & HR access switched off — nothing to do with
     # role, since the job grants purely on the time_hr_access flag.

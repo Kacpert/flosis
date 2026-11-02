@@ -31,7 +31,7 @@
     <label class="flex items-center gap-2.5 cursor-pointer text-[13px] clar-text-text">
       <%= hidden_field_tag "admin[time_hr_access]", "0", id: nil %>
       <%= check_box_tag "admin[time_hr_access]", "1", params.dig(:admin, :time_hr_access) == "1", id: "admin_time_hr_access" %>
-      Also uses Time &amp; HR (tracks their hours)
+      Uses Time &amp; HR, if the organization has it
     </label>
   </section>
 

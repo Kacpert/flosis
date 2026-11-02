@@ -122,7 +122,26 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="clar-text-faint"><path d="M6 9l6 6 6-6"/></svg>
     </button>
 
-    <div data-clar-dropdown-target="panel" class="hidden absolute top-[42px] right-0 w-[240px] clar-card clar-fade" style="box-shadow: var(--shadow-lg); padding: 6px; z-index: 50;">
+    <div data-clar-dropdown-target="panel" class="hidden absolute top-[42px] right-0 w-[260px] clar-card clar-fade" style="box-shadow: var(--shadow-lg); padding: 6px; z-index: 50;">
+      <%# The person's other organizations (workspaces), when they are in more
+          than one: Flosis staff can put the same account into several. %>
+      <% other_workspaces = current_user.workspaces.where.not(id: current_workspace.id).order(:name).to_a %>
+      <% if other_workspaces.any? %>
+        <div class="flex items-center justify-center gap-1.5 px-2.5 pt-2 pb-1 text-[11.5px] clar-text-faint">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="flex-none"><path d="M20 6L9 17l-5-5"/></svg>
+          <span class="truncate"><%= current_workspace.name %></span>
+        </div>
+        <% other_workspaces.each do |workspace| %>
+          <%= button_to switch_workspace_path(workspace), method: :post, params: { product: "workshop" },
+                class: "flex items-center gap-2.5 w-full px-2.5 py-2.5 rounded-lg border-0 text-left clar-btn",
+                style: "background: transparent;" do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="clar-text-ai flex-none"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9h.01M9 13h.01M9 17h.01"/></svg>
+            <span class="font-semibold text-[13px] min-w-0 truncate">Switch to <%= workspace.name %></span>
+          <% end %>
+        <% end %>
+        <div class="my-1.5 border-t" style="border-color: var(--border);"></div>
+      <% end %>
+
       <% if current_user.can_access_product?(current_workspace, :time_hr) %>
         <%= button_to switch_product_path, params: { product: "time_hr" }, method: :post,
               class: "flex items-center gap-2.5 w-full px-2.5 py-2.5 rounded-lg border-0 text-left clar-btn",

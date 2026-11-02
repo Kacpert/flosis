@@ -18,6 +18,7 @@ class Hidmin::WorkspacesControllerTest < ActionDispatch::IntegrationTest
     jane = User.find_by!(email_address: "jane@acme.com")
     assert_redirected_to hidmin_workspace_path(workspace)
     assert workspace.workshop_enabled?
+    assert_not workspace.hr_access?, "a new organization starts without Time & HR"
     assert jane.workspace_admin?(workspace)
     assert_not jane.can_access_time_hr?(workspace)
     assert_enqueued_email_with InvitationMailer, :welcome, args: [ jane, workspace ]
@@ -51,12 +52,22 @@ class Hidmin::WorkspacesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "settings are saved" do
-    patch hidmin_workspace_path(workspaces(:two)), params: { workspace: { name: "Renamed", workshop_enabled: "1", clients_enabled: "1" } }
+    patch hidmin_workspace_path(workspaces(:two)),
+          params: { workspace: { name: "Renamed", workshop_enabled: "1", hr_access: "0", clients_enabled: "1" } }
 
     assert_redirected_to hidmin_workspace_path(workspaces(:two))
     workspaces(:two).reload
     assert_equal "Renamed", workspaces(:two).name
     assert workspaces(:two).workshop_enabled?
+    assert_not workspaces(:two).hr_access?
     assert workspaces(:two).clients_enabled?
+  end
+
+  test "an organization's Time & HR can be switched on" do
+    workspaces(:two).update!(hr_access: false)
+
+    patch hidmin_workspace_path(workspaces(:two)), params: { workspace: { hr_access: "1" } }
+
+    assert workspaces(:two).reload.hr_access?
   end
 end
