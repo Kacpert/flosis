@@ -32,15 +32,25 @@ class ProjectRepoCheckoutJob < ApplicationJob
 
     url = GitRunner.github_url(creds.github_repo)
 
+    # The project's chosen branch, or the repository's default when none is.
+    branch = project.github_branch
+
     if Dir.exist?(File.join(checkout, ".git"))
       # This job used to clone with the token in the URL, so older checkouts
       # still hold it in their remote. Rewriting the remote before every pull
       # is what takes it out of them.
       run_git([ "remote", "set-url", "origin", url ], chdir: checkout)
+      # A checkout made before the branch was chosen sits on the default one.
+      # Nothing is ever committed in it, so -B may reset the local branch.
+      if branch
+        run_git([ "fetch", "origin", branch ], chdir: checkout, token: creds.github_token)
+        run_git([ "checkout", "-B", branch, "--track", "origin/#{branch}" ], chdir: checkout)
+      end
       run_git([ "pull", "--ff-only" ], chdir: checkout, token: creds.github_token)
     else
       FileUtils.mkdir_p(File.dirname(checkout))
-      run_git([ "clone", url, checkout ], chdir: File.dirname(checkout), token: creds.github_token)
+      clone = [ "clone", *([ "--branch", branch ] if branch), url, checkout ]
+      run_git(clone, chdir: File.dirname(checkout), token: creds.github_token)
     end
 
     project.update_columns(repo_checkout_status: "ready", repo_checkout_error: nil)

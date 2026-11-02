@@ -31,7 +31,7 @@ class Workshop::ProjectsControllerTest < ActionDispatch::IntegrationTest
       name: "Partner Portal",
       jira_site: "https://acme.atlassian.net/jira/software/projects/PP/boards/1", jira_email: "jane@acme.com",
       jira_api_token: "jira-secret", external_reference: "PP",
-      github_repo: "https://github.com/acme/partner-portal.git", github_token: "ghp_secret"
+      github_repo: "https://github.com/acme/partner-portal.git", github_branch: "production", github_token: "ghp_secret"
     } }
 
     project = workspaces(:one).projects.find_by!(name: "Partner Portal")
@@ -40,6 +40,7 @@ class Workshop::ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "jira-secret", project.jira_api_token
     assert_equal "jira", project.external_type, "a site and a key make it a Jira project"
     assert_equal "acme/partner-portal", project.github_repo
+    assert_equal "production", project.github_branch
     assert_equal "ghp_secret", project.github_token
   end
 

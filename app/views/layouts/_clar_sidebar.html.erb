@@ -110,17 +110,18 @@
 
     <%
       refreshed = clar_time_ago(current_workshop_project&.features_summary_updated_at) || "not yet scanned"
+      branch = current_workshop_project&.github_branch || "default branch"
     %>
-    <div class="clar-status-card" data-clar-sidebar-collapsed-only-hide title="Claude Opus &middot; master refreshed <%= refreshed %>">
+    <div class="clar-status-card" data-clar-sidebar-collapsed-only-hide title="Claude Opus &middot; <%= branch %> refreshed <%= refreshed %>">
       <div class="flex items-center gap-[7px] text-[11.5px] font-bold clar-text-ai">
         <span class="clar-dot" style="background: var(--ai);"></span>Claude Opus
       </div>
       <div class="text-[11px] mt-[5px] leading-[1.45] clar-text-muted">
-        Repo checked out &middot; <b class="clar-text-text">master</b> refreshed <%= refreshed %>
+        Repo checked out &middot; <b class="clar-text-text"><%= branch %></b> refreshed <%= refreshed %>
       </div>
     </div>
     <div class="hidden justify-center py-2.5 mt-2" data-clar-sidebar-collapsed-only-show
-         title="Claude Opus &middot; master refreshed <%= refreshed %>">
+         title="Claude Opus &middot; <%= branch %> refreshed <%= refreshed %>">
       <span class="clar-dot" style="width: 9px; height: 9px; background: var(--ai); box-shadow: 0 0 0 3px var(--ai-soft); animation: clar-blink 1.6s infinite;"></span>
     </div>
   <% end %>

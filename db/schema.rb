@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_02_213000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_02_230000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -607,6 +607,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_213000) do
     t.string "figma_status_error"
     t.boolean "figma_status_ok"
     t.text "figma_token"
+    t.string "github_branch"
     t.string "github_repo"
     t.datetime "github_status_checked_at"
     t.string "github_status_error"

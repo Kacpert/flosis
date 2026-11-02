@@ -83,6 +83,12 @@
           <div class="text-[11px] clar-text-faint mt-1">Paste the repository's address.</div>
         </div>
         <div>
+          <label class="clar-field-label" for="new_project_github_branch">BRANCH</label>
+          <%= text_field_tag "project[github_branch]", nil, id: "new_project_github_branch", placeholder: "production",
+                class: "clar-input clar-mono !py-2.5 text-[13px]", autocomplete: "off" %>
+          <div class="text-[11px] clar-text-faint mt-1">The one the AI reads. Empty: the repository&rsquo;s default.</div>
+        </div>
+        <div>
           <label class="clar-field-label" for="new_project_github_token">ACCESS TOKEN</label>
           <%= password_field_tag "project[github_token]", nil, id: "new_project_github_token", placeholder: "github_pat_…",
                 class: "clar-input clar-mono !py-2.5 text-[13px]", autocomplete: "new-password" %>
