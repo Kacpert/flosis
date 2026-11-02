@@ -44,6 +44,13 @@ class Project < ApplicationRecord
     repo.strip.sub(%r{\Ahttps://github\.com/}i, "").sub(%r{(?:\.git|/)+\z}i, "")
   }
 
+  # The branch the checkout follows; nil for the repository's default. It goes
+  # to git as an argument, so it must look like a branch: one starting with a
+  # dash would be taken for an option.
+  normalizes :github_branch, with: ->(branch) { branch.strip.presence }
+  validates :github_branch, format: { with: %r{\A(?!-)[\w./-]+\z}, message: "is not a branch name" },
+                            length: { maximum: 200 }, allow_nil: true
+
   # JiraClient puts "https://" in front of the site itself, so only the host is
   # kept: a link copied from a board, "https://acme.atlassian.net/jira/…", is
   # "acme.atlassian.net".

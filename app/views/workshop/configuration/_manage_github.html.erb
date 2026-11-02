@@ -22,7 +22,7 @@
       <div class="p-5">
         <label class="clar-field-label">REPOSITORY</label>
         <%= f.text_field :github_repo, value: project.github_repo, class: "clar-input clar-mono mb-1.5" %>
-        <div class="text-[11px] clar-text-faint mb-4">The repo is checked out server-side; master is refreshed daily.</div>
+        <div class="text-[11px] clar-text-faint mb-4">The repo is checked out server-side; its branch is refreshed daily.</div>
 
         <label class="clar-field-label">ACCESS TOKEN</label>
         <div class="flex gap-1.5 mb-1.5" data-controller="clar-token-field">
@@ -33,12 +33,15 @@
         </div>
         <div class="text-[11px] clar-text-faint mb-4">Write-only &mdash; leave blank to keep the current token.</div>
 
-        <label class="clar-field-label">DEFAULT BRANCH</label>
-        <div class="clar-input clar-mono mb-4 flex items-center bg-[var(--surface-2)]">master</div>
+        <%# Saving moves the checkout onto it (ProjectRepoCheckoutJob). %>
+        <label class="clar-field-label">BRANCH</label>
+        <%= f.text_field :github_branch, value: project.github_branch, placeholder: "the repository's default branch",
+              class: "clar-input clar-mono mb-1.5", autocomplete: "off" %>
+        <div class="text-[11px] clar-text-faint mb-4">The branch the AI reads, e.g. production. Empty: the repository&rsquo;s default.</div>
 
         <div class="flex items-center justify-between gap-3 py-2.5">
           <div>
-            <div class="font-semibold text-[13px] clar-text-text">Auto-refresh master daily</div>
+            <div class="font-semibold text-[13px] clar-text-text">Auto-refresh <%= project.github_branch || "the branch" %> daily</div>
             <div class="text-[11.5px] clar-text-faint mt-0.5">Last refreshed <%= clar_time_ago(current_workshop_project&.features_summary_updated_at) || "not yet" %></div>
           </div>
           <span class="clar-badge clar-badge-muted">05:00 daily</span>

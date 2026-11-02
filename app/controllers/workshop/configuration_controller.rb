@@ -13,7 +13,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
 
   INTEGRATION_FIELDS = {
     "jira" => %i[jira_site jira_email jira_api_token external_reference],
-    "github" => %i[github_repo github_token pr_review_enabled],
+    "github" => %i[github_repo github_branch github_token pr_review_enabled],
     "figma" => %i[figma_token figma_read_enabled]
   }.freeze
 

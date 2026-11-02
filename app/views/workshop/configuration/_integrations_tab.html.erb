@@ -2,7 +2,7 @@
   project = current_workshop_project
   github_last4 = project&.github_token.present? ? project.github_token.last(4) : nil
   github_detail = [
-    project&.github_repo.presence || "no repo configured",
+    project&.github_repo.present? ? [ project.github_repo, project.github_branch ].compact.join(" @ ") : "no repo configured",
     (github_last4 ? "token &bull;&bull;&bull;&bull;#{github_last4}" : "no token").html_safe,
     "checked #{clar_time_ago(project&.github_status_checked_at) || 'never'}"
   ].join(" &middot; ").html_safe

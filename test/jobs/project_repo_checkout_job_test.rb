@@ -50,6 +50,32 @@ class ProjectRepoCheckoutJobTest < ActiveJob::TestCase
     end
   end
 
+  # The branch the AI reads, when the repository's default is not it (a
+  # project whose trunk is "production", say).
+  test "a chosen branch is the one cloned" do
+    @project.update!(github_branch: "production")
+    with_git_capture do |calls|
+      ProjectRepoCheckoutJob.perform_now(@project.id)
+      clone = calls.find { |c| c[:args].first == "clone" }
+      assert_equal [ "clone", "--branch", "production", "https://github.com/acme/app.git", @project.repo_checkout_path ],
+                   clone[:args]
+    end
+  end
+
+  test "an existing checkout moves to the chosen branch before it pulls" do
+    @project.update!(github_branch: "production")
+    FileUtils.mkdir_p(File.join(@project.repo_checkout_path, ".git"))
+    with_git_capture do |calls|
+      ProjectRepoCheckoutJob.perform_now(@project.id)
+      assert_equal [ %w[remote set-url origin https://github.com/acme/app.git],
+                     %w[fetch origin production],
+                     %w[checkout -B production --track origin/production],
+                     %w[pull --ff-only] ],
+                   calls.map { |c| c[:args] }
+      assert_equal "ght", calls.find { |c| c[:args].first == "fetch" }[:token]
+    end
+  end
+
   test "skips clone for legacy elvium" do
     @project.update_column(:workspace_dir, Project::ELVIUM_LEGACY_DIR)
     with_git_capture do |calls|

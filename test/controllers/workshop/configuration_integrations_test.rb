@@ -107,6 +107,28 @@ class Workshop::ConfigurationIntegrationsTest < ActionDispatch::IntegrationTest
     assert_equal "acme/repo", @project.github_repo
     assert_equal "gh-secret", @project.github_token
   end
+
+  # Saving a branch is what moves the server's checkout onto it.
+  test "saving github with a branch stores it and starts the checkout" do
+    assert_enqueued_with(job: ProjectRepoCheckoutJob, args: [ @project.id ]) do
+      patch workshop_configuration_path(tab: "integrations"), params: {
+        integration: "github",
+        project: { github_repo: "https://github.com/acme/repo", github_branch: "production", github_token: "gh-secret" }
+      }
+    end
+    @project.reload
+    assert_equal "acme/repo", @project.github_repo
+    assert_equal "production", @project.github_branch
+  end
+
+  test "a branch git would take for an option is refused and not stored" do
+    patch workshop_configuration_path(tab: "integrations"), params: {
+      integration: "github", project: { github_repo: "acme/repo", github_branch: "--upload-pack=x" }
+    }
+    assert_nil @project.reload.github_branch
+    assert_match "not a branch name", flash[:alert]
+  end
+
   # fetch(..., []) permitted nothing, wrote nothing, and still toasted
   # "Integration settings saved" — one forgotten hidden_field_tag away from a
   # form that silently does nothing.
