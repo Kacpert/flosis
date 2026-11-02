@@ -13,7 +13,6 @@ class Workshop::DesignsModuleController < Workshop::BaseController
 
   def show
     @project = current_workshop_project
-    DesignSetup.fail_stale!
     DesignTurn.fail_stale!
     import = @project.design_setups.where(design_thread_id: nil).order(:id).last
     return redirect_to(workshop_design_setup_run_path) if import && !import.done? && (import.status == "active" || !@project.designs_ready?)

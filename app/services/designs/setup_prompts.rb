@@ -2,8 +2,7 @@
 # by feature): the map, the design system, and one feature at a time. The
 # migrations seed them into the library (kind base_prompt); from then on the
 # library is the source: staff edit them there, and a library without one
-# falls back to this text (Designs::Library.compose_setup). components and
-# designs are v2's phases, until its run is replaced.
+# falls back to this text (Designs::Library.compose_setup).
 module Designs::SetupPrompts
   SEEDS = {
     "map" => {
@@ -60,32 +59,5 @@ module Designs::SetupPrompts
         Leave a <missing> block, one sentence each, only for something that makes the design differ from the app or that you could not check: data the test environment lacks, an integration it does not have, a context that could not see the feature. Nothing else goes there.
       TEXT
     },
-    "components" => {
-      key: "setup-components", name: "Setup: components",
-      description: "Phase 2 of a setup run: one component per real building block of the app.",
-      body: <<~TEXT
-        This is phase 2 of 3 of a setup run: the components.
-
-        This phase owns components/. The design system from phase 1 stays as it is; use its tokens, never values of your own. Phase 3 will build every screen from what you leave here.
-
-        - Find the app's real UI building blocks in its views, partials and front-end components (buttons, fields, tables, cards, navigation, modals, empty states...), and check them against the crawled pages.
-        - Make one component per building block, in its own folder, with the states and variants the app uses.
-        - Give each component a README with its guidelines (when to use it, its variants, what not to do), and a preview page that shows every variant.
-        - Do not invent components the app does not have.
-      TEXT
-    },
-    "designs" => {
-      key: "setup-designs", name: "Setup: designs",
-      description: "Phase 3 of a setup run: every crawled page, per role, as a screen.",
-      body: <<~TEXT
-        This is phase 3 of 3 of a setup run: the current screens.
-
-        This phase owns designs/. Use only the components from phase 2 and the tokens from phase 1; when a screen needs something they lack, say so instead of drawing it ad hoc.
-
-        - Each role the crawl signed in as is a context: a folder designs/<context>/ named for the role, in letters, digits, _ and -.
-        - Each page the crawl visited becomes a screen designs/<context>/<screen>.html in the folder of every role that could see it, as that role saw it. Give each screen a <title>: its name in Designs.
-        - Link the screens of a context to each other as the app's navigation does, by relative links, so the designs can be clicked through.
-      TEXT
-    }
   }.freeze
 end

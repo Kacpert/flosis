@@ -152,11 +152,12 @@ class Designs::TurnJob < ApplicationJob
   end
 
   # Solid Queue stops a worker with exit!, which runs no ensure: a turn a
-  # deploy killed leaves its app copy and its prompt file in the temp folder.
-  # Whatever of theirs is older than any turn can run was left that way. A
-  # failure here is logged and never stops the turn.
+  # deploy killed leaves its app copy, its prompt file and its MCP config in
+  # the temp folder. Whatever of theirs is older than any turn can run (a
+  # setup turn's limit is the longest) was left that way. A failure here is
+  # logged and never stops the turn.
   def sweep_leftovers
-    older_than = DesignTurn.stale_after.ago
+    older_than = [ DesignTurn.stale_after, DesignTurn.setup_stale_after ].max.ago
     Designs::AppCopy.sweep(older_than: older_than)
     Dir.glob(File.join(Dir.tmpdir, "#{PROMPT_PREFIX}*")).each do |path|
       stat = File.lstat(path)

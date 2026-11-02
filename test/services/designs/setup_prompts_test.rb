@@ -15,8 +15,8 @@ class Designs::SetupPromptsTest < ActiveSupport::TestCase
   end
 
   test "a run has a map, a design system and a feature phase" do
-    keys = %w[map design_system feature].map { |phase| Designs::SetupPrompts::SEEDS.fetch(phase)[:key] }
-    assert_equal %w[setup-map setup-design-system setup-feature], keys
+    assert_equal %w[map design_system feature], Designs::SetupPrompts::SEEDS.keys
+    assert_equal %w[setup-map setup-design-system setup-feature], Designs::SetupPrompts::SEEDS.values.map { |seed| seed[:key] }
   end
 
   test "the map is saved with its tool, the app shell first" do

@@ -279,8 +279,9 @@ module Designs::Threads
     raise Busy, BUSY if DesignTurn.active.where(chat_session_id: thread.chat_session_id).exists?
   end
 
+  # A re-import a deploy cut off is picked up again (Designs::ResumeSetupsJob),
+  # so it holds its thread until it is done or failed.
   def importing?(thread)
-    DesignSetup.fail_stale!
     DesignSetup.running.where(design_thread_id: thread.id).exists?
   end
 

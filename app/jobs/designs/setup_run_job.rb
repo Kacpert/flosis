@@ -1,103 +1,182 @@
-# The Designs setup, unattended (Workshop Designs v2): from the setup form to
-# master, in the seven steps Kacper's design lists. It reads the repositories
-# (making the designs repo if it is new), signs in to staging as each context
-# and captures what each sees (Designs::CrawlJob), has Claude build the design
-# system, the components and the screens (three setup turns, as v1's setup run
-# phases), and commits it all to master, recorded as the import's merge.
+# The Designs setup, feature by feature, unattended: from the setup form to
+# master in the six steps of DesignSetup::STEPS. It reads the app's
+# repositories (making the designs repo if it is new), signs in to the test
+# environment as each context, has Claude map the app's features and build
+# the design system, then builds the features one after another (each a
+# setup turn of its own, which uses the app in a browser, writes the
+# feature's screens and checks them against it) and lands it all on master,
+# recorded as the import's merge.
 #
-# A failed step stops the run where it is: "Retry" starts it again from that
-# step. A re-import runs on its own thread instead of wip/setup, and stops
-# short of master: the thread is merged like any other.
+# One execution runs one unit, a step or one feature, and enqueues the next,
+# so a deploy that kills the worker costs that unit at most. A unit is claimed
+# until a deadline (DesignSetup#claim_unit!): the job delivered again after a
+# restart takes its unit over at once, and a run whose job is gone is found
+# stalled and picked up again (Designs::ResumeSetupsJob).
+#
+# What the run cannot go past stops it, failed with its error: no designs
+# repository, no app repository read, nobody signed in, an empty map, a step's
+# turn that failed. "Retry" goes on from that step. A feature whose turn fails
+# is marked and noted, and the run goes on. A re-import runs on its own thread
+# and stops short of master: the thread is merged like any other.
 class Designs::SetupRunJob < ApplicationJob
   queue_as :designs
 
   class Failure < StandardError; end
 
-  STEPS = %i[read_repos sign_in capture design_system components designs commit].freeze
-  PHASE_REQUESTS = {
-    "design_system" => "Recreate the design system: tokens, type, spacing and radius, from the app and the captured pages.",
-    "components" => "Rebuild the app's components from its code, checked against the captured pages.",
-    "designs" => "Recreate today's screens, one folder per context, as each context sees them in the captured pages."
-  }.freeze
-  IMPORT_SUMMARY = "Initial import: design system, components and current screens captured from staging and the app repositories.".freeze
+  STOPS = [ Failure, Designs::AppRepos::Failure, Designs::SignIn::Failure ].freeze
+  MAP_REQUEST = "Map the app's features, in the order they are to be built, and save the map.".freeze
+  DESIGN_SYSTEM_REQUEST = "Build the design system: the tokens, fonts, icons and logos, from the app's code and its pages.".freeze
+  IMPORT_SUMMARY = "Initial import: the design system, the components and the screens of every feature, " \
+                   "built from the test environment and the app's repositories.".freeze
 
-  # What runs the crawl and a setup turn, here and now; tests stand in for both.
   class << self
-    attr_writer :crawler, :turn_runner
+    # What runs a setup turn, signs the contexts in and reads the app's
+    # repositories, here and now; tests stand in for them.
+    attr_writer :turn_runner, :sign_in, :app_repos
 
-    def crawler = @crawler || ->(setup_id) { Designs::CrawlJob.perform_now(setup_id) }
     def turn_runner = @turn_runner || ->(turn_id) { Designs::TurnJob.perform_now(turn_id) }
+    def sign_in = @sign_in || ->(setup) { Designs::SignIn.new(setup).call }
+    def app_repos = @app_repos || ->(setup) { Designs::AppRepos.new(setup).fetch! }
+
+    # How long one unit may hold the run: a setup turn and what follows it.
+    def unit_limit = DesignTurn.setup_timeout.seconds + 15.minutes
   end
 
   def perform(setup_id)
     setup = DesignSetup.find_by(id: setup_id)
-    return unless setup&.status == "active"
+    return unless setup&.status == "active" && setup.finished_at.nil?
+    return unless setup.claim_unit!(job_id, limit: self.class.unit_limit)
 
-    (setup.step...STEPS.size).each do |index|
-      setup.update!(step: index, error: nil)
-      send(STEPS[index], setup)
-    end
-    setup.update!(step: STEPS.size, status: "approved", finished_at: Time.current, error: nil)
-  rescue Failure => e
-    setup&.update!(status: "failed", error: e.message.to_s.truncate(1_000))
+    setup.start_step!
+    send(DesignSetup::STEPS.fetch(setup.step), setup)
+    setup.release_unit!
+    self.class.perform_later(setup.id) if setup.reload.status == "active" && setup.finished_at.nil?
+  rescue *STOPS => e
+    stop(setup, e.message)
   rescue StandardError => e
     Rails.logger.error("[#{self.class.name}] setup #{setup_id}: #{e.class}: #{e.message}")
-    setup&.update!(status: "failed", error: "#{e.class.name}: #{e.message}".truncate(1_000))
+    stop(setup, "#{e.class.name}: #{e.message}")
   end
 
   private
 
+  def stop(setup, message)
+    setup&.update!(status: "failed", error: message.to_s.truncate(1_000), unit_job_id: nil, unit_deadline_at: nil)
+  end
+
   def read_repos(setup)
     project = setup.project
-    return if project.design_repo_status == "ready"
-
-    Designs::InitializeRepoJob.perform_now(project.id)
-    project.reload
-    raise Failure, project.design_repo_error.presence || "The designs repository could not be set up." unless project.design_repo_status == "ready"
+    unless project.design_repo_status == "ready"
+      Designs::InitializeRepoJob.perform_now(project.id)
+      project.reload
+      raise Failure, project.design_repo_error.presence || "The designs repository could not be set up." unless project.design_repo_status == "ready"
+    end
+    self.class.app_repos.call(setup)
+    setup.finish_step!
   end
 
   def sign_in(setup)
-    self.class.crawler.call(setup.id)
-    setup.reload
-    raise Failure, setup.crawl_error if setup.crawl_error.present?
+    self.class.sign_in.call(setup)
+    setup.finish_step!
   end
 
-  def capture(setup)
-    summary = setup.crawl_dir && Pathname(setup.crawl_dir).join("crawl.json")
-    pages = summary&.file? ? Array(JSON.parse(summary.read)["pages"]).size : 0
-    setup.update!(pages: pages)
-  rescue JSON::ParserError
-    setup.update!(pages: 0)
+  # The map: a turn that walks the app and saves its features, read into the
+  # run's features in the map's order. A map run again replaces them.
+  def map_features(setup)
+    FileUtils.mkdir_p(setup.run_dir)
+    File.chmod(0o700, setup.run_dir)
+    map = setup.run_dir.join("features.json")
+    FileUtils.rm_f(map)
+    setup.update!(phase: "map")
+    run_turn!(setup, MAP_REQUEST)
+    rows = begin
+      Array(JSON.parse(map.read)).select { |row| row.is_a?(Hash) }
+    rescue JSON::ParserError, SystemCallError
+      []
+    end
+    raise Failure, "The map found no features." if rows.empty?
+
+    setup.features.destroy_all
+    setup.add_features!(rows)
+    setup.finish_step!
   end
 
-  def design_system(setup) = phase(setup, "design_system")
-  def components(setup) = phase(setup, "components")
-  def designs(setup) = phase(setup, "designs")
+  def design_system(setup)
+    setup.update!(phase: "design_system")
+    run_turn!(setup, DESIGN_SYSTEM_REQUEST)
+    setup.finish_step!
+  end
 
-  # One setup turn, run here and now: the run waits for it.
-  def phase(setup, name)
-    setup.update!(phase: name)
-    project = setup.project
-    session = ChatSession.designs_setup_for!(project, user: setup.started_by, codebase_path: project.designs_dir.to_s)
-    request = session.chat_messages.create!(role: "user", user: setup.started_by, content: PHASE_REQUESTS.fetch(name))
-    turn = DesignTurn.create!(chat_session: session, chat_message: request)
+  # One feature a unit, the first not finished: it signs in afresh, is built
+  # by a turn of its own, and is done (with what it did to the components and
+  # the turn's notes) or failed (noted, and the run goes on). With none left,
+  # the step is over.
+  def features(setup)
+    feature = setup.features.pending.first
+    return setup.finish_step! unless feature
+
+    self.class.sign_in.call(setup)
+    feature.update!(status: "running", stage: "building", started_at: feature.started_at || Time.current, error: nil)
+    FileUtils.rm_f(setup.run_dir.join("progress.json"))
+    setup.update!(phase: "feature")
+    repo = Designs::Repo.new(setup.project)
+    before = repo.head(branch(setup))
+    turn = start_turn(setup, Designs::FeatureBrief.for(feature))
+    feature.update!(design_turn: turn)
     self.class.turn_runner.call(turn.id)
-    turn.reload
-    raise Failure, turn.error.presence || "Claude could not finish this step." unless turn.succeeded?
+    finish_feature(feature, turn.reload, repo, before)
+  end
+
+  def finish_feature(feature, turn, repo, before)
+    if turn.succeeded?
+      counts = Designs::ComponentCount.between(repo, before, turn.commit_sha || repo.head(branch(feature.design_setup)))
+      notes = turn.chat_session.chat_messages.where(kind: "missing").where("id > ?", turn.chat_message_id).order(:id).pluck(:content)
+      feature.update!(status: "done", stage: nil, finished_at: Time.current, components_new: counts[:new],
+                      components_reused: counts[:reused], notes: feature.notes + notes)
+    else
+      error = turn.error.presence || "Claude could not finish this feature."
+      feature.update!(status: "failed", stage: nil, finished_at: Time.current, error: error,
+                      notes: feature.notes + [ "Could not finish: #{error}".truncate(500) ])
+    end
   end
 
   def commit(setup)
     if (thread = setup.design_thread)
       Designs::Threads.note(thread, "Re-import from staging finished. Check what changed, then merge it.")
-      return
+    else
+      project = setup.project
+      Designs::SetupApproval.new(project, user: setup.started_by, wait: true).approve!
+      master = Designs::Repo.new(project).head(Designs::Repo::MASTER)
+      project.design_merges.create!(sha: master, title: "Initial import from staging", branch: "setup", how: "setup",
+                                    screens: [], commits: 1, summary: IMPORT_SUMMARY,
+                                    what_changed: [ "Design system: tokens, type scale and spacing", "Components",
+                                                    "#{setup.features.where(status: 'done').size} features, every context" ],
+                                    merged_at: Time.current)
     end
-
-    project = setup.project
-    Designs::SetupApproval.new(project, user: setup.started_by, wait: true).approve!
-    master = Designs::Repo.new(project).head(Designs::Repo::MASTER)
-    project.design_merges.create!(sha: master, title: "Initial import from staging", branch: "setup", how: "setup",
-                                  screens: [], commits: 1, summary: IMPORT_SUMMARY,
-                                  what_changed: [ "Design system: tokens, type scale and spacing", "Components", "Screens across every context" ],
-                                  merged_at: Time.current)
+    setup.finish_step!
+    setup.update!(status: "approved", finished_at: Time.current)
   end
+
+  # A setup turn, run here and now: the run waits for it, and a step's turn
+  # that fails stops the run.
+  def run_turn!(setup, request)
+    turn = start_turn(setup, request)
+    self.class.turn_runner.call(turn.id)
+    turn.reload
+    raise Failure, turn.error.presence || "Claude could not finish this step." unless turn.succeeded?
+
+    turn
+  end
+
+  # Each unit is a Claude session of its own: a feature starts afresh, from
+  # the repository, never from the last feature's conversation.
+  def start_turn(setup, request)
+    project = setup.project
+    session = ChatSession.create!(project: project, workspace: project.workspace, user: setup.started_by, purpose: "designs_setup",
+                                  claude_session_id: SecureRandom.uuid, codebase_path: project.designs_dir.to_s)
+    message = session.chat_messages.create!(role: "user", user: setup.started_by, content: request)
+    DesignTurn.create!(chat_session: session, chat_message: message, kind: "setup")
+  end
+
+  def branch(setup) = setup.design_thread&.branch || Designs::BranchNames::SETUP
 end

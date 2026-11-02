@@ -93,21 +93,23 @@ class Workshop::DesignSetupRunsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "whoever started the setup is told once that master is ready" do
-    @project.design_setups.create!(status: "approved", phase: "designs", step: 7, started_by: users(:one), finished_at: Time.current)
+    @project.design_setups.create!(status: "approved", phase: "feature", step: 7, started_by: users(:one), finished_at: Time.current)
     get workshop_pipeline_path
     assert_includes response.body, "Designs ready · #{@project.name} @ master"
     get workshop_pipeline_path
     assert_not_includes response.body, "Designs ready · #{@project.name} @ master"
   end
 
-  test "a run a deploy killed shows as stopped, with Retry" do
-    setup = @project.design_setups.create!(status: "active", phase: "components", step: 4, started_by: users(:one))
+  # A deploy cut it off: Designs::ResumeSetupsJob picks it up again, so the
+  # page does not fail it.
+  test "a run a deploy cut off still shows as running" do
+    setup = @project.design_setups.create!(status: "active", phase: "feature", step: 4, started_by: users(:one),
+                                           unit_job_id: "gone", unit_deadline_at: 1.minute.ago)
     setup.update_columns(updated_at: 3.hours.ago)
 
     get workshop_design_setup_run_path
-    assert_equal "failed", setup.reload.status
-    assert_includes response.body, DesignTurn::INTERRUPTED
-    assert_select "button", text: "Retry"
+    assert_equal "active", setup.reload.status
+    assert_includes response.body, "Running in the background"
   end
 
 end

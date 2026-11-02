@@ -10,6 +10,11 @@
 #     schedule: at 5am every day
 
 production:
+  # A setup run a deploy cut off is picked up again once its unit's deadline
+  # has passed (the Designs setup, feature by feature).
+  resume_design_setups:
+    class: Designs::ResumeSetupsJob
+    schedule: every 10 minutes
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12

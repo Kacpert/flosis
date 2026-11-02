@@ -12,9 +12,8 @@
 # active while it goes, approved once master has it, and failed when it cannot
 # go on at all; what only makes the design differ from the app is a note.
 class DesignSetup < ApplicationRecord
-  # The phase prompt the run's turns get (Designs::SetupPrompts). components
-  # and designs are v2's, until its run is replaced.
-  PHASES = %w[map design_system feature components designs].freeze
+  # The phase prompt the run's turns get (Designs::SetupPrompts).
+  PHASES = %w[map design_system feature].freeze
   STATUSES = %w[active approved failed].freeze
   STEPS = %i[read_repos sign_in map_features design_system features commit].freeze
   STEP_MINUTES = [ 10, 2, 20, 30, nil, 3 ].freeze
@@ -22,10 +21,6 @@ class DesignSetup < ApplicationRecord
   FEATURE_MINUTES = 30
   # What the time left counts on before the map says how many there are.
   GUESSED_FEATURES = 15
-  # Ruling P5-R2: how long a crawl that was asked for counts as running — the
-  # crawler's own 20-minute limit and five minutes more. A crawl that failed,
-  # or that a deploy killed, must not hold the run's turns for ever.
-  CRAWL_LIMIT = 25.minutes
 
   belongs_to :project
   belongs_to :started_by, class_name: "User", optional: true
@@ -43,17 +38,6 @@ class DesignSetup < ApplicationRecord
   scope :running, -> { where(status: "active").where(finished_at: nil) }
   # Running, with a unit whose deadline has passed: its job is gone.
   scope :stalled, -> { running.where.not(unit_deadline_at: nil).where(unit_deadline_at: ...Time.current) }
-
-  # A run that has said nothing for longer than any of its steps may take was
-  # cut off (a deploy restarts the worker): it is failed, so Retry shows.
-  def self.stale_after
-    [ DesignTurn.stale_after, CRAWL_LIMIT ].max + 30.minutes
-  end
-
-  def self.fail_stale!
-    now = Time.current
-    running.where(updated_at: ...(now - stale_after)).update_all(status: "failed", error: DesignTurn::INTERRUPTED, updated_at: now)
-  end
 
   # "About 6 h left", "About 40 min left".
   def self.time_left(minutes)
@@ -154,10 +138,6 @@ class DesignSetup < ApplicationRecord
 
   def failed? = status == "failed"
   def done? = status == "approved"
-
-  def crawling?
-    crawl_requested_at.present? && crawled_at.nil? && crawl_error.blank? && crawl_requested_at > CRAWL_LIMIT.ago
-  end
 
   private
 

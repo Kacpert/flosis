@@ -33,7 +33,7 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
     @project = current_workshop_project
     return incomplete unless save_form
 
-    setup = @project.design_setups.create!(status: "active", phase: "design_system", step: 0, started_by: current_user)
+    setup = @project.design_setups.create!(status: "active", phase: "map", step: 0, started_by: current_user)
     Designs::SetupRunJob.perform_later(setup.id)
     flash[:clar_toast] = "Building designs in the background · about an hour"
     redirect_to workshop_design_setup_run_path
@@ -49,7 +49,6 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
 
   def show
     @project = current_workshop_project
-    DesignSetup.fail_stale!
     @setup = @project.design_setups.where(design_thread_id: nil).order(:id).last
     redirect_to(workshop_designs_overview_path) if @setup.nil? || @setup.done?
   end
@@ -57,7 +56,7 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
   def retry
     setup = current_workshop_project.design_setups.order(:id).last
     if setup&.failed?
-      setup.update!(status: "active", error: nil)
+      setup.update!(status: "active", error: nil, unit_job_id: nil, unit_deadline_at: nil)
       Designs::SetupRunJob.perform_later(setup.id)
     end
     redirect_to setup&.design_thread ? workshop_designs_overview_path(thread: setup.design_thread_id) : workshop_design_setup_run_path
@@ -71,7 +70,7 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
       branch: Designs::ThreadNames.branch_for(project: project, text: "Re-import from staging"),
       base_sha: Designs::Threads.master_head(project)
     )
-    setup = project.design_setups.create!(status: "active", phase: "design_system", step: 0, started_by: current_user, design_thread: thread)
+    setup = project.design_setups.create!(status: "active", phase: "map", step: 0, started_by: current_user, design_thread: thread)
     Designs::SetupRunJob.perform_later(setup.id)
     flash[:clar_toast] = "Re-import queued · staging and #{app_repos(project).first || 'the app'}"
     redirect_to workshop_designs_overview_path(thread: thread.id)

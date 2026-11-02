@@ -269,7 +269,7 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     with_threads_remote do |repo, _|
       seed_master(repo)
       thread = thread_with_work(repo, "Re-import from staging", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
-      repo.project.design_setups.create!(status: "active", phase: "components", step: 4, started_by: @user, design_thread: thread)
+      repo.project.design_setups.create!(status: "active", phase: "feature", step: 4, started_by: @user, design_thread: thread)
 
       assert_raises(Designs::Threads::Busy) { Designs::Threads.merge!(thread, user: @user) }
       assert_raises(Designs::Threads::Busy) { Designs::Threads.message!(thread, user: @user, text: "Trim it") }

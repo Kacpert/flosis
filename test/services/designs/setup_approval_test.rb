@@ -44,7 +44,7 @@ class Designs::SetupApprovalTest < ActiveSupport::TestCase
 
   # Plan 5: a setup run's approval.
   def setup_run(project)
-    DesignSetup.create!(project: project, started_by: users(:one), phase: "designs")
+    DesignSetup.create!(project: project, started_by: users(:one), phase: "feature")
   end
 
   def approve_setup(project, remote)

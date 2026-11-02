@@ -177,16 +177,18 @@ class Designs::TurnJobTest < ActiveJob::TestCase
   test "a turn first clears away the temp files that killed turns left" do
     with_design_remote do |repo, remote|
       task = design_task(repo)
-      long_ago = (DesignTurn.stale_after + 1.minute).ago.to_time
+      long_ago = (DesignTurn.setup_stale_after + 1.minute).ago.to_time
+      setup_turns_age = (DesignTurn.stale_after + 10.minutes).ago.to_time
       old_copy = Dir.mktmpdir(Designs::AppCopy::PREFIX)
       FileUtils.mkdir(File.join(old_copy, "app"))
       File.chmod(0o555, File.join(old_copy, "app"))
       File.utime(long_ago, long_ago, old_copy)
-      old_prompt, young_prompt = 2.times.map do
+      old_prompt, young_prompt, setup_prompt = 3.times.map do
         File.join(Dir.tmpdir, "#{Designs::TurnJob::PROMPT_PREFIX}-test-#{SecureRandom.hex(4)}.md")
       end
-      [ old_prompt, young_prompt ].each { |path| File.write(path, "a system prompt") }
+      [ old_prompt, young_prompt, setup_prompt ].each { |path| File.write(path, "a system prompt") }
       File.utime(long_ago, long_ago, old_prompt)
+      File.utime(setup_turns_age, setup_turns_age, setup_prompt)
       fake_claude
 
       assert run_turn(new_turn(task), remote).succeeded?
@@ -194,7 +196,9 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       assert_not File.exist?(old_copy)
       assert_not File.exist?(old_prompt)
       assert File.exist?(young_prompt), "a running turn's prompt file is younger than any turn can run"
+      assert File.exist?(setup_prompt), "a setup turn may still be running past a thread turn's limit"
     ensure
+      File.delete(setup_prompt) if setup_prompt && File.exist?(setup_prompt)
       File.delete(young_prompt) if young_prompt && File.exist?(young_prompt)
       File.delete(old_prompt) if old_prompt && File.exist?(old_prompt)
       if old_copy && File.exist?(old_copy)

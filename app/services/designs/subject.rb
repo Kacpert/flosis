@@ -163,8 +163,7 @@ module Designs::Subject
     # them; only the map's turn may save the features.
     BROWSER_TOOLS = %w[open click fill_form screenshot design compare check_design progress].map { |name| "mcp__flosis_browser__#{name}" }.freeze
     MAP_TOOLS = %w[mcp__flosis_browser__save_features].freeze
-    PHASE_TITLES = { "map" => "the feature map", "design_system" => "the design system", "feature" => "one feature",
-                     "components" => "the components", "designs" => "the screens" }.freeze
+    PHASE_TITLES = { "map" => "the feature map", "design_system" => "the design system", "feature" => "one feature" }.freeze
     VIEWPORT = { width: 1440, height: 900 }.freeze
 
     def initialize(session)

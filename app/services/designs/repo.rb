@@ -213,6 +213,16 @@ class Designs::Repo
     []
   end
 
+  # The files under a folder that differ between two commits, sorted; with no
+  # from, every file to has there.
+  def diff_names(from, to, prefix)
+    return ls_files(to, prefix) unless from
+
+    synchronize { git("diff", "--name-only", from, to, "--", prefix).split("\n").sort }
+  rescue GitRunner::Error
+    []
+  end
+
   # The last commit two branches share, or nil when either is missing.
   def merge_base(a, b)
     synchronize { git("merge-base", "refs/heads/#{a}", "refs/heads/#{b}").strip.presence }

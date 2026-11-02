@@ -50,8 +50,8 @@ class Designs::SubjectTest < ActiveSupport::TestCase
 
   test "the setup prompt follows the phase" do
     assert_includes Designs::Subject.for(@session).system_text, LibraryEntry.find_by!(key: "setup-design-system").current_version.body
-    @setup.update!(phase: "components")
-    assert_includes Designs::Subject.for(@session).system_text, LibraryEntry.find_by!(key: "setup-components").current_version.body
+    @setup.update!(phase: "feature")
+    assert_includes Designs::Subject.for(@session).system_text, LibraryEntry.find_by!(key: "setup-feature").current_version.body
   end
 
   # Ruling P5-R4: one composition for the prompt, the guard and the record.
@@ -156,7 +156,7 @@ class Designs::SubjectTest < ActiveSupport::TestCase
   test "a re-import publishes its Changes against its thread's base" do
     project = projects(:jira_project)
     thread = DesignThread.create!(project: project, author: users(:one), title: "Re-import from staging", branch: "design/re-import", base_sha: "abc1234")
-    project.design_setups.create!(status: "active", phase: "components", step: 4, started_by: users(:one), design_thread: thread)
+    project.design_setups.create!(status: "active", phase: "feature", step: 4, started_by: users(:one), design_thread: thread)
     session = ChatSession.create!(project: project, workspace: project.workspace, user: users(:one), purpose: "designs_setup",
                                   claude_session_id: SecureRandom.uuid, codebase_path: "/tmp")
     subject = Designs::Subject.for(session)
