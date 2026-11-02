@@ -18,17 +18,14 @@
       <%= f.text_area "idea[description]", value: nil, rows: 3, placeholder: "A sentence or two on what you're thinking…",
             class: "clar-textarea mb-5" %>
 
-      <%# START AT — Briefing (default), skip the brief and open straight in
-          Details Gathering, or (when the project's Designs are ready) sketch it
-          in Designs first. Carried on the POST as idea[start_stage]. %>
+      <%# START AT — Briefing (default), or skip the brief and open straight in
+          Details Gathering. Carried on the POST as idea[start_stage]. A design
+          starts in Designs as a thread of its own (Workshop Designs v2). %>
       <label class="clar-field-label !mb-[7px]">START AT</label>
       <div class="flex gap-2.5 mb-5">
         <%
           start_cards = [ [ "briefing", "Briefing", "Shape the why first, then detail it." ],
                           [ "details", "Details Gathering", "Skip the brief &mdash; go straight to the spec." ] ]
-          if current_workshop_project&.designs_ready?
-            start_cards << [ "designs", "Designs", "Sketch it first &mdash; the description follows from the designs." ]
-          end
         %>
         <% start_cards.each do |value, label, hint| %>
           <button type="button" data-stage="<%= value %>"

@@ -115,37 +115,11 @@ Rails.application.routes.draw do
         member { post :make_current }
       end
       resource :design_request, only: [ :create, :update, :destroy ]
-      resource :designs, only: :show, controller: "designs" do
-        get :chat
-        post :message
-        post :approve
-        post :update_from_master
-        post :retry
-        post :continue_to_details
-        post :describe
-        post :sync_links
-      end
     end
     # The design library, for Flosis staff only. Entries are switched off,
     # never deleted: turns record the versions they ran on.
     resources :library_entries, path: "library", except: :destroy do
       member { post :restore }
-    end
-    # The project's setup run, for Flosis staff only.
-    resource :design_setup, only: :show do
-      post :start
-      post :message
-      post :next_phase
-      post :approve
-      post :retry
-      get :chat
-    end
-    # The setup run's inputs, for Flosis staff only.
-    resource :design_setup_inputs, only: :update do
-      post :add_role
-      patch :update_role
-      delete :remove_role
-      delete :remove_material
     end
     get "process", to: "process#show", as: :process
     get "reporting", to: "reports#show", as: :reporting
@@ -161,7 +135,6 @@ Rails.application.routes.draw do
     post "configuration/test_github", to: "configuration#test_github", as: :test_github_configuration
     post "configuration/verify_jira_fields", to: "configuration#verify_jira_fields", as: :verify_jira_fields_configuration
     post "configuration/refresh_features", to: "configuration#refresh_features", as: :refresh_features_configuration
-    post "configuration/rotate_design_preview_token", to: "configuration#rotate_design_preview_token", as: :rotate_design_preview_token_configuration
     resources :discord_webhooks, only: [ :create, :destroy ]
     resources :project_members, only: [ :create, :update, :destroy ]
     resources :projects, only: [ :create ]

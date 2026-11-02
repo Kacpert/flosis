@@ -6,7 +6,10 @@
 # push is through, and the run is marked approved, its local branch and
 # worktree removed and master published only after it.
 class Designs::SetupApproval
-  PREVIEW_NOT_UPDATED = Designs::Approval::PREVIEW_NOT_UPDATED
+  class NothingToApprove < StandardError; end
+  class TurnActive < StandardError; end
+
+  PREVIEW_NOT_UPDATED = "The preview could not be updated, so it still shows the version before.".freeze
 
   def initialize(project, user:, wait: true)
     @project = project
@@ -19,10 +22,10 @@ class Designs::SetupApproval
     repo.synchronize(wait: @wait) do
       refuse_while_turns_run!
       setup = @project.design_setups.active.order(:id).last
-      raise Designs::Approval::NothingToApprove, "the project has no setup run" unless setup
+      raise NothingToApprove, "the project has no setup run" unless setup
 
       repo.ensure_clone!
-      raise Designs::Approval::NothingToApprove, "#{wip} has nothing to approve" unless repo.head(wip)
+      raise NothingToApprove, "#{wip} has nothing to approve" unless repo.head(wip)
 
       number = next_number
       push_approval!(Designs::BranchNames.approval_tag("setup", number))
@@ -47,7 +50,7 @@ class Designs::SetupApproval
   def refuse_while_turns_run!
     active = DesignTurn.active.joins(:chat_session)
                        .where(chat_sessions: { project_id: @project.id, purpose: "designs_setup" }).exists?
-    raise Designs::Approval::TurnActive, "a setup turn is still queued or running" if active
+    raise TurnActive, "a setup turn is still queued or running" if active
   end
 
   def next_number
@@ -60,7 +63,7 @@ class Designs::SetupApproval
     deletion = (":refs/heads/#{wip}" if repo.remote_head(wip))
     repo.push!(Designs::Repo::MASTER, tag, *deletion, atomic: true)
   rescue Designs::Repo::NothingToMerge
-    raise Designs::Approval::NothingToApprove, "#{Designs::Repo::MASTER} already has everything on #{wip}"
+    raise NothingToApprove, "#{Designs::Repo::MASTER} already has everything on #{wip}"
   rescue StandardError
     roll_back!(tag)
     raise

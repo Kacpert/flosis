@@ -25,7 +25,7 @@ class Designs::TurnJob < ApplicationJob
 
   # Everything that works in a task's worktree runs one at a time: its turns
   # (which share one Claude session too), writing the description from it
-  # (DescribeJob) and renaming its branches (RenameForJiraJob). Solid Queue
+  # and, in v1, describing it and renaming its branches. Solid Queue
   # keys a limit by group and key, and the group defaults to the job's own
   # class, so the three name one group. The duration only bounds a claim
   # whose run was killed.

@@ -810,14 +810,16 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     post switch_workshop_project_path, params: { project_id: @project.id }
   end
 
-  test "an idea can start in Designs" do
+  # Workshop Designs v2: a design starts in Designs as a thread of its own,
+  # so New idea no longer offers Designs, and an old designs start falls back.
+  test "a designs start is no longer offered, and falls back to Briefing" do
     designs_project(ready: true)
     post workshop_ideas_path, params: { idea: { title: "Archive offers", description: "Hide old offers", start_stage: "designs" } }
     task = @project.tasks.find_by!(name: "Archive offers")
-    assert_equal "new", task.workshop_stage
-    assert_redirected_to workshop_idea_designs_path(task)
-    assert_equal "Hide old offers", task.current_brief.content
-    assert_equal %(Idea saved · "Archive offers" · Designs), flash[:clar_toast]
+    assert_equal "briefing", task.workshop_stage
+    assert_redirected_to workshop_idea_path(task)
+    get workshop_pipeline_path
+    assert_select "[data-stage=designs]", count: 0
   end
 
   test "without ready Designs a designs start falls back to Briefing" do
@@ -826,40 +828,20 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_equal "briefing", @project.tasks.find_by!(name: "X").workshop_stage
   end
 
-  test "the new idea dialog offers Designs only when they are ready" do
-    designs_project(ready: false)
-    get workshop_pipeline_path
-    assert_select "[data-stage=designs]", count: 0
-    designs_project(ready: true)
-    get workshop_pipeline_path
-    assert_select "[data-stage=designs]", /Sketch it first — the description follows from the designs\./
-  end
-
-  test "a Jira ticket imported to start in Designs opens there" do
-    designs_project(ready: true)
-    task = tasks(:jira_task)
-    task.update!(project: @project)
-    post workshop_ideas_path, params: { task_id: task.id, start_stage: "designs" }
-    assert_equal "new", task.reload.workshop_stage
-    assert_redirected_to workshop_idea_designs_path(task)
-  end
-
-  test "a task that gets its Jira key from a sync moves its designs to it" do
+  test "a task that gets its Jira key keeps its design thread's branch" do
     designs_project(ready: true)
     idea = @project.tasks.create!(name: "Local idea")
     idea.enter_pipeline!(author: users(:one), stage: "briefing")
     idea.briefs.create!(workspace: @project.workspace, version: 0, origin: "user", status: "draft", content: "Brief").make_current!
+    thread = DesignThread.create!(project: @project, task: idea, author: users(:one), title: "x", branch: "design/task-#{idea.id}-local-idea")
     original = JiraWriter.instance_method(:commit_brief)
     JiraWriter.define_method(:commit_brief) { |brief| brief.task.update!(external_reference: "REC-9"); { ok: true } }
     begin
-      assert_enqueued_with(job: Designs::RenameForJiraJob, args: [ idea.id ]) do
-        post sync_jira_workshop_idea_path(idea, stage: "briefing")
-      end
-      assert_no_enqueued_jobs(only: Designs::RenameForJiraJob) do
-        post sync_jira_workshop_idea_path(idea, stage: "briefing")
-      end
+      post sync_jira_workshop_idea_path(idea, stage: "briefing")
     ensure
       JiraWriter.define_method(:commit_brief, original)
     end
+    assert_equal "REC-9", idea.reload.external_reference
+    assert_equal "design/task-#{idea.id}-local-idea", thread.reload.branch
   end
 end

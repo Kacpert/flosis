@@ -241,13 +241,10 @@ class Workshop::IdeasController < Workshop::BaseController
     end
   end
 
-  # A task that has just been given its Jira issue moves its designs from
-  # task-<id> to the key: branches, tags and previews (Designs::RenameForJiraJob,
-  # which does nothing for a task with no designs).
-  def rename_designs_for_jira(had_key)
-    return if had_key || @idea.reload.external_reference.blank?
-
-    Designs::RenameForJiraJob.perform_later(@idea.id)
+  # Workshop Designs v2 never renames a design thread's branch: a task that
+  # gets its Jira issue keeps the branch it started on.
+  def rename_designs_for_jira(_had_key)
+    nil
   end
 
   # Pulls an existing Jira-synced task (browsed via the Jira board modal)
@@ -285,14 +282,12 @@ class Workshop::IdeasController < Workshop::BaseController
     redirect_to landing_path(task, stage)
   end
 
-  # Designs is no stage of the pipeline: a task that starts there enters it
-  # as "new", and its description follows from the designs.
   def pipeline_stage(stage)
-    stage == "designs" ? "new" : stage
+    stage
   end
 
   def landing_path(task, stage)
-    stage == "designs" ? workshop_idea_designs_path(task) : workshop_idea_path(task, stage: explicit_stage(stage))
+    workshop_idea_path(task, stage: explicit_stage(stage))
   end
 
   # Briefing is #show's own default, so only "details" needs to be spelled out
@@ -303,17 +298,15 @@ class Workshop::IdeasController < Workshop::BaseController
 
   # Where a new/imported task enters the pipeline. "briefing" is the default;
   # "details" is the explicit skip-the-brief option (the START AT picker in the
-  # new-idea modal and the Jira browser), and "designs" opens the Designs
-  # screen when the project's Designs are ready. Anything else falls back to
+  # new-idea modal and the Jira browser). Anything else falls back to
   # briefing — the stage list is a whitelist, never trusted straight from params.
   def start_stage
     raw = params[:start_stage].presence || params.dig(:idea, :start_stage).presence
-    stage = raw.to_s.presence_in(%w[briefing details designs]) || "briefing"
-    stage == "designs" && !current_workshop_project&.designs_ready? ? "briefing" : stage
+    raw.to_s.presence_in(%w[briefing details]) || "briefing"
   end
 
   def stage_label(stage)
-    { "details" => "Details Gathering", "designs" => "Designs" }.fetch(stage, "Briefing")
+    { "details" => "Details Gathering" }.fetch(stage, "Briefing")
   end
 
   # On first entering the details stage, seed a v0 "user description" AI
