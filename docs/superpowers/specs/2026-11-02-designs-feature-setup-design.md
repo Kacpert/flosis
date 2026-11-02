@@ -70,9 +70,8 @@ threads.
 
 ## Anti-goals
 
-- Changing or deleting the client's real data, or causing anything outside the
-  test environment: real emails or invitations, payments, issues pushed to
-  Jira, messages to Slack or Discord.
+- Touching the client's real data. The AI works only in the test environment
+  the client provides.
 - An AI that stops to ask. Questions are rare and never hold the run.
 - One giant session for the whole app.
 
@@ -87,8 +86,15 @@ starting data and a test account per context ("Każdy klient będzie miał
 staging lub nawet produkcję, ale po prostu stworzy środowisko testowe z
 wstępnymi danymi"). (Call: its copy says so.)
 
-Assumption: Flosis has no staging, so for the pilot its test environment is a
-test workspace on app.flosis.com, which Kacper prepares.
+What the test environment is connected to is the client's test setup too, so
+the AI may use all of it, integrations included: "z założenia dane testowe to
+dane testowe". Flosis adds no sandbox around it.
+
+For the pilot: Flosis has no staging, so its test environment is a test
+workspace on app.flosis.com, which Kacper prepares, connected to a separate
+Jira project he creates for it, so that pushing to Jira is safe. AI features
+the run clicks there (chats, estimates, automations, bug analysis) run as they
+always do, on the server's own Claude login.
 
 ## The run
 
@@ -144,10 +150,11 @@ test workspace on app.flosis.com, which Kacper prepares.
 - (Call) A state it cannot bring about in the environment (an empty list when
   there is starting data, a rare error) it builds from the view code, and says
   so in a note.
-- (Call) It never does anything that has an effect outside the environment
-  (see Anti-goals). It builds that action's result from the code and leaves a
-  note. It never leaves the test environment's origin and never follows
-  sign-out links, as today's crawler doesn't.
+- It uses every flow the environment has, integrations included (see The
+  form). (Call) It never leaves the test environment's origin, never follows
+  sign-out links (as today's crawler doesn't), and never changes the test
+  accounts themselves (their passwords, roles or access), so that every later
+  feature can still sign in.
 - Test-account passwords never reach the model. A tool signs in, as today's
   crawler keeps them out of its arguments, logs, screenshots and DOM
   (`DesignSetupRole#password` is encrypted at rest).
@@ -182,12 +189,22 @@ It has no buttons to retry or fix anything, since error handling comes later.
 
 - (Call) A note is one sentence, names its feature, and is written only when
   something makes the design differ from the app or leaves part of it
-  unchecked: test data that is missing, an action not taken, an integration
-  the environment lacks, a context that could not sign in.
+  unchecked: test data that is missing, an integration the environment lacks,
+  a context that could not sign in.
 - The AI never waits for an answer. It takes the most reasonable option, or
   builds that part from the code, records the note and goes on.
 - Kacper reads the notes on the progress screen and, after the run, fixes the
   gaps in Designs threads.
+
+## Cost
+
+A run is not capped for now; Kacper expects it may cost a few hundred dollars
+on the project's key. Quality comes before cost: the strongest model and a
+separate checking session are fine where they make the result closer to the
+app. The bounds left to the builder (below) are there to stop a runaway
+session, not to save money. Today's cap for a design turn ($5 and 15 minutes,
+`DesignTurn::DEFAULT_BUDGET_USD` and `DEFAULT_TIMEOUT_SECONDS`) is a thread
+turn's and does not fit a feature session.
 
 ## Constraints from what exists
 
