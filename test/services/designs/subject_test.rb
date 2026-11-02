@@ -19,11 +19,12 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     ENV.delete("FLOSIS_DESIGNS_SETUP_API_KEY")
   end
 
-  test "without Flosis's setup key there is none, and the way out is named" do
+  test "without the project's key or Flosis's setup key there is none, and the way out is named" do
     ENV.delete("FLOSIS_DESIGNS_SETUP_API_KEY")
+    @session.project.update!(anthropic_api_key: nil)
     subject = Designs::Subject.for(@session)
     assert_nil subject.api_key
-    assert_equal "Flosis's setup key is not configured (FLOSIS_DESIGNS_SETUP_API_KEY).", subject.missing_key_message
+    assert_equal Designs::TurnJob::NO_KEY, subject.missing_key_message
   end
 
   test "the setup prompt follows the phase" do

@@ -1033,16 +1033,23 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
-  test "a setup turn without Flosis's key fails with the way out" do
+  # Workshop Designs v2: the setup runs on the project's own key, as its turns
+  # do; without one (and without Flosis's) it fails with the way out.
+  test "a setup turn runs on the project's own key, and without any key fails with the way out" do
     with_design_remote do |repo, remote|
       seed_master(repo)
       ENV.delete("FLOSIS_DESIGNS_SETUP_API_KEY")
       repo.project.update!(anthropic_api_key: "sk-project")
-      fake_claude
+      options = nil
+      fake_claude(files: { "design-system/tokens.css" => ":root {}" }, during: ->(opts) { options = opts })
       turn = run_turn(setup_turn(repo.project), remote)
+      assert turn.succeeded?, turn.error
+      assert_equal "sk-project", options[:api_key]
+
+      repo.project.update!(anthropic_api_key: nil)
+      turn = run_turn(next_turn(turn.chat_session, "Again"), remote)
       assert turn.failed?
-      assert_equal "Flosis's setup key is not configured (FLOSIS_DESIGNS_SETUP_API_KEY).", turn.error
-      assert_empty @calls
+      assert_equal Designs::TurnJob::NO_KEY, turn.error
     end
   end
 

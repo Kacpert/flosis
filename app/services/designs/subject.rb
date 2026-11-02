@@ -182,7 +182,7 @@ module Designs::Subject
     # Workshop Designs v2: the project's own key, as its turns use; Flosis's
     # setup key only for a project that has none.
     def api_key = ProjectCredentials.new(project).designs_api_key || ENV["FLOSIS_DESIGNS_SETUP_API_KEY"].presence
-    def missing_key_message = NO_KEY
+    def missing_key_message = Designs::TurnJob::NO_KEY
 
     # Ruling P5-R1/P5-R3: the crawl bundle and the materials, both under the
     # project's designs_dir and read-only; the app comes as the turn's copy.

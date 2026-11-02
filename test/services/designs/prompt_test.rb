@@ -6,7 +6,7 @@ class Designs::PromptTest < ActiveSupport::TestCase
 
   test "the system prompt names the rules a turn must follow" do
     text = Designs::Prompt.system_text(project: projects(:jira_project))
-    [ "design-system/", "components/", "designs/", "runtime/", "<x-include", "designs/contexts.json",
+    [ "design-system/", "components/", "designs/", "runtime/", "<x-include", "designs/<context>/",
       "<summary>", "<missing>", "<context>", projects(:jira_project).name ].each { |fact| assert_includes text, fact }
   end
 
@@ -26,13 +26,12 @@ class Designs::PromptTest < ActiveSupport::TestCase
     Designs::LeakGuard::DESIGN_DIRS.each { |path| assert_includes Designs::Prompt::BASE, path }
   end
 
-  test "the base prompt states how to build: components, tokens, data, contexts, manifest, runtime, markup" do
+  test "the base prompt states how to build: components, tokens, data, contexts, runtime, markup" do
     [ "A screen never copies a component's markup", "add it to components/", "include it in both places",
-      "design-system/theme.css", "fake data", "Vary it by context",
-      "Add a dimension or a value only when the person asks",
-      "designs/tasks/<slug>.json",
-      "<script src=\"runtime/flosis.js\"></script>",
+      "design-system/theme.css", "fake data", "Add a context only when the person asks",
+      "<script src=\"../../runtime/flosis.js\"></script>", "Give every screen a <title>",
       "<button>", "<a href>", "<label>" ].each { |rule| assert_includes base, rule }
+    [ "contexts.json", "manifest", "?ctx=", "data-ctx" ].each { |gone| assert_not_includes base, gone }
   end
 
   # Ruling P2-R14: the rules that the runtime and the guard depend on.
@@ -40,8 +39,7 @@ class Designs::PromptTest < ActiveSupport::TestCase
     [ "Paths inside a component are relative to the repo root",
       "use only letters, digits, _ and -",
       "README.md, index.html and runtime/ belong to Flosis",
-      "A link's own ?ctx= is replaced by the active contexts",
-      "switches contexts in the preview's picker" ].each { |rule| assert_includes base, rule }
+      "A link to a screen that does not exist yet is fine" ].each { |rule| assert_includes base, rule }
   end
 
   # Ruling P2-R17. Both fail without a word in the browser (reproduced against
@@ -53,15 +51,14 @@ class Designs::PromptTest < ActiveSupport::TestCase
     [ "Always close an include with </x-include>",
       "never write <x-include ... />",
       "Only placeholders read an include's attributes",
-      "Put classes and data-ctx-* on a wrapper element" ].each { |rule| assert_includes base, rule }
+      "Put classes on a wrapper element" ].each { |rule| assert_includes base, rule }
   end
 
   # Ruling P2-R17 (Minor 1 and 3): the setup run owns the listing pages, and
   # Claude's tools cannot delete a file.
-  test "the base prompt leaves the setup run's pages alone and says how to retire a screen" do
-    [ "belong to the setup run", "list this task's screens in its manifest",
-      "but not delete or rename them",
-      "to retire a screen, drop it from the manifest and say so in your summary" ].each do |rule|
+  test "the base prompt leaves Flosis's pages alone and says how to retire a screen" do
+    [ "README.md, index.html and runtime/ belong to Flosis", "but not delete or rename them",
+      "to retire a screen, say so in your summary" ].each do |rule|
       assert_includes base, rule
     end
   end
