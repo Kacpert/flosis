@@ -6,10 +6,19 @@ class Workshop::BaseController < ApplicationController
   before_action { require_product!(:workshop) }
   before_action :require_workshop!
   before_action :require_project_member!
+  before_action :require_current_project!
   before_action :set_pipeline_badge
   before_action :announce_designs_ready
 
   private
+
+  # Everything in the Workshop happens inside a project. A workspace with none
+  # yet (a new organization) is sent to the pipeline's empty state, which is
+  # where its administrator creates the first; the pages that manage without a
+  # project skip this.
+  def require_current_project!
+    redirect_to workshop_pipeline_path unless current_workshop_project
+  end
 
   def require_workshop!
     redirect_to root_path unless current_workspace&.workshop_enabled?

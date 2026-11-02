@@ -1,4 +1,5 @@
 class Workshop::PipelineController < Workshop::BaseController
+  skip_before_action :require_current_project!
   before_action { require_permission!(:tasks) }
 
   def index

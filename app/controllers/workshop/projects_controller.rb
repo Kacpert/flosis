@@ -2,6 +2,7 @@
 # workspace-wide privilege, not a per-project permission: there is no project
 # yet for a permission to sit on.
 class Workshop::ProjectsController < Workshop::BaseController
+  skip_before_action :require_current_project! # the first project is made with none
   before_action :require_admin!
 
   def create

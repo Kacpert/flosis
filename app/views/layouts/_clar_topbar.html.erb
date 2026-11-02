@@ -76,7 +76,7 @@
       <% end %>
     </div>
 
-    <%= render "layouts/clar_new_project_modal" if workspace_admin? %>
+    <%= render "layouts/clar_new_project_modal", open: content_for?(:open_new_project) if workspace_admin? %>
   </div>
 
   <div class="flex items-center gap-[7px]">
