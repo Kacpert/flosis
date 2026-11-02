@@ -15,6 +15,7 @@ module Designs::Threads
   TITLE_LIMIT = 64
   BUSY = "The design repo is busy — try again in a minute.".freeze
   NOTHING_TO_MERGE = "Nothing to merge yet: this thread has no changes of its own.".freeze
+  IMPORTING = "Re-import from staging is still running on this thread. You can talk here and merge it once it finishes.".freeze
   START_FROM_TASK = <<~REQUEST.freeze
     Design this task. Read its current description and compare it with master. Where a screen already
     covers it, update that screen instead of making a new one; where nothing does, draft it as a new
@@ -45,6 +46,8 @@ module Designs::Threads
   # The person's message, with the screen they have open. A fresh thread's
   # first message names its branch and becomes its title.
   def message!(thread, user:, text:, context: nil, screen: nil)
+    raise Busy, IMPORTING if importing?(thread)
+
     name!(thread, text) if thread.fresh?
     thread.update!(focus_context: context, focus_screen: screen) if context.present? && screen.present?
     queue_turn(thread, user, text)
@@ -223,9 +226,16 @@ module Designs::Threads
   end
 
   # A turn a deploy killed is failed first, so it never keeps a thread busy.
+  # A re-import's turns run in the setup's own session, so its run counts too.
   def refuse_while_turns_run!(thread)
     DesignTurn.fail_stale!
+    raise Busy, IMPORTING if importing?(thread)
     raise Busy, BUSY if DesignTurn.active.where(chat_session_id: thread.chat_session_id).exists?
+  end
+
+  def importing?(thread)
+    DesignSetup.fail_stale!
+    DesignSetup.running.where(design_thread_id: thread.id).exists?
   end
 
   def changed_screens(repo, thread)

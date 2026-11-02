@@ -132,4 +132,15 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     end
   end
 
+
+  test "a re-import publishes its Changes against its thread's base" do
+    project = projects(:jira_project)
+    thread = DesignThread.create!(project: project, author: users(:one), title: "Re-import from staging", branch: "design/re-import", base_sha: "abc1234")
+    project.design_setups.create!(status: "active", phase: "components", step: 4, started_by: users(:one), design_thread: thread)
+    session = ChatSession.create!(project: project, workspace: project.workspace, user: users(:one), purpose: "designs_setup",
+                                  claude_session_id: SecureRandom.uuid, codebase_path: "/tmp")
+    subject = Designs::Subject.for(session)
+    assert_equal [ "design/re-import", "abc1234" ], [ subject.wip_branch, subject.publish_base ]
+  end
+
 end

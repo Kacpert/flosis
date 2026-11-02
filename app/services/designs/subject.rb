@@ -206,7 +206,8 @@ module Designs::Subject
     end
 
     def crawling? = setup.crawling?
-    def publish_base = nil
+    # A re-import shows its Changes against its thread's base.
+    def publish_base = setup.design_thread&.base_sha.presence
     def chips(*) = []
     def refresh_base(_repo) = nil
     def after_turn(_repo) = nil

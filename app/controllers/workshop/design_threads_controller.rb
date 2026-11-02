@@ -37,6 +37,8 @@ class Workshop::DesignThreadsController < Workshop::BaseController
       Designs::Threads.message!(@thread, user: current_user, text: text, context: params[:ctx].presence, screen: params[:screen].presence)
     end
     redirect_to workshop_designs_overview_path(thread: @thread.id, ctx: params[:ctx].presence, screen: params[:screen].presence)
+  rescue Designs::Threads::Busy => e
+    redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
   end
 
   def merge

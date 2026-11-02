@@ -83,6 +83,8 @@
 <div class="p-3 border-t border-[color:var(--border)]">
   <% if merged %>
     <div class="text-[12.5px] clar-text-muted leading-[1.5] py-1 px-0.5">Merged into master as <span class="clar-mono"><%= thread.merged_sha.to_s.first(7) %></span>. Start a new thread for further changes.</div>
+  <% elsif Designs::Threads.importing?(thread) %>
+    <div class="text-[12.5px] clar-text-muted leading-[1.5] py-1 px-0.5"><%= Designs::Threads::IMPORTING %></div>
   <% else %>
     <%= form_with url: message_workshop_design_thread_path(thread), method: :post, class: "border border-[color:var(--border)] rounded-xl bg-[var(--bg)] pt-2 pr-2 pb-2 pl-3" do |f| %>
       <%= hidden_field_tag :ctx, @context, data: { designs_canvas_target: "context" } %>
