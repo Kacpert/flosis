@@ -1,0 +1,19 @@
+# Hostido 403s ~26 crawlers account-wide by default (ClaudeBot, GPTBot,
+# PerplexityBot, Applebot, AhrefsBot, …) to save server load. This site is
+# static, so that reason doesn't apply — and a marketing page AI crawlers can't
+# read is invisible in their answers. Hostido's documented opt-out:
+# https://hostido.pl/baza-wiedzy/wpis/154/jak-odblokowac-nietypowe-boty-na-stronie
+UnsetEnv bot_deny
+SecRuleRemoveById 10000
+
+RewriteEngine On
+
+# Force HTTPS. The document root this replaces had the same rule — dropping it
+# would quietly downgrade the marketing site to plaintext.
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Canonical marketing host. `www` is served by Hostido as an alias of the apex,
+# so without this the landing page would answer on two URLs.
+RewriteCond %{HTTP_HOST} ^www\.flosis\.com$ [NC]
+RewriteRule ^(.*)$ https://flosis.com/$1 [R=301,L]

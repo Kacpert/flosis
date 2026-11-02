@@ -1,0 +1,11 @@
+design_board:
+  project: jira_project
+  jira_board_id: 101
+  name: Design
+  board_type: scrum
+
+dev_board:
+  project: jira_project
+  jira_board_id: 102
+  name: DEV board
+  board_type: scrum

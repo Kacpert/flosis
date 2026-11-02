@@ -1,8 +1,38 @@
 
+# Environment variables
+.env
+.env.production
+
+# Logs, including rotated ones (test.log.0)
+/log/*
+!/log/.keep
+
+# Bundle config
+.bundle/config
+
+# Screenshots
+*.png
+
+# Superpowers
+.superpowers/
+
 # ClaudeOnRails
 .claude-on-rails/sessions/
 .claude-swarm/
+.playwright-mcp/
 claude-swarm.log
 
 /app/assets/builds/*
 !/app/assets/builds/.keep
+tmp
+
+# Node dependencies — reproduce with `npm install`. Nothing in the build
+# imports them (app/assets/tailwind/application.css is plain `@import
+# "tailwindcss"`), and assets are precompiled locally by deploy:compile_assets_locally,
+# so the server never needs this directory either.
+/node_modules/
+/lib/designs_crawler/node_modules/
+
+# Active Storage blobs written at runtime
+/storage/*
+!/storage/.keep

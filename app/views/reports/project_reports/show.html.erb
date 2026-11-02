@@ -1,0 +1,59 @@
+<div class="max-w-4xl mx-auto space-y-6">
+  <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Project Report</h1>
+
+  <%= form_with url: reports_project_report_path, method: :get, class: "filter-panel flex items-end gap-3" do |f| %>
+    <div>
+      <label class="block text-xs mb-1" style="color: var(--color-on-surface-variant)">Project</label>
+      <%= f.select :project_id, @projects.map { |p| [ p.name, p.id ] },
+            { selected: @project&.id }, class: "m3-text-field" %>
+    </div>
+    <div>
+      <label class="block text-xs mb-1" style="color: var(--color-on-surface-variant)">Month</label>
+      <%= f.month_field :month, value: @month.strftime("%Y-%m"), class: "m3-text-field" %>
+    </div>
+    <%= f.submit "Apply", class: "m3-btn m3-btn-filled m3-btn-sm" %>
+  <% end %>
+
+  <% if @report %>
+    <div class="flex gap-3">
+      <div class="stat-card flex-1">
+        <div class="stat-label">Hours worked</div>
+        <div class="stat-number"><%= format_duration_hm(@report.total_seconds) %></div>
+      </div>
+      <div class="stat-card flex-1">
+        <div class="stat-label">→ Customer Acceptance</div>
+        <div class="stat-number"><%= @report.customer_acceptance_count %></div>
+      </div>
+      <div class="stat-card flex-1">
+        <div class="stat-label">Bugs worked on</div>
+        <div class="stat-number"><%= @report.bugs_count %></div>
+      </div>
+    </div>
+
+    <div class="m3-card-outlined overflow-hidden">
+      <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color: var(--color-outline-variant)">
+        <h2 class="text-base font-bold" style="color: var(--color-on-surface)">Hours by person</h2>
+        <span class="font-mono font-bold text-sm" style="color: var(--color-on-surface)"><%= format_duration_hm(@report.total_seconds) %></span>
+      </div>
+      <% if @report.per_user_hours.any? %>
+        <% @report.per_user_hours.each do |row| %>
+          <div class="flex items-center justify-between px-4 py-3 border-b" style="border-color: var(--color-outline-variant)">
+            <span class="text-sm" style="color: var(--color-on-surface)"><%= row[:user].name %></span>
+            <span class="flex items-center gap-3">
+              <span class="text-sm" style="color: var(--color-on-surface-variant)"><%= row[:percent] %>%</span>
+              <span class="font-mono font-bold text-sm" style="color: var(--color-on-surface)"><%= format_duration_hm(row[:seconds]) %></span>
+            </span>
+          </div>
+        <% end %>
+      <% else %>
+        <div class="p-4 text-sm" style="color: var(--color-outline)">No time logged this month.</div>
+      <% end %>
+    </div>
+
+    <p class="text-xs" style="color: var(--color-outline)">Jira stats reflect the latest synced data.</p>
+  <% else %>
+    <div class="m3-card-outlined p-6 text-center">
+      <p class="text-sm" style="color: var(--color-outline)">No projects to report on.</p>
+    </div>
+  <% end %>
+</div>

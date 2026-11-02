@@ -1,0 +1,33 @@
+<%# Trend-card header controls, shared by Reporting and Bug Reporting so both
+    cards behave identically: bucket size · window · chart type. Locals:
+      gran  — "weeks" | "fortnights" | "months" | "sprints"
+      range — window in MONTHS (2/3/6/12/24)
+      chart — "line" | "bar"
+    Every control is a plain link that re-renders the page with the new param,
+    so the selection survives reloads and is shareable. %>
+<div class="flex gap-2 items-center flex-wrap">
+  <div class="clar-tabs p-[3px] gap-[3px]">
+    <% [["weeks", "Weeks"], ["fortnights", "2 weeks"], ["months", "Months"], ["sprints", "Sprints"]].each do |value, label| %>
+      <%= link_to label, request.query_parameters.merge(gran: value),
+            class: "clar-tab text-[12px] py-[5px] px-[11px] #{'clar-tab-active' if gran == value}" %>
+    <% end %>
+  </div>
+
+  <div class="clar-tabs p-[3px] gap-[3px]">
+    <% [[2, "2m"], [3, "3m"], [6, "6m"], [12, "1y"], [24, "2y"]].each do |value, label| %>
+      <%= link_to label, request.query_parameters.merge(range: value),
+            class: "clar-tab text-[12px] py-[5px] px-[10px] #{'clar-tab-active' if range == value}" %>
+    <% end %>
+  </div>
+
+  <div class="clar-tabs p-[3px] gap-[3px]">
+    <%= link_to request.query_parameters.merge(chart: "line"), title: "Line chart",
+          class: "clar-tab py-[5px] px-[9px] flex items-center #{'clar-tab-active' if chart == 'line'}" do %>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-6 4 4 6-8"/></svg>
+    <% end %>
+    <%= link_to request.query_parameters.merge(chart: "bar"), title: "Bar chart",
+          class: "clar-tab py-[5px] px-[9px] flex items-center #{'clar-tab-active' if chart == 'bar'}" do %>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
+    <% end %>
+  </div>
+</div>

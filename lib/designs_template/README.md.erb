@@ -1,0 +1,81 @@
+# <%= project.name %> — designs
+
+The designs of <%= project.name %>: its design system, its components and clickable screens of the app. They open in a browser as they are, with no build step. Flosis keeps this repository; the application is built from it.
+
+## Branches
+
+- `master` — all merged designs: the target look, possibly ahead of production. Nobody changes it directly.
+- `design/<KEY>-<slug>` — a design thread started from a task, such as `design/ABC-123-inline-validation`; `design/<slug>` — a thread with no task. A thread is merged into `master` by hand, or when its task is Done.
+
+`<KEY>` is the task's Jira key (`task-<id>` for a task that had none when its thread started); a thread's branch keeps its name. A task's Jira issue links to its thread's screens and names its branch.
+
+## What a thread changed
+
+What a thread changes against `master`:
+
+```sh
+git diff master...design/<KEY>-<slug>
+```
+
+## Run it locally
+
+In the repository's folder:
+
+```sh
+python3 -m http.server 8000
+```
+
+(or `npx http-server -p 8000 -c-1`), then open http://localhost:8000. `file://` is not supported: the pages load their parts over HTTP.
+
+## Structure
+
+| Path | What it holds |
+|---|---|
+| `README.md` | this file |
+| `index.html` | the entry point: links to the design system, the components and the screens |
+| `design-system/` | the brand book, the tokens (`theme.css`), assets and fonts |
+| `components/` | one folder per component: its guidelines, a preview and the component itself |
+| `designs/<context>/` | one folder per context (a role the app is seen as): the clickable screens that role sees, one `.html` file each |
+| `inspirations/` | references the designs borrow from: screenshots, links and notes; never shipped |
+| `runtime/` | what the browser needs: `flosis.js` (components, and the Designs canvas's messages), `nav.html` (the navigation the repo's own pages include) and `config.json`<% if kit == "tailwind4" %>, plus `kit.js` (the Tailwind CSS browser build) and its MIT licence, `kit-license.txt`<% end %> |
+
+Nothing else belongs in the repository.
+
+## Styling
+
+<% if kit == "tailwind4" -%>
+Pages use Tailwind CSS v4 utility classes. `runtime/kit.js`, the Tailwind browser build (version <%= Designs::Template::TAILWIND_VERSION %>, vendored), compiles them in the browser with the tokens in `design-system/theme.css`: `--color-primary` there is `bg-primary` or `text-primary` on a page, and `var(--color-primary)` in CSS.
+<% else -%>
+Pages use plain CSS. The tokens are custom properties in `design-system/theme.css`, which every page gets: `background: var(--color-primary)`.
+<% end -%>
+
+## Components
+
+A screen never copies a component's markup. It includes the component:
+
+```html
+<x-include src="components/<name>/<name>.html" title="…">children</x-include>
+```
+
+- `src` starts at the repository's root, whichever page the include is on.
+- In the component, each `{{name}}` placeholder is replaced with the include's attribute of that name, HTML-escaped (here `{{title}}`), or with nothing when the include has no such attribute.
+- The include's children take the place of the component's first `<slot></slot>`.
+- Components can include components.
+- Paths inside a component are relative to the repo root. That holds for its `src`, `href`, `srcset` and `poster` attributes, including paths passed in through a placeholder. It does not hold for the include's children: they belong to the page, and their paths stay relative to the page. A URL with a scheme (`https:`, `mailto:`, `data:`…), and one starting with `/`, `#` or `?`, is left as it is.
+- A component that cannot be loaded shows as a red "Missing component" box. A `<script>` in a component does not run: behaviour belongs to the page.
+
+## Contexts
+
+Every role the app is seen as (an administrator, a client…) has its own folder under `designs/<context>/`, with the screens it can open, drawn the way it sees them. A screen missing from a role's folder is one that role cannot reach. Screens in one folder link to each other by relative links, as the app's navigation does. Folder and file names are made of letters, digits, `_` and `-` (`[A-Za-z0-9_-]`), and every screen has a `<title>`, its name in Designs.
+
+In a script, wait for `window.Flosis.ready` (or the `flosis:ready` event on `document`) before touching included components.
+
+## For AI assistants
+
+To build a task's design into the application:
+
+1. Start from the Jira issue: it names its thread's branch, `design/<KEY>-<slug>`, and links to the screens it changed.
+2. Check out that branch, or `master` once the thread is merged.
+3. Read the screens the thread changed (see "What a thread changed"), in a browser and in their HTML.
+4. Implement them in the application's own stack, with its own components. The HTML here is a reference, not code to copy, and `runtime/` only shows the designs in a browser.
+5. Take colours, fonts, radii and the other tokens from `design-system/theme.css`, never from a screen's markup.

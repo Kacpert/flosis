@@ -1,0 +1,52 @@
+<%# "Request designs" modal (Task 5.3) — also reused for "Request changes"
+    (design_request present + delivered), since both actions are "pick a
+    designer + optional note", just against a different route/verb.
+    Designer options: all workspace members (no designer role exists — D4). %>
+<%
+  is_change = design_request.present?
+  members = current_workspace.users.order(:name)
+  selected_designer_id = design_request&.designer_id
+%>
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="request-designs" data-action="click->clar-modal#close">
+  <div class="clar-modal p-5.5 max-w-[460px]" data-action="click->clar-modal#stopPropagation">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="text-lg font-bold clar-text-text m-0"><%= is_change ? "Request changes" : "Request designs" %></h2>
+      <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <p class="text-[13px] leading-normal clar-text-muted mb-4.5">
+      Ask a designer to prepare designs for <b class="clar-text-text"><%= idea.name %></b>. When they&rsquo;re delivered, the links drop into the Jira description automatically.
+    </p>
+
+    <%= form_with url: workshop_idea_design_request_path(idea),
+                  method: (is_change ? :patch : :post),
+                  class: "space-y-0", data: { turbo: false } do |f| %>
+      <% if is_change %>
+        <%= hidden_field_tag "kind", "request_changes" %>
+      <% end %>
+
+      <label class="clar-field-label">DESIGNER</label>
+      <div class="flex gap-2 mb-4 flex-wrap">
+        <% members.each do |member| %>
+          <%
+            checked = member.id == (selected_designer_id || members.first&.id)
+          %>
+          <label class="flex-1 min-w-[120px] text-center text-[13px] font-semibold rounded-[9px] px-2.5 py-2.5 cursor-pointer border <%= checked ? 'border-[var(--primary)] bg-[var(--primary-soft)] clar-text-primary' : 'clar-divider bg-[var(--surface)] clar-text-text' %>">
+            <%= radio_button_tag "design_request[designer_id]", member.id, checked, class: "sr-only" %>
+            <%= member.name %>
+          </label>
+        <% end %>
+      </div>
+
+      <label class="clar-field-label">NOTE <span class="font-medium">(optional)</span></label>
+      <%= text_area_tag "design_request[note]", design_request&.note, rows: 3,
+            placeholder: "What screens or states should they cover?", class: "clar-textarea mb-5" %>
+
+      <div class="flex gap-2.5 justify-end">
+        <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+        <%= f.submit "Send request", class: "clar-btn clar-btn-primary" %>
+      </div>
+    <% end %>
+  </div>
+</div>

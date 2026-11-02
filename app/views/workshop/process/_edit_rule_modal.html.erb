@@ -1,0 +1,104 @@
+<%# Edit modal for one alert rule — mirrors _new_rule_modal but pre-filled and
+    PATCHes to update. `rule` is the AlertRule being edited. Opened by the card's
+    Edit button (data-clar-modal-id-param="edit-alert-rule-<id>"). %>
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="edit-alert-rule-<%= rule.id %>"
+     data-action="click->clar-modal#close">
+  <%# Same growth rule as the New modal — see _new_rule_modal.html.erb. %>
+  <div class="clar-modal p-5.5 max-w-[520px] max-h-[calc(100vh-48px)] overflow-y-auto" data-action="click->clar-modal#stopPropagation">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="text-lg font-bold clar-text-text m-0">Edit alert rule</h2>
+      <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <p class="text-[13px] leading-normal clar-text-muted mb-4.5">A scheduled prompt. On its schedule the AI inspects the live Jira board state and posts to the channel only if the condition is met.</p>
+
+    <%= form_with model: rule, url: workshop_alert_rule_path(rule), method: :patch,
+          data: { controller: "clar-alert-rule-form clar-prompt-history", turbo: false } do |f| %>
+      <label class="clar-field-label">NAME <span class="clar-text-danger">*</span></label>
+      <%= f.text_field :name, class: "clar-input !text-[14px] mb-4" %>
+
+      <label class="clar-field-label">WHAT TO WATCH FOR <span class="clar-text-danger">*</span></label>
+      <%= f.text_area :prompt, rows: 3, class: "clar-textarea mb-1.5",
+            data: { clar_prompt_history_target: "field" } %>
+      <div class="text-[11px] clar-text-faint mb-1.5">Write it as a condition &mdash; natural language is fine.</div>
+
+      <%# The prompt IS the automation's behaviour, and editing it used to
+          overwrite the old wording with nothing kept. Previous versions are
+          listed here; picking one fills the field so it goes through the same
+          review and the same Save as any other edit. %>
+      <% versions = rule.prompt_versions.to_a %>
+      <% if versions.any? %>
+        <details class="mb-4 clar-prompt-history">
+          <summary class="text-[11.5px] font-semibold clar-text-primary cursor-pointer select-none">
+            Previous versions (<%= versions.size %>)
+          </summary>
+          <p class="text-[11px] clar-text-faint mt-1.5 mb-2 hidden" data-clar-prompt-history-target="notice">
+            Loaded into the field above &mdash; review it, then Save.
+          </p>
+          <div class="flex flex-col gap-1.5 mt-2">
+            <% versions.each do |version| %>
+              <button type="button" class="clar-prompt-version text-left"
+                      data-prompt="<%= version.prompt %>"
+                      data-action="clar-prompt-history#restore"
+                      title="Load this version into the field above">
+                <span class="text-[10.5px] clar-text-faint block"><%= clar_time_ago(version.created_at) %> &middot; <%= number_to_human_size(version.prompt.bytesize) %></span>
+                <span class="text-[11.5px] clar-text-muted block leading-[1.45]"><%= version.preview %></span>
+              </button>
+            <% end %>
+          </div>
+        </details>
+      <% end %>
+
+      <%= render "workshop/process/schedule_builder", rule: rule %>
+
+      <div data-controller="clar-notify-toggle" class="mb-5.5">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="clar-field-label !mb-1">Send notification</div>
+            <p class="text-[12.5px] leading-normal clar-text-muted m-0">Post to Discord when the condition is met. Off &mdash; runs are only logged in history.</p>
+          </div>
+          <input type="hidden" name="alert_rule[notify_enabled]" value="0">
+          <input type="checkbox" name="alert_rule[notify_enabled]" value="1" <%= "checked" if rule.notify_enabled? %>
+                 class="sr-only" data-clar-notify-toggle-target="input" data-action="change->clar-notify-toggle#sync">
+          <button type="button" class="clar-toggle mt-0.5" data-clar-notify-toggle-target="button"
+                  aria-checked="<%= rule.notify_enabled? ? 'true' : 'false' %>" aria-label="Send a Discord notification"
+                  data-action="clar-notify-toggle#toggle">
+            <span class="knob"></span>
+          </button>
+        </div>
+
+        <div data-clar-notify-toggle-target="channels" class="<%= "hidden" unless rule.notify_enabled? %> mt-4">
+          <label class="clar-field-label">DEFAULT CHANNEL <span class="font-medium clar-text-faint">&middot; Discord</span></label>
+          <% if @discord_webhooks.present? %>
+            <div class="flex flex-wrap gap-1.5">
+              <% @discord_webhooks.each do |webhook| %>
+                <% selected = webhook.id == rule.discord_webhook_id %>
+                <label class="clar-chip <%= "clar-chip-active" if selected %>" data-clar-alert-rule-form-target="channelChip" data-action="click->clar-alert-rule-form#selectChannel">
+                  <input type="radio" name="alert_rule[discord_webhook_id]" value="<%= webhook.id %>" <%= "checked" if selected %> class="hidden">
+                  <%= webhook.channel_name %>
+                </label>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-[12.5px] clar-text-muted">No Discord webhooks configured.</div>
+          <% end %>
+        </div>
+      </div>
+
+      <div class="flex gap-2.5 justify-between items-center">
+        <%# Delete lives on the left of the footer, away from Save. The destroy
+            form can't nest inside this one — rendered as a sibling below and
+            submitted by this button via its form attribute. %>
+        <button type="submit" form="delete-alert-rule-<%= rule.id %>" class="clar-btn clar-btn-danger">Delete</button>
+        <div class="flex gap-2.5">
+          <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+          <%= f.submit "Save changes", class: "clar-btn clar-btn-primary" %>
+        </div>
+      </div>
+    <% end %>
+
+    <%= form_with url: workshop_alert_rule_path(rule), method: :delete, id: "delete-alert-rule-#{rule.id}",
+          class: "hidden", data: { turbo_confirm: %(Delete "#{rule.name}"? Its run history and AI memory go with it.) } do %><% end %>
+  </div>
+</div>

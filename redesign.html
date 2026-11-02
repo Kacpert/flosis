@@ -1,0 +1,1672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+// Suppress the contentless cross-origin "Script error." emitted by the in-browser
+// Babel transform in sandboxed iframes. Real (same-origin) errors still surface.
+window.addEventListener('error', function(e){ if (e.message === 'Script error.' && !e.filename) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+window.onerror = function(msg, src){ return (msg === 'Script error.' && !src); };
+</script>
+<title>Clar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:Figtree,system-ui,sans-serif}
+  :root{
+    --bg:#f6f7f9;--surface:#ffffff;--surface-2:#f1f3f5;--border:#e6e8ec;
+    --text:#1a1d24;--muted:#6b7280;--faint:#9aa3af;
+    --primary:#4f46e5;--primary-soft:#eef2ff;--primary-2:#4338ca;
+    --success:#16a34a;--success-soft:#ecfdf3;
+    --warn:#d97706;--warn-soft:#fffbeb;
+    --danger:#dc2626;--danger-soft:#fef2f2;
+    --ai:#7c3aed;--ai-soft:#f5f3ff;
+    --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.04);
+    --shadow-lg:0 8px 28px rgba(16,24,40,.12);
+  }
+  [data-theme="dark"]{
+    --bg:#0e1014;--surface:#161a20;--surface-2:#1d222a;--border:#272d36;
+    --text:#e7eaef;--muted:#9aa3b2;--faint:#6b7480;
+    --primary:#6366f1;--primary-soft:#1f2138;--primary-2:#818cf8;
+    --success:#22c55e;--success-soft:#10241a;
+    --warn:#f59e0b;--warn-soft:#2a210f;
+    --danger:#ef4444;--danger-soft:#2a1414;
+    --ai:#a78bfa;--ai-soft:#1c1830;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+    --shadow-lg:0 12px 36px rgba(0,0,0,.5);
+  }
+  button{font-family:inherit}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+  @keyframes clarFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @keyframes clarToast{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
+  @keyframes clarBlink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+  .hovcard{transition:border-color .12s,box-shadow .12s}
+  .hovcard:hover{border-color:var(--primary)!important;box-shadow:var(--shadow-lg)}
+  .hovrow:hover{border-color:var(--primary)!important}
+  .hovchip:hover{border-color:var(--primary)!important;color:var(--primary)!important}
+  #root{height:100vh}
+  .clar-prose h4{font-size:11px;font-weight:700;letter-spacing:.4px;color:var(--ai);margin:15px 0 4px;text-transform:uppercase}
+  .clar-prose > h4:first-child{margin-top:0}
+  .clar-prose p{font-size:13px;line-height:1.6;color:var(--text);margin:3px 0}
+  .clar-prose ul,.clar-prose ol{margin:5px 0;padding-left:20px}
+  .clar-prose li{font-size:13px;line-height:1.6;color:var(--text)}
+  .clar-prose pre{font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;margin:5px 0;white-space:pre-wrap}
+  .clar-prose a{color:var(--primary)}
+  .clar-editor{outline:none;min-height:240px;padding:12px 14px;background:var(--bg);border:1px solid var(--border);border-radius:10px}
+  .clar-editor:focus{border-color:var(--primary)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/jsx" id="app-src">
+const { useState, useRef, useCallback } = React;
+
+function css(str){
+  const o = {};
+  String(str).split(';').forEach(d => {
+    const i = d.indexOf(':'); if (i < 0) return;
+    const k = d.slice(0, i).trim(); if (!k) return;
+    const v = d.slice(i + 1).trim();
+    const ck = k.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    o[ck] = v;
+  });
+  return o;
+}
+const I = (p, w) => (<svg width={w||18} height={w||18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" dangerouslySetInnerHTML={{__html:p}} />);
+const initials = n => n.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+
+function TrendChart({ points, series, height }){
+  const W=980, H=height||220, padL=38, padR=16, padT=16, padB=28;
+  const n=points.length;
+  const allVals=[]; series.forEach(s=>points.forEach(p=>allVals.push(p[s.key])));
+  const maxV=Math.max(1,...allVals), max=Math.ceil(maxV/10)*10 || maxV;
+  const iw=W-padL-padR, ih=H-padT-padB;
+  const x=i=> n<=1? padL+iw/2 : padL + (i/(n-1))*iw;
+  const y=v=> padT + ih - (v/max)*ih;
+  const [hover,setHover]=React.useState(-1);
+  const ticks=4; const gy=[]; for(let t=0;t<=ticks;t++){ gy.push(Math.round(max*t/ticks)); }
+  // label thinning
+  const step = Math.ceil(n/12);
+  return (
+    <div style={{position:'relative',width:'100%'}}>
+      <svg viewBox={'0 0 '+W+' '+H} preserveAspectRatio="none" style={{width:'100%',height:H+'px',display:'block'}}
+        onMouseLeave={()=>setHover(-1)}
+        onMouseMove={e=>{ const r=e.currentTarget.getBoundingClientRect(); const px=(e.clientX-r.left)/r.width*W; let bi=0,bd=1e9; for(let i=0;i<n;i++){ const d=Math.abs(x(i)-px); if(d<bd){bd=d;bi=i;} } setHover(bi); }}>
+        {gy.map((v,i)=>(<g key={i}><line x1={padL} x2={W-padR} y1={y(v)} y2={y(v)} stroke="var(--border)" strokeWidth="1"/><text x={padL-8} y={y(v)+4} textAnchor="end" fontSize="10" fill="var(--faint)">{v}</text></g>))}
+        {points.map((p,i)=> (i%step===0||i===n-1) ? <text key={i} x={x(i)} y={H-8} textAnchor="middle" fontSize="10" fill="var(--faint)">{p.label}</text> : null)}
+        {series.map((s,si)=>{
+          const dPath=points.map((p,i)=>(i?'L':'M')+x(i)+' '+y(p[s.key])).join(' ');
+          const aPath=dPath+' L'+x(n-1)+' '+(padT+ih)+' L'+x(0)+' '+(padT+ih)+' Z';
+          return (<g key={si}>
+            {s.fill && <path d={aPath} fill={s.color} opacity="0.08"/>}
+            <path d={dPath} fill="none" stroke={s.color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>
+            {points.map((p,i)=>(<circle key={i} cx={x(i)} cy={y(p[s.key])} r={hover===i?4:0} fill={s.color}/>))}
+          </g>);
+        })}
+        {hover>=0 && <line x1={x(hover)} x2={x(hover)} y1={padT} y2={padT+ih} stroke="var(--faint)" strokeWidth="1" strokeDasharray="3 3"/>}
+      </svg>
+      {hover>=0 && (
+        <div style={{position:'absolute',top:0,left:'calc('+((x(hover)/W)*100)+'% )',transform:'translateX(-50%)',pointerEvents:'none',background:'var(--text)',color:'var(--bg)',borderRadius:'8px',padding:'7px 10px',fontSize:'11px',whiteSpace:'nowrap',boxShadow:'var(--shadow-lg)'}}>
+          <div style={{fontWeight:700,marginBottom:'3px'}}>{points[hover].full}</div>
+          {series.map((s,i)=>(<div key={i} style={{display:'flex',alignItems:'center',gap:'6px'}}><span style={{width:'7px',height:'7px',borderRadius:'50%',background:s.color}}></span>{s.label}: <b>{points[hover][s.key]}</b></div>))}
+        </div>
+      )}
+    </div>
+  );
+}
+function ChartLegend({ series }){
+  return (<div style={css('display:flex;gap:16px;flex-wrap:wrap')}>{series.map((s,i)=>(<span key={i} style={css('display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)')}><span style={css('width:10px;height:3px;border-radius:2px;background:'+s.color)}></span>{s.label}</span>))}</div>);
+}
+function ChartRangeLabel(gran, range){ return gran==='sprint' ? ('Last '+range+' sprints') : (range>=24?'Last 2 years':range>=12?'Last 12 months':'Last '+range+' months'); }
+function MField({ label, value, mono, hint, action, onAction }){
+  return (<div style={css('margin-bottom:14px')}>
+    <label style={css('display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px')}>{label}</label>
+    <div style={css('display:flex;gap:8px;align-items:center')}>
+      <input defaultValue={value} style={css('flex:1;font-family:'+(mono?"'JetBrains Mono',monospace":'inherit')+';font-size:13px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:9px 11px;outline:none')}/>
+      {action && <button onClick={onAction||(()=>{})} style={css('font-family:inherit;font-weight:600;font-size:12px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:9px 12px;cursor:pointer;white-space:nowrap')}>{action}</button>}
+    </div>
+    {hint && <div style={css('font-size:11px;color:var(--faint);margin-top:5px')}>{hint}</div>}
+  </div>);
+}
+function MToggle({ label, on, onToggle, hint }){
+  return (<div style={css('display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--border)')}>
+    <div><div style={css('font-size:13px;font-weight:600;color:var(--text)')}>{label}</div>{hint && <div style={css('font-size:11.5px;color:var(--faint);margin-top:2px')}>{hint}</div>}</div>
+    <button onClick={onToggle} style={css('width:40px;height:23px;border-radius:20px;border:none;cursor:pointer;position:relative;flex:0 0 40px;background:'+(on?'var(--primary)':'var(--border)')+';transition:background .15s')}><span style={css('position:absolute;top:2px;left:'+(on?'19px':'2px')+';width:19px;height:19px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)')}></span></button>
+  </div>);
+}
+
+const PROJECTS = [
+  { name:'Survey Platform', team:'Insights team', repo:'acme/survey-platform', conns:{Jira:true,GitHub:true,Discord:true,Figma:true} },
+  { name:'Billing Service', team:'Payments team', repo:'acme/billing', conns:{Jira:true,GitHub:true,Discord:false,Figma:false} },
+  { name:'Mobile App', team:'Apps team', repo:'acme/mobile', conns:{Jira:true,GitHub:true,Discord:true,Figma:true} },
+];
+const BRIEF_SCRIPT = [
+  "Got it. Who feels this pain today — survey creators, or the analysts consuming results? And roughly how often?",
+  "Makes sense. The current export only emits raw rows; analysts re-pivot by hand. I'd propose we generate the aggregated view server-side and reuse the existing aggregation_threshold guard so we don't leak small cohorts. Does that match the intent?",
+  "Good. One business call: should the aggregated export respect the same privacy threshold as the dashboard, or do analysts need an unfiltered mode? I'd lean toward one rule to avoid surprises.",
+  "I think I have enough. I'll draft a brief — the concept, who it's for, and high-level acceptance.",
+];
+const DETAIL_SCRIPT = [
+  "I see Survey already has aggregation_threshold with no default in the model. What value should aggregated export fall back to when a survey hasn't set one?",
+  "The Figma shows a single Export button splitting into Raw / Aggregated. Should aggregated be the default, or raw (current behaviour) to avoid surprising existing users?",
+  "For suppressed cohorts — omit them entirely, or show a masked '< threshold' row? The dashboard masks; matching it keeps things consistent.",
+  "That's everything I need. Generating the implementation-ready description now.",
+];
+const BRIEF_SECTIONS = [
+  { h:'Concept', t:'Add an aggregated CSV/Excel export to Survey Platform so analysts get pivot-ready results without manual reshaping.' },
+  { h:"Who it's for", t:'Internal analysts and survey owners consuming completed survey results.' },
+  { h:"What we're building", t:'A server-side aggregated export that reuses the existing aggregation_threshold privacy guard, offered alongside the current raw export.' },
+  { h:'High-level acceptance', t:'Analysts can download an aggregated file from a completed survey; cohorts below threshold are suppressed; the raw export is unchanged.' },
+];
+const DETAIL_SECTIONS = [
+  { h:'Background', t:'Survey Platform currently exposes only a raw, row-level CSV export (services/survey/export.rb). Analysts pivot results by hand, and the privacy threshold applied on the dashboard is not enforced on export.' },
+  { h:'User story', t:'As an analyst, I want a privacy-safe aggregated export of a completed survey so I can analyse results without manual reshaping or risking small-cohort exposure.' },
+  { h:'Requirements', t:'Add an "Aggregated" option beside raw export. Reuse the Aggregation service and Survey#aggregation_threshold (default 5 when unset). Suppressed cohorts render as a masked "< threshold" row to match the dashboard. Raw remains the default selection and is unchanged.' },
+  { h:'Acceptance criteria', t:'\u2022 Aggregated file downloads from any completed survey.\n\u2022 Cohorts below threshold render as masked rows, never raw counts.\n\u2022 Surveys without a threshold use the default of 5.\n\u2022 Existing raw export output is byte-for-byte unchanged.' },
+  { h:'Technical notes', t:'Extend services/survey/export.rb with an :aggregated mode. Reuse lib/aggregation/aggregator.rb. Add the UI toggle in app/views/surveys/results.html.erb. Set the threshold default in app/models/survey.rb.' },
+  { h:'Out of scope', t:'Scheduled/recurring exports, XLSX styling, and per-question export selection.' },
+];
+const PRS = [
+  { num:482, title:'Aggregated CSV export for survey results', author:'Mara Okafor', branch:'feat/aggregated-export', time:'4 min ago', outcome:'comments', count:3 },
+  { num:479, title:'Fix threshold off-by-one in cohort suppression', author:'Tomás Reyes', branch:'fix/threshold', time:'22 min ago', outcome:'good' },
+  { num:476, title:'Refactor export service into modules', author:'Lena Vogt', branch:'refactor/export', time:'1 h ago', outcome:'comments', count:6 },
+  { num:471, title:'Add rate limit to results API', author:'Priya Nair', branch:'feat/rate-limit', time:'3 h ago', outcome:'good' },
+  { num:468, title:'Bump aggregation worker concurrency', author:'Sam Whitfield', branch:'chore/worker', time:'5 h ago', outcome:'comments', count:2 },
+];
+const ESTIMATES = [
+  { key:'SP-1042', title:'Aggregated CSV export', ai:8, manual:8 },
+  { key:'SP-1038', title:'Cohort suppression masking', ai:3, manual:5 },
+  { key:'SP-1031', title:'Results API rate limit', ai:5, manual:'—' },
+  { key:'SP-1029', title:'Export module refactor', ai:13, manual:8 },
+];
+const ALERT_HISTORY = {
+  'QA backlog watch': [
+    { time:'Today · 13:00', fired:true, summary:'2 tasks flagged — SP-1099, SP-1102 in QA > 3 days', detail:'Checked 18 QA tasks; 2 exceeded the 3-day threshold. Notified #dev-alerts.' },
+    { time:'Yesterday · 13:00', fired:true, summary:'1 task flagged — SP-1099', detail:'Checked 15 QA tasks; 1 exceeded threshold.' },
+    { time:'Jun 30 · 13:00', fired:false, summary:'No condition met', detail:'Checked 12 QA tasks; none exceeded 3 days.' },
+    { time:'Jun 29 · 13:00', fired:false, summary:'No condition met', detail:'Checked 9 QA tasks; none exceeded 3 days.' },
+    { time:'Jun 28 · 13:00', fired:true, summary:'3 tasks flagged', detail:'Backlog spike after release freeze. Notified #dev-alerts.' },
+  ],
+  'Sprint scope creep': [
+    { time:'Today · 09:00', fired:false, summary:'No condition met', detail:'Scope +6% vs sprint start — under the 20% threshold.' },
+    { time:'Jun 30 · 09:00', fired:false, summary:'No condition met', detail:'Scope +11% — under threshold.' },
+    { time:'Jun 28 · 09:00', fired:true, summary:'Scope +24% — product notified', detail:'4 stories added mid-sprint. Notified #product.' },
+  ],
+  'Stale PR reminder': [
+    { time:'Yesterday · 17:30', fired:true, summary:'1 PR — reminded author', detail:'#476 had no activity for 2 days. Pinged Lena Vogt in #dev-alerts.' },
+    { time:'Jun 30 · 17:30', fired:false, summary:'No condition met', detail:'All open PRs active within 2 days.' },
+    { time:'Jun 29 · 17:30', fired:true, summary:'2 PRs — reminded authors', detail:'#468, #471 stale. Pinged authors.' },
+  ],
+};
+const ALERTS_SEED = [
+  { name:'QA backlog watch', prompt:'If more than 4 tasks have been in QA for longer than 3 days, send a notification.', schedule:'Daily · 13:00', channel:'#dev-alerts', ok:true, last:'Sent · 2 tasks flagged', time:'today 13:00' },
+  { name:'Sprint scope creep', prompt:'If sprint scope increases by more than 20% mid-sprint, notify product.', schedule:'Mon, Wed, Fri · 09:00', channel:'#product', ok:true, last:'No condition met', time:'today 09:00' },
+  { name:'Stale PR reminder', prompt:'If a PR has had no activity for 2 days, remind the author.', schedule:'Daily · 17:30', channel:'#dev-alerts', ok:true, last:'Sent · 1 PR', time:'yesterday 17:30' },
+];
+const CHANNELS = ['#dev-alerts','#product','#qa','#general'];
+const ALERT_FREQS = [['daily','Daily'],['weekdays','Weekdays'],['mwf','Mon, Wed, Fri'],['weekly','Weekly (Mon)'],['hourly','Every hour']];
+const DEVS = [
+  { name:'Mara Okafor', sp:23, fixed:5, created:1, hours:148, rate:95, c:'#4f46e5' },
+  { name:'Tomás Reyes', sp:18, fixed:7, created:3, hours:152, rate:88, c:'#0d9488' },
+  { name:'Lena Vogt', sp:21, fixed:2, created:2, hours:139, rate:110, c:'#db2777' },
+  { name:'Priya Nair', sp:15, fixed:4, created:0, hours:121, rate:92, c:'#d97706' },
+  { name:'Sam Whitfield', sp:10, fixed:6, created:6, hours:82, rate:70, c:'#7c3aed' },
+];
+const BUGS = [
+  { key:'SP-1101', title:'Export crashes on empty survey', feat:true, author:'Sam Whitfield', conf:'high', reason:'git blame on export.rb:88 points to commit a3f1 (Sam Whitfield, 6 days ago) introducing the unchecked nil. The fixing diff guards that exact line.' },
+  { key:'SP-1098', title:'Threshold not applied to PDF export', feat:true, author:'Lena Vogt', conf:'med', reason:'Bug spans two changes — most likely introduced when the PDF path was added (Lena Vogt), though a later refactor (Tomás Reyes) reshuffled the guard.' },
+  { key:'SP-1095', title:'Dashboard count off by one', feat:false, author:'Tomás Reyes', conf:'high', reason:'The fixing diff reverts logic from commit 9b2c (Tomás Reyes); blame and fix agree.' },
+  { key:'SP-1090', title:'Slow load on 10k+ responses', feat:false, author:'Lena Vogt', conf:'low', reason:'Performance regression with no single origin commit; likely cumulative across several changes. Best guess from blame on the hot path.' },
+  { key:'SP-1087', title:'CSV encoding mojibake on export', feat:false, author:'Priya Nair', conf:'high', reason:'git blame isolates the encoding change to commit 4d77 (Priya Nair); verified against earlier changes.' },
+];
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function buildTrend(){
+  const months=[], sprints=[];
+  let d=new Date(2024,6,1);
+  const spBase=[52,58,61,55,64,60,68,63,71,66,74,70,72,69,77,73,80,76,82,79,85,81,87,84];
+  const bugC=[14,11,13,16,10,12,15,9,13,8,11,14,10,12,9,13,8,11,10,12,9,13,11,12];
+  const bugF=[10,12,11,13,12,14,12,11,13,12,14,13,12,13,11,14,12,13,12,14,13,15,13,14];
+  for(let i=0;i<24;i++){
+    const m=d.getMonth(), y=d.getFullYear();
+    months.push({ label:MONTH_NAMES[m]+' '+String(y).slice(2), full:MONTH_NAMES[m]+' '+y, sp:spBase[i], bugsCreated:bugC[i], bugsFixed:bugF[i] });
+    d.setMonth(d.getMonth()+1);
+  }
+  let sp=48;
+  for(let i=0;i<26;i++){
+    const n=76+i;
+    sp += Math.round((Math.sin(i/2)*4)+(i%4===0?5:2)-(i%7===0?6:0));
+    sprints.push({ label:'S'+n, full:'Sprint '+n, sp:Math.max(28,sp), bugsCreated:4+Math.round(Math.abs(Math.sin(i))*4)+(i%5===0?3:0), bugsFixed:4+Math.round(Math.abs(Math.cos(i))*3)+(i%3===0?2:0) });
+  }
+  return { months, sprints };
+}
+const TREND = buildTrend();
+
+const DELIVERED = [
+  { key:'SP-1042', title:'Aggregated CSV export for survey results', dev:'Mara Okafor', pts:8, merged:'Jun 27', prs:3 },
+  { key:'SP-1038', title:'Cohort suppression masking', dev:'Tomás Reyes', pts:3, merged:'Jun 25', prs:1 },
+  { key:'SP-1029', title:'Export module refactor', dev:'Lena Vogt', pts:13, merged:'Jun 21', prs:2 },
+  { key:'SP-1031', title:'Results API rate limiting', dev:'Priya Nair', pts:5, merged:'Jun 19', prs:2 },
+  { key:'SP-1018', title:'Per-question export selection', dev:'Mara Okafor', pts:8, merged:'Jun 14', prs:4 },
+  { key:'SP-1009', title:'Export audit log', dev:'Tomás Reyes', pts:5, merged:'Jun 11', prs:1 },
+  { key:'SP-1004', title:'Dashboard date-range presets', dev:'Sam Whitfield', pts:3, merged:'Jun 6', prs:1 },
+];
+const USERS = [
+  { name:'Alex Brandt', email:'alex@acme.io', role:'Administrator', c:'#4f46e5' },
+  { name:'Dana Liu', email:'dana@acme.io', role:'Product Owner', c:'#0d9488' },
+  { name:'Mara Okafor', email:'mara@acme.io', role:'Product Owner', c:'#db2777' },
+];
+const NAV = [
+  { key:'process', label:'Process Optimization', icon:'<path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="M21 4v5h-5"/>' },
+  { key:'tasks', label:'Create Tasks', badge:'4', icon:'<path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>' },
+  { key:'reporting', label:'Reporting', icon:'<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="13" y="7" width="3" height="10"/>' },
+  { key:'bugs', label:'Bug Reporting', icon:'<rect x="8" y="6" width="8" height="14" rx="4"/><path d="M19 7l-3 2M5 7l3 2M19 13h2M3 13h2M19 19l-3-2M5 19l3-2M12 2v4"/>' },
+];
+const CONFIG_ICON = '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 14.6H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 8L4.5 8a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 10 4.6V4a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>';
+
+const DESIGNERS = ['Jade Sun', 'Marco Rehn'];
+const JIRA_COLUMNS = ['To do', 'In progress', 'In review', 'Done'];
+const JIRA_BOARDS = [
+  { id:'design', name:'Design board', sprint:'Design sprint 24', cards:[
+    { key:'SP-1063', title:'Conditional survey logic (branching)', reporter:'Dana Liu', assignee:'Jade Sun', status:'To do', pts:'—', type:'Story', desc:'Let survey authors branch questions based on prior answers. Rough idea only — no flows defined yet.' },
+    { key:'SP-1058', title:'Anonymous response toggle per survey', reporter:'Mara Okafor', assignee:'Jade Sun', status:'In progress', pts:5, type:'Story' },
+    { key:'SP-1041', title:'Response quota & auto-close', reporter:'Tomás Reyes', assignee:'Marco Rehn', status:'To do', pts:'—', type:'Story' },
+    { key:'SP-1028', title:'Survey theming & brand colors', reporter:'Lena Vogt', assignee:'Marco Rehn', status:'In review', pts:8, type:'Story' },
+    { key:'SP-1019', title:'Onboarding empty-states pass', reporter:'Dana Liu', assignee:'Jade Sun', status:'Done', pts:3, type:'Task' },
+  ]},
+  { id:'dev', name:'Development board', sprint:'Sprint 24', cards:[
+    { key:'SP-1042', title:'Aggregated CSV export', reporter:'Mara Okafor', assignee:'Mara Okafor', status:'In progress', pts:8, type:'Story' },
+    { key:'SP-1031', title:'Results API rate limiting', reporter:'Priya Nair', assignee:'Priya Nair', status:'To do', pts:5, type:'Story', desc:'We are seeing abuse on /api/v1/results. Add rate limiting.\n\n(Reporter note — needs detail: limits, scope, response.)' },
+    { key:'SP-1038', title:'Cohort suppression masking', reporter:'Tomás Reyes', assignee:'Tomás Reyes', status:'In review', pts:3, type:'Story' },
+    { key:'SP-1029', title:'Export module refactor', reporter:'Lena Vogt', assignee:'Lena Vogt', status:'To do', pts:13, type:'Task' },
+    { key:'SP-1101', title:'Export crashes on empty survey', reporter:'Sam Whitfield', assignee:'Sam Whitfield', status:'Done', pts:2, type:'Bug' },
+  ]},
+  { id:'backlog', name:'Backlog', sprint:'Filtered: reporter = team', cards:[
+    { key:'SP-1047', title:'Export scheduling (recurring CSV)', reporter:'Priya Nair', assignee:'—', status:'To do', pts:5, type:'Story', priority:'High', days:3, desc:'Analysts want exports emailed on a schedule (daily/weekly) instead of manual pulls.' },
+    { key:'SP-1036', title:'Question library / reusable blocks', reporter:'Dana Liu', assignee:'—', status:'To do', pts:8, type:'Story', priority:'Medium', days:9 },
+    { key:'SP-1015', title:'Partial-response recovery email', reporter:'Sam Whitfield', assignee:'—', status:'To do', pts:3, type:'Task', priority:'Low', days:21 },
+    { key:'SP-1004', title:'Bulk export of multiple surveys', reporter:'Mara Okafor', assignee:'—', status:'To do', pts:'—', type:'Story', priority:'Medium', days:14 },
+    { key:'SP-0998', title:'Webhook retry on delivery failure', reporter:'Priya Nair', assignee:'—', status:'To do', pts:5, type:'Bug', priority:'High', days:6 },
+    { key:'SP-0991', title:'CSV column ordering preferences', reporter:'Lena Vogt', assignee:'—', status:'To do', pts:2, type:'Task', priority:'Low', days:33 },
+    { key:'SP-0985', title:'Survey duplication shortcut', reporter:'Dana Liu', assignee:'—', status:'To do', pts:3, type:'Story', priority:'Medium', days:18 },
+  ]},
+];
+
+const tabStyle = a => 'font-family:inherit;font-size:13px;font-weight:600;padding:7px 15px;border-radius:8px;border:none;cursor:pointer;background:'+(a?'var(--surface)':'transparent')+';color:'+(a?'var(--text)':'var(--muted)')+';box-shadow:'+(a?'var(--shadow)':'none');
+
+function App(){
+  const [theme,setTheme] = useState('light');
+  const [view,setView] = useState('tasks');
+  const [projOpen,setProjOpen] = useState(false);
+  const [projIdx,setProjIdx] = useState(0);
+  const [poTab,setPoTab] = useState('pr');
+  const [cfgTab,setCfgTab] = useState('integrations');
+  const [manageInt,setManageInt] = useState(null);
+  const [period,setPeriod] = useState('month');
+  const [repDev,setRepDev] = useState('all');
+  const [gran,setGran] = useState('month'); // month | sprint (trend granularity)
+  const [range,setRange] = useState(12); // months/sprints shown
+  const [pollInterval,setPollInterval] = useState(6);
+  const [estFields,setEstFields] = useState(['AI estimation']);
+  const [estTrigger,setEstTrigger] = useState('sprint');
+  const [alerts,setAlerts] = useState(ALERTS_SEED);
+  const [ruleOpen,setRuleOpen] = useState(false);
+  const [historyAlert,setHistoryAlert] = useState(null);
+  const [resetOpen,setResetOpen] = useState(false);
+  const [ruleName,setRuleName] = useState('');
+  const [rulePrompt,setRulePrompt] = useState('');
+  const [ruleFreq,setRuleFreq] = useState('daily');
+  const [ruleTime,setRuleTime] = useState('09:00');
+  const [ruleChannel,setRuleChannel] = useState(CHANNELS[0]);
+  const EST_FIELD_OPTS = ['AI estimation','Story point estimate','T-shirt size','Confidence (1–5)'];
+  const EST_TRIGGERS = [['sprint','Added to a Development sprint'],['status','Status changes to “Ready for dev”'],['briefed','AI actions = Briefed'],['manual','Manually, on request']];
+  const [workspace,setWorkspace] = useState(true);
+  const [navCollapsed,setNavCollapsed] = useState(false);
+  const [panelSize,setPanelSize] = useState('normal'); // normal | wide | focus
+  const [activeIdx,setActiveIdx] = useState(0);
+  const [stage,setStage] = useState('briefing');
+  const [chatInput,setChatInput] = useState('');
+  const [figmaInput,setFigmaInput] = useState('');
+  const [thinking,setThinking] = useState(false);
+  const [briefMsgs,setBriefMsgs] = useState([{role:'ai',text:"I've pulled the Survey Platform repo — I can see services/survey, the aggregation pipeline in lib/aggregation, and the CSV export module. Tell me what you're thinking and I'll help shape it."}]);
+  const [briefStep,setBriefStep] = useState(0);
+  const [briefVersions,setBriefVersions] = useState([]);
+  const [briefSel,setBriefSel] = useState(0);
+  const [briefCur,setBriefCur] = useState(0);
+  const [briefPushed,setBriefPushed] = useState(false);
+  const [detailMsgs,setDetailMsgs] = useState([{role:'ai',text:"Briefed version is in. I've re-read services/survey/export.rb, the Aggregation service, and the Figma you attached. I'll ask a few product questions — one at a time."}]);
+  const [detailStep,setDetailStep] = useState(0);
+  const [detailVersions,setDetailVersions] = useState([]);
+  const [detailSel,setDetailSel] = useState(0);
+  const [detailCur,setDetailCur] = useState(0);
+  const [detailPushed,setDetailPushed] = useState(false);
+  const [figma,setFigma] = useState([]);
+  const [toast,setToast] = useState(null);
+  const [ideas,setIdeas] = useState([
+    { id:'IDEA-204', title:'Aggregated CSV export for survey results', created:'2h ago', days:0, jiraKey:null, stage:'briefing', author:'Mara Okafor' },
+    { id:'SP-1031', title:'Results API rate limiting', created:'1d ago', days:1, jiraKey:'SP-1031', stage:'details', author:'Priya Nair', design:'requested', jiraDesc:'We are seeing abuse on /api/v1/results. Add rate limiting.\n\n(Reporter note — needs detail: limits, scope, response.)' },
+    { id:'IDEA-201', title:'Bulk archive completed surveys', created:'3d ago', days:3, jiraKey:null, stage:'new', author:'Dana Liu' },
+    { id:'SP-1018', title:'Per-question export selection', created:'5d ago', days:5, jiraKey:'SP-1018', stage:'ready', author:'Lena Vogt' },
+    { id:'IDEA-208', title:'Survey response webhooks', created:'4h ago', days:0, jiraKey:null, stage:'new', author:'Alex Brandt' },
+    { id:'SP-1044', title:'Dashboard date-range presets', created:'2d ago', days:2, jiraKey:'SP-1044', stage:'briefing', author:'Tomás Reyes', jiraDesc:'Add quick presets (Last 7 / 30 days, This quarter) to the dashboard date picker.' },
+    { id:'SP-1039', title:'Cohort suppression masking on PDF', created:'2d ago', days:2, jiraKey:'SP-1039', stage:'details', author:'Lena Vogt', design:'delivered' },
+    { id:'IDEA-199', title:'Saved filter views per analyst', created:'6d ago', days:6, jiraKey:null, stage:'new', author:'Dana Liu' },
+    { id:'SP-1022', title:'Multi-language survey support', created:'8d ago', days:8, jiraKey:'SP-1022', stage:'ready', author:'Priya Nair' },
+    { id:'SP-1051', title:'Inline validation on question editor', created:'5h ago', days:0, jiraKey:'SP-1051', stage:'briefing', author:'Mara Okafor' },
+    { id:'IDEA-211', title:'Slack digest of weekly responses', created:'1d ago', days:1, jiraKey:null, stage:'new', author:'Sam Whitfield' },
+    { id:'SP-1009', title:'Export audit log', created:'11d ago', days:11, jiraKey:'SP-1009', stage:'ready', author:'Tomás Reyes' },
+  ]);
+  const [ideaSearch,setIdeaSearch] = useState('');
+  const [ideaFilter,setIdeaFilter] = useState('all');
+  const [ideaSort,setIdeaSort] = useState('newest');
+  const [newIdeaOpen,setNewIdeaOpen] = useState(false);
+  const [newIdeaTitle,setNewIdeaTitle] = useState('');
+  const [newIdeaDesc,setNewIdeaDesc] = useState('');
+  const [designStatus,setDesignStatus] = useState('none'); // none | requested | delivered
+  const [designer,setDesigner] = useState(DESIGNERS[0]);
+  const [reqDesignOpen,setReqDesignOpen] = useState(false);
+  const [reqDesigner,setReqDesigner] = useState(DESIGNERS[0]);
+  const [reqNote,setReqNote] = useState('');
+  const [jiraPickOpen,setJiraPickOpen] = useState(false);
+  const [jiraSearch,setJiraSearch] = useState('');
+  const [boardId,setBoardId] = useState('design');
+  const [ideaSource,setIdeaSource] = useState('all'); // all | jira | local
+  const [blogType,setBlogType] = useState('all');
+  const [blogSort,setBlogSort] = useState('priority');
+  const [renaming,setRenaming] = useState(false);
+  const [renameVal,setRenameVal] = useState('');
+  const [editing,setEditing] = useState(false);
+  const [editHtml,setEditHtml] = useState('');
+  const [briefViewOpen,setBriefViewOpen] = useState(false);
+  const [briefViewSel,setBriefViewSel] = useState(0);
+  const tt = useRef(null);
+  const showToast = t => { setToast(t); clearTimeout(tt.current); tt.current = setTimeout(()=>setToast(null), 2600); };
+  const scrollRef = useRef(null);
+  const editorRef = useRef(null);
+
+  const proj = PROJECTS[projIdx];
+  const dark = theme === 'dark';
+  const active = ideas[activeIdx];
+  const isBrief = stage === 'briefing';
+  const navStyle = a => 'display:flex;align-items:center;gap:11px;width:100%;padding:9px 10px;border-radius:9px;border:none;cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:'+(a?'650':'500')+';background:'+(a?'var(--primary-soft)':'transparent')+';color:'+(a?'var(--primary)':'var(--muted)');
+
+  const goView = v => { setView(v); setProjOpen(false); };
+  const openIdea = i => { const it = ideas[i]; setActiveIdx(i); setWorkspace(true); setStage(it.stage==='new'?'briefing':it.stage); setDesignStatus('none'); setFigma([]); setEditing(false); setPanelSize('normal');
+    const seed = seedV0(it);
+    setBriefVersions(seed); setBriefSel(0); setBriefCur(0); setBriefPushed(false); setBriefStep(0);
+    setDetailVersions(seed); setDetailSel(0); setDetailCur(0); setDetailPushed(false); setDetailStep(0);
+  };
+  const resetConvo = () => {
+    setBriefStep(0); setBriefVersions([]); setBriefSel(0); setBriefPushed(false);
+    setDetailStep(0); setDetailVersions([]); setDetailSel(0); setDetailPushed(false);
+    setFigma([]); setDesignStatus('none');
+  };
+  const openReset = () => setResetOpen(true);
+  const doReset = () => {
+    if(isBrief){
+      setBriefMsgs([{ role:'ai', text:"Session reset. I've re-read the project code and the task description. Let's shape this from the top — what are we building and why?" }]);
+      setBriefStep(0);
+    } else {
+      setDetailMsgs([{ role:'ai', text:"Session reset. I've re-read the project code, the brief and the task description. I'll ask a few product questions — one at a time." }]);
+      setDetailStep(0);
+    }
+    setEditing(false); setResetOpen(false);
+    showToast('Chat reset · all versions kept');
+  };
+  const createIdea = () => {
+    const t = newIdeaTitle.trim(); if(!t) return;
+    const idea = { id:'IDEA-'+(300+ideas.length), title:t, created:'just now', days:0, jiraKey:null, stage:'briefing', author:'Alex Brandt', desc:newIdeaDesc.trim() };
+    setIdeas(arr=>[idea, ...arr]);
+    setBriefMsgs([
+      { role:'ai', text:"I've pulled the Survey Platform repo — I can see services/survey, the aggregation pipeline in lib/aggregation, and the CSV export module. Tell me more and I'll help shape it." },
+      { role:'user', text: t + (newIdeaDesc.trim()? ' — '+newIdeaDesc.trim() : '') },
+    ]);
+    setDetailMsgs([{ role:'ai', text:"Briefed version is in. I've re-read the relevant services and any designs attached. I'll ask a few product questions — one at a time." }]);
+    const seed = seedV0(idea);
+    setBriefVersions(seed); setBriefSel(0); setBriefCur(0); setBriefPushed(false); setBriefStep(0);
+    setDetailVersions(seed); setDetailSel(0); setDetailCur(0); setDetailPushed(false); setDetailStep(0);
+    setFigma([]); setDesignStatus('none'); setEditing(false);
+    setActiveIdx(0); setWorkspace(true); setStage('briefing');
+    setNewIdeaOpen(false); setNewIdeaTitle(''); setNewIdeaDesc('');
+    showToast('Idea saved · “'+t+'”');
+  };
+  const importJira = tk => {
+    const idea = { id:tk.key, title:tk.title, created:'just now', days:0, jiraKey:tk.key, stage:'briefing', author:tk.reporter, jiraDesc:tk.desc||'' };
+    setIdeas(arr=>[idea, ...arr]);
+    setBriefMsgs([{ role:'ai', text:"I pulled "+tk.key+" from Jira and read the related code. Right now it just says “"+tk.title+"” — let's sharpen the intent. Who is this for and what's the goal?" }]);
+    setDetailMsgs([{ role:'ai', text:"Briefed version is in. I've re-read the relevant services and any designs attached. I'll ask a few product questions — one at a time." }]);
+    const seed = seedV0(idea);
+    setBriefVersions(seed); setBriefSel(0); setBriefCur(0); setBriefPushed(false); setBriefStep(0);
+    setDetailVersions(seed); setDetailSel(0); setDetailCur(0); setDetailPushed(false); setDetailStep(0);
+    setFigma([]); setDesignStatus('none'); setEditing(false);
+    setActiveIdx(0); setWorkspace(true); setStage('briefing');
+    setJiraPickOpen(false);
+    showToast('Imported '+tk.key+' from Jira');
+  };
+  const startRename = () => { setRenameVal(active.title); setRenaming(true); };
+  const saveRename = () => { const t=renameVal.trim(); if(!t){ setRenaming(false); return; } setIdeas(arr=>{ const a=arr.slice(); a[activeIdx]={...a[activeIdx],title:t,draft:false}; return a; }); setRenaming(false); showToast('Renamed'); };
+  const requestDesigns = () => { setReqDesigner(designer||DESIGNERS[0]); setReqNote(''); setReqDesignOpen(true); };
+  const confirmRequestDesigns = () => { setDesigner(reqDesigner); setDesignStatus('requested'); setReqDesignOpen(false); setIdeas(arr=>{ const a=arr.slice(); a[activeIdx]={...a[activeIdx],design:'requested'}; return a; }); showToast('Design request sent to '+reqDesigner); };
+  const cancelDesignRequest = () => { setDesignStatus('none'); setIdeas(arr=>{ const a=arr.slice(); a[activeIdx]={...a[activeIdx],design:undefined}; return a; }); showToast('Design request cancelled'); };
+  const markDesignsDelivered = () => {
+    setFigma([
+      { name:'Results · Export flow', url:'figma.com/file/Survey/Results-Export?node-id=812-44' },
+      { name:'Empty & error states', url:'figma.com/file/Survey/Results-Export?node-id=820-12' },
+    ]);
+    setDesignStatus('delivered');
+    setIdeas(arr=>{ const a=arr.slice(); a[activeIdx]={...a[activeIdx],design:'delivered'}; return a; });
+    showToast('Designs delivered · 2 links added to Jira description');
+  };
+  const pickProject = i => { setProjIdx(i); setProjOpen(false); showToast('Switched to '+PROJECTS[i].name); };
+
+  const sendChat = () => {
+    const txt = chatInput.trim(); if(!txt) return;
+    const brief = stage === 'briefing';
+    const script = brief ? BRIEF_SCRIPT : DETAIL_SCRIPT;
+    const step = Math.min(brief?briefStep:detailStep, script.length-1);
+    const isLast = step === script.length-1;
+    if(brief){ setBriefMsgs(m=>m.concat([{role:'user',text:txt}])); } else { setDetailMsgs(m=>m.concat([{role:'user',text:txt}])); }
+    setChatInput(''); setThinking(true);
+    setTimeout(()=>{
+      if(brief){ setBriefMsgs(m=>m.concat([{role:'ai',text:script[step]}])); setBriefStep(s=>s+1); }
+      else { setDetailMsgs(m=>m.concat([{role:'ai',text:script[step]}])); setDetailStep(s=>s+1); }
+      setThinking(false);
+      requestAnimationFrame(()=>{ if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; });
+      if(isLast) setTimeout(()=>doGenerate(brief), 550);
+    }, 850);
+    requestAnimationFrame(()=>{ if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; });
+  };
+  const doGenerate = (brief) => {
+    const arr = brief? briefVersions : detailVersions;
+    if(arr.some(x=>x.source==='AI drafted')) return;
+    const nv = arr.concat([{time:'just now',source:'AI drafted',sections: brief?BRIEF_SECTIONS:DETAIL_SECTIONS}]);
+    const idx = nv.length-1;
+    if(brief){ setBriefVersions(nv); setBriefSel(idx); setBriefCur(idx); }
+    else { setDetailVersions(nv); setDetailSel(idx); setDetailCur(idx); }
+    showToast('AI drafted the '+(brief?'brief':'description')+' · now current');
+  };
+  const sectionsToHtml = secs => secs.map(s=>'<h4>'+s.h+'</h4>'+s.t.split('\n').map(l=>'<p>'+(l.trim()?l:'<br>')+'</p>').join('')).join('');
+  const descToHtml = t => t? t.split('\n').map(l=>'<p>'+(l.trim()?l:'<br>')+'</p>').join('') : '';
+  const seedV0 = it => { const d = it.jiraKey? it.jiraDesc : it.desc; return d? [{time:'original',source:'User description',html:descToHtml(d)}] : []; };
+  const htmlToText = html => { const d=document.createElement('div'); d.innerHTML=html; return (d.textContent||'').replace(/\n{3,}/g,'\n\n').trim(); };
+  const curHtml = raw => raw ? (raw.html || sectionsToHtml(raw.sections)) : '';
+  const startEdit = () => { if(!curRaw) return; setEditHtml(curHtml(curRaw)); setEditing(true); };
+  const cancelEdit = () => setEditing(false);
+  const exec = (cmd,val) => { document.execCommand(cmd,false,val); if(editorRef.current) editorRef.current.focus(); };
+  const saveInPlace = () => {
+    const html = editorRef.current ? editorRef.current.innerHTML : editHtml;
+    if(isBrief){ setBriefVersions(v=>v.map((x,i)=>i===briefSel?{...x,html,sections:undefined,time:'just now',source:x.source==='User description'?'User description (edited)':x.source}:x)); }
+    else { setDetailVersions(v=>v.map((x,i)=>i===detailSel?{...x,html,sections:undefined,time:'just now',source:x.source==='User description'?'User description (edited)':x.source}:x)); }
+    setEditing(false); showToast('Saved v'+sel);
+  };
+  const saveAsNew = () => {
+    const html = editorRef.current ? editorRef.current.innerHTML : editHtml;
+    if(isBrief){ const idx=briefVersions.length; setBriefVersions(v=>v.concat([{time:'just now',source:'Manual edit',html}])); setBriefSel(idx); setBriefCur(idx); }
+    else { const idx=detailVersions.length; setDetailVersions(v=>v.concat([{time:'just now',source:'Manual edit',html}])); setDetailSel(idx); setDetailCur(idx); }
+    setEditing(false); showToast('Saved as new version · now current');
+  };
+  const setAsCurrent = () => {
+    if(isBrief) setBriefCur(sel); else setDetailCur(sel);
+    const text = htmlToText(curHtml(versionsRaw[sel]));
+    setIdeas(arr=>{ const a=arr.slice(); const it={...a[activeIdx]}; if(it.jiraKey) it.jiraDesc=text; else it.desc=text; a[activeIdx]=it; return a; });
+    showToast('v'+sel+' set as current · '+(active.jiraKey?'Jira description updated':'local description updated'));
+  };
+  const resetConversation = () => {
+    if(isBrief){
+      setBriefMsgs([{ role:'ai', text:"Fresh start on the brief. What should change from the current version?" }]);
+      setBriefStep(BRIEF_SCRIPT.length-1);
+    } else {
+      setDetailMsgs([{ role:'ai', text:"Let's refine the description. What's off or missing in the current draft?" }]);
+      setDetailStep(DETAIL_SCRIPT.length-1);
+    }
+    showToast('Conversation reset — current version kept');
+  };
+  const updateLocally = () => {
+    setIdeas(arr=>{ const a=arr.slice(); a[activeIdx]={...a[activeIdx], localDesc:true, stage: isBrief?'briefing':'ready'}; return a; });
+    if(!isBrief){ setDetailPushed(false); setStage('ready'); showToast('Saved to the task locally · finished without Jira'); }
+    else showToast('Brief saved to the task locally · not pushed');
+  };
+  const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,32);
+  const openRule = () => { setRuleName(''); setRulePrompt(''); setRuleFreq('daily'); setRuleTime('09:00'); setRuleChannel(CHANNELS[0]); setRuleOpen(true); };
+  const createRule = () => {
+    const nm=ruleName.trim(), pr=rulePrompt.trim(); if(!nm||!pr) return;
+    const freqLabel=(ALERT_FREQS.find(f=>f[0]===ruleFreq)||['','Daily'])[1];
+    const schedule = ruleFreq==='hourly' ? 'Every hour' : freqLabel+' · '+ruleTime;
+    setAlerts(a=>a.concat([{ name:nm, prompt:pr, schedule, channel:ruleChannel, ok:true, last:'Not run yet', time:'—' }]));
+    setRuleOpen(false); showToast('Alert rule created · “'+nm+'”');
+  };
+  const branchName = 'feat/'+(active&&active.jiraKey?active.jiraKey.toLowerCase()+'-':'')+slug(active?active.title:'task');
+  const pushToJira = () => {
+    setEditing(false);
+    if(isBrief){ setIdeas(arr=>{ const a=arr.slice(); a[activeIdx]={...a[activeIdx],jiraKey:a[activeIdx].jiraKey||'SP-1042',stage:'details'}; return a;}); setBriefPushed(true); setStage('details'); showToast('Pushed to Jira · AI actions = Briefed'); }
+    else { setIdeas(arr=>{ const a=arr.slice(); a[activeIdx]={...a[activeIdx],stage:'ready'}; return a;}); setDetailPushed(true); setStage('ready'); showToast('Description sent to Jira · marked Detailed'); }
+  };
+  const addFigma = () => { const u=figmaInput.trim(); if(!u) return; setFigma(f=>f.concat([{name:'Figma frame '+(f.length+1),url:u}])); setFigmaInput(''); showToast('Design link added to Jira description'); };
+  const addSampleFigma = () => { setFigma(f=>f.concat([{name:'Results · Export flow',url:'figma.com/file/Survey/Results-Export?node-id=812-44'}])); showToast('Design link added to Jira description'); };
+  const removeFigma = idx => setFigma(f=>f.filter((_,i)=>i!==idx));
+  const continueToDetails = () => { showToast(figma.length? figma.length+' design link(s) in Jira description' : 'No designs — straight to details'); setStage('details'); };
+
+  // derived
+  const stageOrder=['briefing','details','ready']; const stageIdx=stageOrder.indexOf(stage);
+  const stepDefs=[['briefing','Briefing'],['details','Details'],['ready','Ready']];
+  const chatMsgs = (isBrief?briefMsgs:detailMsgs);
+  const versionsRaw = isBrief?briefVersions:detailVersions;
+  const sel = isBrief?briefSel:detailSel;
+  const curIdx = isBrief?briefCur:detailCur;
+  const setSel = isBrief?setBriefSel:setDetailSel;
+  const pushed = isBrief?briefPushed:detailPushed;
+  const curRaw = versionsRaw[sel];
+  const genStep = isBrief?briefStep:detailStep;
+  const teamCost = DEVS.reduce((a,d)=>a+d.rate*d.hours,0);
+  const trendAll = gran==='sprint' ? TREND.sprints : TREND.months;
+  const trendPts = trendAll.slice(Math.max(0, trendAll.length - range));
+  const RANGE_OPTS = gran==='sprint' ? [[8,'8'],[13,'13'],[26,'26']] : [[6,'6m'],[12,'1y'],[24,'2y']];
+  const spDelta = trendPts.length>1 ? trendPts[trendPts.length-1].sp - trendPts[0].sp : 0;
+  const bugsDelta = trendPts.length>1 ? trendPts[trendPts.length-1].bugsCreated - trendPts[0].bugsCreated : 0;
+  const repFocus = repDev==='all' ? null : DEVS.find(d=>d.name===repDev);
+  const repDevs = repFocus ? [repFocus] : DEVS;
+  const repShare = repFocus ? (repFocus.sp / DEVS.reduce((a,d)=>a+d.sp,0)) : 1;
+  const repCost = repDevs.reduce((a,d)=>a+d.rate*d.hours,0);
+  const repHours = repDevs.reduce((a,d)=>a+d.hours,0);
+  const repSP = repDevs.reduce((a,d)=>a+d.sp,0);
+  const repBugsCreated = repDevs.reduce((a,d)=>a+d.created,0);
+  const repDelivered = repFocus ? DELIVERED.filter(d=>d.dev===repFocus.name) : DELIVERED;
+  const scaledTrend = trendPts.map(p=>({ ...p, sp: Math.max(0, Math.round(p.sp*repShare)) }));
+  const scaledDelta = scaledTrend.length>1 ? scaledTrend[scaledTrend.length-1].sp - scaledTrend[0].sp : 0;
+  const metrics = [
+    { label:'Features delivered', value:String(repDelivered.length), sub:repDelivered.reduce((a,d)=>a+d.pts,0)+' pts merged', color:'var(--success)' },
+    { label:'Completed (story points)', value:String(repSP), sub:repFocus?repFocus.name.split(' ')[0]:'across 5 developers', color:'var(--text)' },
+    { label:'New bugs', value:repFocus?String(repFocus.created):'12', sub:repFocus?'created by '+repFocus.name.split(' ')[0]:'raised this period', color:'var(--warn)' },
+    { label:'Hours worked', value:String(repHours), sub:'from time-tracking', color:'var(--text)' },
+    { label:'Project cost', value:'$'+repCost.toLocaleString(), sub:'month to date', color:'var(--primary)' },
+  ];
+  const confMap = { high:{label:'High confidence',color:'var(--success)',soft:'var(--success-soft)'}, med:{label:'Medium',color:'var(--warn)',soft:'var(--warn-soft)'}, low:{label:'Likely',color:'var(--faint)',soft:'var(--surface-2)'} };
+  const baseBtn='width:100%;display:flex;align-items:center;justify-content:center;gap:8px;font-family:inherit;font-weight:650;font-size:13.5px;border-radius:10px;padding:12px;cursor:pointer;border:none';
+
+  const badgeMap = {
+    new:['New idea','color:var(--muted);background:var(--surface-2)'],
+    briefing:['Briefing','color:var(--primary);background:var(--primary-soft)'],
+    details:['Details Gathering','color:var(--ai);background:var(--ai-soft)'],
+    ready:['Ready · in Jira','color:var(--success);background:var(--success-soft)'],
+  };
+  const STAGE_FILTERS = [['all','All'],['new','New'],['briefing','Briefing'],['details','Details'],['ready','Ready']];
+  const SORTS = [['newest','Newest first'],['oldest','Oldest first'],['stage','Pipeline stage'],['title','Title A–Z']];
+  const stageRank = { new:0, briefing:1, details:2, ready:3 };
+  const visibleIdeas = ideas
+    .map((it,i)=>({ it, i }))
+    .filter(({it})=>{
+      if(ideaFilter!=='all' && it.stage!==ideaFilter) return false;
+      if(ideaSource==='jira' && !it.jiraKey) return false;
+      if(ideaSource==='local' && it.jiraKey) return false;
+      const q = ideaSearch.trim().toLowerCase();
+      if(!q) return true;
+      return (it.title+' '+it.id+' '+(it.jiraKey||'')+' '+(it.author||'')).toLowerCase().includes(q);
+    })
+    .sort((a,b)=>{
+      if(ideaSort==='newest') return a.it.days-b.it.days;
+      if(ideaSort==='oldest') return b.it.days-a.it.days;
+      if(ideaSort==='stage') return stageRank[a.it.stage]-stageRank[b.it.stage];
+      return a.it.title.localeCompare(b.it.title);
+    });
+
+  return (
+  <div data-theme={theme} style={css('height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--text);overflow:hidden')}>
+
+    {/* TOP BAR */}
+    <header style={css('height:56px;flex:0 0 56px;display:flex;align-items:center;gap:18px;padding:0 18px;background:var(--surface);border-bottom:1px solid var(--border);position:relative;z-index:40')}>
+      <div style={css('display:flex;align-items:center;gap:9px;padding-right:6px')}>
+        <div style={css('width:26px;height:26px;border-radius:7px;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;letter-spacing:-.5px')}>C</div>
+        <span style={css('font-weight:700;font-size:16px;letter-spacing:-.3px;color:var(--text)')}>Clar</span>
+      </div>
+      <div style={css('position:relative')}>
+        <button onClick={()=>setProjOpen(o=>!o)} style={css('display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:9px;border:1px solid var(--border);background:var(--surface-2);cursor:pointer;color:var(--text)')}>
+          <span style={css('width:7px;height:7px;border-radius:50%;background:var(--success)')}></span>
+          <span style={css('font-weight:600;font-size:13.5px')}>{proj.name}</span>
+          <span style={css('font-size:11px;color:var(--faint)')}>{proj.team}</span>
+          {I('<path d="M6 9l6 6 6-6"/>',14)}
+        </button>
+        {projOpen && (
+          <div style={css('position:absolute;top:46px;left:0;width:300px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-lg);padding:6px;animation:clarFade .12s ease')}>
+            <div style={css('font-size:10.5px;font-weight:700;letter-spacing:.6px;color:var(--faint);padding:8px 10px 4px')}>SWITCH PROJECT · SWAPS EVERYTHING</div>
+            {PROJECTS.map((p,i)=>(
+              <button key={i} onClick={()=>pickProject(i)} style={css('display:flex;align-items:center;justify-content:space-between;width:100%;padding:9px 10px;border-radius:8px;border:none;cursor:pointer;background:'+(i===projIdx?'var(--surface-2)':'transparent'))}>
+                <div style={css('display:flex;flex-direction:column;gap:2px;text-align:left')}>
+                  <span style={css('font-weight:600;font-size:13.5px;color:var(--text)')}>{p.name}</span>
+                  <span style={css('font-size:11.5px;color:var(--faint)')}>{p.team} · {p.repo}</span>
+                </div>
+                {i===projIdx && I('<path d="M20 6L9 17l-5-5"/>',16)}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={css('display:flex;align-items:center;gap:7px')}>
+        {Object.keys(proj.conns).map(k=>{ const on=proj.conns[k]; return (
+          <div key={k} title={k+(on?' connected':' not connected')} style={css('display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:'+(on?'var(--muted)':'var(--faint)')+';background:var(--surface-2);border:1px solid var(--border);border-radius:7px;padding:4px 8px')}>
+            <span style={css('width:6px;height:6px;border-radius:50%;background:'+(on?'var(--success)':'var(--faint)'))}></span>{k}
+          </div>); })}
+      </div>
+      <div style={css('flex:1')}></div>
+      <button onClick={()=>setTheme(t=>t==='dark'?'light':'dark')} title="Toggle theme" style={css('width:36px;height:36px;border-radius:9px;border:1px solid var(--border);background:var(--surface-2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text)')}>
+        {dark ? I('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',17) : I('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',17)}
+      </button>
+      <div style={css('display:flex;align-items:center;gap:9px;padding-left:4px')}>
+        <div style={css('width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--ai));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px')}>AB</div>
+        <div style={css('display:flex;flex-direction:column;line-height:1.15')}>
+          <span style={css('font-size:12.5px;font-weight:600;color:var(--text)')}>Alex Brandt</span>
+          <span style={css('font-size:10.5px;color:var(--faint)')}>Administrator</span>
+        </div>
+      </div>
+    </header>
+
+    <div style={css('flex:1;display:flex;min-height:0')}>
+      {/* SIDEBAR */}
+      <nav style={css('width:'+(navCollapsed?'64px':'236px')+';flex:0 0 '+(navCollapsed?'64px':'236px')+';background:var(--surface);border-right:1px solid var(--border);padding:14px '+(navCollapsed?'10px':'12px')+';display:flex;flex-direction:column;gap:3px;transition:width .16s ease')}>
+        <div style={css('display:flex;align-items:center;'+(navCollapsed?'justify-content:center':'justify-content:space-between')+';padding:'+(navCollapsed?'0 0 8px':'6px 6px 8px 10px'))}>
+          {!navCollapsed && <span style={css('font-size:10.5px;font-weight:700;letter-spacing:.7px;color:var(--faint)')}>WORKSPACE</span>}
+          <button onClick={()=>setNavCollapsed(c=>!c)} title={navCollapsed?'Expand menu':'Collapse menu'} style={css('background:none;border:none;cursor:pointer;color:var(--faint);display:flex;padding:4px;border-radius:6px')}>{I(navCollapsed?'<path d="M9 18l6-6-6-6"/>':'<path d="M15 18l-6-6 6-6"/>',16)}</button>
+        </div>
+        {NAV.map(n=>(
+          <button key={n.key} onClick={()=>goView(n.key)} title={navCollapsed?n.label:''} style={css(navStyle(view===n.key)+(navCollapsed?';justify-content:center;padding:10px 0;position:relative':''))}>
+            <span style={css('display:flex;width:18px;height:18px')}>{I(n.icon,18)}</span>
+            {!navCollapsed && <span style={css('flex:1;text-align:left')}>{n.label}</span>}
+            {n.badge && !navCollapsed && <span style={css('font-size:10.5px;font-weight:700;background:var(--primary);color:#fff;border-radius:20px;padding:1px 7px')}>{n.badge}</span>}
+            {n.badge && navCollapsed && <span style={css('position:absolute;top:5px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--primary)')}></span>}
+          </button>
+        ))}
+        <div style={css('flex:1')}></div>
+        {!navCollapsed && <div style={css('font-size:10.5px;font-weight:700;letter-spacing:.7px;color:var(--faint);padding:6px 10px 8px')}>ADMIN</div>}
+        <button onClick={()=>goView('config')} title={navCollapsed?'Configuration':''} style={css(navStyle(view==='config')+(navCollapsed?';justify-content:center;padding:10px 0':''))}>
+          <span style={css('display:flex;width:18px;height:18px')}>{I(CONFIG_ICON,18)}</span>
+          {!navCollapsed && <span style={css('flex:1;text-align:left')}>Configuration</span>}
+        </button>
+        {navCollapsed ? (
+          <div title="Claude Opus · master refreshed 2h ago" style={css('margin-top:8px;display:flex;justify-content:center;padding:10px 0')}><span style={css('width:9px;height:9px;border-radius:50%;background:var(--ai);box-shadow:0 0 0 3px var(--ai-soft)')}></span></div>
+        ) : (
+          <div style={css('margin-top:8px;padding:12px;border-radius:10px;background:var(--ai-soft);border:1px solid var(--border)')}>
+            <div style={css('display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;color:var(--ai)')}><span style={css('width:7px;height:7px;border-radius:50%;background:var(--ai)')}></span>Claude Opus</div>
+            <div style={css('font-size:11px;color:var(--muted);margin-top:5px;line-height:1.45')}>Repo checked out · <b style={css('color:var(--text)')}>master</b> refreshed 2h ago</div>
+          </div>
+        )}
+      </nav>
+
+      {/* MAIN */}
+      <main style={css('flex:1;min-width:0;overflow-y:auto;background:var(--bg)')}>
+
+        {/* CREATE TASKS */}
+        {view==='tasks' && !workspace && (
+          <div style={css('max-width:1080px;margin:0 auto;padding:28px 32px 60px')}>
+            <h1 style={css('margin:0;font-size:25px;font-weight:700;letter-spacing:-.5px;color:var(--text)')}>Create Tasks</h1>
+            <p style={css('margin:7px 0 22px;color:var(--muted);font-size:14px;max-width:560px;line-height:1.5')}>Turn rough ideas and unclear tickets into implementation-ready Jira tasks. The AI reads the repo first, then helps you shape them.</p>
+            <div style={css('display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:30px')}>
+              {[
+                {t:'New idea',d:'Name it first so it’s saved — then talk it through anytime. Stays local until you push it to Jira.',ico:'<path d="M12 5v14M5 12h14"/>',c:'primary',go:()=>{setNewIdeaTitle('');setNewIdeaDesc('');setNewIdeaOpen(true);}},
+                {t:'Existing Jira task',d:'Browse your Jira boards — design, development, backlog — and pull a ticket in to refine.',ico:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>',c:'primary',go:()=>{setJiraSearch('');setJiraPickOpen(true);}},
+              ].map((e,i)=>(
+                <button key={i} className="hovcard" onClick={e.go} style={css('text-align:left;cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:9px')}>
+                  <span style={css('width:34px;height:34px;border-radius:9px;background:var(--'+e.c+'-soft);display:flex;align-items:center;justify-content:center;color:var(--'+e.c+')')}>{I(e.ico,18)}</span>
+                  <span style={css('font-weight:650;font-size:14.5px;color:var(--text)')}>{e.t}</span>
+                  <span style={css('font-size:12.5px;color:var(--muted);line-height:1.45')}>{e.d}</span>
+                </button>
+              ))}
+            </div>
+            <div style={css('display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px;flex-wrap:wrap')}>
+              <h2 style={css('margin:0;font-size:13px;font-weight:700;letter-spacing:.4px;color:var(--faint)')}>IN THE PIPELINE</h2>
+              <div style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap')}>
+                <div style={css('position:relative;display:flex;align-items:center')}>
+                  <span style={css('position:absolute;left:9px;color:var(--faint);display:flex;pointer-events:none')}>{I('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',15)}</span>
+                  <input value={ideaSearch} onChange={e=>setIdeaSearch(e.target.value)} placeholder="Search tickets…" style={css('font-family:inherit;font-size:12.5px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:8px 11px 8px 30px;width:200px;outline:none')}/>
+                </div>
+                <select value={ideaSort} onChange={e=>setIdeaSort(e.target.value)} style={css('font-family:inherit;font-size:12.5px;font-weight:500;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:8px 10px;cursor:pointer;outline:none')}>
+                  {SORTS.map(s=>(<option key={s[0]} value={s[0]}>{s[1]}</option>))}
+                </select>
+              </div>
+            </div>
+            <div style={css('display:flex;align-items:center;gap:6px;margin-bottom:14px;flex-wrap:wrap')}>
+              {STAGE_FILTERS.map(f=>{ const on=ideaFilter===f[0]; const n=f[0]==='all'?ideas.length:ideas.filter(x=>x.stage===f[0]).length; return (
+                <button key={f[0]} onClick={()=>setIdeaFilter(f[0])} style={css('font-family:inherit;font-size:12px;font-weight:600;padding:5px 11px;border-radius:20px;cursor:pointer;border:1px solid '+(on?'var(--primary)':'var(--border)')+';background:'+(on?'var(--primary-soft)':'var(--surface)')+';color:'+(on?'var(--primary)':'var(--muted)'))}>{f[1]}<span style={css('margin-left:6px;opacity:.7;font-weight:700')}>{n}</span></button>); })}
+              <span style={css('width:1px;height:20px;background:var(--border);margin:0 4px')}></span>
+              {[['all','All sources',ideas.length],['jira','In Jira',ideas.filter(x=>x.jiraKey).length],['local','Local ideas',ideas.filter(x=>!x.jiraKey).length]].map(f=>{ const on=ideaSource===f[0]; const ic = f[0]==='jira'?'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>':f[0]==='local'?'<path d="M12 5v14M5 12h14"/>':null; return (
+                <button key={f[0]} onClick={()=>setIdeaSource(f[0])} style={css('display:inline-flex;align-items:center;gap:5px;font-family:inherit;font-size:12px;font-weight:600;padding:5px 11px;border-radius:20px;cursor:pointer;border:1px solid '+(on?'var(--text)':'var(--border)')+';background:'+(on?'var(--text)':'var(--surface)')+';color:'+(on?'var(--bg)':'var(--muted)'))}>{ic&&I(ic,12)}{f[1]}<span style={css('margin-left:3px;opacity:.7;font-weight:700')}>{f[2]}</span></button>); })}
+            </div>
+            <div style={css('display:flex;flex-direction:column;gap:10px')}>
+              {visibleIdeas.length===0 && (
+                <div style={css('text-align:center;color:var(--faint);font-size:13px;padding:34px;border:1px dashed var(--border);border-radius:12px')}>No tickets match your search or filter.</div>
+              )}
+              {visibleIdeas.map(({it,i})=>{ const bm=badgeMap[it.stage]; return (
+                <button key={it.id} className="hovrow" onClick={()=>openIdea(i)} style={css('text-align:left;cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:15px 16px;display:flex;align-items:center;gap:16px')}>
+                  <div style={css('flex:1;min-width:0')}>
+                    <div style={css('display:flex;align-items:center;gap:9px')}>
+                      {it.jiraKey ? <span style={css("font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--primary);background:var(--primary-soft);padding:1px 6px;border-radius:5px")}>{it.jiraKey}</span> : <span style={css('font-size:10px;font-weight:700;letter-spacing:.3px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);padding:1px 6px;border-radius:5px')}>LOCAL</span>}
+                      <span style={css('font-weight:600;font-size:14px;color:var(--text)')}>{it.title}</span>
+                    </div>
+                    <div style={css('font-size:12px;color:var(--faint);margin-top:4px')}>{it.author} · Created {it.created}</div>
+                  </div>
+                  {it.design==='requested' && <span style={css('display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:7px;white-space:nowrap;color:var(--warn);background:var(--warn-soft)')}>{I('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>',11)}Designs requested</span>}
+                  {it.design==='delivered' && <span style={css('display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:7px;white-space:nowrap;color:var(--success);background:var(--success-soft)')}>{I('<path d="M20 6L9 17l-5-5"/>',11)}Designs ready</span>}
+                  <span style={css('font-size:11px;font-weight:700;padding:4px 11px;border-radius:7px;white-space:nowrap;'+bm[1])}>{bm[0]}</span>
+                  <span style={css('color:var(--faint);display:flex')}>{I('<path d="M9 6l6 6-6 6"/>',17)}</span>
+                </button>); })}
+            </div>
+          </div>
+        )}
+
+        {view==='tasks' && workspace && (
+          <div style={css('display:flex;flex-direction:column;height:100%')}>
+            <div style={css('padding:16px 28px;border-bottom:1px solid var(--border);background:var(--surface)')}>
+              <button onClick={()=>{setWorkspace(false);setProjOpen(false);}} style={css('display:inline-flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;color:var(--muted);font-size:12.5px;padding:0;margin-bottom:11px')}>{I('<path d="M15 18l-6-6 6-6"/>',15)}All tasks</button>
+              <div style={css('display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap')}>
+                <div style={css('display:flex;align-items:center;gap:10px;min-width:0')}>
+                  {active.jiraKey && <span style={css("font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--primary);background:var(--primary-soft);padding:2px 8px;border-radius:6px")}>{active.jiraKey}</span>}
+                  {renaming ? (
+                    <input autoFocus value={renameVal} onChange={e=>setRenameVal(e.target.value)} onBlur={saveRename} onKeyDown={e=>{if(e.key==='Enter')saveRename(); if(e.key==='Escape')setRenaming(false);}} style={css('font-family:inherit;font-size:18px;font-weight:700;color:var(--text);background:var(--bg);border:1px solid var(--primary);border-radius:8px;padding:5px 10px;outline:none;min-width:280px')}/>
+                  ) : (
+                    <>
+                      <h1 style={css('margin:0;font-size:19px;font-weight:700;letter-spacing:-.3px;color:'+(active.draft?'var(--faint)':'var(--text)'))}>{active.title}</h1>
+                      <button onClick={startRename} title="Rename" style={css('background:none;border:none;cursor:pointer;color:var(--faint);display:flex;padding:3px;border-radius:6px')}>{I('<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',15)}</button>
+                      {active.draft && <span style={css('font-size:10px;font-weight:700;letter-spacing:.4px;color:var(--warn);background:var(--warn-soft);padding:3px 8px;border-radius:6px')}>DRAFT · NAME TO SAVE</span>}
+                    </>
+                  )}
+                </div>
+                <div style={css('display:flex;align-items:center;gap:4px')}>
+                  {stepDefs.map((d,i)=>{ const done=i<stageIdx, cur=i===stageIdx; const clickable=done||cur; return (
+                    <React.Fragment key={i}>
+                      <div onClick={()=>{ if(clickable){ setEditing(false); setStage(d[0]); } }} title={clickable?'Go to '+d[1]:''} style={css('display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:'+(cur?'var(--primary)':done?'var(--success)':'var(--faint)')+(clickable?';cursor:pointer':''))}>
+                        <span style={css('width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:'+((done||cur)?'#fff':'var(--faint)')+';background:'+(done?'var(--success)':cur?'var(--primary)':'var(--surface-2)')+';border:1px solid '+((done||cur)?'transparent':'var(--border)'))}>{done?'✓':(i+1)}</span>
+                        <span>{d[1]}</span>
+                      </div>
+                      {i<stepDefs.length-1 && <span style={css('width:18px;height:1.5px;background:var(--border)')}></span>}
+                    </React.Fragment>); })}
+                </div>
+              </div>
+              {(stage==='details'||stage==='ready') && (
+                <div style={css('margin-top:14px;display:flex;flex-direction:column;gap:10px;padding:11px 13px;background:var(--bg);border:1px solid var(--border);border-radius:11px')}>
+                  <div style={css('display:flex;align-items:center;gap:11px;flex-wrap:wrap')}>
+                    <span style={css('display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--text)')}>{I('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>',15)}Designs</span>
+                    {designStatus==='none' && <span style={css('font-size:12px;color:var(--muted)')}>Optional · the designer prepares these — request them before or after details, whenever this task needs them.</span>}
+                    {designStatus==='requested' && <span style={css('display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--warn)')}><span style={css('width:6px;height:6px;border-radius:50%;background:currentColor')}></span>Requested from {designer} · pending</span>}
+                    {designStatus==='delivered' && <span style={css('display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--success)')}>{I('<path d="M20 6L9 17l-5-5"/>',13)}{figma.length} link(s) in Jira description · by {designer}</span>}
+                    <div style={css('flex:1')}></div>
+                    {designStatus==='none' && <button onClick={requestDesigns} style={css('display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-weight:600;font-size:12.5px;color:#fff;background:var(--primary);border:none;border-radius:8px;padding:7px 13px;cursor:pointer')}>{I('<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',13)}Request from designer</button>}
+                    {designStatus==='requested' && (<><button onClick={markDesignsDelivered} style={css('font-family:inherit;font-weight:600;font-size:12.5px;color:var(--success);background:var(--success-soft);border:1px solid var(--border);border-radius:8px;padding:7px 12px;cursor:pointer')}>Mark delivered</button><button onClick={cancelDesignRequest} style={css('font-family:inherit;font-weight:600;font-size:12.5px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:8px;padding:7px 12px;cursor:pointer')}>Cancel</button></>)}
+                    {designStatus==='delivered' && <button onClick={requestDesigns} style={css('font-family:inherit;font-weight:600;font-size:12.5px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 12px;cursor:pointer')}>Request changes</button>}
+                  </div>
+                  {designStatus==='delivered' && figma.length>0 && (
+                    <div style={css('display:flex;flex-direction:column;gap:7px')}>
+                      {figma.map((f,i)=>(
+                        <div key={i} style={css('display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:8px 11px')}>
+                          <span style={css('color:var(--ai);display:flex;flex:0 0 16px')}>{I('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>',16)}</span>
+                          <div style={css('flex:1;min-width:0')}><div style={css('font-weight:600;font-size:12.5px;color:var(--text)')}>{f.name}</div><div style={css("font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.url}</div></div>
+                          <span style={css('font-size:10px;font-weight:700;color:var(--primary);background:var(--primary-soft);padding:2px 7px;border-radius:5px')}>IN DESCRIPTION</span>
+                          <button onClick={()=>removeFigma(i)} title="Remove" style={css('background:none;border:none;cursor:pointer;color:var(--faint);display:flex;padding:2px')}>{I('<path d="M18 6L6 18M6 6l12 12"/>',14)}</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {(stage==='briefing'||stage==='details') && (
+              <div style={css('flex:1;display:grid;grid-template-columns:'+(panelSize==='focus'?'0 1fr':panelSize==='wide'?'minmax(0,1fr) 62%':'minmax(0,1fr) 460px')+';min-height:0')}>
+                <div style={css('display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--border);'+(panelSize==='focus'?'overflow:hidden;opacity:0;pointer-events:none':''))}>
+                  <div style={css('padding:12px 28px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border)')}>
+                    <span style={css('display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--ai);background:var(--ai-soft);padding:3px 9px;border-radius:20px')}>{I('<path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/>',12)}{isBrief?'Briefing · acts like a Product Owner':'Details Gathering · senior partner'}</span>
+                    <span style={css('font-size:12px;color:var(--faint)')}>Reads project & task description first</span>
+                    <span style={css('flex:1')}></span>
+                    <button onClick={openReset} title="Reset this AI session" style={css('display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-size:12px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 11px;cursor:pointer')}>{I('<path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/>',13)}Reset session</button>
+                  </div>
+                  <div ref={scrollRef} style={css('flex:1;overflow-y:auto;padding:22px 28px;display:flex;flex-direction:column;gap:16px')}>
+                    {chatMsgs.map((m,i)=>{ const ai=m.role==='ai'; return (
+                      <div key={i} style={css('display:flex;gap:10px;align-items:flex-start;animation:clarFade .2s ease;'+(ai?'':'flex-direction:row-reverse'))}>
+                        {ai && <div style={css('width:26px;height:26px;flex:0 0 26px;border-radius:7px;background:var(--ai-soft);display:flex;align-items:center;justify-content:center;color:var(--ai);font-size:10px;font-weight:800')}>AI</div>}
+                        <div style={css(ai?'background:var(--ai-soft);border:1px solid var(--border);border-radius:13px;border-top-left-radius:4px;padding:11px 14px;font-size:13.5px;line-height:1.55;color:var(--text);max-width:78%':'background:var(--primary);color:#fff;border-radius:13px;border-top-right-radius:4px;padding:11px 14px;font-size:13.5px;line-height:1.55;max-width:78%')}>{m.text}</div>
+                      </div>); })}
+                    {thinking && (
+                      <div style={css('display:flex;gap:10px;align-items:flex-start')}>
+                        <div style={css('width:26px;height:26px;flex:0 0 26px;border-radius:7px;background:var(--ai-soft);display:flex;align-items:center;justify-content:center;color:var(--ai);font-size:10px;font-weight:800')}>AI</div>
+                        <div style={css('background:var(--ai-soft);border:1px solid var(--border);border-radius:13px;border-top-left-radius:4px;padding:13px 15px;display:flex;gap:5px')}>
+                          <span style={css('width:6px;height:6px;border-radius:50%;background:var(--ai);animation:clarBlink 1s infinite')}></span>
+                          <span style={css('width:6px;height:6px;border-radius:50%;background:var(--ai);animation:clarBlink 1s infinite .2s')}></span>
+                          <span style={css('width:6px;height:6px;border-radius:50%;background:var(--ai);animation:clarBlink 1s infinite .4s')}></span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div style={css('padding:14px 28px 18px;border-top:1px solid var(--border);background:var(--surface)')}>
+                    <div style={css('display:flex;gap:9px;align-items:flex-end')}>
+                      <textarea value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}}} placeholder={isBrief?'Describe the idea, or reply…':'Answer the question…'} rows="1" style={css('flex:1;resize:none;font-family:inherit;font-size:13.5px;line-height:1.5;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:11px;padding:11px 13px;max-height:120px;outline:none')}></textarea>
+                      <button onClick={sendChat} style={css('flex:0 0 auto;height:42px;width:42px;border-radius:11px;border:none;background:var(--primary);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center')}>{I('<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',18)}</button>
+                    </div>
+                  </div>
+                </div>
+                <div style={css('display:flex;flex-direction:column;min-height:0;background:var(--surface)')}>
+                  <div style={css('padding:12px 22px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)')}>
+                    <span style={css('font-size:13px;font-weight:700;color:var(--text)')}>{isBrief?'Brief':'Description'}</span>
+                    <div style={css('display:flex;align-items:center;gap:8px')}>
+                      {!isBrief && briefVersions.length>0 && <button onClick={()=>{setBriefViewSel(briefVersions.length-1);setBriefViewOpen(true);}} style={css('display:inline-flex;align-items:center;gap:5px;font-family:inherit;font-size:12px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 10px;cursor:pointer')}>{I('<path d="M3 3v5h5M3 8a9 9 0 1 0 2.6-5.6L3 8"/>',13)}Brief history</button>}
+                      {curRaw && (
+                        <div style={css('display:flex;gap:5px')}>
+                          {versionsRaw.map((v,i)=>(<button key={i} onClick={()=>{setEditing(false); setSel(i);}} title={v.source+(i===curIdx?' · current':'')} style={css("display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;padding:4px 9px;border-radius:7px;cursor:pointer;border:1px solid "+(i===sel?'var(--primary)':'var(--border)')+";background:"+(i===sel?'var(--primary-soft)':'transparent')+";color:"+(i===sel?'var(--primary)':'var(--muted)'))}>{i===curIdx&&<span style={css('width:6px;height:6px;border-radius:50%;background:var(--success)')}></span>}v{i}</button>))}
+                        </div>
+                      )}
+                      {curRaw && !editing && <button onClick={startEdit} style={css('display:inline-flex;align-items:center;gap:5px;font-family:inherit;font-size:12px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 10px;cursor:pointer')}>{I('<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',13)}Edit</button>}
+                      <span style={css('width:1px;height:18px;background:var(--border)')}></span>
+                      <button onClick={()=>setPanelSize(s=>s==='focus'?'normal':'focus')} title={panelSize==='focus'?'Exit full screen':'Full screen'} style={css('display:flex;align-items:center;justify-content:center;width:28px;height:28px;font-family:inherit;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:8px;cursor:pointer')}>{I(panelSize==='focus'?'<path d="M9 9L4 4m0 0v4m0-4h4M15 9l5-5m0 0v4m0-4h-4M9 15l-5 5m0 0v-4m0 4h4M15 15l5 5m0 0v-4m0 4h-4"/>':'<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',14)}</button>
+                    </div>
+                  </div>
+                  <div style={css('flex:1;overflow-y:auto;padding:20px 22px')}>
+                    {editing ? (
+                      <div style={css('display:flex;flex-direction:column;gap:10px')}>
+                        <div style={css('font-size:11.5px;color:var(--muted)')}>Editing v{sel}{versionsRaw[sel]&&versionsRaw[sel].source==='User description'?' · user description':''} — save in place, or save as a new version.</div>
+                        <div style={css('display:flex;flex-wrap:wrap;gap:2px;padding:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px')}>
+                          {[['Bold','bold','<path d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z"/>'],['Italic','italic','<path d="M19 4h-9M14 20H5M15 4L9 20"/>'],['Bullet list','insertUnorderedList','<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'],['Numbered list','insertOrderedList','<path d="M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M6 18H4l2-2.5V15H4"/>']].map(b=>(
+                            <button key={b[1]} onMouseDown={e=>{e.preventDefault();exec(b[1]);}} title={b[0]} style={css('width:30px;height:30px;border-radius:7px;border:none;background:transparent;cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center')}>{I(b[2],15)}</button>
+                          ))}
+                          <span style={css('width:1px;background:var(--border);margin:3px 4px')}></span>
+                          <button onMouseDown={e=>{e.preventDefault();exec('formatBlock','<h4>');}} title="Heading" style={css('height:30px;padding:0 9px;border-radius:7px;border:none;background:transparent;cursor:pointer;color:var(--text);font-size:12px;font-weight:800')}>H</button>
+                          <button onMouseDown={e=>{e.preventDefault();exec('formatBlock','<p>');}} title="Paragraph" style={css('height:30px;padding:0 9px;border-radius:7px;border:none;background:transparent;cursor:pointer;color:var(--text);font-size:12px;font-weight:600')}>¶</button>
+                          <button onMouseDown={e=>{e.preventDefault();exec('formatBlock','<pre>');}} title="Code block" style={css('width:30px;height:30px;border-radius:7px;border:none;background:transparent;cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center')}>{I('<path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/>',15)}</button>
+                          <button onMouseDown={e=>{e.preventDefault();const u=prompt('Link URL');if(u)exec('createLink',u);}} title="Link" style={css('width:30px;height:30px;border-radius:7px;border:none;background:transparent;cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center')}>{I('<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',15)}</button>
+                        </div>
+                        <div key={'ed'+(isBrief?briefSel:detailSel)+versionsRaw.length} ref={editorRef} className="clar-editor clar-prose" contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{__html: editHtml}}></div>
+                      </div>
+                    ) : curRaw ? (
+                      <div>
+                        <div style={css('display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap')}>
+                          <span style={css('font-size:11px;color:var(--faint)')}>v{sel} · {curRaw.time}</span>
+                          <span style={css('font-size:10px;font-weight:700;'+(curRaw.source==='User description'?'color:var(--warn);background:var(--warn-soft)':'color:var(--muted);background:var(--surface-2);border:1px solid var(--border)')+';padding:2px 7px;border-radius:5px')}>{curRaw.source==='User description'?'USER DESCRIPTION':curRaw.source}</span>
+                          {sel===curIdx && <span style={css('font-size:10px;font-weight:700;color:var(--success);background:var(--success-soft);padding:2px 7px;border-radius:5px;display:inline-flex;align-items:center;gap:4px')}>{I('<path d="M20 6L9 17l-5-5"/>',11)}CURRENT</span>}
+                          {sel===curIdx && pushed && <span style={css('font-size:10px;font-weight:700;color:var(--primary);background:var(--primary-soft);padding:2px 7px;border-radius:5px')}>IN JIRA</span>}
+                          {sel===curIdx && !pushed && active.localDesc && <span style={css('font-size:10px;font-weight:700;color:var(--warn);background:var(--warn-soft);padding:2px 7px;border-radius:5px')}>SAVED LOCALLY</span>}
+                        </div>
+                        <div className="clar-prose" dangerouslySetInnerHTML={{__html: curHtml(curRaw)}}></div>
+                      </div>
+                    ) : (
+                      <div style={css('display:flex;flex-direction:column;gap:14px')}>
+                        <div style={css('display:flex;align-items:center;gap:8px')}>
+                          <span style={css('font-size:11px;font-weight:700;letter-spacing:.4px;color:var(--faint)')}>{active.jiraKey?'CURRENT JIRA DESCRIPTION':'TASK DESCRIPTION'}</span>
+                          {active.jiraKey
+                            ? <span style={css("font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;color:var(--primary);background:var(--primary-soft);padding:1px 6px;border-radius:5px")}>{active.jiraKey}</span>
+                            : <span style={css('display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:var(--warn);background:var(--warn-soft);padding:2px 7px;border-radius:5px')}>{I('<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 8v4M12 16h.01"/>',10)}LOCAL · NOT IN JIRA</span>}
+                        </div>
+                        {active.jiraKey ? (
+                          active.jiraDesc
+                            ? <div style={css('font-size:13px;line-height:1.6;color:var(--text);white-space:pre-line')}>{active.jiraDesc}</div>
+                            : <div style={css('font-size:13px;line-height:1.6;color:var(--faint);font-style:italic')}>This Jira task has no description yet.</div>
+                        ) : (
+                          active.desc
+                            ? <div style={css('font-size:13px;line-height:1.6;color:var(--text);white-space:pre-line;padding:12px 14px;background:var(--warn-soft);border:1px dashed var(--warn);border-radius:10px')}>{active.desc}</div>
+                            : <div style={css('font-size:13px;line-height:1.6;color:var(--faint);font-style:italic')}>No description yet — talk it through below.</div>
+                        )}
+                        <div style={css('display:flex;align-items:flex-start;gap:8px;padding:11px 13px;background:var(--ai-soft);border:1px solid var(--border);border-radius:10px;margin-top:2px')}>
+                          <span style={css('color:var(--ai);display:flex;flex:0 0 15px;margin-top:1px')}>{I('<path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/>',15)}</span>
+                          <span style={css('font-size:12.5px;color:var(--muted);line-height:1.5')}>{isBrief? ('The AI reads the project code and this description, then drafts the brief as you talk — it '+(active.jiraKey?'replaces the description above in Jira.':'becomes the Jira description when you push.')) : 'The AI reads the project code and the task description to run the question session, then drafts the implementation-ready description automatically.'}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div style={css('padding:14px 22px 18px;border-top:1px solid var(--border)')}>
+                    {editing ? (
+                      <div style={css('display:flex;flex-direction:column;gap:9px')}>
+                        <button onClick={saveAsNew} style={css(baseBtn+';background:var(--ai);color:#fff')}>Save as new version</button>
+                        <div style={css('display:flex;gap:9px')}>
+                          <button onClick={cancelEdit} style={css(baseBtn+';flex:1;background:var(--surface);color:var(--text);border:1px solid var(--border)')}>Cancel</button>
+                          <button onClick={saveInPlace} style={css(baseBtn+';flex:1;background:var(--surface);color:var(--text);border:1px solid var(--border)')}>{I('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8"/>',14)}Save v{sel}</button>
+                        </div>
+                      </div>
+                    ) : curRaw ? (
+                      <div style={css('display:flex;flex-direction:column;gap:9px')}>
+                        {sel!==curIdx && (
+                          <button onClick={setAsCurrent} style={css(baseBtn+';background:var(--ai);color:#fff')}>{I('<path d="M20 6L9 17l-5-5"/>',15)}Set v{sel} as current {active.jiraKey?'· update Jira description':'· update local description'}</button>
+                        )}
+                        <div style={css('display:flex;gap:9px')}>
+                          <button onClick={resetConversation} title="Restart the chat, keep this version as the base" style={css(baseBtn+';flex:1;background:var(--surface);color:var(--text);border:1px solid var(--border)')}>{I('<path d="M3 3v5h5M3 8a9 9 0 1 0 2.6-5.6L3 8"/>',14)}Reset chat</button>
+                          <button onClick={updateLocally} title="Save to the task locally, without Jira" style={css(baseBtn+';flex:1;background:var(--surface);color:var(--text);border:1px solid var(--border)')}>{I('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8"/>',14)}Save locally</button>
+                        </div>
+                        <button onClick={pushToJira} style={css(baseBtn+';background:var(--primary);color:#fff')}>{I('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>',15)}{isBrief?'Brief & mark Briefed':(active.jiraKey?'Update Jira description':'Push to Jira')}</button>
+                      </div>
+                    ) : (
+                      <div style={css('display:flex;align-items:center;justify-content:center;gap:7px;font-size:12px;color:var(--faint)')}>{I('<path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/>',13)}The AI drafts the {isBrief?'brief':'description'} as you talk</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {stage==='ready' && (
+              <div style={css('flex:1;overflow-y:auto;padding:40px;display:flex;justify-content:center;align-items:flex-start')}>
+                <div style={css('width:100%;max-width:620px;text-align:center;animation:clarFade .25s ease')}>
+                  <div style={css('width:62px;height:62px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;margin:18px auto 20px;color:#fff')}>{I('<path d="M20 6L9 17l-5-5"/>',30)}</div>
+                  <h2 style={css('margin:0;font-size:22px;font-weight:700;color:var(--text)')}>Ready for the team</h2>
+                  <p style={css('margin:9px 0 26px;color:var(--muted);font-size:14px;line-height:1.5')}>{detailPushed? 'The description is in Jira. AI has estimated it and prepared a branch — a developer can start straight away.' : 'The description is saved locally. AI has estimated it and prepared a branch — push to Jira whenever you like.'}</p>
+                  <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:6px;text-align:left')}>
+                    <div style={css('display:flex;align-items:center;gap:11px;padding:14px 16px;border-bottom:1px solid var(--border)')}>
+                      {active.jiraKey && <span style={css("font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--primary);background:var(--primary-soft);padding:2px 8px;border-radius:6px")}>{active.jiraKey}</span>}
+                      <span style={css('font-weight:600;font-size:14px;color:var(--text);flex:1')}>{active.title}</span>
+                      <span style={css('font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;'+(detailPushed?'color:var(--primary);background:var(--primary-soft)':'color:var(--warn);background:var(--warn-soft)'))}>{detailPushed?'IN JIRA':'LOCAL'}</span>
+                    </div>
+                    <div style={css('display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)')}>
+                      <div style={css('background:var(--surface);padding:14px 16px')}><div style={css('font-size:11px;color:var(--faint);margin-bottom:3px')}>AI actions</div><div style={css('font-weight:600;font-size:13px;color:var(--success)')}>Detailed</div></div>
+                      <div style={css('background:var(--surface);padding:14px 16px')}><div style={css('font-size:11px;color:var(--faint);margin-bottom:3px')}>AI estimation <span style={css('font-weight:600;color:var(--ai)')}>· auto</span></div><div style={css('font-weight:600;font-size:13px;color:var(--text)')}>8 pts</div></div>
+                      <div style={css('background:var(--surface);padding:14px 16px')}><div style={css('font-size:11px;color:var(--faint);margin-bottom:3px')}>Designs</div><div style={css('font-weight:600;font-size:13px;color:var(--text)')}>{designStatus==='delivered'? figma.length+' link(s) in description' : designStatus==='requested'?'Requested · pending':'None'}</div></div>
+                      <div style={css('background:var(--surface);padding:14px 16px')}><div style={css('font-size:11px;color:var(--faint);margin-bottom:3px')}>Versions saved</div><div style={css('font-weight:600;font-size:13px;color:var(--text)')}>{briefVersions.length+detailVersions.length}</div></div>
+                    </div>
+                  </div>
+                  <div style={css('background:var(--ai-soft);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:left;margin-top:14px')}>
+                    <div style={css('display:flex;align-items:center;gap:8px;margin-bottom:10px')}>
+                      <span style={css('color:var(--ai);display:flex')}>{I('<path d="M6 3v12M18 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a9 9 0 0 0 9-9"/>',16)}</span>
+                      <span style={css('font-size:12.5px;font-weight:700;color:var(--text)')}>AI prepared a branch</span>
+                      <span style={css('font-size:10px;font-weight:700;color:var(--success);background:var(--success-soft);padding:2px 7px;border-radius:5px')}>READY</span>
+                    </div>
+                    <div style={css('display:flex;align-items:center;gap:9px')}>
+                      <code style={css("flex:1;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{branchName}</code>
+                      <button onClick={()=>{ try{navigator.clipboard.writeText('git checkout '+branchName);}catch(e){} showToast('Checkout command copied'); }} style={css('flex:0 0 auto;font-family:inherit;font-weight:600;font-size:12px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px')}>{I('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',13)}Copy</button>
+                    </div>
+                    <div style={css('font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:9px')}>The task description is committed to the branch. A developer checks it out and starts the task with AI — no setup.</div>
+                  </div>
+                  <div style={css('display:flex;gap:10px;justify-content:center;margin-top:24px')}>
+                    {!detailPushed && <button onClick={pushToJira} style={css('display:inline-flex;align-items:center;gap:7px;font-family:inherit;font-weight:650;font-size:13.5px;color:#fff;background:var(--primary);border:none;border-radius:10px;padding:11px 20px;cursor:pointer')}>{I('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>',15)}Push to Jira</button>}
+                    <button onClick={()=>{setWorkspace(false);}} style={css('font-family:inherit;font-weight:600;font-size:13.5px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 22px;cursor:pointer')}>Back to pipeline</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* PROCESS OPTIMIZATION */}
+        {view==='process' && (
+          <div style={css('max-width:1120px;margin:0 auto;padding:28px 32px 60px')}>
+            <h1 style={css('margin:0;font-size:25px;font-weight:700;letter-spacing:-.5px;color:var(--text)')}>Process Optimization</h1>
+            <p style={css('margin:7px 0 22px;color:var(--muted);font-size:14px')}>Three AI automations watching this project. They comment and propose — humans decide.</p>
+            <div style={css('display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--border);border-radius:11px;padding:4px;width:fit-content;margin-bottom:24px')}>
+              {[['pr','AI PR Reviews'],['estimate','AI Estimate'],['alerts','AI Alerts']].map(t=>(<button key={t[0]} onClick={()=>setPoTab(t[0])} style={css(tabStyle(poTab===t[0]))}>{t[1]}</button>))}
+            </div>
+
+            {poTab==='pr' && (<div>
+              <div style={css('display:flex;align-items:center;justify-content:space-between;margin-bottom:14px')}>
+                <div style={css('display:flex;gap:18px')}>
+                  <div><div style={css('font-size:24px;font-weight:700;color:var(--text)')}>5</div><div style={css('font-size:11.5px;color:var(--faint)')}>reviewed today</div></div>
+                  <div><div style={css('font-size:24px;font-weight:700;color:var(--warn)')}>3</div><div style={css('font-size:11.5px;color:var(--faint)')}>with comments</div></div>
+                  <div><div style={css('font-size:24px;font-weight:700;color:var(--success)')}>2</div><div style={css('font-size:11.5px;color:var(--faint)')}>looks good</div></div>
+                </div>
+                <div style={css('display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 11px')}><span style={css('width:6px;height:6px;border-radius:50%;background:var(--success)')}></span>Polling every 6 min · last 1 min ago</div>
+              </div>
+              <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden')}>
+                {PRS.map(p=>(
+                  <div key={p.num} style={css('display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--border)')}>
+                    <span style={css("font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--faint);width:46px;flex:0 0 46px")}>#{p.num}</span>
+                    <div style={css('flex:1;min-width:0')}>
+                      <div style={css('font-weight:600;font-size:13.5px;color:var(--text)')}>{p.title}</div>
+                      <div style={css('font-size:11.5px;color:var(--faint);margin-top:3px')}>{p.author} · <span style={css("font-family:'JetBrains Mono',monospace")}>{p.branch}</span> · {p.time}</div>
+                    </div>
+                    <span style={css('font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;'+(p.outcome==='good'?'color:var(--success);background:var(--success-soft)':'color:var(--warn);background:var(--warn-soft)'))}>{p.outcome==='good'?'Looks good!':p.count+' comments'}</span>
+                    <a href="#" onClick={e=>e.preventDefault()} style={css('display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--muted);text-decoration:none')}>GitHub{I('<path d="M7 17L17 7M7 7h10v10"/>',13)}</a>
+                  </div>
+                ))}
+              </div>
+              <div style={css('font-size:11.5px;color:var(--faint);margin-top:12px;display:flex;align-items:center;gap:6px')}>{I('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',13)}The AI never approves or merges — a human still issues the GitHub approval.</div>
+            </div>)}
+
+            {poTab==='estimate' && (
+              <div style={css('display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start')}>
+                <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px')}>
+                  <div style={css('font-size:11px;font-weight:700;letter-spacing:.4px;color:var(--faint);margin-bottom:14px')}>ESTIMATION TARGET</div>
+                  <div style={css('margin-bottom:14px')}><div style={css('font-size:11.5px;color:var(--faint);margin-bottom:4px')}>Board</div><div style={css('font-weight:600;font-size:13.5px;color:var(--text)')}>Survey Platform</div></div>
+                  <div style={css('margin-bottom:14px')}><div style={css('font-size:11.5px;color:var(--faint);margin-bottom:4px')}>Estimate when</div><div style={css('font-weight:600;font-size:13.5px;color:var(--text)')}>{(EST_TRIGGERS.find(t=>t[0]===estTrigger)||['','—'])[1]}</div></div>
+                  <div style={css('margin-bottom:16px')}><div style={css('font-size:11.5px;color:var(--faint);margin-bottom:5px')}>Writes to field(s)</div><div style={css('display:flex;flex-wrap:wrap;gap:6px')}>{estFields.map(f=>(<span key={f} style={css('display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px;color:var(--primary);background:var(--primary-soft);padding:4px 10px;border-radius:7px')}>{f}</span>))}</div></div>
+                  <div style={css('font-size:11.5px;color:var(--muted);line-height:1.5;padding-top:14px;border-top:1px solid var(--border)')}>Manual estimate fields are never touched. Configure in <b style={css('color:var(--text)')}>Configuration → AI</b>.</div>
+                </div>
+                <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden')}>
+                  <div style={css('display:flex;padding:11px 18px;font-size:11px;font-weight:700;letter-spacing:.3px;color:var(--faint);border-bottom:1px solid var(--border)')}>
+                    <span style={css('width:74px;flex:0 0 74px')}>TASK</span><span style={css('flex:1')}>TITLE</span><span style={css('width:90px;text-align:right')}>AI EST.</span><span style={css('width:90px;text-align:right')}>MANUAL</span>
+                  </div>
+                  {ESTIMATES.map(e=>(
+                    <div key={e.key} style={css('display:flex;align-items:center;padding:13px 18px;border-bottom:1px solid var(--border)')}>
+                      <span style={css("width:74px;flex:0 0 74px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--primary)")}>{e.key}</span>
+                      <span style={css('flex:1;font-size:13.5px;color:var(--text)')}>{e.title}</span>
+                      <span style={css('width:90px;text-align:right;font-weight:700;font-size:14px;color:var(--ai)')}>{e.ai}</span>
+                      <span style={css('width:90px;text-align:right;font-size:13.5px;color:var(--muted)')}>{e.manual}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {poTab==='alerts' && (<div>
+              <div style={css('display:flex;align-items:center;justify-content:space-between;margin-bottom:14px')}>
+                <span style={css('font-size:13px;color:var(--muted)')}>{alerts.length} rules · scheduled prompts that notify a channel when conditions are met</span>
+                <button onClick={openRule} style={css('display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-weight:600;font-size:13px;color:#fff;background:var(--primary);border:none;border-radius:9px;padding:9px 14px;cursor:pointer')}>{I('<path d="M12 5v14M5 12h14"/>',15)}New rule</button>
+              </div>
+              <div style={css('display:flex;flex-direction:column;gap:12px')}>
+                {alerts.map((a,i)=>(
+                  <div key={i} onClick={()=>setHistoryAlert(a)} className="hovrow" style={css('background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 18px;cursor:pointer')}>
+                    <div style={css('display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:9px')}>
+                      <span style={css('font-weight:650;font-size:14px;color:var(--text)')}>{a.name}</span>
+                      <span style={css('display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:'+(a.ok?'var(--success)':'var(--danger)'))}><span style={css('width:6px;height:6px;border-radius:50%;background:currentColor')}></span>{a.last}</span>
+                    </div>
+                    <div style={css('font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:12px;font-style:italic')}>“{a.prompt}”</div>
+                    <div style={css('display:flex;gap:18px;font-size:12px;color:var(--faint);flex-wrap:wrap;align-items:center')}>
+                      <span style={css('display:inline-flex;align-items:center;gap:6px')}>{I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',13)}{a.schedule}</span>
+                      <span style={css('display:inline-flex;align-items:center;gap:6px')}>{I('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',13)}{a.channel} · Discord</span>
+                      <span style={css('display:inline-flex;align-items:center;gap:6px')}>Last run {a.time}</span>
+                      <span style={css('flex:1')}></span>
+                      <span style={css('display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--primary)')}>{I('<path d="M12 8v4l3 2M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/>',13)}View history</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>)}
+          </div>
+        )}
+
+        {/* REPORTING */}
+        {view==='reporting' && (
+          <div style={css('max-width:1120px;margin:0 auto;padding:28px 32px 60px')}>
+            <div style={css('display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:24px')}>
+              <div>
+                <h1 style={css('margin:0;font-size:25px;font-weight:700;letter-spacing:-.5px;color:var(--text)')}>Reporting</h1>
+                <p style={css('margin:7px 0 0;color:var(--muted);font-size:14px')}>Throughput, quality and cost for the selected period.</p>
+              </div>
+              <div style={css('display:flex;align-items:center;gap:10px;flex-wrap:wrap')}>
+                <div style={css('display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:5px 8px 5px 12px')}>
+                  {repFocus ? <span style={css('width:20px;height:20px;border-radius:50%;background:'+repFocus.c+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700')}>{initials(repFocus.name)}</span> : I('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',15)}
+                  <select value={repDev} onChange={e=>setRepDev(e.target.value)} style={css('font-family:inherit;font-size:13px;font-weight:600;color:var(--text);background:transparent;border:none;cursor:pointer;outline:none;padding-right:2px')}>
+                    <option value="all">All team</option>
+                    {DEVS.map(d=>(<option key={d.name} value={d.name}>{d.name}</option>))}
+                  </select>
+                </div>
+                <div style={css('display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:4px')}>
+                  <button onClick={()=>setPeriod('month')} style={css(tabStyle(period==='month'))}>June 2026</button>
+                  <button onClick={()=>setPeriod('sprint')} style={css(tabStyle(period==='sprint'))}>Sprint 24</button>
+                </div>
+              </div>
+            </div>
+            <div style={css('display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px')}>
+              {metrics.map((m,i)=>(
+                <div key={i} style={css('background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px')}>
+                  <div style={css('font-size:12px;color:var(--faint);margin-bottom:8px')}>{m.label}</div>
+                  <div style={css('font-size:28px;font-weight:700;letter-spacing:-.5px;color:'+m.color)}>{m.value}</div>
+                  <div style={css('font-size:11.5px;color:var(--faint);margin-top:5px')}>{m.sub}</div>
+                </div>
+              ))}
+            </div>
+            <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:24px')}>
+              <div style={css('display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px')}>
+                <div>
+                  <div style={css('display:flex;align-items:center;gap:10px')}>
+                    <span style={css('font-weight:700;font-size:14px;color:var(--text)')}>Story points delivered over time</span>
+                    <span style={css('display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:'+(scaledDelta>=0?'var(--success)':'var(--danger)')+';background:'+(scaledDelta>=0?'var(--success-soft)':'var(--danger-soft)')+';padding:2px 8px;border-radius:6px')}>{I(scaledDelta>=0?'<path d="M7 17L17 7M17 7H8M17 7v9"/>':'<path d="M7 7l10 10M17 17H8M17 17V8"/>',12)}{scaledDelta>=0?'+':''}{scaledDelta} vs start</span>
+                  </div>
+                  <div style={css('font-size:12px;color:var(--faint);margin-top:3px')}>{repFocus?repFocus.name+'’s throughput':'Team throughput'} per {gran}. {ChartRangeLabel(gran,range)}</div>
+                </div>
+                <div style={css('display:flex;gap:8px;align-items:center')}>
+                  <div style={css('display:flex;gap:3px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:3px')}>
+                    {[['month','Months'],['sprint','Sprints']].map(g=>(<button key={g[0]} onClick={()=>{setGran(g[0]);setRange(g[0]==='sprint'?13:12);}} style={css(tabStyle(gran===g[0])+';font-size:12px;padding:5px 11px')}>{g[1]}</button>))}
+                  </div>
+                  <div style={css('display:flex;gap:3px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:3px')}>
+                    {RANGE_OPTS.map(o=>(<button key={o[0]} onClick={()=>setRange(o[0])} style={css(tabStyle(range===o[0])+';font-size:12px;padding:5px 10px')}>{o[1]}</button>))}
+                  </div>
+                </div>
+              </div>
+              <TrendChart points={scaledTrend} height={220} series={[{key:'sp',label:'Story points',color:'var(--primary)',fill:true}]} />
+            </div>
+            <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden')}>
+              <div style={css('padding:15px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between')}>
+                <span style={css('font-weight:700;font-size:14px;color:var(--text)')}>Per-developer results</span>
+                <span style={css('font-size:11.5px;color:var(--faint)')}>Hours & cost from internal time-tracking</span>
+              </div>
+              <div style={css('display:flex;padding:11px 20px;font-size:11px;font-weight:700;letter-spacing:.3px;color:var(--faint);border-bottom:1px solid var(--border)')}>
+                <span style={css('flex:1')}>DEVELOPER</span>
+                <span style={css('width:90px;text-align:right')}>SP DONE</span>
+                <span style={css('width:90px;text-align:right')}>BUGS FIXED</span>
+                <span style={css('width:100px;text-align:right')}>BUGS CREATED</span>
+                <span style={css('width:80px;text-align:right')}>HOURS</span>
+                <span style={css('width:110px;text-align:right')}>COST</span>
+              </div>
+              {repDevs.map((d,i)=>(
+                <div key={i} style={css('display:flex;align-items:center;padding:13px 20px;border-bottom:1px solid var(--border)')}>
+                  <span style={css('flex:1;display:flex;align-items:center;gap:10px')}><span style={css('width:28px;height:28px;border-radius:50%;background:'+d.c+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 28px')}>{initials(d.name)}</span><span style={css('font-weight:600;font-size:13.5px;color:var(--text)')}>{d.name}</span></span>
+                  <span style={css('width:90px;text-align:right;font-weight:700;font-size:14px;color:var(--text)')}>{d.sp}</span>
+                  <span style={css('width:90px;text-align:right;font-size:13.5px;color:var(--success)')}>{d.fixed}</span>
+                  <span style={css('width:100px;text-align:right;font-size:13.5px;color:'+(d.created>=4?'var(--danger)':d.created===0?'var(--faint)':'var(--muted)'))}>{d.created}</span>
+                  <span style={css('width:80px;text-align:right;font-size:13.5px;color:var(--muted)')}>{d.hours}</span>
+                  <span style={css("width:110px;text-align:right;font-size:13.5px;font-family:'JetBrains Mono',monospace;color:var(--text)")}>${(d.rate*d.hours).toLocaleString()}</span>
+                </div>
+              ))}
+              {repFocus ? null : (
+              <div style={css('display:flex;align-items:center;padding:13px 20px;background:var(--surface-2)')}>
+                <span style={css('flex:1;font-weight:700;font-size:13px;color:var(--text)')}>Team total</span>
+                <span style={css('width:90px;text-align:right;font-weight:700;font-size:14px;color:var(--text)')}>87</span>
+                <span style={css('width:90px;text-align:right;font-weight:600;font-size:13.5px;color:var(--success)')}>24</span>
+                <span style={css('width:100px;text-align:right;font-weight:600;font-size:13.5px;color:var(--warn)')}>12</span>
+                <span style={css('width:80px;text-align:right;font-weight:600;font-size:13.5px;color:var(--text)')}>642</span>
+                <span style={css("width:110px;text-align:right;font-weight:700;font-size:13.5px;font-family:'JetBrains Mono',monospace;color:var(--text)")}>${teamCost.toLocaleString()}</span>
+              </div>
+              )}
+            </div>
+
+            <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-top:18px')}>
+              <div style={css('padding:15px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between')}>
+                <span style={css('font-weight:700;font-size:14px;color:var(--text);display:inline-flex;align-items:center;gap:8px')}>{I('<path d="M20 6L9 17l-5-5"/>',15)}Delivered this period</span>
+                <span style={css('font-size:11.5px;color:var(--faint)')}>{repDelivered.length} features shipped · {repDelivered.reduce((a,d)=>a+d.pts,0)} pts merged to master</span>
+              </div>
+              <div style={css('display:flex;align-items:center;padding:11px 20px;font-size:11px;font-weight:700;letter-spacing:.3px;color:var(--faint);border-bottom:1px solid var(--border)')}>
+                <span style={css('width:74px;flex:0 0 74px')}>KEY</span>
+                <span style={css('flex:1')}>FEATURE</span>
+                <span style={css('width:150px')}>DELIVERED BY</span>
+                <span style={css('width:70px;text-align:right')}>PTS</span>
+                <span style={css('width:70px;text-align:right')}>PRS</span>
+                <span style={css('width:80px;text-align:right')}>MERGED</span>
+              </div>
+              {repDelivered.map(d=>{ const dev=DEVS.find(x=>x.name===d.dev); return (
+                <div key={d.key} style={css('display:flex;align-items:center;padding:13px 20px;border-bottom:1px solid var(--border)')}>
+                  <span style={css("width:74px;flex:0 0 74px;font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:600;color:var(--primary)")}>{d.key}</span>
+                  <span style={css('flex:1;font-weight:600;font-size:13.5px;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:12px')}>{d.title}</span>
+                  <span style={css('width:150px;display:flex;align-items:center;gap:8px')}><span style={css('width:24px;height:24px;border-radius:50%;background:'+(dev?dev.c:'var(--faint)')+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex:0 0 24px')}>{initials(d.dev)}</span><span style={css('font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap')}>{d.dev}</span></span>
+                  <span style={css('width:70px;text-align:right;font-weight:700;font-size:13.5px;color:var(--text)')}>{d.pts}</span>
+                  <span style={css('width:70px;text-align:right;font-size:13px;color:var(--muted)')}>{d.prs}</span>
+                  <span style={css('width:80px;text-align:right;font-size:12.5px;color:var(--faint)')}>{d.merged}</span>
+                </div>
+              ); })}
+              {repDelivered.length===0 && <div style={css('text-align:center;color:var(--faint);font-size:13px;padding:26px')}>No features delivered by {repFocus?repFocus.name:'the team'} this period.</div>}
+            </div>
+          </div>
+        )}
+
+        {/* BUG REPORTING */}
+        {view==='bugs' && (
+          <div style={css('max-width:1120px;margin:0 auto;padding:28px 32px 60px')}>
+            <h1 style={css('margin:0;font-size:25px;font-weight:700;letter-spacing:-.5px;color:var(--text)')}>Bug Reporting</h1>
+            <p style={css('margin:7px 0 22px;color:var(--muted);font-size:14px')}>Source: Jira issues of type <b style={css('color:var(--text)')}>Bug</b>. The AI attributes origin from the code — and shows how sure it is.</p>
+            <div style={css('display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:26px')}>
+              <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px')}><div style={css('font-size:12px;color:var(--faint);margin-bottom:8px')}>Bugs created · June</div><div style={css('font-size:28px;font-weight:700;color:var(--warn)')}>12</div></div>
+              <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px')}><div style={css('font-size:12px;color:var(--faint);margin-bottom:8px')}>Created the most</div><div style={css('font-size:18px;font-weight:700;color:var(--text);margin-top:5px')}>Sam Whitfield</div><div style={css('font-size:12px;color:var(--faint);margin-top:3px')}>6 bugs</div></div>
+              <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px')}><div style={css('font-size:12px;color:var(--faint);margin-bottom:8px')}>Fixed the most</div><div style={css('font-size:18px;font-weight:700;color:var(--text);margin-top:5px')}>Tomás Reyes</div><div style={css('font-size:12px;color:var(--faint);margin-top:3px')}>7 bugs</div></div>
+            </div>
+            <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:26px')}>
+              <div style={css('display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:8px')}>
+                <div>
+                  <div style={css('display:flex;align-items:center;gap:10px')}>
+                    <span style={css('font-weight:700;font-size:14px;color:var(--text)')}>Bugs over time</span>
+                    <span style={css('display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:'+(bugsDelta<=0?'var(--success)':'var(--danger)')+';background:'+(bugsDelta<=0?'var(--success-soft)':'var(--danger-soft)')+';padding:2px 8px;border-radius:6px')}>{I(bugsDelta<=0?'<path d="M7 7l10 10M17 17H8M17 17V8"/>':'<path d="M7 17L17 7M17 7H8M17 7v9"/>',12)}{bugsDelta>0?'+':''}{bugsDelta} vs start</span>
+                  </div>
+                  <div style={css('font-size:12px;color:var(--faint);margin-top:3px')}>Created vs fixed per {gran}. {ChartRangeLabel(gran,range)}</div>
+                </div>
+                <div style={css('display:flex;gap:8px;align-items:center')}>
+                  <div style={css('display:flex;gap:3px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:3px')}>
+                    {[['month','Months'],['sprint','Sprints']].map(g=>(<button key={g[0]} onClick={()=>{setGran(g[0]);setRange(g[0]==='sprint'?13:12);}} style={css(tabStyle(gran===g[0])+';font-size:12px;padding:5px 11px')}>{g[1]}</button>))}
+                  </div>
+                  <div style={css('display:flex;gap:3px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:3px')}>
+                    {RANGE_OPTS.map(o=>(<button key={o[0]} onClick={()=>setRange(o[0])} style={css(tabStyle(range===o[0])+';font-size:12px;padding:5px 10px')}>{o[1]}</button>))}
+                  </div>
+                </div>
+              </div>
+              <div style={css('margin-bottom:10px')}><ChartLegend series={[{label:'Bugs created',color:'var(--warn)'},{label:'Bugs fixed',color:'var(--success)'}]} /></div>
+              <TrendChart points={trendPts} height={220} series={[{key:'bugsCreated',label:'Bugs created',color:'var(--warn)',fill:true},{key:'bugsFixed',label:'Bugs fixed',color:'var(--success)'}]} />
+            </div>
+            <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden')}>
+              <div style={css('padding:15px 20px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px;color:var(--text)')}>Bug analysis</div>
+              {BUGS.map(b=>{ const cm=confMap[b.conf]; const author=b.conf==='low'?'Likely: '+b.author:b.author; return (
+                <div key={b.key} style={css('padding:15px 20px;border-bottom:1px solid var(--border)')}>
+                  <div style={css('display:flex;align-items:center;gap:11px;flex-wrap:wrap')}>
+                    <span style={css("font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--primary)")}>{b.key}</span>
+                    <span style={css('font-weight:600;font-size:13.5px;color:var(--text);flex:1;min-width:160px')}>{b.title}</span>
+                    <span style={css('font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;white-space:nowrap;'+(b.feat?'color:var(--ai);background:var(--ai-soft)':'color:var(--muted);background:var(--surface-2)'))}>{b.feat?'New functionality':'Existing code'}</span>
+                    <span style={css('font-size:11px;font-weight:700;padding:3px 10px;border-radius:6px;white-space:nowrap;color:'+cm.color+';background:'+cm.soft)}>{author} · {cm.label}</span>
+                  </div>
+                  <div style={css('display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding:10px 12px;background:var(--surface-2);border-radius:9px')}>
+                    <span style={css('flex:0 0 14px;margin-top:2px;color:var(--ai)')}>{I('<path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/>',14)}</span>
+                    <span style={css('font-size:12.5px;color:var(--muted);line-height:1.5')}>{b.reason}</span>
+                  </div>
+                </div>); })}
+            </div>
+          </div>
+        )}
+
+        {/* CONFIGURATION */}
+        {view==='config' && (
+          <div style={css('max-width:1000px;margin:0 auto;padding:28px 32px 60px')}>
+            <div style={css('display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.4px;color:var(--warn);background:var(--warn-soft);padding:3px 9px;border-radius:6px;margin-bottom:10px')}>ADMINISTRATOR ONLY</div>
+            <h1 style={css('margin:0;font-size:25px;font-weight:700;letter-spacing:-.5px;color:var(--text)')}>Configuration</h1>
+            <p style={css('margin:7px 0 22px;color:var(--muted);font-size:14px')}>Per-project credentials, AI behaviour and access. Hidden from Product Owners.</p>
+            <div style={css('display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--border);border-radius:11px;padding:4px;width:fit-content;margin-bottom:24px')}>
+              {[['integrations','Integrations'],['ai','AI'],['users','Users']].map(t=>(<button key={t[0]} onClick={()=>setCfgTab(t[0])} style={css(tabStyle(cfgTab===t[0]))}>{t[1]}</button>))}
+            </div>
+
+            {cfgTab==='integrations' && (
+              <div style={css('display:flex;flex-direction:column;gap:12px')}>
+                {[
+                  {key:'github',name:'GitHub',status:'Connected',detail:'acme/survey-platform · token ••••a3f1 · master refreshed 2h ago',ico:'<path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-1-2.6c3-.3 6.2-1.5 6.2-7A5.4 5.4 0 0 0 20 4.8 5 5 0 0 0 19.9 1S18.7.6 16 2.5a13.4 13.4 0 0 0-7 0C6.3.6 5.1 1 5.1 1A5 5 0 0 0 5 4.8 5.4 5.4 0 0 0 3.6 8.5c0 5.5 3.2 6.7 6.2 7a3.4 3.4 0 0 0-1 2.6V22"/>'},
+                  {key:'jira',name:'Jira Cloud',status:'Connected',detail:'acme.atlassian.net · fields “AI estimation” ✓ “AI actions” ✓ · MCP enabled',ico:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>'},
+                  {key:'discord',name:'Discord',status:'2 webhooks',detail:'#dev-alerts · #product · pluggable channels (Slack, Teams) supported later',ico:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'},
+                  {key:'figma',name:'Figma',status:'Connected',detail:'Read access for Details Gathering',ico:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>'},
+                ].map((it,i)=>(
+                  <div key={i} style={css('background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 18px;display:flex;align-items:center;gap:15px')}>
+                    <span style={css('width:40px;height:40px;border-radius:10px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;color:var(--text);flex:0 0 40px')}>{I(it.ico,20)}</span>
+                    <div style={css('flex:1;min-width:0')}>
+                      <div style={css('display:flex;align-items:center;gap:9px')}><span style={css('font-weight:650;font-size:14px;color:var(--text)')}>{it.name}</span><span style={css('display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--success)')}><span style={css('width:6px;height:6px;border-radius:50%;background:currentColor')}></span>{it.status}</span></div>
+                      <div style={css('font-size:12px;color:var(--faint);margin-top:4px')}>{it.detail}</div>
+                    </div>
+                    <button onClick={()=>setManageInt(it)} style={css('font-family:inherit;font-weight:600;font-size:12.5px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 14px;cursor:pointer')}>Manage</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {cfgTab==='ai' && (
+              <div style={css('display:flex;flex-direction:column;gap:18px')}>
+                <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:18px')}>
+                  <div style={css('font-weight:700;font-size:14px;color:var(--text);margin-bottom:4px')}>AI provider</div>
+                  <div style={css('font-size:12.5px;color:var(--muted);margin-bottom:14px')}>Configurable dependency. Only Claude Opus is in scope today.</div>
+                  <div style={css('display:flex;align-items:center;gap:11px;background:var(--ai-soft);border:1px solid var(--border);border-radius:10px;padding:12px 14px')}><span style={css('width:9px;height:9px;border-radius:50%;background:var(--ai)')}></span><span style={css('font-weight:600;font-size:13.5px;color:var(--text)')}>Claude Opus</span><span style={css('font-size:11.5px;color:var(--faint)')}>active</span></div>
+                </div>
+                <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:18px')}>
+                  <div style={css('font-weight:700;font-size:14px;color:var(--text);margin-bottom:4px')}>PR review prompt</div>
+                  <div style={css('font-size:12.5px;color:var(--muted);margin-bottom:12px')}>Instructions the AI follows when reviewing pull requests.</div>
+                  <textarea rows="4" defaultValue={'Review for correctness, security and adherence to our service conventions. Flag missing tests and N+1 queries. Be concise; approve with “Looks good!” when there are no material issues.'} style={css("width:100%;resize:vertical;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.6;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;outline:none")}></textarea>
+                </div>
+                <div style={css('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
+                  <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:18px')}>
+                    <div style={css('font-weight:700;font-size:14px;color:var(--text);margin-bottom:4px')}>PR polling interval</div>
+                    <div style={css('font-size:12.5px;color:var(--muted);margin-bottom:14px')}>How often new/updated PRs are checked.</div>
+                    <div style={css('display:flex;align-items:baseline;gap:6px')}><span style={css('font-size:30px;font-weight:700;color:var(--text)')}>{pollInterval}</span><span style={css('font-size:13px;color:var(--faint)')}>minutes</span></div>
+                    <input type="range" min="1" max="30" value={pollInterval} onChange={e=>setPollInterval(+e.target.value)} style={css('width:100%;margin-top:12px;accent-color:var(--primary)')}/>
+                  </div>
+                  <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:18px')}>
+                    <div style={css('font-weight:700;font-size:14px;color:var(--text);margin-bottom:4px')}>Estimation target</div>
+                    <div style={css('font-size:12.5px;color:var(--muted);margin-bottom:14px')}>Where and when the AI writes story points. Manual fields are never touched.</div>
+                    <div style={css('font-size:12px;color:var(--faint);margin-bottom:3px')}>Board</div><div style={css('font-weight:600;font-size:13.5px;color:var(--text);margin-bottom:14px')}>Survey Platform</div>
+                    <div style={css('font-size:12px;color:var(--faint);margin-bottom:6px')}>Jira field(s) to write</div>
+                    <div style={css('display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px')}>
+                      {EST_FIELD_OPTS.map(f=>{ const on=estFields.includes(f); return (
+                        <button key={f} onClick={()=>setEstFields(a=>on?(a.length>1?a.filter(x=>x!==f):a):a.concat([f]))} title={on&&estFields.length===1?'At least one field required':''} style={css('display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-size:12px;font-weight:600;padding:5px 11px;border-radius:20px;cursor:pointer;border:1px solid '+(on?'var(--primary)':'var(--border)')+';background:'+(on?'var(--primary-soft)':'var(--surface)')+';color:'+(on?'var(--primary)':'var(--muted)'))}>{on&&I('<path d="M20 6L9 17l-5-5"/>',12)}{f}</button>); })}
+                    </div>
+                    <div style={css('font-size:11px;color:var(--faint);margin-bottom:14px')}>Use more than one field when a team keeps separate scales (e.g. points + confidence).</div>
+                    <div style={css('font-size:12px;color:var(--faint);margin-bottom:6px')}>Estimate a story when…</div>
+                    <div style={css('display:flex;flex-direction:column;gap:7px')}>
+                      {EST_TRIGGERS.map(t=>{ const on=estTrigger===t[0]; return (
+                        <button key={t[0]} onClick={()=>setEstTrigger(t[0])} style={css('display:flex;align-items:center;gap:9px;font-family:inherit;font-size:13px;font-weight:'+(on?'600':'500')+';text-align:left;padding:9px 11px;border-radius:9px;cursor:pointer;border:1px solid '+(on?'var(--primary)':'var(--border)')+';background:'+(on?'var(--primary-soft)':'var(--surface)')+';color:var(--text)')}>
+                          <span style={css('width:16px;height:16px;flex:0 0 16px;border-radius:50%;border:2px solid '+(on?'var(--primary)':'var(--border)')+';display:flex;align-items:center;justify-content:center')}>{on&&<span style={css('width:7px;height:7px;border-radius:50%;background:var(--primary)')}></span>}</span>{t[1]}</button>); })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {cfgTab==='users' && (
+              <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden')}>
+                <div style={css('display:flex;align-items:center;justify-content:space-between;padding:15px 20px;border-bottom:1px solid var(--border)')}><span style={css('font-weight:700;font-size:14px;color:var(--text)')}>Users</span><button style={css('display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-weight:600;font-size:12.5px;color:#fff;background:var(--primary);border:none;border-radius:8px;padding:8px 13px;cursor:pointer')}>{I('<path d="M12 5v14M5 12h14"/>',14)}Invite</button></div>
+                {USERS.map((u,i)=>(
+                  <div key={i} style={css('display:flex;align-items:center;gap:13px;padding:13px 20px;border-bottom:1px solid var(--border)')}>
+                    <span style={css('width:32px;height:32px;border-radius:50%;background:'+u.c+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 32px')}>{initials(u.name)}</span>
+                    <div style={css('flex:1')}><div style={css('font-weight:600;font-size:13.5px;color:var(--text)')}>{u.name}</div><div style={css('font-size:11.5px;color:var(--faint)')}>{u.email}</div></div>
+                    <span style={css('font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:7px;'+(u.role==='Administrator'?'color:var(--warn);background:var(--warn-soft)':'color:var(--primary);background:var(--primary-soft)'))}>{u.role}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+      </main>
+    </div>
+
+    {newIdeaOpen && (
+      <div onClick={()=>setNewIdeaOpen(false)} style={css('position:fixed;inset:0;z-index:55;background:rgba(10,12,16,.45);display:flex;align-items:center;justify-content:center;padding:24px;animation:clarFade .12s ease')}>
+        <div onClick={e=>e.stopPropagation()} style={css('width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);padding:22px')}>
+          <div style={css('display:flex;align-items:center;justify-content:space-between;margin-bottom:4px')}>
+            <h2 style={css('margin:0;font-size:18px;font-weight:700;color:var(--text)')}>New idea</h2>
+            <button onClick={()=>setNewIdeaOpen(false)} style={css('background:none;border:none;cursor:pointer;color:var(--faint);display:flex;padding:4px')}>{I('<path d="M18 6L6 18M6 6l12 12"/>',18)}</button>
+          </div>
+          <p style={css('margin:0 0 18px;font-size:13px;color:var(--muted);line-height:1.5')}>Give it a title so it’s saved to the pipeline — you can come back to the conversation anytime.</p>
+          <label style={css('display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px')}>TITLE <span style={css('color:var(--danger)')}>*</span></label>
+          <input autoFocus value={newIdeaTitle} onChange={e=>setNewIdeaTitle(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&newIdeaTitle.trim())createIdea();}} placeholder="e.g. Aggregated CSV export for analysts" style={css('width:100%;font-family:inherit;font-size:14px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px 13px;outline:none;margin-bottom:16px')}/>
+          <label style={css('display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px')}>DESCRIPTION <span style={css('font-weight:500')}>(optional)</span></label>
+          <textarea value={newIdeaDesc} onChange={e=>setNewIdeaDesc(e.target.value)} rows="3" placeholder="A sentence or two on what you're thinking…" style={css('width:100%;resize:vertical;font-family:inherit;font-size:13.5px;line-height:1.5;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px 13px;outline:none;margin-bottom:20px')}></textarea>
+          <div style={css('display:flex;gap:9px;justify-content:flex-end')}>
+            <button onClick={()=>setNewIdeaOpen(false)} style={css('font-family:inherit;font-weight:600;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:10px 16px;cursor:pointer')}>Cancel</button>
+            <button onClick={createIdea} disabled={!newIdeaTitle.trim()} style={css('display:inline-flex;align-items:center;gap:7px;font-family:inherit;font-weight:650;font-size:13px;border-radius:9px;padding:10px 18px;border:none;'+(newIdeaTitle.trim()?'background:var(--primary);color:#fff;cursor:pointer':'background:var(--surface-2);color:var(--faint);cursor:not-allowed'))}>Save & start briefing{I('<path d="M5 12h14M13 6l6 6-6 6"/>',15)}</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {jiraPickOpen && (() => {
+      const board = JIRA_BOARDS.find(b=>b.id===boardId) || JIRA_BOARDS[0];
+      const q = jiraSearch.trim().toLowerCase();
+      const match = c => !q || (c.key+' '+c.title+' '+c.assignee+' '+c.reporter).toLowerCase().includes(q);
+      const cards = board.cards.filter(match);
+      const typeColor = t => t==='Bug'?'var(--danger)':t==='Task'?'var(--primary)':'var(--success)';
+      return (
+      <div onClick={()=>setJiraPickOpen(false)} style={css('position:fixed;inset:0;z-index:55;background:rgba(10,12,16,.45);display:flex;align-items:flex-start;justify-content:center;padding:40px 24px;animation:clarFade .12s ease')}>
+        <div onClick={e=>e.stopPropagation()} style={css('width:100%;max-width:1080px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column;max-height:86vh')}>
+          <div style={css('padding:18px 22px 0')}>
+            <div style={css('display:flex;align-items:center;justify-content:space-between')}>
+              <h2 style={css('margin:0;font-size:18px;font-weight:700;color:var(--text)')}>Browse Jira boards</h2>
+              <button onClick={()=>setJiraPickOpen(false)} style={css('background:none;border:none;cursor:pointer;color:var(--faint);display:flex;padding:4px')}>{I('<path d="M18 6L6 18M6 6l12 12"/>',18)}</button>
+            </div>
+            <p style={css('margin:6px 0 14px;font-size:13px;color:var(--muted)')}>Pick a ticket from any board to refine — it opens in Briefing. Click a card to pull it in.</p>
+            <div style={css('display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px')}>
+              <div style={css('display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:4px')}>
+                {JIRA_BOARDS.map(b=>(<button key={b.id} onClick={()=>setBoardId(b.id)} style={css(tabStyle(boardId===b.id))}>{b.name}</button>))}
+              </div>
+              <span style={css('font-size:11.5px;color:var(--faint)')}>{board.sprint}</span>
+              <div style={css('flex:1')}></div>
+              {boardId!=='backlog' && (
+              <div style={css('position:relative;display:flex;align-items:center')}>
+                <span style={css('position:absolute;left:10px;color:var(--faint);display:flex;pointer-events:none')}>{I('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',15)}</span>
+                <input value={jiraSearch} onChange={e=>setJiraSearch(e.target.value)} placeholder="Filter this board…" style={css('font-family:inherit;font-size:12.5px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:8px 11px 8px 32px;width:220px;outline:none')}/>
+              </div>
+              )}
+            </div>
+          </div>
+          <div style={css('flex:1;overflow:auto;padding:4px 22px 20px;background:var(--bg)')}>
+            {boardId==='backlog' ? (() => {
+              const prRank = { High:0, Medium:1, Low:2 };
+              const list = cards
+                .filter(c=>blogType==='all'||c.type===blogType)
+                .slice()
+                .sort((a,b)=>{
+                  if(blogSort==='priority') return prRank[a.priority]-prRank[b.priority];
+                  if(blogSort==='points'){ const av=a.pts==='—'?-1:a.pts, bv=b.pts==='—'?-1:b.pts; return bv-av; }
+                  if(blogSort==='oldest') return b.days-a.days;
+                  if(blogSort==='newest') return a.days-b.days;
+                  return a.title.localeCompare(b.title);
+                });
+              const prColor = p => p==='High'?'var(--danger)':p==='Medium'?'var(--warn)':'var(--faint)';
+              return (
+                <div style={css('min-width:760px')}>
+                  <div style={css('display:flex;align-items:center;gap:6px;margin:6px 0 12px;flex-wrap:wrap')}>
+                    <span style={css('font-size:11px;font-weight:700;color:var(--faint);margin-right:2px')}>TYPE</span>
+                    {['all','Story','Task','Bug'].map(t=>{ const on=blogType===t; return (
+                      <button key={t} onClick={()=>setBlogType(t)} style={css('font-family:inherit;font-size:12px;font-weight:600;padding:4px 11px;border-radius:20px;cursor:pointer;border:1px solid '+(on?'var(--primary)':'var(--border)')+';background:'+(on?'var(--primary-soft)':'var(--surface)')+';color:'+(on?'var(--primary)':'var(--muted)'))}>{t==='all'?'All':t}</button>); })}
+                    <div style={css('flex:1')}></div>
+                    <span style={css('font-size:11px;font-weight:700;color:var(--faint)')}>SORT</span>
+                    <select value={blogSort} onChange={e=>setBlogSort(e.target.value)} style={css('font-family:inherit;font-size:12.5px;font-weight:500;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:7px 10px;cursor:pointer;outline:none')}>
+                      <option value="priority">Priority</option>
+                      <option value="points">Story points</option>
+                      <option value="newest">Newest</option>
+                      <option value="oldest">Oldest</option>
+                      <option value="title">Title A–Z</option>
+                    </select>
+                  </div>
+                  <div style={css('background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden')}>
+                    <div style={css('display:flex;align-items:center;padding:10px 16px;font-size:11px;font-weight:700;letter-spacing:.3px;color:var(--faint);border-bottom:1px solid var(--border)')}>
+                      <span style={css('width:74px;flex:0 0 74px')}>KEY</span><span style={css('flex:1')}>SUMMARY</span><span style={css('width:80px')}>TYPE</span><span style={css('width:90px')}>PRIORITY</span><span style={css('width:64px;text-align:right')}>PTS</span><span style={css('width:120px')}>REPORTER</span>
+                    </div>
+                    {list.map(c=>(
+                      <button key={c.key} className="hovrow" onClick={()=>importJira(c)} style={css('width:100%;text-align:left;cursor:pointer;background:var(--surface);border:none;border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;font-family:inherit')}>
+                        <span style={css("width:74px;flex:0 0 74px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--primary)")}>{c.key}</span>
+                        <span style={css('flex:1;font-size:13.5px;font-weight:600;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap')}>{c.title}</span>
+                        <span style={css('width:80px;display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:'+typeColor(c.type))}><span style={css('width:7px;height:7px;border-radius:2px;background:currentColor')}></span>{c.type}</span>
+                        <span style={css('width:90px;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:'+prColor(c.priority))}><span style={css('width:6px;height:6px;border-radius:50%;background:currentColor')}></span>{c.priority}</span>
+                        <span style={css('width:64px;text-align:right;font-size:13px;font-weight:600;color:var(--muted)')}>{c.pts}</span>
+                        <span style={css('width:120px;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap')}>{c.reporter}</span>
+                      </button>
+                    ))}
+                    {list.length===0 && <div style={css('text-align:center;color:var(--faint);font-size:13px;padding:26px')}>No tickets match.</div>}
+                  </div>
+                </div>
+              );
+            })() : (
+            <div style={css('display:grid;grid-template-columns:repeat('+JIRA_COLUMNS.length+',minmax(220px,1fr));gap:12px;min-width:920px')}>
+              {JIRA_COLUMNS.map(col=>{ const colCards=cards.filter(c=>c.status===col); return (
+                <div key={col} style={css('display:flex;flex-direction:column;gap:9px')}>
+                  <div style={css('position:sticky;top:0;background:var(--bg);padding:8px 2px;display:flex;align-items:center;gap:7px;z-index:1')}>
+                    <span style={css('font-size:11px;font-weight:700;letter-spacing:.4px;color:var(--faint);text-transform:uppercase')}>{col}</span>
+                    <span style={css('font-size:11px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:0 7px')}>{colCards.length}</span>
+                  </div>
+                  {colCards.map(c=>(
+                    <button key={c.key} className="hovcard" onClick={()=>importJira(c)} style={css('text-align:left;cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:12px 13px;display:flex;flex-direction:column;gap:9px')}>
+                      <span style={css('font-weight:600;font-size:13px;line-height:1.4;color:var(--text)')}>{c.title}</span>
+                      <div style={css('display:flex;align-items:center;gap:7px;flex-wrap:wrap')}>
+                        <span style={css('display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:'+typeColor(c.type)+'')}><span style={css('width:7px;height:7px;border-radius:2px;background:currentColor')}></span>{c.type}</span>
+                        <span style={css("font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--faint)")}>{c.key}</span>
+                        <div style={css('flex:1')}></div>
+                        {c.pts!=='—' && <span style={css('font-size:10px;font-weight:700;color:var(--muted);background:var(--surface-2);border-radius:20px;padding:1px 7px')}>{c.pts}</span>}
+                        <span title={c.assignee} style={css('width:20px;height:20px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700')}>{c.assignee==='—'?'·':initials(c.assignee)}</span>
+                      </div>
+                    </button>
+                  ))}
+                  {colCards.length===0 && <div style={css('font-size:11.5px;color:var(--faint);text-align:center;padding:14px;border:1px dashed var(--border);border-radius:10px')}>—</div>}
+                </div>
+              ); })}
+            </div>
+            )}
+          </div>
+        </div>
+      </div>
+      );
+    })()}
+
+    {reqDesignOpen && (
+      <div onClick={()=>setReqDesignOpen(false)} style={css('position:fixed;inset:0;z-index:55;background:rgba(10,12,16,.45);display:flex;align-items:center;justify-content:center;padding:24px;animation:clarFade .12s ease')}>
+        <div onClick={e=>e.stopPropagation()} style={css('width:100%;max-width:460px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);padding:22px')}>
+          <div style={css('display:flex;align-items:center;justify-content:space-between;margin-bottom:4px')}>
+            <h2 style={css('margin:0;font-size:18px;font-weight:700;color:var(--text)')}>Request designs</h2>
+            <button onClick={()=>setReqDesignOpen(false)} style={css('background:none;border:none;cursor:pointer;color:var(--faint);display:flex;padding:4px')}>{I('<path d="M18 6L6 18M6 6l12 12"/>',18)}</button>
+          </div>
+          <p style={css('margin:0 0 18px;font-size:13px;color:var(--muted);line-height:1.5')}>Ask a designer to prepare designs for <b style={css('color:var(--text)')}>{active.title}</b>. When they’re delivered, the links drop into the Jira description automatically.</p>
+          <label style={css('display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px')}>DESIGNER</label>
+          <div style={css('display:flex;gap:8px;margin-bottom:16px')}>
+            {DESIGNERS.map(d=>(<button key={d} onClick={()=>setReqDesigner(d)} style={css('flex:1;font-family:inherit;font-size:13px;font-weight:600;padding:10px;border-radius:9px;cursor:pointer;border:1px solid '+(reqDesigner===d?'var(--primary)':'var(--border)')+';background:'+(reqDesigner===d?'var(--primary-soft)':'var(--surface)')+';color:'+(reqDesigner===d?'var(--primary)':'var(--text)'))}>{d}</button>))}
+          </div>
+          <label style={css('display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px')}>NOTE <span style={css('font-weight:500')}>(optional)</span></label>
+          <textarea value={reqNote} onChange={e=>setReqNote(e.target.value)} rows="3" placeholder="What screens or states should they cover?" style={css('width:100%;resize:vertical;font-family:inherit;font-size:13.5px;line-height:1.5;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px 13px;outline:none;margin-bottom:20px')}></textarea>
+          <div style={css('display:flex;gap:9px;justify-content:flex-end')}>
+            <button onClick={()=>setReqDesignOpen(false)} style={css('font-family:inherit;font-weight:600;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:10px 16px;cursor:pointer')}>Cancel</button>
+            <button onClick={confirmRequestDesigns} style={css('display:inline-flex;align-items:center;gap:7px;font-family:inherit;font-weight:650;font-size:13px;border-radius:9px;padding:10px 18px;border:none;background:var(--primary);color:#fff;cursor:pointer')}>{I('<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',14)}Send request</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {briefViewOpen && (() => {
+      const bv = briefVersions[briefViewSel];
+      return (
+      <div onClick={()=>setBriefViewOpen(false)} style={css('position:fixed;inset:0;z-index:55;background:rgba(10,12,16,.45);display:flex;align-items:flex-start;justify-content:center;padding:48px 24px;animation:clarFade .12s ease')}>
+        <div onClick={e=>e.stopPropagation()} style={css('width:100%;max-width:560px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column;max-height:80vh')}>
+          <div style={css('padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px')}>
+            <div style={css('display:flex;align-items:center;gap:10px')}>
+              <h2 style={css('margin:0;font-size:16px;font-weight:700;color:var(--text)')}>Briefing history</h2>
+              <div style={css('display:flex;gap:5px')}>
+                {briefVersions.map((v,i)=>(<button key={i} onClick={()=>setBriefViewSel(i)} style={css("font-size:11.5px;font-weight:700;padding:4px 9px;border-radius:7px;cursor:pointer;border:1px solid "+(i===briefViewSel?'var(--primary)':'var(--border)')+";background:"+(i===briefViewSel?'var(--primary-soft)':'transparent')+";color:"+(i===briefViewSel?'var(--primary)':'var(--muted)'))}>v{v.n}</button>))}
+              </div>
+            </div>
+            <button onClick={()=>setBriefViewOpen(false)} style={css('background:none;border:none;cursor:pointer;color:var(--faint);display:flex;padding:4px')}>{I('<path d="M18 6L6 18M6 6l12 12"/>',18)}</button>
+          </div>
+          <div style={css('flex:1;overflow-y:auto;padding:20px 22px')}>
+            {bv && <div style={css('display:flex;align-items:center;gap:8px;margin-bottom:14px')}><span style={css('font-size:11px;color:var(--faint)')}>Brief v{bv.n} · {bv.time}</span><span style={css('font-size:10px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);padding:2px 7px;border-radius:5px')}>{bv.source}</span></div>}
+            {bv && <div className="clar-prose" dangerouslySetInnerHTML={{__html: curHtml(bv)}}></div>}
+          </div>
+          <div style={css('padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:9px;justify-content:flex-end')}>
+            <button onClick={()=>{ setBriefViewOpen(false); setEditing(false); setStage('briefing'); }} style={css('display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-weight:600;font-size:12.5px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:9px 14px;cursor:pointer')}>{I('<path d="M15 18l-6-6 6-6"/>',14)}Back to briefing to improve</button>
+          </div>
+        </div>
+      </div>
+      );
+    })()}
+
+    {ruleOpen && (
+      <div onClick={()=>setRuleOpen(false)} style={css('position:fixed;inset:0;z-index:55;background:rgba(10,12,16,.45);display:flex;align-items:center;justify-content:center;padding:24px;animation:clarFade .12s ease')}>
+        <div onClick={e=>e.stopPropagation()} style={css('width:100%;max-width:520px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);padding:22px;max-height:88vh;overflow-y:auto')}>
+          <div style={css('display:flex;align-items:center;justify-content:space-between;margin-bottom:4px')}>
+            <h2 style={css('margin:0;font-size:18px;font-weight:700;color:var(--text)')}>New alert rule</h2>
+            <button onClick={()=>setRuleOpen(false)} style={css('background:none;border:none;cursor:pointer;color:var(--faint);display:flex;padding:4px')}>{I('<path d="M18 6L6 18M6 6l12 12"/>',18)}</button>
+          </div>
+          <p style={css('margin:0 0 18px;font-size:13px;color:var(--muted);line-height:1.5')}>A scheduled prompt. On its schedule the AI inspects Jira (via MCP) and posts to the channel only if the condition is met.</p>
+          <label style={css('display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px')}>NAME <span style={css('color:var(--danger)')}>*</span></label>
+          <input autoFocus value={ruleName} onChange={e=>setRuleName(e.target.value)} placeholder="e.g. QA backlog watch" style={css('width:100%;font-family:inherit;font-size:14px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px 13px;outline:none;margin-bottom:16px')}/>
+          <label style={css('display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px')}>WHAT TO WATCH FOR <span style={css('color:var(--danger)')}>*</span></label>
+          <textarea value={rulePrompt} onChange={e=>setRulePrompt(e.target.value)} rows="3" placeholder="If more than 4 tasks have been in QA for longer than 3 days, send a notification." style={css('width:100%;resize:vertical;font-family:inherit;font-size:13.5px;line-height:1.55;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px 13px;outline:none;margin-bottom:6px')}></textarea>
+          <div style={css('font-size:11px;color:var(--faint);margin-bottom:16px')}>Write it as a condition — natural language is fine.</div>
+          <div style={css('display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px')}>
+            <div>
+              <label style={css('display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px')}>FREQUENCY</label>
+              <select value={ruleFreq} onChange={e=>setRuleFreq(e.target.value)} style={css('width:100%;font-family:inherit;font-size:13.5px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 11px;cursor:pointer;outline:none')}>
+                {ALERT_FREQS.map(f=>(<option key={f[0]} value={f[0]}>{f[1]}</option>))}
+              </select>
+            </div>
+            <div>
+              <label style={css('display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px')}>TIME</label>
+              <input type="time" value={ruleTime} onChange={e=>setRuleTime(e.target.value)} disabled={ruleFreq==='hourly'} style={css('width:100%;font-family:inherit;font-size:13.5px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:9px 11px;outline:none;'+(ruleFreq==='hourly'?'opacity:.5':''))}/>
+            </div>
+          </div>
+          <label style={css('display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px')}>NOTIFY CHANNEL <span style={css('font-weight:500;color:var(--faint)')}>· Discord</span></label>
+          <div style={css('display:flex;flex-wrap:wrap;gap:7px;margin-bottom:22px')}>
+            {CHANNELS.map(c=>{ const on=ruleChannel===c; return (<button key={c} onClick={()=>setRuleChannel(c)} style={css('font-family:inherit;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:20px;cursor:pointer;border:1px solid '+(on?'var(--primary)':'var(--border)')+';background:'+(on?'var(--primary-soft)':'var(--surface)')+';color:'+(on?'var(--primary)':'var(--muted)'))}>{c}</button>); })}
+          </div>
+          <div style={css('display:flex;gap:9px;justify-content:flex-end')}>
+            <button onClick={()=>setRuleOpen(false)} style={css('font-family:inherit;font-weight:600;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:10px 16px;cursor:pointer')}>Cancel</button>
+            <button onClick={createRule} disabled={!ruleName.trim()||!rulePrompt.trim()} style={css('display:inline-flex;align-items:center;gap:7px;font-family:inherit;font-weight:650;font-size:13px;border-radius:9px;padding:10px 18px;border:none;'+((ruleName.trim()&&rulePrompt.trim())?'background:var(--primary);color:#fff;cursor:pointer':'background:var(--surface-2);color:var(--faint);cursor:not-allowed'))}>Create rule</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {manageInt && (
+      <div onClick={()=>setManageInt(null)} style={css('position:fixed;inset:0;z-index:55;background:rgba(10,12,16,.45);display:flex;align-items:center;justify-content:center;padding:24px;animation:clarFade .12s ease')}>
+        <div onClick={e=>e.stopPropagation()} style={css('width:100%;max-width:520px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);max-height:88vh;overflow-y:auto')}>
+          <div style={css('padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:13px')}>
+            <span style={css('width:40px;height:40px;border-radius:10px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;color:var(--text);flex:0 0 40px')}>{I(manageInt.ico,20)}</span>
+            <div style={css('flex:1')}>
+              <div style={css('font-weight:700;font-size:16px;color:var(--text)')}>{manageInt.name}</div>
+              <div style={css('display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--success);margin-top:2px')}><span style={css('width:6px;height:6px;border-radius:50%;background:currentColor')}></span>{manageInt.status}</div>
+            </div>
+            <button onClick={()=>setManageInt(null)} style={css('background:none;border:none;cursor:pointer;color:var(--faint);display:flex;padding:4px')}>{I('<path d="M18 6L6 18M6 6l12 12"/>',18)}</button>
+          </div>
+          <div style={css('padding:20px 22px')}>
+            {manageInt.key==='github' && (<div>
+              <MField label="REPOSITORY" value="acme/survey-platform" mono hint="The repo is checked out server-side; master is refreshed daily." />
+              <MField label="ACCESS TOKEN" value="ghp_••••••••••••a3f1" mono action="Rotate" />
+              <MField label="DEFAULT BRANCH" value="master" mono />
+              <div style={css('margin-top:6px')}>
+                <MToggle label="Auto-refresh master daily" on={true} onToggle={()=>{}} hint="Last refreshed 2h ago" />
+                <MToggle label="AI PR reviews on this repo" on={true} onToggle={()=>{}} />
+              </div>
+            </div>)}
+            {manageInt.key==='jira' && (<div>
+              <MField label="SITE URL" value="acme.atlassian.net" mono />
+              <MField label="PROJECT KEY" value="SP" mono />
+              <div style={css('font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px')}>CUSTOM FIELDS</div>
+              <div style={css('display:flex;flex-direction:column;gap:7px;margin-bottom:14px')}>
+                {[['AI estimation','number'],['AI actions','status']].map(f=>(<div key={f[0]} style={css('display:flex;align-items:center;gap:9px;background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:9px 12px')}><span style={css('color:var(--success);display:flex')}>{I('<path d="M20 6L9 17l-5-5"/>',14)}</span><span style={css('font-weight:600;font-size:13px;color:var(--text);flex:1')}>{f[0]}</span><span style={css('font-size:11px;color:var(--faint)')}>{f[1]}</span></div>))}
+              </div>
+              <MToggle label="MCP access for AI Alerts" on={true} onToggle={()=>{}} hint="Lets AI inspect live board state." />
+            </div>)}
+            {manageInt.key==='discord' && (<div>
+              <div style={css('font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px')}>WEBHOOKS</div>
+              <div style={css('display:flex;flex-direction:column;gap:7px;margin-bottom:12px')}>
+                {['#dev-alerts','#product'].map(c=>(<div key={c} style={css('display:flex;align-items:center;gap:9px;background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:9px 12px')}><span style={css('color:var(--muted);display:flex')}>{I('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',14)}</span><span style={css('font-weight:600;font-size:13px;color:var(--text);flex:1')}>{c}</span><button style={css('font-size:11.5px;font-weight:600;color:var(--faint);background:none;border:none;cursor:pointer')}>Remove</button></div>))}
+              </div>
+              <button style={css('font-family:inherit;font-size:12.5px;font-weight:600;color:var(--primary);background:none;border:none;cursor:pointer;padding:0;margin-bottom:16px')}>+ Add webhook</button>
+              <div style={css('font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:8px')}>OTHER CHANNELS</div>
+              <div style={css('display:flex;gap:8px')}>
+                {['Slack','Microsoft Teams'].map(c=>(<div key={c} style={css('flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface-2);border:1px dashed var(--border);border-radius:9px;padding:10px 12px;font-size:12.5px;color:var(--faint)')}>{c}<span style={css('font-size:10px;font-weight:700;background:var(--border);color:var(--muted);padding:2px 6px;border-radius:5px')}>SOON</span></div>))}
+              </div>
+            </div>)}
+            {manageInt.key==='figma' && (<div>
+              <MField label="ACCESS TOKEN" value="figd_••••••••••7c21" mono action="Rotate" />
+              <MField label="TEAM / PROJECT" value="Survey Platform · Insights" hint="Read-only. Used so the AI can read frames referenced in Details Gathering." />
+              <MToggle label="Read designs in Details Gathering" on={true} onToggle={()=>{}} />
+            </div>)}
+          </div>
+          <div style={css('padding:14px 22px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:9px')}>
+            <button onClick={()=>{ setManageInt(null); showToast('Testing '+manageInt.name+' connection…'); }} style={css('font-family:inherit;font-weight:600;font-size:12.5px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:9px 14px;cursor:pointer')}>Test connection</button>
+            <div style={css('display:flex;gap:9px')}>
+              <button onClick={()=>setManageInt(null)} style={css('font-family:inherit;font-weight:600;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:9px 16px;cursor:pointer')}>Cancel</button>
+              <button onClick={()=>{ const n=manageInt.name; setManageInt(null); showToast(n+' settings saved'); }} style={css('font-family:inherit;font-weight:650;font-size:13px;color:#fff;background:var(--primary);border:none;border-radius:9px;padding:9px 18px;cursor:pointer')}>Save changes</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {historyAlert && (()=>{ const hist=ALERT_HISTORY[historyAlert.name]||[{time:historyAlert.time||'—',fired:/sent/i.test(historyAlert.last||''),summary:historyAlert.last||'Not run yet',detail:''}]; const fires=hist.filter(h=>h.fired).length; return (
+      <div onClick={()=>setHistoryAlert(null)} style={css('position:fixed;inset:0;z-index:55;background:rgba(10,12,16,.45);display:flex;align-items:center;justify-content:center;padding:24px;animation:clarFade .12s ease')}>
+        <div onClick={e=>e.stopPropagation()} style={css('width:100%;max-width:560px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);max-height:86vh;display:flex;flex-direction:column')}>
+          <div style={css('padding:20px 22px;border-bottom:1px solid var(--border)')}>
+            <div style={css('display:flex;align-items:flex-start;justify-content:space-between;gap:12px')}>
+              <div>
+                <div style={css('font-weight:700;font-size:17px;color:var(--text)')}>{historyAlert.name}</div>
+                <div style={css('font-size:12.5px;color:var(--muted);margin-top:4px;font-style:italic')}>“{historyAlert.prompt}”</div>
+              </div>
+              <button onClick={()=>setHistoryAlert(null)} style={css('background:none;border:none;cursor:pointer;color:var(--faint);display:flex;padding:4px;flex:0 0 auto')}>{I('<path d="M18 6L6 18M6 6l12 12"/>',18)}</button>
+            </div>
+            <div style={css('display:flex;gap:16px;margin-top:14px;flex-wrap:wrap')}>
+              <span style={css('display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--faint)')}>{I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',13)}{historyAlert.schedule}</span>
+              <span style={css('display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--faint)')}>{I('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',13)}{historyAlert.channel} · Discord</span>
+              <span style={css('font-size:12px;color:var(--faint)')}>Fired {fires} of {hist.length} runs</span>
+            </div>
+          </div>
+          <div style={css('flex:1;overflow-y:auto;padding:8px 22px 18px')}>
+            <div style={css('font-size:11px;font-weight:700;letter-spacing:.4px;color:var(--faint);padding:12px 0 6px')}>RUN HISTORY</div>
+            {hist.map((h,i)=>(
+              <div key={i} style={css('display:flex;gap:12px;padding:12px 0;border-bottom:'+(i<hist.length-1?'1px solid var(--border)':'none'))}>
+                <span style={css('flex:0 0 26px;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:1px;background:'+(h.fired?'var(--success-soft)':'var(--surface-2)')+';color:'+(h.fired?'var(--success)':'var(--faint)'))}>{I(h.fired?'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>':'<path d="M20 6L9 17l-5-5"/>',13)}</span>
+                <div style={css('flex:1;min-width:0')}>
+                  <div style={css('display:flex;align-items:center;justify-content:space-between;gap:10px')}>
+                    <span style={css('font-weight:600;font-size:13px;color:var(--text)')}>{h.summary}</span>
+                    <span style={css('font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap;'+(h.fired?'color:var(--success);background:var(--success-soft)':'color:var(--faint);background:var(--surface-2)'))}>{h.fired?'NOTIFIED':'NO ACTION'}</span>
+                  </div>
+                  <div style={css('font-size:11.5px;color:var(--faint);margin-top:2px')}>{h.time}</div>
+                  {h.detail && <div style={css('font-size:12px;color:var(--muted);line-height:1.5;margin-top:5px')}>{h.detail}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={css('padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end')}>
+            <button onClick={()=>setHistoryAlert(null)} style={css('font-family:inherit;font-weight:600;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:9px 18px;cursor:pointer')}>Close</button>
+          </div>
+        </div>
+      </div>
+    ); })()}
+
+    {resetOpen && (
+      <div onClick={()=>setResetOpen(false)} style={css('position:fixed;inset:0;z-index:55;background:rgba(10,12,16,.45);display:flex;align-items:center;justify-content:center;padding:24px;animation:clarFade .12s ease')}>
+        <div onClick={e=>e.stopPropagation()} style={css('width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);padding:22px')}>
+          <div style={css('display:flex;align-items:center;justify-content:space-between;margin-bottom:4px')}>
+            <h2 style={css('margin:0;font-size:18px;font-weight:700;color:var(--text)')}>Reset AI session</h2>
+            <button onClick={()=>setResetOpen(false)} style={css('background:none;border:none;cursor:pointer;color:var(--faint);display:flex;padding:4px')}>{I('<path d="M18 6L6 18M6 6l12 12"/>',18)}</button>
+          </div>
+          <p style={css('margin:0 0 16px;font-size:13px;color:var(--muted);line-height:1.5')}>Restarts this {isBrief?'briefing':'details'} conversation from scratch — the AI re-reads the code. <b style={css('color:var(--text)')}>All saved versions and the description are kept</b>.</p>
+          <div style={css('background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 13px;margin-bottom:20px')}>
+            <div style={css('font-size:10.5px;font-weight:700;letter-spacing:.4px;color:var(--faint);margin-bottom:5px')}>KEPT · {active.jiraKey?'JIRA DESCRIPTION':'LOCAL DESCRIPTION'}</div>
+            <div style={css('font-size:12.5px;color:var(--text);line-height:1.5')}>{(active.jiraKey?active.jiraDesc:active.desc) || <span style={css('color:var(--faint);font-style:italic')}>No description yet</span>}</div>
+          </div>
+          <div style={css('display:flex;gap:9px;justify-content:flex-end')}>
+            <button onClick={()=>setResetOpen(false)} style={css('font-family:inherit;font-weight:600;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:10px 16px;cursor:pointer')}>Cancel</button>
+            <button onClick={doReset} style={css('display:inline-flex;align-items:center;gap:7px;font-family:inherit;font-weight:650;font-size:13px;border-radius:9px;padding:10px 18px;border:none;background:var(--ai);color:#fff;cursor:pointer')}>{I('<path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/>',14)}Restart session</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {toast && (
+      <div style={css('position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:60;background:var(--text);color:var(--bg);padding:12px 18px;border-radius:11px;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;animation:clarToast .2s ease')}>
+        <span style={css('width:18px;height:18px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;flex:0 0 18px;color:#fff')}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg></span>{toast}
+      </div>
+    )}
+  </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+<script>
+(function(){
+  var src = document.getElementById('app-src').textContent;
+  var out = Babel.transform(src, {presets:[['react',{runtime:'classic'}]]}).code;
+  (0,eval)(out);
+})();
+</script>
+</body>
+</html>

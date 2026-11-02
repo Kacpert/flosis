@@ -1,8 +1,6 @@
 <div class="max-w-lg mx-auto">
-  <h1 class="text-2xl font-bold mb-4">New Client</h1>
-  <div class="card bg-base-100 shadow">
-    <div class="card-body">
-      <%= render "form", client: @client, url: clients_path %>
-    </div>
+  <h1 class="text-2xl font-bold mb-4" style="color: var(--color-on-surface)">New Client</h1>
+  <div class="m3-card-elevated p-6">
+    <%= render "form", client: @client, url: clients_path %>
   </div>
 </div>

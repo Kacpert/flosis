@@ -1,59 +1,98 @@
 <%= form_with model: time_entry, url: url, class: "space-y-4" do |f| %>
   <% if time_entry.errors.any? %>
-    <div class="alert alert-error">
+    <div class="m3-alert m3-alert-error">
       <ul><% time_entry.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %></ul>
     </div>
   <% end %>
 
-  <div class="form-control">
-    <label class="label"><span class="label-text">Description</span></label>
-    <%= f.text_field :description, class: "input input-bordered w-full", placeholder: "What did you work on?" %>
+  <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Description</label>
+    <%= f.text_field :description, class: "m3-text-field w-full", placeholder: "What did you work on?" %>
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div class="form-control">
-      <label class="label"><span class="label-text">Project</span></label>
+    <div class="space-y-1">
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Project</label>
       <%= f.collection_select :project_id, projects, :id, :name,
           { include_blank: "No project" },
-          class: "select select-bordered w-full" %>
+          class: "m3-text-field w-full" %>
     </div>
 
-    <div class="form-control">
-      <label class="label"><span class="label-text">Task</span></label>
+    <div class="space-y-1">
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Task</label>
       <% tasks = time_entry.project ? time_entry.project.tasks.active : [] %>
       <%= f.collection_select :task_id, tasks, :id, :name,
           { include_blank: "No task" },
-          class: "select select-bordered w-full" %>
+          class: "m3-text-field w-full" %>
     </div>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="form-control">
-      <label class="label"><span class="label-text">Date & Start Time</span></label>
-      <%= f.datetime_local_field :started_at, class: "input input-bordered w-full", data: { controller: "datepicker", datepicker_enable_time_value: "true" } %>
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4" data-controller="manual-entry">
+    <div class="space-y-1">
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Date</label>
+      <input type="text" class="m3-text-field w-full"
+             value="<%= time_entry.started_at&.strftime('%Y-%m-%d') || Date.current.to_s %>"
+             data-controller="datepicker"
+             data-datepicker-first-day-of-week-value="1"
+             data-manual-entry-target="startDate"
+             data-action="datepicker:change->manual-entry#dateChanged"
+             readonly>
     </div>
 
-    <div class="form-control">
-      <label class="label"><span class="label-text">End Time</span></label>
-      <%= f.datetime_local_field :stopped_at, class: "input input-bordered w-full", data: { controller: "datepicker", datepicker_enable_time_value: "true" } %>
+    <div class="space-y-1">
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Start Time</label>
+      <input type="text" class="m3-text-field w-full"
+             value="<%= time_entry.started_at&.strftime('%H:%M') %>"
+             placeholder="09:00" maxlength="5"
+             data-manual-entry-target="startTime"
+             data-action="blur->manual-entry#startTimeChanged keydown->manual-entry#timeKeydown">
     </div>
 
-    <div class="form-control">
-      <label class="label"><span class="label-text">Or Duration (HH:MM)</span></label>
-      <%= f.text_field :duration_manual, class: "input input-bordered w-full",
-          placeholder: "1:30", value: time_entry.persisted? ? nil : nil %>
+    <div class="space-y-1">
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">End Time</label>
+      <div class="flex items-center gap-2">
+        <input type="text" class="m3-text-field flex-1"
+               value="<%= time_entry.stopped_at&.strftime('%H:%M') %>"
+               placeholder="--:--" maxlength="5"
+               data-manual-entry-target="endTime"
+               data-action="blur->manual-entry#endTimeChanged keydown->manual-entry#timeKeydown">
+        <span class="m3-overnight-badge hidden" data-manual-entry-target="overnightBadge"
+              data-action="click->manual-entry#toggleEndDate">+1d</span>
+      </div>
+      <div class="hidden" data-manual-entry-target="endDateWrap">
+        <input type="text" class="m3-text-field w-full mt-1" placeholder="End date"
+               value="<%= time_entry.stopped_at&.to_date != time_entry.started_at&.to_date ? time_entry.stopped_at&.strftime('%Y-%m-%d') : '' %>"
+               data-controller="datepicker"
+               data-datepicker-first-day-of-week-value="1"
+               data-manual-entry-target="endDate"
+               data-action="datepicker:change->manual-entry#endDateChanged"
+               readonly>
+      </div>
     </div>
+
+    <div class="space-y-1">
+      <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Duration</label>
+      <input type="text" class="m3-text-field w-full"
+             placeholder="0:00" maxlength="7"
+             value="<%= time_entry.persisted? && time_entry.duration_seconds.to_i > 0 ? "#{time_entry.duration_seconds.to_i / 3600}:#{format('%02d', (time_entry.duration_seconds.to_i % 3600) / 60)}" : '' %>"
+             data-manual-entry-target="duration"
+             data-action="blur->manual-entry#durationChanged keydown->manual-entry#durationKeydown">
+    </div>
+
+    <%# Hidden fields for actual submission %>
+    <%= f.hidden_field :started_at, data: { manual_entry_target: "startedAt" } %>
+    <%= f.hidden_field :stopped_at, data: { manual_entry_target: "stoppedAt" } %>
   </div>
 
-  <div class="form-control">
-    <label class="label"><span class="label-text">Tags</span></label>
+  <div class="space-y-1">
+    <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Tags</label>
     <div class="flex flex-wrap gap-2">
       <% tags.each do |tag| %>
         <label class="cursor-pointer">
           <%= check_box_tag "time_entry[tag_ids][]", tag.id,
               time_entry.tag_ids.include?(tag.id),
               class: "hidden peer", id: "tag_#{tag.id}" %>
-          <span class="badge peer-checked:badge-primary cursor-pointer" style="--badge-color: <%= tag.color %>">
+          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer peer-checked:ring-2 peer-checked:ring-offset-1" style="color: <%= tag.color %>; border-color: <%= tag.color %>40; background-color: <%= tag.color %>10; --tw-ring-color: <%= tag.color %>">
             <%= tag.name %>
           </span>
         </label>
@@ -62,7 +101,7 @@
   </div>
 
   <div class="flex gap-2">
-    <%= f.submit class: "btn btn-primary" %>
-    <%= link_to "Cancel", time_entries_path, class: "btn btn-ghost" %>
+    <%= f.submit class: "m3-btn m3-btn-filled" %>
+    <%= link_to "Cancel", time_entries_path, class: "m3-btn m3-btn-text" %>
   </div>
 <% end %>

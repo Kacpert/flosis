@@ -1,0 +1,5 @@
+<div class="contents" data-designs-setup-form-row>
+  <input name="repos[<%= index %>][role]" value="<%= row["role"] %>" placeholder="e.g. Frontend" class="clar-input">
+  <input name="repos[<%= index %>][url]" value="<%= row["repo"].present? ? "github.com/#{row["repo"]}" : "" %>" placeholder="github.com/acme/app" class="clar-input">
+  <button type="button" class="clar-btn !p-0 w-[34px] h-[34px] justify-center" title="Remove repository" data-action="designs-setup-form#remove"><%= designs_icon(:close, 14) %></button>
+</div>

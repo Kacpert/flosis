@@ -1,0 +1,40 @@
+<% content_for :title, "Library · Flosis" %>
+
+<div class="flex items-start justify-between gap-4 mb-6">
+  <div>
+    <h1 class="clar-h1">Library</h1>
+    <p class="clar-text-muted text-[13px] mt-1">What every design turn runs on, for every project. Only Flosis staff see this page.</p>
+  </div>
+  <%= link_to "New entry", new_workshop_library_entry_path, class: "clar-btn clar-btn-primary no-underline" %>
+</div>
+
+<% @groups.each do |heading, kind, entries| %>
+  <section class="mb-7">
+    <h2 class="clar-section-label mb-2.5"><%= heading %></h2>
+    <% if entries.empty? %>
+      <p class="clar-text-faint text-[13px]">None yet.</p>
+    <% else %>
+      <div class="clar-card divide-y divide-[color:var(--border)]">
+        <% entries.each do |entry| %>
+          <% version = entry.current_version %>
+          <%= link_to workshop_library_entry_path(entry), class: "flex items-center gap-3 px-4 py-3 no-underline clar-row-hover" do %>
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold text-[13.5px] clar-text-text"><%= entry.name %></div>
+              <div class="clar-mono text-[11.5px] clar-text-faint"><%= entry.key %></div>
+            </div>
+            <% if kind == "base_prompt" %>
+              <span class="clar-badge clar-badge-primary">always used</span>
+            <% elsif entry.active? %>
+              <span class="clar-badge clar-badge-success">active</span>
+            <% else %>
+              <span class="clar-badge clar-badge-muted">off</span>
+            <% end %>
+            <span class="text-[12px] clar-text-muted w-28 text-right">
+              <%= version ? "v#{version.number}" : "no text" %><% if version&.created_by %> · <%= version.created_by.name %><% end %>
+            </span>
+          <% end %>
+        <% end %>
+      </div>
+    <% end %>
+  </section>
+<% end %>

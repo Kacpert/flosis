@@ -6,6 +6,9 @@ export default class extends Controller {
   edit() {
     this.displayTarget.classList.add("hidden")
     this.formTarget.classList.remove("hidden")
+    // The edit row can be taller than one line — .is-editing keeps the card's
+    // checkbox aligned with the first line instead of the middle of the block.
+    this.element.classList.add("is-editing")
     // Focus the first input
     const firstInput = this.formTarget.querySelector("input[type='text'], select")
     if (firstInput) firstInput.focus()
@@ -14,6 +17,7 @@ export default class extends Controller {
   cancel() {
     this.formTarget.classList.add("hidden")
     this.displayTarget.classList.remove("hidden")
+    this.element.classList.remove("is-editing")
   }
 
   submitOnEnter(event) {

@@ -1,9 +1,0 @@
-[     264ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/esm/types/options:0
-[     264ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/esm/l10n/default:0
-[     264ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/esm/utils:0
-[     264ms] [ERROR] Failed to register controller: datepicker (controllers/datepicker_controller) TypeError: Failed to fetch dynamically imported module: http://localhost:3000/assets/controllers/datepicker_controller-6ce3612b.js @ http://localhost:3000/assets/stimulus-loading-1fc53fe7.js:25
-[     265ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/esm/utils/dom:0
-[     265ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/esm/utils/dates:0
-[     265ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/esm/utils/formatting:0
-[     265ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/esm/utils/polyfills:0
-[     297ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:3000/:0

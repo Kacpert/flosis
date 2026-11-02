@@ -1,0 +1,8 @@
+<div class="contents" data-designs-setup-form-row>
+  <% if role %><input type="hidden" name="contexts[<%= index %>][id]" value="<%= role.id %>"><% end %>
+  <input name="contexts[<%= index %>][name]" value="<%= role&.name %>" placeholder="e.g. Hiring manager" class="clar-input">
+  <input name="contexts[<%= index %>][url]" value="<%= role&.login_url %>" placeholder="https://staging.example.com/login" class="clar-input">
+  <input name="contexts[<%= index %>][login]" value="<%= role&.username %>" placeholder="name@staging.test" class="clar-input">
+  <input type="password" name="contexts[<%= index %>][password]" autocomplete="new-password" placeholder="<%= role ? '••••••••' : 'Password' %>" class="clar-input">
+  <button type="button" class="clar-btn !p-0 w-[34px] h-[34px] justify-center" title="Remove context" data-action="designs-setup-form#remove"><%= designs_icon(:close, 14) %></button>
+</div>

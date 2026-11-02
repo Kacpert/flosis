@@ -1,85 +1,146 @@
-<div class="space-y-4">
+<div class="space-y-4" data-controller="timesheet-expand">
+  <% user_param = @viewed_user && @viewed_user != current_user ? { user_id: @viewed_user.id } : {} %>
   <div class="flex justify-between items-center">
-    <h1 class="text-2xl font-bold">Timesheet</h1>
+    <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Timesheet</h1>
+    <div class="flex items-center gap-3">
+      <% if @users.any? %>
+        <%= form_with url: timesheet_path, method: :get, class: "flex items-center gap-2" do |f| %>
+          <%= f.hidden_field :week_of, value: @week_start %>
+          <%= f.select :user_id, @users.map { |u| [u.name, u.id] },
+              { selected: @viewed_user.id }, class: "m3-text-field text-sm", onchange: "this.form.requestSubmit()" %>
+        <% end %>
+      <% end %>
+      <div class="inline-flex rounded-full p-0.5" style="background: var(--color-surface-variant)">
+        <%= link_to timesheet_path(week_of: @week_start, **user_param), class: "px-4 py-1.5 rounded-full text-sm font-medium transition-colors", style: "background: var(--color-primary-container); color: var(--color-on-primary-container)" do %>
+          Week
+        <% end %>
+        <%= link_to month_timesheet_path(month: @week_start.strftime("%Y-%m"), **user_param), class: "px-4 py-1.5 rounded-full text-sm font-medium transition-colors", style: "color: var(--color-on-surface-variant)" do %>
+          Month
+        <% end %>
+      </div>
+    </div>
   </div>
 
   <!-- Week navigation -->
   <div class="flex items-center justify-between">
-    <%= link_to timesheet_path(week_of: (@week_start - 7.days)), class: "btn btn-ghost btn-sm" do %>
+    <%= link_to timesheet_path(week_of: (@week_start - 7.days), **user_param), class: "m3-btn m3-btn-text m3-btn-sm" do %>
       &larr; Previous
     <% end %>
-    <span class="font-medium">
+    <span class="font-medium" style="color: var(--color-on-surface)">
       <%= @week_start.strftime("%b %d") %> - <%= (@week_start + 6.days).strftime("%b %d, %Y") %>
+      <% if @viewed_user != current_user %>
+        <span class="text-sm font-normal" style="color: var(--color-on-surface-variant)">— <%= @viewed_user.name %></span>
+      <% end %>
     </span>
-    <%= link_to timesheet_path(week_of: (@week_start + 7.days)), class: "btn btn-ghost btn-sm" do %>
-      Next &rarr;
+    <% if @week_start < Date.current.beginning_of_week(:monday) %>
+      <%= link_to timesheet_path(week_of: (@week_start + 7.days), **user_param), class: "m3-btn m3-btn-text m3-btn-sm" do %>
+        Next &rarr;
+      <% end %>
+    <% else %>
+      <span class="m3-btn m3-btn-text m3-btn-sm invisible">Next &rarr;</span>
     <% end %>
   </div>
 
-  <div class="card bg-base-100 shadow overflow-x-auto">
-    <table class="table table-sm">
+  <div class="m3-card-outlined overflow-x-auto">
+    <table class="m3-table">
       <thead>
         <tr>
           <th class="min-w-[200px]">Project / Task</th>
           <% @week_days.each do |day| %>
-            <th class="text-center min-w-[80px] <%= day == Date.current ? 'bg-primary/10' : '' %>">
+            <th class="text-center min-w-[80px]" style="<%= day == Date.current ? 'background: rgba(74, 103, 65, 0.08)' : '' %>">
               <div><%= day.strftime("%a") %></div>
-              <div class="text-xs"><%= day.strftime("%d") %></div>
+              <div class="text-xs" style="color: var(--color-on-surface-variant)"><%= day.strftime("%d") %></div>
             </th>
           <% end %>
           <th class="text-center">Total</th>
         </tr>
       </thead>
       <tbody>
-        <% @projects.each do |project| %>
-          <% project_tasks = project.tasks.active %>
-          <% rows = project_tasks.any? ? project_tasks : [nil] %>
-          <% rows.each do |task| %>
-            <% key = [project.id, task&.id] %>
+        <% @rows.each_with_index do |row, idx| %>
+            <% project = row[:project] %>
+            <% task = row[:task] %>
+            <% key = row[:key] %>
             <% row_total = @week_days.sum { |d| @grid.dig(key, d) || 0 } %>
-            <tr>
+            <% details = @entry_details[key] || [] %>
+            <% auto_expand = @rows.size == 1 %>
+            <tr class="cursor-pointer hover:opacity-80"
+                data-action="click->timesheet-expand#toggle"
+                data-timesheet-expand-target="row"
+                data-row-index="<%= idx %>">
               <td>
                 <div class="flex items-center gap-2">
+                  <span data-timesheet-expand-target="arrow" data-row-index="<%= idx %>"
+                        class="text-xs transition-transform duration-200 <%= auto_expand ? 'rotate-90' : '' %>"
+                        style="color: var(--color-on-surface-variant)">&#9654;</span>
                   <%= project_color_dot(project.color) %>
                   <div>
-                    <div class="font-medium text-sm"><%= project.name %></div>
+                    <div class="font-medium text-sm" style="color: var(--color-on-surface)"><%= project.name %></div>
                     <% if task %>
-                      <div class="text-xs text-base-content/60"><%= task.name %></div>
+                      <div class="text-xs" style="color: var(--color-on-surface-variant)"><%= task.name %></div>
                     <% end %>
                   </div>
                 </div>
               </td>
               <% @week_days.each do |day| %>
                 <% seconds = @grid.dig(key, day) || 0 %>
-                <td class="text-center <%= day == Date.current ? 'bg-primary/10' : '' %>">
+                <td class="text-center" style="<%= day == Date.current ? 'background: rgba(74, 103, 65, 0.08)' : '' %>"
+                    data-action="click->timesheet-expand#stopPropagation">
                   <%= form_with url: update_cell_timesheet_path, method: :patch, class: "inline" do |f| %>
                     <%= f.hidden_field :project_id, value: project.id %>
                     <%= f.hidden_field :task_id, value: task&.id %>
                     <%= f.hidden_field :date, value: day %>
                     <%= f.text_field :duration, value: seconds > 0 ? format("%d:%02d", seconds / 3600, (seconds % 3600) / 60) : "",
-                        class: "input input-bordered input-xs w-16 text-center",
+                        class: "m3-text-field w-16 text-center text-xs",
                         placeholder: "0:00",
                         data: { action: "blur->timesheet#submit" } %>
                   <% end %>
                 </td>
               <% end %>
-              <td class="text-center font-mono font-bold text-sm">
+              <td class="text-center font-mono font-bold text-sm" style="color: var(--color-on-surface)">
                 <%= row_total > 0 ? format("%d:%02d", row_total / 3600, (row_total % 3600) / 60) : "" %>
               </td>
             </tr>
-          <% end %>
+            <!-- Expanded detail rows -->
+            <tr data-timesheet-expand-target="detail" data-row-index="<%= idx %>"
+                class="<%= auto_expand ? '' : 'hidden' %>">
+              <td colspan="<%= @week_days.size + 2 %>" class="!pt-0 !pb-3 !px-4">
+                <div class="ml-6 border-l-2 pl-3 space-y-2" style="border-color: <%= project.color %>">
+                  <% details.sort_by(&:started_at).each do |entry| %>
+                    <div class="flex items-start gap-3 py-1">
+                      <div class="text-xs font-mono whitespace-nowrap" style="color: var(--color-on-surface-variant)">
+                        <%= entry.started_at.strftime("%a %d") %>
+                      </div>
+                      <div class="text-xs font-mono whitespace-nowrap" style="color: var(--color-on-surface-variant)">
+                        <%= entry.started_at.strftime("%H:%M") %>-<%= entry.stopped_at.strftime("%H:%M") %>
+                      </div>
+                      <div class="text-xs font-mono whitespace-nowrap" style="color: var(--color-on-surface)">
+                        <%= format("%d:%02d", entry.duration_seconds / 3600, (entry.duration_seconds % 3600) / 60) %>
+                      </div>
+                      <% if entry.description.present? %>
+                        <div class="text-xs" style="color: var(--color-on-surface-variant)">
+                          <%= entry.description %>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                  <% if details.empty? %>
+                    <div class="text-xs py-1" style="color: var(--color-on-surface-variant)">No entries</div>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
         <% end %>
       </tbody>
       <tfoot>
         <tr class="font-bold">
-          <td>Total</td>
+          <td style="color: var(--color-on-surface)">Total</td>
           <% @week_days.each do |day| %>
-            <td class="text-center font-mono <%= day == Date.current ? 'bg-primary/10' : '' %>">
+            <td class="text-center font-mono" style="color: var(--color-on-surface); <%= day == Date.current ? 'background: rgba(74, 103, 65, 0.08)' : '' %>">
               <% total = @day_totals[day] || 0 %>
               <%= total > 0 ? format("%d:%02d", total / 3600, (total % 3600) / 60) : "" %>
             </td>
           <% end %>
-          <td class="text-center font-mono">
+          <td class="text-center font-mono" style="color: var(--color-on-surface)">
             <% grand_total = @day_totals.values.sum %>
             <%= grand_total > 0 ? format("%d:%02d", grand_total / 3600, (grand_total % 3600) / 60) : "0:00" %>
           </td>
@@ -88,10 +149,9 @@
     </table>
   </div>
 
-  <% if @projects.empty? %>
-    <div class="text-center py-8 text-base-content/50">
-      <p>Create some projects first to use the timesheet.</p>
-      <%= link_to "Create Project", new_project_path, class: "btn btn-primary btn-sm mt-2" %>
+  <% if @rows.empty? %>
+    <div class="text-center py-8" style="color: var(--color-on-surface-variant)">
+      <p>No time entries for this week. Track time from the Time Entries page.</p>
     </div>
   <% end %>
 </div>

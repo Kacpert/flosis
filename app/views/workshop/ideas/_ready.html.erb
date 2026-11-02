@@ -1,0 +1,105 @@
+<%# Ready screen (Task 5.4) — success layout for the last workshop stage.
+    Full-width, NOT the chat+document two-panel grid used by briefing/details
+    (see show.html.erb). Copy is verbatim from the mockup (redesign.html
+    ~line 944-980): success headline, summary card (AI actions / AI
+    estimation / Designs / Versions saved), "AI prepared a branch" card
+    (informational only — no server-side git operation happens here, see
+    Task#suggested_branch), and Push to Jira / Back to pipeline actions.
+
+    Summary ivars are loaded by IdeasController#load_ready_summary:
+      @detail_pushed      - true once the current detail draft's pushed_at is set
+                            (JiraWriter#commit_detail stamps this on success)
+      @ai_actions         - "Detailed" / "Briefed" / "—"
+      @ai_estimate_points - latest breakdown's total_points (nil -> "—"); see
+                            Task#latest_breakdown_total_points. ai_estimate_points
+                            the column doesn't exist yet (Phase 6).
+      @versions_saved     - briefs.count + ai-source task_drafts.count
+      @show_push_to_jira  - not pushed AND brief not briefed %>
+<%
+  dr = idea.design_request
+  design_copy = if dr&.delivered?
+    pluralize(dr.links.size, "link") + " in description"
+  elsif dr&.requested?
+    "Requested · pending"
+  else
+    "None"
+  end
+  branch = idea.suggested_branch
+%>
+<div class="flex-1 overflow-y-auto px-10 py-10 flex justify-center items-start">
+  <div class="w-full max-w-[620px] text-center">
+    <div class="w-[62px] h-[62px] rounded-full bg-[var(--success)] flex items-center justify-center mx-auto mb-5 text-white">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+    </div>
+    <h2 class="m-0 text-[22px] font-bold clar-text-text">Ready for the team</h2>
+    <p class="mt-2.5 mb-6 clar-text-muted text-sm leading-[1.5]">
+      <% if @detail_pushed %>
+        The description is in Jira. AI has estimated it and prepared a branch &mdash; a developer can start straight away.
+      <% else %>
+        The description is saved locally. AI has estimated it and prepared a branch &mdash; push to Jira whenever you like.
+      <% end %>
+    </p>
+
+    <div class="clar-card p-1.5 text-left">
+      <div class="flex items-center gap-2.5 px-4 py-3.5 border-b clar-divider">
+        <% if idea.external_reference.present? %>
+          <span class="clar-key"><%= idea.external_reference %></span>
+        <% end %>
+        <span class="font-semibold text-sm clar-text-text flex-1"><%= idea.name %></span>
+        <span class="clar-badge <%= @detail_pushed ? "clar-badge-primary" : "clar-badge-warn" %>">
+          <%= @detail_pushed ? "IN JIRA" : "LOCAL" %>
+        </span>
+      </div>
+      <div class="grid grid-cols-2 gap-px bg-[var(--border)]">
+        <div class="bg-[var(--surface)] px-4 py-3.5">
+          <div class="text-[11px] clar-text-faint mb-0.5">AI actions</div>
+          <div class="font-semibold text-[13px] clar-text-success"><%= @ai_actions %></div>
+        </div>
+        <div class="bg-[var(--surface)] px-4 py-3.5">
+          <div class="text-[11px] clar-text-faint mb-0.5">AI estimation <span class="font-semibold clar-text-ai">&middot; auto</span></div>
+          <div class="font-semibold text-[13px] clar-text-text">
+            <%= @ai_estimate_points.present? ? "#{@ai_estimate_points} pts" : "—" %>
+          </div>
+        </div>
+        <div class="bg-[var(--surface)] px-4 py-3.5">
+          <div class="text-[11px] clar-text-faint mb-0.5">Designs</div>
+          <div class="font-semibold text-[13px] clar-text-text"><%= design_copy %></div>
+        </div>
+        <div class="bg-[var(--surface)] px-4 py-3.5">
+          <div class="text-[11px] clar-text-faint mb-0.5">Versions saved</div>
+          <div class="font-semibold text-[13px] clar-text-text"><%= @versions_saved %></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-[var(--ai-soft)] border clar-divider rounded-[14px] p-4 text-left mt-3.5" data-controller="clar-copy" data-clar-copy-value="git checkout <%= branch %>">
+      <div class="flex items-center gap-2 mb-2.5">
+        <span class="clar-text-ai flex">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v12M18 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a9 9 0 0 0 9-9"/></svg>
+        </span>
+        <span class="text-[12.5px] font-bold clar-text-text">AI prepared a branch</span>
+        <span class="clar-badge clar-badge-success">READY</span>
+      </div>
+      <div class="flex items-center gap-2.5">
+        <code class="clar-mono flex-1 text-xs clar-text-text bg-[var(--surface)] border clar-divider rounded-lg px-2.5 py-2 overflow-hidden text-ellipsis whitespace-nowrap"><%= branch %></code>
+        <button type="button" class="clar-btn flex-none !text-xs" data-action="clar-copy#copy">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy
+        </button>
+      </div>
+      <div class="text-[11.5px] clar-text-muted leading-[1.5] mt-2">The task description is committed to the branch. A developer checks it out and starts the task with AI &mdash; no setup.</div>
+    </div>
+
+    <div class="flex gap-2.5 justify-center mt-6">
+      <% if @show_push_to_jira %>
+        <%= button_to push_jira_workshop_idea_path(idea), method: :post, class: "clar-btn clar-btn-primary" do %>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+          Push to Jira
+        <% end %>
+      <% end %>
+      <%= link_to workshop_pipeline_path, class: "clar-btn" do %>
+        Back to pipeline
+      <% end %>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,79 @@
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="manage-discord"
+     data-action="click->clar-modal#close">
+  <div class="clar-modal max-w-[520px] max-h-[88vh] overflow-y-auto" data-action="click->clar-modal#stopPropagation">
+    <div class="p-5 border-b border-[color:var(--border)] flex items-center gap-3.5">
+      <span class="w-10 h-10 rounded-[10px] bg-[var(--surface-2)] flex items-center justify-center clar-text-text flex-none">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </span>
+      <div class="flex-1">
+        <div class="font-bold text-[16px] clar-text-text">Discord</div>
+        <div class="inline-flex items-center gap-1.5 text-[11px] font-bold <%= webhooks.any? ? 'text-[color:var(--success)]' : 'clar-text-faint' %> mt-0.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-current"></span><%= webhooks.size %> webhooks
+        </div>
+      </div>
+      <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="p-5">
+      <div class="clar-field-label">WEBHOOKS</div>
+      <div class="flex flex-col gap-1.5 mb-3">
+        <% if webhooks.empty? %>
+          <div class="text-[12.5px] clar-text-faint">No webhooks configured yet.</div>
+        <% end %>
+        <% webhooks.each do |webhook| %>
+          <div class="flex items-center gap-2.5 bg-[var(--bg)] border border-[color:var(--border)] rounded-[9px] px-3 py-2.5">
+            <span class="clar-text-muted flex">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </span>
+            <span class="font-semibold text-[13px] clar-text-text flex-1"><%= webhook.channel_name %></span>
+            <%= button_to "Remove", workshop_discord_webhook_path(webhook), method: :delete,
+                  class: "text-[11.5px] font-semibold clar-text-faint bg-transparent border-0 cursor-pointer p-0",
+                  form: { data: { turbo_confirm: nil, turbo: false } } %>
+          </div>
+        <% end %>
+      </div>
+
+      <div class="mb-4" data-controller="clar-modal">
+        <button type="button" class="text-[12.5px] font-semibold clar-text-primary bg-transparent border-0 cursor-pointer p-0"
+                data-action="clar-modal#open" data-clar-modal-id-param="add-discord-webhook">+ Add webhook</button>
+
+        <div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="add-discord-webhook"
+             data-action="click->clar-modal#close">
+          <div class="clar-modal max-w-[420px] p-5" data-action="click->clar-modal#stopPropagation">
+            <h3 class="font-bold text-[15px] clar-text-text mb-3.5">Add webhook</h3>
+            <%= form_with model: DiscordWebhook.new, url: workshop_discord_webhooks_path, method: :post,
+                  data: { turbo: false } do |f| %>
+              <label class="clar-field-label">CHANNEL NAME</label>
+              <%= f.text_field :channel_name, value: nil, placeholder: "#dev-alerts", class: "clar-input mb-3.5" %>
+
+              <label class="clar-field-label">WEBHOOK URL</label>
+              <%= f.text_field :url, value: nil, placeholder: "https://discord.com/api/webhooks/...", class: "clar-input clar-mono mb-4" %>
+
+              <div class="flex gap-2.5 justify-end">
+                <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+                <%= f.submit "Add webhook", class: "clar-btn clar-btn-primary" %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <div class="clar-field-label">OTHER CHANNELS</div>
+      <div class="flex gap-2">
+        <% ["Slack", "Microsoft Teams"].each do |channel| %>
+          <div class="flex-1 flex items-center justify-between gap-2 bg-[var(--surface-2)] border border-dashed border-[color:var(--border)] rounded-[9px] px-3 py-2.5 text-[12.5px] clar-text-faint">
+            <%= channel %>
+            <span class="clar-badge clar-badge-muted">SOON</span>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="p-3.5 border-t border-[color:var(--border)] flex items-center justify-end gap-2.5">
+      <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+      <button type="button" class="clar-btn clar-btn-primary" data-action="clar-modal#close">Save changes</button>
+    </div>
+  </div>
+</div>

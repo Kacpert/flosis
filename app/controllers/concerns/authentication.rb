@@ -38,15 +38,28 @@ module Authentication
       session.delete(:return_to_after_authenticating) || root_url
     end
 
-    def start_new_session_for(user)
+    # `remember` false issues a browser-session cookie instead of a permanent
+    # one, so the login page's "Keep me signed in" switch actually does
+    # something. Defaults to true — every other caller (registration, password
+    # reset) wants the previous permanent behaviour.
+    def start_new_session_for(user, remember: true)
       user.sessions.create!(user_agent: request.user_agent, ip_address: request.remote_ip).tap do |session|
         Current.session = session
-        cookies.signed.permanent[:session_id] = { value: session.id, httponly: true, same_site: :lax }
+        options = { value: session.id, httponly: true, same_site: :lax }
+        if remember
+          cookies.signed.permanent[:session_id] = options
+        else
+          cookies.signed[:session_id] = options
+        end
       end
     end
 
     def terminate_session
       Current.session.destroy
       cookies.delete(:session_id)
+      # Clear any impersonation escape-hatch cookie too. Otherwise a logout while
+      # "viewing as" another user leaves the cookie set with no live session, and
+      # the layout's impersonation banner blows up on a nil current_user.
+      cookies.delete(:admin_session_id)
     end
 end

@@ -1,0 +1,22 @@
+kacper_initial_grant:
+  user: one
+  workspace: one
+  entry_type: 1
+  days: 15
+  note: "Initial balance for 2026"
+  created_by: one
+
+kacper_yearly_grant:
+  user: one
+  workspace: one
+  entry_type: 0
+  days: 20
+  note: "Annual holiday grant for 2026"
+
+other_user_grant:
+  user: two
+  workspace: one
+  entry_type: 1
+  days: 10
+  note: "Initial balance for Other User"
+  created_by: one

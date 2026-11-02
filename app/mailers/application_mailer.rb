@@ -1,4 +1,5 @@
 class ApplicationMailer < ActionMailer::Base
-  default from: "from@example.com"
+  # One sender name serves both products; "Clar" was the pre-rebrand name.
+  default from: "Flosis <support@rubyonsaas.com>"
   layout "mailer"
 end

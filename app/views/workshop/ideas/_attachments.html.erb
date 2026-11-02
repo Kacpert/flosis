@@ -1,0 +1,53 @@
+<%# Task attachments (images synced from the Jira issue), shown in the brief
+    document panel like they appear on the Jira ticket. Image thumbnails open in
+    a lightbox; other files download. Ported from jira_tasks/show.html.erb's
+    Attachments block, re-scoped for the Clar workspace panel. Takes `idea`. %>
+<% if idea.attachments.attached? %>
+  <div data-controller="lightbox" class="mt-1">
+    <div class="text-[11px] font-bold tracking-[.4px] clar-text-faint mb-2">
+      ATTACHMENTS <span class="clar-text-faint"><%= idea.attachments.count %></span>
+    </div>
+    <div class="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(110px,1fr))]">
+      <% idea.attachments.each do |att| %>
+        <% is_image = att.content_type.to_s.start_with?("image/") %>
+        <% url = rails_blob_path(att, disposition: "inline") %>
+        <% if is_image %>
+          <button type="button"
+                  class="block rounded-lg overflow-hidden text-left bg-[color:var(--surface-2)] border clar-divider cursor-zoom-in"
+                  data-action="click->lightbox#open"
+                  data-lightbox-src-param="<%= url %>"
+                  data-lightbox-caption-param="<%= att.filename %>">
+            <div class="aspect-square overflow-hidden bg-[color:var(--surface-2)]">
+              <img src="<%= url %>" alt="<%= att.filename %>" class="w-full h-full object-cover" loading="lazy">
+            </div>
+            <div class="px-1.5 py-1 text-[10.5px] truncate clar-text-muted"><%= att.filename %></div>
+          </button>
+        <% else %>
+          <a href="<%= url %>" target="_blank" rel="noopener"
+             class="block rounded-lg overflow-hidden bg-[color:var(--surface-2)] border clar-divider">
+            <div class="flex items-center justify-center aspect-square bg-[color:var(--surface-2)]">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="clar-text-faint"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+            </div>
+            <div class="px-1.5 py-1 text-[10.5px] truncate clar-text-muted"><%= att.filename %></div>
+          </a>
+        <% end %>
+      <% end %>
+    </div>
+
+    <%# Lightbox overlay %>
+    <div data-lightbox-target="overlay"
+         data-action="click->lightbox#close keydown@window->lightbox#handleKeydown"
+         class="fixed inset-0 bg-black/85 z-[1000] items-center justify-center p-8 cursor-zoom-out"
+         style="display: none;">
+      <div class="relative max-w-[95vw] max-h-[95vh] flex flex-col items-center gap-3"
+           data-action="click->lightbox#stopPropagation">
+        <img data-lightbox-target="image" class="max-w-[95vw] max-h-[85vh] object-contain rounded-md">
+        <div data-lightbox-target="caption" class="text-white text-sm"></div>
+      </div>
+      <button type="button" data-action="click->lightbox#close" aria-label="Close"
+              class="absolute top-4 right-4 bg-white/15 text-white border-none rounded-full w-9 h-9 flex items-center justify-center cursor-pointer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+<% end %>

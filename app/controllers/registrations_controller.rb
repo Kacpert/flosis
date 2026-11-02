@@ -1,4 +1,5 @@
 class RegistrationsController < ApplicationController
+  layout "auth"
   allow_unauthenticated_access only: %i[new create]
 
   def new
@@ -11,11 +12,11 @@ class RegistrationsController < ApplicationController
     ActiveRecord::Base.transaction do
       @user.save!
       workspace = Workspace.create!(name: "#{@user.name}'s Workspace")
-      workspace.workspace_memberships.create!(user: @user, role: :owner)
+      workspace.workspace_memberships.create!(user: @user, workspace_admin: true)
     end
 
     start_new_session_for @user
-    redirect_to root_path, notice: "Welcome to Gold!"
+    redirect_to root_path, notice: "Welcome to Clar!"
   rescue ActiveRecord::RecordInvalid
     render :new, status: :unprocessable_entity
   end

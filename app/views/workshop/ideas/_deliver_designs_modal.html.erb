@@ -1,0 +1,53 @@
+<%# "Mark delivered" inline form (Task 5.3) — paste Figma link rows (name +
+    url). A blank name auto-fills as "Figma frame {n}" server-side
+    (Workshop::DesignRequestsController#normalize_links); a blank url drops
+    the row entirely — that's how "remove a link" round-trips through this
+    same form when reopened with existing rows pre-filled. Starts with 3 rows
+    plus an "Add another link" control (clar-link-rows) for more. %>
+<%
+  existing_rows = design_request&.links.presence || []
+  min_rows = 3
+  row_count = [existing_rows.size + 1, min_rows].max
+%>
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="deliver-designs" data-action="click->clar-modal#close">
+  <div class="clar-modal p-5.5 max-w-[480px]" data-action="click->clar-modal#stopPropagation">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="text-lg font-bold clar-text-text m-0">Mark designs delivered</h2>
+      <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <p class="text-[13px] leading-normal clar-text-muted mb-4">
+      Paste the Figma links for <b class="clar-text-text"><%= idea.name %></b>. Leave the name blank to auto-name it &ldquo;Figma frame {n}&rdquo;. These get added to the Jira description.
+    </p>
+
+    <%= form_with url: workshop_idea_design_request_path(idea), method: :patch,
+                  class: "space-y-0", data: { controller: "clar-link-rows", turbo: false } do |f| %>
+      <%= hidden_field_tag "kind", "deliver" %>
+
+      <div class="flex flex-col gap-2 mb-3" data-clar-link-rows-target="list">
+        <% row_count.times do |i| %>
+          <%
+            existing = existing_rows[i]
+          %>
+          <div class="flex gap-2 items-start" data-clar-link-rows-target="row">
+            <%= text_field_tag "design_request[links][][name]", existing&.dig("name"),
+                  placeholder: "Name (optional)", class: "clar-input flex-1" %>
+            <%= text_field_tag "design_request[links][][url]", existing&.dig("url"),
+                  placeholder: "https://figma.com/…", class: "clar-input clar-mono flex-[2]" %>
+          </div>
+        <% end %>
+      </div>
+
+      <button type="button" class="clar-btn !text-[12.5px] !py-[7px] !px-3 mb-4" data-action="click->clar-link-rows#addRow" data-clar-link-rows-template-name="" data-clar-link-rows-template-url="">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Add another link
+      </button>
+
+      <div class="flex gap-2.5 justify-end">
+        <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+        <%= f.submit "Save & sync to Jira", class: "clar-btn clar-btn-primary" %>
+      </div>
+    <% end %>
+  </div>
+</div>

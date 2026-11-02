@@ -1,0 +1,47 @@
+<div class="max-w-lg mx-auto space-y-6">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold" style="color: var(--color-on-surface)">Add Team Member</h1>
+    <%= link_to "Back", workspace_members_path, class: "m3-btn m3-btn-text" %>
+  </div>
+
+  <%= form_with url: workspace_members_path, method: :post, class: "space-y-6" do |f| %>
+    <div class="m3-card-elevated p-6 space-y-4">
+      <div class="space-y-1">
+        <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Name</label>
+        <%= f.text_field :name, class: "m3-text-field w-full", required: true, placeholder: "Full name" %>
+      </div>
+
+      <div class="space-y-1">
+        <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Email</label>
+        <%= f.email_field :email_address, class: "m3-text-field w-full", required: true, placeholder: "email@example.com" %>
+        <p class="text-xs" style="color: var(--color-outline)">New users will receive an invitation email to set their password. Existing users will be notified they've been added.</p>
+      </div>
+
+      <div class="space-y-2 pt-4" style="border-top: 1px solid var(--color-outline-variant)">
+        <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Access</label>
+        <p class="text-xs" style="color: var(--color-outline)">
+          What this person may do inside a project is set in that project, under Configuration &rsaquo; Users.
+        </p>
+
+        <input type="hidden" name="time_hr_access" value="0">
+        <label class="flex items-center justify-between gap-4 cursor-pointer">
+          <span class="text-sm" style="color: var(--color-on-surface)">Time &amp; HR</span>
+          <input type="checkbox" name="time_hr_access" value="1" class="m3-checkbox" checked>
+        </label>
+
+        <input type="hidden" name="workspace_admin" value="0">
+        <label class="flex items-center justify-between gap-4 cursor-pointer">
+          <span class="text-sm" style="color: var(--color-on-surface)">Workspace administrator</span>
+          <input type="checkbox" name="workspace_admin" value="1" class="m3-checkbox">
+        </label>
+        <p class="text-xs" style="color: var(--color-outline)">
+          An administrator creates projects, runs Time &amp; HR, and holds every permission in every project.
+        </p>
+      </div>
+    </div>
+
+    <div class="flex gap-2">
+      <%= f.submit "Add Member", class: "m3-btn m3-btn-filled" %>
+    </div>
+  <% end %>
+</div>

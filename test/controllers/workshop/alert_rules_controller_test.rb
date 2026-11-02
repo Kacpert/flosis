@@ -1,0 +1,388 @@
+require "test_helper"
+
+class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
+  setup do
+    @workspace = workspaces(:one)
+    @workspace.update!(workshop_enabled: true)
+    @project = projects(:jira_project)
+    @webhook = DiscordWebhook.create!(workspace: @workspace, project: @project, channel_name: "#dev-alerts", url: "https://discord.com/api/webhooks/1/abc")
+    sign_in_as(users(:one)) # admin/owner
+    post switch_product_path, params: { product: "workshop" }
+    post switch_workshop_project_path, params: { project_id: @project.id }
+  end
+
+  test "create saves a new alert rule scoped to the current workshop project and toasts" do
+    assert_difference -> { AlertRule.count }, 1 do
+      post workshop_alert_rules_path, params: {
+        alert_rule: {
+          name: "QA backlog watch", prompt: "If more than 4 tasks are in QA > 3 days, notify.",
+          frequency: "daily", run_at_time: "13:00", discord_webhook_id: @webhook.id
+        }
+      }
+    end
+
+    rule = AlertRule.last
+    assert_equal @project, rule.project
+    assert_equal @workspace, rule.workspace
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_match(/Alert rule created/, flash[:clar_toast])
+    assert_match(/QA backlog watch/, flash[:clar_toast])
+  end
+
+  test "create with missing required fields does not save and sets an alert" do
+    assert_no_difference -> { AlertRule.count } do
+      post workshop_alert_rules_path, params: { alert_rule: { name: "", prompt: "", frequency: "daily" } }
+    end
+
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_not_nil flash[:alert]
+  end
+
+  test "create rejects a discord_webhook from another workspace (cross-tenant guard)" do
+    # A webhook that belongs to a DIFFERENT workspace must not be attachable —
+    # otherwise a rule could post alerts into another workspace's Discord channel.
+    foreign_webhook = DiscordWebhook.create!(workspace: workspaces(:two), channel_name: "#other",
+                                             url: "https://discord.com/api/webhooks/2/def")
+
+    assert_no_difference -> { AlertRule.count } do
+      post workshop_alert_rules_path, params: {
+        alert_rule: {
+          name: "Sneaky rule", prompt: "watch something",
+          frequency: "daily", run_at_time: "13:00", discord_webhook_id: foreign_webhook.id
+        }
+      }
+    end
+
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_not_nil flash[:alert]
+  end
+
+  test "create rejects a discord_webhook from another project in the same workspace" do
+    # Webhooks are per project (Task 12). A rule holding another project's
+    # webhook renders a dropdown without its own current value, and the next
+    # save of that form silently blanks the channel it was posting to.
+    other_webhook = DiscordWebhook.create!(workspace: @workspace, project: projects(:plain_project),
+                                           channel_name: "#internal", url: "https://discord.com/api/webhooks/3/ghi")
+
+    assert_no_difference -> { AlertRule.count } do
+      post workshop_alert_rules_path, params: {
+        alert_rule: {
+          name: "Cross-project rule", prompt: "watch something",
+          frequency: "daily", run_at_time: "13:00", discord_webhook_id: other_webhook.id
+        }
+      }
+    end
+
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_not_nil flash[:alert]
+  end
+
+  test "update ignores a discord_webhook from another project (keeps the current one)" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "R1", prompt: "p", frequency: "daily", run_at_time: "09:00", notify_enabled: true)
+    other_webhook = DiscordWebhook.create!(workspace: @workspace, project: projects(:plain_project),
+                                           channel_name: "#internal", url: "https://discord.com/api/webhooks/3/ghi")
+
+    patch workshop_alert_rule_path(rule), params: {
+      alert_rule: { name: "R2", prompt: "p", frequency: "daily", run_at_time: "09:00", discord_webhook_id: other_webhook.id }
+    }
+
+    assert_equal @webhook, rule.reload.discord_webhook, "must not reassign to another project's webhook"
+  end
+
+  test "update changes the rule's fields and toasts" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "Old name", prompt: "old prompt", frequency: "daily", run_at_time: "09:00")
+
+    # The schedule builder posts schedule_mode/schedule_days, not frequency —
+    # AlertRule derives the legacy frequency column from them.
+    patch workshop_alert_rule_path(rule), params: {
+      alert_rule: { name: "New name", prompt: "new prompt",
+                    schedule_mode: "days", schedule_days: "Mon",
+                    run_at_time: "15:30", discord_webhook_id: @webhook.id }
+    }
+
+    rule.reload
+    assert_equal "New name", rule.name
+    assert_equal "new prompt", rule.prompt
+    assert_equal "days", rule.schedule_mode
+    assert_equal [ "Mon" ], rule.days
+    assert_equal "15:30", rule.run_at_time
+    assert_equal "Mon · 15:30", rule.schedule_label
+    assert_equal "weekly", rule.frequency, "legacy frequency mirror stays in sync"
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_match(/updated/, flash[:clar_toast])
+  end
+
+  test "update with a blank name fails and keeps the rule unchanged" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "Keep me", prompt: "p", frequency: "daily", run_at_time: "09:00")
+
+    patch workshop_alert_rule_path(rule), params: { alert_rule: { name: "", prompt: "p", frequency: "daily", run_at_time: "09:00" } }
+
+    assert_equal "Keep me", rule.reload.name
+    assert_not_nil flash[:alert]
+  end
+
+  test "update ignores a discord_webhook from another workspace (keeps the current one)" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "R", prompt: "p", frequency: "daily", run_at_time: "09:00")
+    foreign = DiscordWebhook.create!(workspace: workspaces(:two), channel_name: "#other",
+                                     url: "https://discord.com/api/webhooks/9/xyz")
+
+    patch workshop_alert_rule_path(rule), params: {
+      alert_rule: { name: "R2", prompt: "p", frequency: "daily", run_at_time: "09:00", discord_webhook_id: foreign.id }
+    }
+
+    assert_equal @webhook, rule.reload.discord_webhook, "must not reassign to a foreign workspace's webhook"
+    assert_equal "R2", rule.name
+  end
+
+  test "update is scope-safe (404s for a rule outside the current workshop project)" do
+    # A rule on a DIFFERENT project than the selected workshop project must not
+    # be editable through this session's scope.
+    other_project = projects(:other_jira_project)
+    other_rule = AlertRule.create!(workspace: @workspace, project: other_project, discord_webhook: @webhook,
+      name: "Foreign", prompt: "p", frequency: "daily", run_at_time: "09:00")
+
+    patch workshop_alert_rule_path(other_rule), params: { alert_rule: { name: "hax" } }
+
+    assert_response :not_found
+    assert_equal "Foreign", other_rule.reload.name
+  end
+
+  test "destroy removes the rule" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "Stale PR reminder", prompt: "If a PR has no activity for 2 days, remind.",
+      frequency: "daily", run_at_time: "17:30")
+
+    assert_difference -> { AlertRule.count }, -1 do
+      delete workshop_alert_rule_path(rule)
+    end
+
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_match(/removed/, flash[:clar_toast])
+  end
+
+  test "destroy is scope-safe (404s for a rule outside the current workshop project)" do
+    other_project = projects(:other_jira_project)
+    rule = AlertRule.create!(workspace: @workspace, project: other_project, discord_webhook: @webhook,
+      name: "Other project rule", prompt: "Watch something else.",
+      frequency: "daily", run_at_time: "09:00")
+
+    delete workshop_alert_rule_path(rule)
+
+    assert_response :not_found
+    assert AlertRule.exists?(rule.id)
+  end
+
+  test "toggle_active pauses an active rule and resumes it again" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "QA column watch", prompt: "Watch the QA column.",
+      frequency: "daily", run_at_time: "09:00")
+    assert rule.active?
+
+    patch toggle_active_workshop_alert_rule_path(rule)
+
+    assert_not rule.reload.active?
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_match(/paused/, flash[:clar_toast])
+    assert_match(/QA column watch/, flash[:clar_toast])
+
+    patch toggle_active_workshop_alert_rule_path(rule)
+
+    assert rule.reload.active?
+    assert_match(/resumed/, flash[:clar_toast])
+  end
+
+  test "a paused rule keeps its prompt, schedule and memory" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "QA column watch", prompt: "Watch the QA column.",
+      frequency: "weekdays", run_at_time: "09:00")
+    rule.store_memory("seen: PROJ-1")
+
+    patch toggle_active_workshop_alert_rule_path(rule)
+    rule.reload
+
+    assert_not rule.active?
+    assert_equal "Watch the QA column.", rule.prompt
+    assert_equal "weekdays", rule.frequency
+    assert_equal "seen: PROJ-1", rule.memory_text
+  end
+
+  test "toggle_active is scope-safe (404s for a rule outside the current workshop project)" do
+    rule = AlertRule.create!(workspace: @workspace, project: projects(:other_jira_project),
+      discord_webhook: @webhook, name: "Other project rule", prompt: "Watch something else.",
+      frequency: "daily", run_at_time: "09:00")
+
+    patch toggle_active_workshop_alert_rule_path(rule)
+
+    assert_response :not_found
+    assert rule.reload.active?
+  end
+
+  test "run_now enqueues a run of the rule straight away and toasts" do
+    rule = create_rule("Sprint capacity watch")
+
+    assert_enqueued_with(job: AlertRuleRunJob, args: [ rule.id ]) do
+      post run_now_workshop_alert_rule_path(rule)
+    end
+
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_response :see_other
+    assert_match(/Run started/, flash[:clar_toast])
+    assert_match(/Sprint capacity watch/, flash[:clar_toast])
+  end
+
+  # Running a paused rule by hand is how you try it out before resuming it.
+  test "run_now also runs a paused rule, without resuming it" do
+    rule = create_rule("Paused watch")
+    rule.update_column(:active, false)
+
+    assert_enqueued_with(job: AlertRuleRunJob, args: [ rule.id ]) do
+      post run_now_workshop_alert_rule_path(rule)
+    end
+
+    assert_not rule.reload.active?
+  end
+
+  test "run_now is scope-safe (404s for a rule outside the current workshop project)" do
+    rule = AlertRule.create!(workspace: @workspace, project: projects(:other_jira_project),
+      discord_webhook: @webhook, name: "Other project rule", prompt: "Watch something else.",
+      frequency: "daily", run_at_time: "09:00")
+
+    assert_no_enqueued_jobs(only: AlertRuleRunJob) do
+      post run_now_workshop_alert_rule_path(rule)
+    end
+
+    assert_response :not_found
+  end
+
+  # The AI's problem report only changes when the automation next runs, so a
+  # problem you have already fixed kept the card's Memory button red for hours —
+  # and the only way to silence it was Clear memory, which threw away everything
+  # the automation had learned.
+  test "dismissing the reported issues keeps the memory" do
+    rule = create_rule("Noisy")
+    rule.store_memory("seen: PROJ-1")
+    rule.store_ai_issues("GitHub MCP token lost permissions this run.")
+
+    post clear_ai_issues_workshop_alert_rule_path(rule)
+
+    rule.reload
+    assert_equal "", rule.ai_issues_text
+    assert_equal "seen: PROJ-1", rule.memory_text, "the memory must survive"
+    assert_redirected_to workshop_process_path(tab: "alerts")
+    assert_match(/Reported issues cleared/, flash[:clar_toast])
+  end
+
+  test "clear_memory still wipes both" do
+    rule = create_rule("Noisy")
+    rule.store_memory("seen: PROJ-1")
+    rule.store_ai_issues("something broke")
+
+    post clear_memory_workshop_alert_rule_path(rule)
+
+    rule.reload
+    assert_equal "", rule.memory_text
+    assert_equal "", rule.ai_issues_text
+  end
+
+  # Both buttons live inside the lazy "memory" turbo-frame. Submitting into that
+  # frame made Turbo swap it for the redirect's copy of itself — the "Loading
+  # memory…" placeholder, which never loads because it is lazy inside a hidden
+  # modal — leaving the modal stuck until a full refresh.
+  test "the memory modal's buttons navigate the whole page, not the lazy frame" do
+    rule = create_rule("Noisy")
+    rule.store_ai_issues("something broke")
+
+    get memory_workshop_alert_rule_path(rule)
+
+    assert_response :success
+    assert_select "form[action=?][data-turbo-frame=?]",
+                  clear_ai_issues_workshop_alert_rule_path(rule), "_top"
+    assert_select "form[action=?][data-turbo-frame=?]",
+                  clear_memory_workshop_alert_rule_path(rule), "_top"
+  end
+
+  test "clear_ai_issues is scope-safe (404s for a rule outside the current workshop project)" do
+    rule = AlertRule.create!(workspace: @workspace, project: projects(:other_jira_project),
+                             discord_webhook: @webhook, name: "Other", prompt: "watch",
+                             frequency: "daily", run_at_time: "09:00")
+    rule.store_ai_issues("boom")
+
+    post clear_ai_issues_workshop_alert_rule_path(rule)
+
+    assert_response :not_found
+    assert_equal "boom", rule.reload.ai_issues_text
+  end
+
+  # ---- ordering -----------------------------------------------------------
+
+  test "reorder stores the order the cards were dragged into" do
+    a = create_rule("First")
+    b = create_rule("Second")
+    c = create_rule("Third")
+    assert_equal %w[First Second Third], @project.alert_rules.ordered.pluck(:name)
+
+    patch reorder_workshop_alert_rules_path, params: { ids: [ c.id, a.id, b.id ] }
+
+    assert_response :no_content
+    assert_equal %w[Third First Second], @project.alert_rules.ordered.pluck(:name)
+  end
+
+  test "a new rule goes to the end, not the top" do
+    create_rule("First")
+    create_rule("Second")
+
+    create_rule("Newest")
+
+    assert_equal %w[First Second Newest], @project.alert_rules.ordered.pluck(:name)
+  end
+
+  test "reorder ignores ids from another project (cross-project guard)" do
+    mine = create_rule("Mine")
+    theirs = AlertRule.create!(workspace: @workspace, project: projects(:other_jira_project),
+                               discord_webhook: @webhook, name: "Theirs", prompt: "watch",
+                               frequency: "daily", run_at_time: "09:00")
+    before = theirs.position
+
+    patch reorder_workshop_alert_rules_path, params: { ids: [ theirs.id, mine.id ] }
+
+    assert_response :no_content
+    assert_equal before, theirs.reload.position, "another project's rule must not be renumbered"
+    assert_equal 2, mine.reload.position, "ids are honoured positionally, foreign ones included"
+  end
+
+  test "history renders the run timeline with fired count" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "QA backlog watch", prompt: "Watch QA backlog.",
+      frequency: "daily", run_at_time: "13:00")
+    rule.alert_runs.create!(fired: true, summary: "2 tasks flagged", detail: "SP-1, SP-2 in QA", status: "ok", ran_at: 1.hour.ago)
+    rule.alert_runs.create!(fired: false, summary: "No condition met", status: "ok", ran_at: 2.hours.ago)
+
+    get history_workshop_alert_rule_path(rule)
+
+    assert_response :success
+    assert_match(/Fired 1 of 2 runs/, response.body)
+    assert_match(/2 tasks flagged/, response.body)
+    assert_match(/NOTIFIED/, response.body)
+    assert_match(/NO ACTION/, response.body)
+  end
+
+  test "history is scope-safe (404s for a rule outside the current workshop project)" do
+    other_project = projects(:other_jira_project)
+    rule = AlertRule.create!(workspace: @workspace, project: other_project, discord_webhook: @webhook,
+      name: "Other project rule", prompt: "Watch something else.",
+      frequency: "daily", run_at_time: "09:00")
+
+    get history_workshop_alert_rule_path(rule)
+
+    assert_response :not_found
+  end
+
+  def create_rule(name)
+    AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+                      name: name, prompt: "Watch something.", frequency: "daily", run_at_time: "09:00")
+  end
+end

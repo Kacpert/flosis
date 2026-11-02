@@ -1,0 +1,110 @@
+<% content_for :title, "Create Tasks · Flosis" %>
+
+<div class="flex items-start justify-between gap-3">
+  <div>
+    <h1 class="clar-h1">Create Tasks</h1>
+    <p class="clar-sub">Turn rough ideas and unclear tickets into implementation-ready Jira tasks. The AI reads the repo first, then helps you shape them.</p>
+  </div>
+  <%# The shortcut opens Configuration's Briefing tab, which costs
+      :briefing_config — the one tab a Product Owner holds. Asking for
+      :configuration hid it from exactly the people it is for. %>
+  <% if can?(:briefing_config) %>
+    <%= link_to workshop_configuration_path(tab: "briefing"),
+          title: "Briefing setup — personas & app feature list",
+          class: "clar-btn !text-[12px] !py-1.5 !px-3 flex-none whitespace-nowrap mt-1" do %>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="inline-block align-[-2px] mr-1"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Briefing setup
+    <% end %>
+  <% end %>
+</div>
+
+<%# Both entry cards + both modal panels share one clar-modal controller
+    scope: the "New idea" trigger has no id param and opens the first
+    (untagged) panel; "Existing Jira task" passes id param "jira-picker"
+    and opens the panel tagged data-clar-modal-panel-id-value="jira-picker". %>
+<%# Two-row grid per card: the icon spans both rows in column 1, title and
+    description stack in column 2. %>
+<div class="grid grid-cols-2 gap-3.5 mb-[30px]" data-controller="clar-modal">
+  <button type="button" class="clar-card clar-card-hover text-left w-full py-4 px-4.5 grid grid-cols-[34px_1fr] gap-x-3 gap-y-[5px] items-center"
+          data-action="clar-modal#open">
+    <span class="w-8.5 h-8.5 rounded-[9px] flex items-center justify-center row-span-2 clar-badge-primary">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+    </span>
+    <span class="font-semibold text-[14.5px] clar-text-text">New idea</span>
+    <span class="text-[12.5px] leading-[1.45] clar-text-muted">Name it first so it&rsquo;s saved &mdash; then talk it through anytime.</span>
+  </button>
+
+  <button type="button" class="clar-card clar-card-hover text-left w-full py-4 px-4.5 grid grid-cols-[34px_1fr] gap-x-3 gap-y-[5px] items-center"
+          data-action="clar-modal#open" data-clar-modal-id-param="jira-picker">
+    <span class="w-8.5 h-8.5 rounded-[9px] flex items-center justify-center row-span-2 clar-badge-primary">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+    </span>
+    <span class="font-semibold text-[14.5px] clar-text-text">Existing Jira task</span>
+    <span class="text-[12.5px] leading-[1.45] clar-text-muted">Browse your Jira boards &mdash; design, development, backlog &mdash; and pull a ticket in.</span>
+  </button>
+
+  <%= render "workshop/pipeline/new_idea_modal" %>
+  <%= render "workshop/pipeline/jira_browser_modal" %>
+</div>
+
+<div class="flex items-center justify-between gap-3.5 mb-3 flex-wrap">
+  <h2 class="clar-section-label">IN THE PIPELINE</h2>
+
+  <%= form_with url: workshop_pipeline_path, method: :get, data: { controller: "clar-pipeline-filter" }, class: "flex items-center gap-2 flex-wrap" do |f| %>
+    <%# Preserve the active stage/source chip filters across sort/search changes. %>
+    <% %i[stage source].each do |kept| %>
+      <%= hidden_field_tag kept, params[kept], id: nil if params[kept].present? %>
+    <% end %>
+    <%# Both controls sit on --surface here (not the --bg the modal inputs use),
+        at 12.5px with a 9px radius. %>
+    <div class="relative flex items-center">
+      <span class="absolute left-[9px] clar-text-faint pointer-events-none flex">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      </span>
+      <%= f.text_field :q, value: params[:q], placeholder: "Search tickets…",
+            class: "clar-input !text-[12.5px] !rounded-[9px] !py-2 !pl-[30px] !pr-[11px] !w-[200px] !bg-[color:var(--surface)]",
+            data: { clar_pipeline_filter_target: "search", action: "input->clar-pipeline-filter#debouncedSubmit" } %>
+    </div>
+    <%= f.select :sort, [
+          ["Newest first", "newest"],
+          ["Oldest first", "oldest"],
+          ["Pipeline stage", "stage"],
+          ["Title A–Z", "title"],
+        ], { selected: params[:sort] },
+        class: "clar-select !w-auto !text-[12.5px] !font-medium !rounded-[9px]",
+        style: "padding: 8px 28px 8px 10px; background-color: var(--surface); background-position: right 9px center;",
+        data: { action: "change->clar-pipeline-filter#submit" } %>
+  <% end %>
+</div>
+
+<div class="flex items-center gap-1.5 mb-3.5 flex-wrap">
+  <% [["all", "All"], ["new", "New"], ["briefing", "Briefing"], ["details", "Details"], ["ready", "Ready"]].each do |value, label| %>
+    <% active = params[:stage].presence == value || (value == "all" && params[:stage].blank?) %>
+    <% count = value == "all" ? @counts.values.sum : @counts.fetch(value, 0) %>
+    <%= link_to request.query_parameters.except(:stage).merge(value == "all" ? {} : { stage: value }),
+          class: "clar-chip #{active ? 'clar-chip-active' : ''}" do %>
+      <%= label %><span class="ml-1.5 opacity-70 font-bold"><%= count %></span>
+    <% end %>
+  <% end %>
+
+  <span class="w-px h-5 bg-[var(--border)] mx-1"></span>
+
+  <% [["all", "All sources"], ["jira", "In Jira"], ["local", "Local ideas"]].each do |value, label| %>
+    <% active = params[:source].presence == value || (value == "all" && params[:source].blank?) %>
+    <% count = @source_counts.fetch(value.to_sym, 0) %>
+    <%= link_to request.query_parameters.except(:source).merge(value == "all" ? {} : { source: value }),
+          class: "clar-chip #{active ? 'clar-chip-dark-active' : ''}" do %>
+      <%= label %><span class="ml-[3px] opacity-70 font-bold"><%= count %></span>
+    <% end %>
+  <% end %>
+</div>
+
+<div class="flex flex-col gap-2.5">
+  <% if @ideas.empty? %>
+    <div data-empty class="text-center clar-text-faint text-[13px] p-[34px] clar-dashed rounded-[12px]">
+      No tickets match your search or filter.
+    </div>
+  <% else %>
+    <%= render partial: "workshop/pipeline/idea_row", collection: @ideas, as: :idea %>
+  <% end %>
+</div>

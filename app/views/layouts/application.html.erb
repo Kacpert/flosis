@@ -1,10 +1,9 @@
 <!DOCTYPE html>
-<html data-theme="corporate">
+<html lang="en">
   <head>
-    <title><%= content_for(:title) || "Ros" %></title>
+    <title><%= content_for(:title) || "Clar" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="application-name" content="Ros">
+    <meta name="application-name" content="Clar">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
     <%= yield :head %>
@@ -12,244 +11,260 @@
     <link rel="icon" href="/icon.png" type="image/png">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icon.png">
-
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 
+    <script>
+      (function(){var t=localStorage.getItem("theme");if(t&&t!=="light"){document.documentElement.setAttribute("data-theme",t)}else if(!t&&window.matchMedia("(prefers-color-scheme:dark)").matches){document.documentElement.setAttribute("data-theme","dark")}})();
+    </script>
     <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
     <%= javascript_importmap_tags %>
   </head>
 
-  <body class="min-h-screen paper-bg" data-controller="keyboard-shortcuts">
+  <body class="min-h-screen" data-controller="keyboard-shortcuts">
+    <% if current_user && cookies.signed[:admin_session_id].present? %>
+      <div class="flex items-center justify-center gap-3 px-4 py-2" style="background: #B91C1C; color: white; font-size: 13px;">
+        <span>Viewing as <strong><%= current_user.name %></strong></span>
+        <%= button_to "Switch Back", stop_impersonating_path, method: :post,
+            class: "px-3 py-1 rounded text-xs font-semibold",
+            style: "background: white; color: #B91C1C; border: none; cursor: pointer;" %>
+      </div>
+    <% end %>
+    <% if current_user && Current.workspace && workspace_admin? && github_connection_problem? %>
+      <div class="flex items-center justify-center gap-2 px-4 py-2" style="background: #DC2626; color: white; font-size: 13px;">
+        <span>⚠️ PR reviewer can't reach GitHub: <%= resolved_workshop_project.github_status_error.presence || "connection failed" %>. Check the token in <%= link_to "Configuration &rsaquo; Integrations".html_safe, workshop_configuration_path(tab: "integrations"), style: "color: white; text-decoration: underline;" %>.</span>
+      </div>
+    <% end %>
     <% if current_user && Current.workspace %>
-      <div class="flex flex-col min-h-screen">
-        <!-- Top timer bar — full width with contour background -->
-        <header class="sticky top-0 z-50 px-2 pt-2 pb-4 paper-bg">
-          <div class="timer-top-bar flex items-center gap-3 <%= @running_timer ? 'navbar-timer-running' : '' %>">
-            <div class="flex-none lg:hidden">
-              <label for="sidebar-drawer" class="btn btn-ghost btn-sm btn-square">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-5 h-5 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-              </label>
-            </div>
-            <div class="flex-1 min-w-0">
+      <%# Top App Bar — full width %>
+      <header class="sticky top-0 z-50 m3-top-bar <%= @running_timer ? 'navbar-timer-running' : '' %>">
+        <div class="flex items-center gap-3 px-5 h-14">
+          <div class="flex-1 min-w-0">
+            <% if current_product == :workshop %>
+              <%= render "layouts/workshop_topbar" %>
+            <% elsif current_user.can_access_time_hr?(current_workspace) %>
               <%= render "shared/timer_bar" %>
-            </div>
+            <% else %>
+              <span class="text-sm font-medium" style="color: var(--color-on-surface)"><%= current_workspace.name %></span>
+            <% end %>
           </div>
-        </header>
-
-        <!-- Sidebar + Content below top bar -->
-        <div class="flex flex-1 items-start">
-          <input id="sidebar-drawer" type="checkbox" class="drawer-toggle hidden" />
-
-          <!-- Sidebar — desktop: sticky, mobile: hidden (toggled via drawer) -->
-          <div class="hidden lg:block w-56 flex-shrink-0 px-2 py-2 self-start sticky top-[66px]">
-            <aside class="sidebar-light flex flex-col rounded-xl border border-black/[0.06] shadow-sm overflow-y-auto" style="max-height: calc(100vh - 74px)">
-            <!-- Brand -->
-            <div class="px-4 pt-4 pb-3">
-              <div class="flex items-center gap-2">
-                <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                </div>
-                <span class="text-base font-bold tracking-tight">Ros</span>
-              </div>
-            </div>
-
-            <!-- Navigation -->
-            <nav class="flex-1 px-3 overflow-y-auto">
-              <ul class="menu menu-sm gap-0.5 p-0">
-                <li>
-                  <%= link_to root_path, class: current_page?(root_path) ? 'active' : '' do %>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-                    Dashboard
-                  <% end %>
-                </li>
-                <li>
-                  <%= link_to time_entries_path, class: current_page?(time_entries_path) ? 'active' : '' do %>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    Time Entries
-                  <% end %>
-                </li>
-                <li>
-                  <%= link_to timesheet_path, class: current_page?(timesheet_path) ? 'active' : '' do %>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                    Timesheet
-                  <% end %>
-                </li>
-              </ul>
-
-              <div class="sidebar-divider"></div>
-
-              <ul class="menu menu-sm gap-0.5 p-0">
-                <li class="menu-title text-[11px] tracking-wide">Manage</li>
-                <li>
-                  <%= link_to projects_path, class: current_page?(projects_path) ? 'active' : '' do %>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
-                    Projects
-                  <% end %>
-                </li>
-                <li>
-                  <%= link_to clients_path, class: current_page?(clients_path) ? 'active' : '' do %>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                    Clients
-                  <% end %>
-                </li>
-                <li>
-                  <%= link_to tags_path, class: current_page?(tags_path) ? 'active' : '' do %>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-                    Tags
-                  <% end %>
-                </li>
-              </ul>
-
-              <div class="sidebar-divider"></div>
-
-              <ul class="menu menu-sm gap-0.5 p-0">
-                <li class="menu-title text-[11px] tracking-wide">Reports</li>
-                <li>
-                  <%= link_to reports_summary_path, class: current_page?(reports_summary_path) ? 'active' : '' do %>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path stroke-linecap="round" stroke-linejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
-                    Summary
-                  <% end %>
-                </li>
-                <li>
-                  <%= link_to reports_detailed_path, class: current_page?(reports_detailed_path) ? 'active' : '' do %>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    Detailed
-                  <% end %>
-                </li>
-                <li>
-                  <%= link_to reports_weekly_path, class: current_page?(reports_weekly_path) ? 'active' : '' do %>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                    Weekly
-                  <% end %>
-                </li>
-              </ul>
-            </nav>
-
-            <!-- Bottom -->
-            <div class="px-3 pb-1">
-              <ul class="menu menu-sm p-0">
-                <li>
-                  <button class="w-full" data-action="click->keyboard-shortcuts#showHelp">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    Shortcuts
-                    <span class="ml-auto text-[10px] text-base-content/25 font-mono">?</span>
-                  </button>
-                </li>
-              </ul>
-            </div>
-
-            <div class="px-3 py-3 border-t border-base-200">
-              <div class="dropdown dropdown-top w-full">
-                <div tabindex="0" role="button" class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-base-200/60 cursor-pointer w-full transition-colors">
-                  <div class="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-[9px] font-bold">
-                    <%= current_user.name.first(2).upcase %>
-                  </div>
-                  <span class="flex-1 min-w-0 text-[13px] font-medium truncate text-base-content/70"><%= current_user.name %></span>
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-base-content/25" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
-                </div>
-                <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow-lg bg-base-100 text-base-content rounded-xl w-52 mb-2 border border-base-300/50">
-                  <li><%= link_to "Profile", profile_path %></li>
-                  <li><%= link_to "Workspace Settings", workspace_settings_path %></li>
-                  <div class="divider my-1"></div>
-                  <li class="menu-title text-xs">Switch Workspace</li>
-                  <% current_user.workspaces.each do |ws| %>
-                    <% unless ws == Current.workspace %>
-                      <li><%= button_to ws.name, switch_workspace_path(ws), method: :post, class: "text-sm" %></li>
-                    <% end %>
-                  <% end %>
-                  <li><%= link_to "New Workspace", new_workspace_path %></li>
-                  <div class="divider my-1"></div>
-                  <li><%= button_to "Sign Out", session_path, method: :delete %></li>
-                </ul>
-              </div>
-            </div>
-            </aside>
-          </div>
-
-          <!-- Main content -->
-          <main class="flex-1 min-w-0 px-3 py-2 lg:px-4 lg:py-2">
-            <div class="max-w-6xl mx-auto paper-content rounded-xl border border-black/[0.06] shadow-sm p-5 lg:p-6">
-              <% if flash[:notice] %>
-                <div class="alert alert-success mb-5 rounded-xl" data-controller="flash">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  <span><%= flash[:notice] %></span>
-                </div>
-              <% end %>
-              <% if flash[:alert] %>
-                <div class="alert alert-error mb-5 rounded-xl" data-controller="flash">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                  <span><%= flash[:alert] %></span>
-                </div>
-              <% end %>
-
-              <%= yield %>
-            </div>
-          </main>
         </div>
+      </header>
+
+      <div class="flex h-[calc(100vh-3.5rem)]">
+        <%# Mobile drawer %>
+        <input type="checkbox" id="sidebar-toggle" class="m3-drawer-toggle">
+        <label for="sidebar-toggle" class="m3-drawer-overlay"></label>
+
+        <%# Sidebar / Nav Rail %>
+        <aside id="app-sidebar" class="m3-drawer-side m3-nav-rail w-64 lg:block flex-shrink-0 h-full flex flex-col overflow-y-auto">
+          <%# Navigation %>
+          <nav class="flex-1 px-3 pt-4 space-y-0.5 overflow-y-auto">
+            <%= render "layouts/product_switcher" %>
+
+            <%# ===================== TIME & HR PRODUCT ===================== %>
+            <% if current_product == :time_hr %>
+            <% if current_user.can_access_time_hr?(current_workspace) %>
+              <%= link_to time_entries_path, class: "m3-nav-item #{current_page?(time_entries_path) ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>Time Entries</span>
+              <% end %>
+
+              <%= link_to timesheet_path, class: "m3-nav-item #{current_page?(timesheet_path) ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M10.875 12c-.621 0-1.125.504-1.125 1.125M12 10.875c-.621 0-1.125.504-1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 1.5v-1.5" /></svg>
+                <span>Timesheet</span>
+              <% end %>
+            <% end %>
+
+            <% if workspace_admin? %>
+              <div class="pt-7 pb-2">
+                <div class="m3-nav-section">Manage</div>
+              </div>
+
+              <%= link_to projects_path, class: "m3-nav-item #{current_page?(projects_path) ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" /></svg>
+                <span>Projects</span>
+              <% end %>
+
+              <% if current_workspace.clients_enabled? %>
+                <%= link_to clients_path, class: "m3-nav-item #{current_page?(clients_path) ? 'active' : ''}" do %>
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>
+                  <span>Clients</span>
+                <% end %>
+              <% end %>
+
+              <%= link_to workspace_members_path, class: "m3-nav-item #{current_page?(workspace_members_path) ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /></svg>
+                <span>Team</span>
+              <% end %>
+            <% end %>
+
+            <% if current_user.can_access_time_hr?(current_workspace) %>
+              <%= link_to holiday_requests_path, class: "m3-nav-item #{request.path.start_with?('/holiday') ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" /></svg>
+                <span>Holidays</span>
+              <% end %>
+
+              <%= link_to feedback_meetings_path, class: "m3-nav-item #{request.path.start_with?('/feedback_meetings') ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
+                <span>Feedback</span>
+              <% end %>
+            <% end %>
+
+            <% if current_user.can_access_time_hr?(current_workspace) %>
+              <div class="pt-4"></div>
+              <%= link_to tags_path, class: "m3-nav-item #{current_page?(tags_path) ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" /></svg>
+                <span>Tags</span>
+              <% end %>
+            <% end %>
+
+            <% if workspace_admin? %>
+              <div class="pt-7 pb-2">
+                <div class="m3-nav-section">Reports</div>
+              </div>
+
+              <%= link_to reports_summary_path, class: "m3-nav-item #{request.path == reports_summary_path ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>
+                <span>Summary</span>
+              <% end %>
+
+              <%= link_to reports_detailed_path, class: "m3-nav-item #{request.path == reports_detailed_path ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                <span>Detailed</span>
+              <% end %>
+
+              <%= link_to reports_weekly_path, class: "m3-nav-item #{request.path == reports_weekly_path ? 'active' : ''}" do %>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+                <span>Weekly</span>
+              <% end %>
+
+              <% if workspace_admin? %>
+                <%= link_to reports_project_report_path, class: "m3-nav-item #{request.path == reports_project_report_path ? 'active' : ''}" do %>
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 002.012-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.218a2.25 2.25 0 012.013 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.859m-19.5.338V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H6.911a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661z" /></svg>
+                  <span>Project Report</span>
+                <% end %>
+              <% end %>
+            <% end %>
+            <% end %>
+            <%# =================== END TIME & HR PRODUCT =================== %>
+
+            <%# ===================== WORKSHOP PRODUCT ===================== %>
+            <% if current_product == :workshop %>
+              <%# Jira Tasks — visible to clients too. Mirror the controller scope
+                  so it's hidden when the user has no accessible Jira project. %>
+              <% if visible_jira_projects.exists? %>
+                <%= link_to jira_tasks_path, class: "m3-nav-item #{request.path.start_with?('/jira_tasks') ? 'active' : ''}" do %>
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" /></svg>
+                  <span>Jira Tasks</span>
+                <% end %>
+              <% end %>
+
+              <% if workspace_admin? && current_workspace.workshop_enabled? %>
+                <%= link_to workshop_path, class: "m3-nav-item #{request.path.start_with?('/workshop') ? 'active' : ''}" do %>
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z" /></svg>
+                  <span>Workshop</span>
+                <% end %>
+              <% end %>
+            <% end %>
+            <%# =================== END WORKSHOP PRODUCT =================== %>
+
+            <div class="pt-4 pb-1 relative" data-controller="theme">
+              <button class="m3-nav-item w-full" data-action="click->theme#toggleMenu">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" data-theme-target="icon"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" /></svg>
+                <span data-theme-target="label">Theme</span>
+              </button>
+              <div class="hidden absolute bottom-full left-0 mb-2 m3-menu z-50 w-52" data-theme-target="menu">
+                <button class="m3-menu-item" data-action="click->theme#select" data-theme="light">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" /></svg>
+                  Light
+                </button>
+                <button class="m3-menu-item" data-action="click->theme#select" data-theme="dark">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" /></svg>
+                  Dark
+                </button>
+                <hr class="m3-menu-divider">
+                <button class="m3-menu-item" data-action="click->theme#select" data-theme="purple-light">
+                  <span class="inline-block w-4 h-4 rounded-full" style="background: linear-gradient(135deg, #7C4DFF, #A78BFA)"></span>
+                  Purple
+                </button>
+                <button class="m3-menu-item" data-action="click->theme#select" data-theme="purple-dark">
+                  <span class="inline-block w-4 h-4 rounded-full" style="background: linear-gradient(135deg, #5635A2, #7C4DFF)"></span>
+                  Purple Dark
+                </button>
+              </div>
+            </div>
+          </nav>
+
+          <%# Bottom user section — pinned to bottom %>
+          <div class="px-3 py-3 border-t mt-auto" style="border-color: var(--color-outline-variant)">
+            <div class="relative">
+              <button class="flex items-center gap-2.5 px-2 py-1.5 rounded-[var(--radius-md)] w-full transition-colors" style="color: var(--color-on-surface-variant)" onclick="this.nextElementSibling.classList.toggle('hidden')" type="button">
+                <div class="m3-avatar m3-avatar-sm"><%= current_user.name.first(2).upcase %></div>
+                <span class="flex-1 min-w-0 text-[0.8125rem] font-medium truncate" style="color: var(--color-on-surface)"><%= current_user.name %></span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.204-.107-.397.165-.71.505-.78.929l-.15.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              </button>
+              <div class="hidden absolute bottom-full left-0 mb-2 m3-menu z-50 w-56">
+                <%= link_to "Profile", profile_path, class: "m3-menu-item" %>
+                <% if workspace_admin? %>
+                  <%= link_to "Workspace Settings", workspace_settings_path, class: "m3-menu-item" %>
+                <% end %>
+                <hr class="m3-menu-divider">
+                <%= button_to "Sign Out", session_path, method: :delete, class: "m3-menu-item" %>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <%# Main content %>
+        <main class="flex-1 p-5 lg:p-8 min-w-0 overflow-y-auto">
+          <div class="<%= content_for?(:full_width) ? '' : 'max-w-5xl' %> mx-auto">
+            <% if flash[:notice] %>
+              <div class="m3-alert m3-alert-success mb-4" data-controller="flash">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span><%= flash[:notice] %></span>
+              </div>
+            <% end %>
+            <% if flash[:alert] %>
+              <div class="m3-alert m3-alert-error mb-4" data-controller="flash">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <span><%= flash[:alert] %></span>
+              </div>
+            <% end %>
+            <%= yield %>
+          </div>
+        </main>
       </div>
 
-      <%# Keyboard shortcuts help modal %>
-      <dialog class="modal" data-keyboard-shortcuts-target="modal">
-        <div class="modal-box rounded-2xl shadow-2xl">
-          <h3 class="font-bold text-lg mb-4">Keyboard Shortcuts</h3>
-          <div class="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
-            <div><kbd class="kbd kbd-sm">s</kbd></div><div>Start/focus timer</div>
-            <div><kbd class="kbd kbd-sm">n</kbd></div><div>New time entry</div>
-            <div><kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">d</kbd></div><div>Go to Dashboard</div>
-            <div><kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">t</kbd></div><div>Go to Time Entries</div>
-            <div><kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">p</kbd></div><div>Go to Projects</div>
-            <div><kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">r</kbd></div><div>Go to Reports</div>
-            <div><kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">s</kbd></div><div>Go to Timesheet</div>
-            <div><kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">c</kbd></div><div>Go to Clients</div>
-            <div><kbd class="kbd kbd-sm">?</kbd></div><div>Show this help</div>
-          </div>
-          <div class="modal-action">
-            <button class="btn btn-sm rounded-lg" data-action="click->keyboard-shortcuts#closeHelp">Close</button>
-          </div>
-        </div>
-        <form method="dialog" class="modal-backdrop">
-          <button>close</button>
-        </form>
-      </dialog>
     <% else %>
       <%# Guest layout %>
-      <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-base-200 via-base-100 to-base-200 relative overflow-hidden">
-        <%# Decorative background elements %>
-        <div class="absolute inset-0 overflow-hidden pointer-events-none">
-          <div class="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-gradient-to-br from-indigo-400/10 to-violet-500/5 blur-3xl"></div>
-          <div class="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-gradient-to-tr from-primary/10 to-secondary/5 blur-3xl"></div>
-        </div>
-
-        <div class="w-full max-w-md relative z-10 px-4">
+      <div class="min-h-screen flex items-center justify-center" style="background: var(--color-surface-container-low)">
+        <div class="w-full max-w-md px-4">
           <div class="text-center mb-8">
             <div class="flex items-center justify-center gap-2 mb-3">
-              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <div class="w-10 h-10 rounded-[var(--radius-lg)] flex items-center justify-center" style="background: var(--color-primary)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" style="color: var(--color-on-primary)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               </div>
             </div>
-            <h1 class="text-3xl font-bold">Ros</h1>
-            <p class="text-base-content/50 mt-1">Track time. Ship faster.</p>
+            <h1 class="text-3xl font-bold" style="color: var(--color-on-surface)">Clar</h1>
+            <p class="mt-1" style="color: var(--color-on-surface-variant)">Track time. Ship faster.</p>
           </div>
 
           <% if flash[:notice] %>
-            <div class="alert alert-success mb-4 rounded-xl shadow-sm">
-              <span><%= flash[:notice] %></span>
-            </div>
+            <div class="m3-alert m3-alert-success mb-4"><span><%= flash[:notice] %></span></div>
           <% end %>
           <% if flash[:alert] %>
-            <div class="alert alert-error mb-4 rounded-xl shadow-sm">
-              <span><%= flash[:alert] %></span>
-            </div>
+            <div class="m3-alert m3-alert-error mb-4"><span><%= flash[:alert] %></span></div>
           <% end %>
 
-          <div class="card bg-base-100 shadow-xl border border-base-300/50 rounded-2xl">
-            <div class="card-body p-8">
-              <%= yield %>
-            </div>
+          <div class="m3-card-elevated" style="padding: 2rem; border-radius: var(--radius-xl);">
+            <%= yield %>
           </div>
 
-          <p class="text-center text-base-content/30 text-xs mt-8">Ros - Time Tracking</p>
+          <p class="text-center text-xs mt-8" style="color: var(--color-outline)">Clar Time Tracking</p>
         </div>
       </div>
     <% end %>

@@ -1,0 +1,32 @@
+jira_task:
+  name: "ELV-1 Existing task"
+  project: jira_project
+  external_type: jira
+  external_reference: ELV-1
+  external_url: https://elvium.atlassian.net/browse/ELV-1
+  assignee_email: one@example.com
+  jira_status_name: In Progress
+  description: "This is a test task description"
+  priority: High
+  issue_type: Story
+  labels: '["Feature","HR"]'
+  reporter_email: reporter@example.com
+  sprint_name: Design Sprint
+  sprint_id: 569
+  time_estimate_seconds: 3600
+
+local_task:
+  name: Daily standup
+  project: jira_project
+
+# Lives in a Jira project the client is NOT a member of — used to assert
+# client task-scoping (they must not reach this one).
+secret_task:
+  name: "SEC-1 Secret task"
+  project: other_jira_project
+  external_type: jira
+  external_reference: SEC-1
+  external_url: https://elvium.atlassian.net/browse/SEC-1
+  jira_status_name: To Do
+  description: "Hidden from clients"
+  issue_type: Task

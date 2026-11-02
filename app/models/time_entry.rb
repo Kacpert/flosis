@@ -1,7 +1,7 @@
 class TimeEntry < ApplicationRecord
   belongs_to :workspace
   belongs_to :user
-  belongs_to :project, optional: true
+  belongs_to :project
   belongs_to :task, optional: true
   has_many :time_entry_tags, dependent: :destroy
   has_many :tags, through: :time_entry_tags
@@ -39,11 +39,16 @@ class TimeEntry < ApplicationRecord
   end
 
   def effective_rate_cents
-    hourly_rate_cents ||
-      task&.hourly_rate_cents ||
-      project&.effective_hourly_rate_cents ||
-      workspace.default_hourly_rate_cents ||
-      0
+    return hourly_rate_cents unless hourly_rate_cents.nil?
+    ProjectMembership.find_by(project_id: project_id, user_id: user_id)&.hourly_rate_cents || 0
+  end
+
+  def billable_amount_cents
+    (duration_seconds / 3600.0 * effective_rate_cents).round
+  end
+
+  def billable_amount
+    billable_amount_cents / 100.0
   end
 
   private

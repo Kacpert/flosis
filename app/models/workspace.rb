@@ -6,8 +6,15 @@ class Workspace < ApplicationRecord
   has_many :tags, dependent: :destroy
   has_many :time_entries, dependent: :destroy
   has_many :integrations, dependent: :destroy
+  has_many :chat_sessions, dependent: :destroy
+  has_many :feedback_meetings, dependent: :destroy
 
-  enum :time_format, { twenty_four_hour: 0, twelve_hour: 1 }
+  has_many :holiday_requests, dependent: :destroy
+  has_many :holiday_balance_entries, dependent: :destroy
+  has_many :discord_reminder_recipients, dependent: :destroy
+  has_many :pr_reviews, dependent: :delete_all
+  has_many :discord_webhooks, dependent: :destroy
+  has_many :alert_rules, dependent: :destroy
 
   validates :name, presence: true
 end

@@ -1,0 +1,54 @@
+<turbo-frame id="jira-board-content">
+  <% all_tasks = @tasks_by_column.values.flatten %>
+  <% if all_tasks.empty? %>
+    <%= render "empty_state", message: "No tasks found." %>
+  <% else %>
+    <div class="clar-card overflow-hidden">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="text-left text-xs font-semibold uppercase tracking-wider clar-text-muted">Key</th>
+            <th class="text-left text-xs font-semibold uppercase tracking-wider clar-text-muted">Summary</th>
+            <th class="text-left text-xs font-semibold uppercase tracking-wider clar-text-muted">Status</th>
+            <th class="text-left text-xs font-semibold uppercase tracking-wider clar-text-muted">Assignee</th>
+            <th class="text-left text-xs font-semibold uppercase tracking-wider clar-text-muted">Priority</th>
+            <th class="text-left text-xs font-semibold uppercase tracking-wider clar-text-muted">Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% all_tasks.each do |task| %>
+            <tr class="cursor-pointer transition-colors border-b clar-divider hover:bg-[color:var(--surface-2)]"
+                data-action="click->jira-task-modal#open"
+                data-task-id="<%= task.id %>"
+                data-task-url="<%= jira_task_path(task, project_id: @selected_project&.id, board_id: @selected_board&.id, sprint_id: @selected_sprint&.id) %>">
+              <td class="py-3 px-4">
+                <a href="<%= jira_task_path(task, project_id: @selected_project&.id, board_id: @selected_board&.id, sprint_id: @selected_sprint&.id) %>"
+                   class="text-sm font-semibold hover:underline clar-text-primary"
+                   onclick="event.stopPropagation()">
+                  <%= task.external_reference %>
+                </a>
+              </td>
+              <td class="py-3 px-4 text-sm max-w-xs truncate clar-text-text">
+                <%= task.name.sub(/\A#{Regexp.escape(task.external_reference.to_s)}\s*/, '') %>
+              </td>
+              <td class="py-3 px-4">
+                <span class="clar-badge clar-badge-primary">
+                  <%= task.jira_status_name %>
+                </span>
+              </td>
+              <td class="py-3 px-4 text-sm clar-text-muted">
+                <%= task.assignee_name || task.assignee_email&.split("@")&.first || "—" %>
+              </td>
+              <td class="py-3 px-4 text-sm clar-text-muted">
+                <%= task.priority || "—" %>
+              </td>
+              <td class="py-3 px-4 text-sm clar-text-muted">
+                <%= task.issue_type || "—" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</turbo-frame>

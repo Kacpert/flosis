@@ -1,0 +1,7 @@
+one:
+  task: jira_task
+  workspace: one
+  user: one
+  claude_session_id: "test-session-uuid-123"
+  codebase_path: "/tmp/test-codebase"
+  status: active

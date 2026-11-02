@@ -1,0 +1,312 @@
+<%# Document panel (right panel of the workspace grid). Lives in a turbo-frame
+    so the chat (clar_chat_controller.js) can reload it via
+    `clar:document-updated` — simplest contract: the frame's src includes the
+    current `?v=` selection, and the browser does a normal frame-scoped GET
+    (Turbo intercepts it); a full navigation also works since `show` just
+    re-renders this same partial. See turbo-frame wrapper in show.html.erb.
+
+    Shared by both stages that have a document: briefing (binds to
+    `idea.briefs`) and details (binds to `idea.task_drafts.by_source("ai")`,
+    Task 5.1) — the chips/badges/set-current/markdown machinery is identical,
+    only the underlying records, header label, empty-state copy, and the
+    push/history buttons differ, so this partial takes `stage` and switches on
+    it rather than duplicating the whole panel. Default `stage` keeps existing
+    briefing call sites (and their tests) working unchanged. %>
+<%
+  stage ||= "briefing"
+  is_details = stage == "details"
+
+  if is_details
+    versions = idea.task_drafts.by_source(TaskDraft::REFINE_SOURCE).newest_first.to_a
+    current_version = idea.current_detail_draft
+  else
+    versions = idea.briefs.newest_first.to_a
+    current_version = idea.current_brief
+  end
+
+  selected_version_number = params[:v].presence&.to_i
+  selected = versions.find { |v| v.version == selected_version_number } || current_version
+  is_current = selected.present? && current_version.present? && selected.id == current_version.id
+
+  panel_title = is_details ? "Description" : "Brief"
+  pushed = is_details ? selected&.pushed_at? : current_version&.briefed?
+  saved_locally = is_details ? idea.detail_saved_locally_at.present? : idea.brief_saved_locally_at.present?
+
+  jira_linked = idea.external_reference.present?
+
+  # Always-visible "Create/Update Jira Ticket" button. "Update" is locked when
+  # the current version is already in Jira with nothing newer to push (pushed +
+  # viewing the current version) — no point re-sending identical content.
+  # Generating/editing a new version clears `pushed`, re-enabling Update.
+  jira_btn_label = jira_linked ? "Update Jira Ticket" : "Create Jira Ticket"
+  jira_up_to_date = jira_linked && pushed && is_current
+
+  # Briefing stage advance: once the brief is briefed (task has reached details+),
+  # the primary action is just "Continue to Details" — no need to re-brief.
+  already_briefed = !is_details && current_version&.briefed? &&
+                    Task::WORKSHOP_STAGES.index(idea.workshop_stage).to_i >= Task::WORKSHOP_STAGES.index("details")
+
+  ai_copy = if is_details
+    "The AI reads the project code and the task description to run the question session, then drafts the implementation-ready description automatically."
+  else
+    "The AI reads the project code and this description, then drafts the brief as you talk — it #{jira_linked ? 'replaces the description above in Jira.' : 'becomes the Jira description when you push.'}"
+  end
+%>
+<div class="flex flex-col min-h-0 h-full bg-[var(--surface)]"
+  <% if selected.present? %>
+     data-controller="clar-editor"
+     data-clar-editor-kind-value="<%= is_details ? 'detail' : 'brief' %>"
+     data-clar-editor-version-value="<%= selected.version %>"
+     data-clar-editor-is-user-value="<%= selected.source_document? %>"
+     data-clar-editor-create-url-value="<%= workshop_idea_versions_path(idea) %>"
+     data-clar-editor-update-url-value="<%= workshop_idea_version_path(idea, selected) %>"
+     data-clar-editor-redirect-url-value="<%= workshop_idea_path(idea, stage: stage) %>"
+  <% end %>
+>
+  <div class="px-[22px] py-3 flex items-center justify-between border-b clar-divider">
+    <span class="text-[13px] font-bold clar-text-text"><%= panel_title %></span>
+    <div class="flex items-center gap-2">
+      <% if is_details && idea.briefs.exists? %>
+        <button type="button" title="View the briefing history, read-only" class="clar-btn !py-[5px] !px-[10px] !text-[12px]"
+                data-action="click->clar-modal#open" data-clar-modal-id-param="brief-history">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5M3 8a9 9 0 1 0 2.6-5.6L3 8"/></svg>
+          Brief history
+        </button>
+      <% end %>
+
+      <% if selected.present? %>
+        <div class="flex gap-[5px]">
+          <% versions.sort_by(&:version).each do |version| %>
+            <%
+              chip_current = current_version.present? && version.id == current_version.id
+              chip_selected = version.id == selected.id
+              chip_classes = chip_selected ? "clar-chip-active" : ""
+            %>
+            <%= link_to workshop_idea_path(idea, stage: stage, v: version.version),
+                        class: "clar-chip #{chip_classes}",
+                        title: "#{version.label}#{chip_current ? ' · current' : ''}" do %>
+              <% if chip_current %><span class="clar-dot bg-[var(--success)]"></span><% end %>
+              v<%= version.version %>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+
+      <% if selected.present? %>
+        <button type="button" class="clar-btn !py-[5px] !px-[10px] !text-[12px]" data-clar-editor-target="editButton" data-action="click->clar-editor#startEdit">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+          Edit
+        </button>
+      <% end %>
+      <span class="w-px h-[18px] bg-[var(--border)]"></span>
+      <button type="button" title="Full screen" class="flex items-center justify-center w-7 h-7 clar-text-muted border clar-divider rounded-lg" data-action="click->clar-focus#toggle">
+        <svg data-clar-focus-target="expandIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        <svg data-clar-focus-target="collapseIcon" class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 9L4 4m0 0v4m0-4h4M15 9l5-5m0 0v4m0-4h-4M9 15l-5 5m0 0v-4m0 4h4M15 15l5 5m0 0v-4m0 4h-4"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="flex-1 overflow-y-auto px-[22px] py-5"<% if selected.present? %> data-clar-editor-target="body"<% end %>>
+    <% if selected.present? %>
+      <div class="flex items-center gap-2 mb-4 flex-wrap">
+        <span class="text-[11px] clar-text-faint">v<%= selected.version %> &middot; <%= clar_time_ago(selected.created_at) %></span>
+        <span class="clar-badge <%= selected.source_document? ? 'clar-badge-warn' : 'clar-badge-muted' %>">
+          <%= selected.label.upcase %>
+        </span>
+        <% if is_current %>
+          <span class="clar-badge clar-badge-success">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+            CURRENT
+          </span>
+        <% end %>
+        <% if is_current && pushed %>
+          <span class="clar-badge clar-badge-primary">IN JIRA</span>
+        <% elsif is_current && !pushed && saved_locally %>
+          <span class="clar-badge clar-badge-warn">SAVED LOCALLY</span>
+        <% end %>
+      </div>
+
+      <%# Task 5.2: rich-text-edited versions are stored as sanitized HTML
+          (content.lstrip starts with "<") and render directly — skipping the
+          markdown pass, which would otherwise mangle real HTML tags. AI/plain
+          content is unchanged: rendered as text and upgraded to HTML by the
+          clar-markdown controller. %>
+      <% if selected.content.to_s.lstrip.start_with?("<") %>
+        <div class="clar-prose" id="clar-document-body"><%= sanitize(selected.content, tags: %w[h1 h2 h3 h4 h5 h6 p b strong i em u s ul ol li pre code a br hr blockquote table thead tbody tr th td], attributes: %w[href]) %></div>
+      <% else %>
+        <div class="clar-prose" id="clar-document-body" data-controller="clar-markdown"><%= selected.content %></div>
+      <% end %>
+    <% else %>
+      <%# Empty state — no version selected yet. We show LOCAL state, not Jira's.
+          On DETAILS, the source material is the current brief the AI is drafting
+          from — show it so the panel isn't blank and you can see what the Details
+          AI is working with (it hasn't produced a draft yet). On BRIEFING, show
+          the task's own description / seed text. %>
+      <% source_brief = is_details ? idea.current_brief : nil %>
+      <% local_text = source_brief&.content.presence || idea.description.presence %>
+      <div class="flex flex-col gap-3.5">
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] font-bold tracking-[.4px] clar-text-faint">
+            <%= is_details ? "WORKING FROM THE BRIEF" : (idea.external_reference.present? ? "TASK DESCRIPTION" : "TASK DESCRIPTION") %>
+          </span>
+          <% if idea.external_reference.present? %>
+            <span class="clar-key"><%= idea.external_reference %></span>
+          <% else %>
+            <span class="clar-badge clar-badge-warn">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 8v4M12 16h.01"/></svg>
+              LOCAL &middot; NOT IN JIRA
+            </span>
+          <% end %>
+        </div>
+
+        <% if local_text.present? %>
+          <% if is_details %>
+            <%# Render the brief (markdown) so it's readable, not raw. %>
+            <div class="clar-prose text-[13px] leading-[1.6]" data-controller="clar-markdown"><%= local_text %></div>
+            <div class="text-[11.5px] clar-text-faint">The Details AI is refining this into an implementation-ready description &mdash; it&rsquo;ll appear here as a version once drafted.</div>
+          <% elsif idea.external_reference.present? %>
+            <%# Straight from Jira: Markdown (AdfToMarkdown), so render it —
+                whitespace-pre-line showed raw ## and | table | rows. %>
+            <div class="clar-prose text-[13px] leading-[1.6]" data-controller="clar-markdown"><%= local_text %></div>
+          <% else %>
+            <div class="text-[13px] leading-[1.6] clar-text-text whitespace-pre-line px-3.5 py-3 bg-[var(--warn-soft)] border border-dashed border-[var(--warn)] rounded-[10px]"><%= local_text %></div>
+          <% end %>
+        <% else %>
+          <div class="text-[13px] leading-[1.6] clar-text-faint italic">No description yet &mdash; talk it through below.</div>
+        <% end %>
+
+        <div class="flex items-start gap-2 px-[13px] py-[11px] bg-[var(--ai-soft)] border clar-divider rounded-[10px] mt-0.5">
+          <span class="clar-text-ai flex flex-none w-[15px] mt-px">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
+          </span>
+          <span class="text-[12.5px] clar-text-muted leading-[1.5]">
+            <%= ai_copy %>
+          </span>
+        </div>
+      </div>
+    <% end %>
+
+    <%# Jira attachments (screenshots) — shown under whichever content is active
+        (brief version or the raw description), like they appear on the Jira ticket. %>
+    <div class="mt-5">
+      <%= render "workshop/ideas/attachments", idea: idea %>
+    </div>
+  </div>
+
+  <div class="px-[22px] pt-3.5 pb-[18px] border-t clar-divider"<% if selected.present? %> data-clar-editor-target="footer"<% end %>>
+    <% if selected.present? %>
+      <div class="flex flex-col gap-2.5">
+        <% unless is_current %>
+          <%# "Set as current" + optional "Delete" side by side. A version is
+              deletable only when it is NOT current and NOT v0 (the original
+              description). Deleting is permanent, so it confirms first. %>
+          <% deletable = selected.version.to_i > 0 %>
+          <div class="flex gap-2.5">
+            <%= button_to "Set v#{selected.version} as current #{jira_linked ? '· update Jira description' : '· update local description'}",
+                          make_current_workshop_idea_version_path(idea, selected),
+                          method: :post, class: "clar-btn clar-btn-ai #{deletable ? 'flex-1' : 'clar-btn-block'}" %>
+            <% if deletable %>
+              <%# Delete lives outside the frame (redirects with a stepper/URL the
+                  frame can't own) → turbo_frame: "_top". Confirms before deleting. %>
+              <%= button_to workshop_idea_version_path(idea, selected),
+                    method: :delete,
+                    params: (is_details ? { kind: "detail" } : {}),
+                    form: { data: { turbo_frame: "_top" } },
+                    class: "clar-btn !px-3 clar-text-muted",
+                    title: "Delete v#{selected.version} (permanent)",
+                    data: { turbo_confirm: "Delete v#{selected.version}? This can't be undone." } do %>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 5v6m4-6v6"/></svg>
+              <% end %>
+            <% end %>
+          </div>
+        <% end %>
+        <div class="flex gap-2.5">
+          <%# No shared Stimulus scope with the chat panel (siblings in the
+              workspace grid, separate turbo-frame) — dispatch a window event,
+              same cross-panel convention as clar:document-updated below.
+              clar_chat_controller.js listens for clar:reset-conversation and
+              calls resetConversation(), which DELETEs then re-creates with
+              mode=refine_current. %>
+          <button type="button" title="Restart the chat, keep this version as the base"
+                  class="clar-btn flex-1" data-controller="clar-reset-chat" data-action="click->clar-reset-chat#dispatch">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5M3 8a9 9 0 1 0 2.6-5.6L3 8"/></svg>
+            Reset chat
+          </button>
+          <%# "Request from designer" lives here (footer) when no request exists yet
+              — instead of a banner on top of the panels. Only on details/ready,
+              where designs are relevant. Once a request/delivery exists, the designs
+              strip renders in the header with full status. %>
+          <% if is_details && idea.design_request.nil? %>
+            <button type="button" class="clar-btn flex-1" data-action="click->clar-modal#open" data-clar-modal-id-param="request-designs" title="Ask a designer to prepare designs">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
+              Request from designer
+            </button>
+          <% end %>
+        </div>
+
+        <%# Always-visible "Create/Update Jira Ticket" — the ONLY action that touches
+            Jira. Everything else (advancing stages, finishing) saves locally.
+            Creates the issue for a local idea (commit_brief/commit_detail are both
+            issue-creating), updates it otherwise. Locked when the current version is
+            already in Jira with nothing new to push. Redirect → "_top". %>
+        <% if jira_up_to_date %>
+          <button type="button" disabled title="Nothing to update — this version is already in Jira"
+                  class="clar-btn clar-btn-block opacity-50 cursor-not-allowed">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+            <%= jira_btn_label %>
+          </button>
+        <% else %>
+          <%= button_to sync_jira_workshop_idea_path(idea, stage: stage), method: :post,
+                form: { data: { turbo_frame: "_top" } },
+                class: "clar-btn clar-btn-ai clar-btn-block",
+                title: jira_linked ? "Push this version to the Jira ticket" : "Create the Jira ticket from this version" do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+            <%= jira_btn_label %>
+          <% end %>
+        <% end %>
+
+        <%# Stage advance — a LOCAL action (Jira has its own button above). Redirect
+            → "_top". BRIEFING: "Brief & mark Briefed" marks briefed locally +
+            advances to Details, then becomes "Continue to Details" (just navigate).
+            DETAILS: "Finish · go to Ready" saves locally + advances to Ready, no
+            Jira write. %>
+        <% if is_details %>
+          <%# Send the stage this panel is showing: the action must not read it
+              back off the task, which may already have moved on. %>
+          <%= button_to save_locally_workshop_idea_path(idea, stage: stage), method: :post,
+                form: { data: { turbo_frame: "_top" } },
+                class: "clar-btn clar-btn-primary clar-btn-block",
+                title: "Save locally and finish (use Update Jira Ticket to push to Jira)" do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            Finish · go to Ready
+          <% end %>
+          <%# The button's name reads like it might publish something. Say plainly
+              that it doesn't touch Jira, so nobody hesitates over a safe action. %>
+          <p class="flex items-start gap-1.5 text-[11.5px] leading-[1.45] clar-text-faint m-0 px-0.5"
+             title="Finishing only records that you're done with this ticket here. The Jira ticket is left exactly as it is — only Update Jira Ticket writes to it.">
+            <svg class="flex-none mt-[1px]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            <span>Safe &mdash; nothing is sent to Jira. This only marks the ticket finished here; the Jira ticket stays as it is.</span>
+          </p>
+        <% elsif already_briefed %>
+          <%= link_to workshop_idea_path(idea, stage: "details"),
+                class: "clar-btn clar-btn-primary clar-btn-block", data: { turbo_frame: "_top" } do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            Continue to Details
+          <% end %>
+        <% else %>
+          <%= button_to push_jira_workshop_idea_path(idea), method: :post,
+                form: { data: { turbo_frame: "_top" } },
+                class: "clar-btn clar-btn-primary clar-btn-block" do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            Brief &amp; mark Briefed
+          <% end %>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="flex items-center justify-center gap-[7px] text-[12px] clar-text-faint">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
+        The AI drafts the <%= is_details ? "description" : "brief" %> as you talk
+      </div>
+    <% end %>
+  </div>
+</div>

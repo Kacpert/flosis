@@ -1,0 +1,12 @@
+Hi <%= @user.name %>,
+
+You've been invited to join <%= @workspace.name %> on Clar.
+
+To get started, set your password here:
+<%= edit_password_url(@user.generate_token_for(:invitation)) %>
+
+This link will expire in 1 week.
+
+After setting your password, sign in at <%= root_url %>.
+
+Welcome aboard!

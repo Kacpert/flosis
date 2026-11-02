@@ -1,64 +1,81 @@
-<div class="space-y-4">
-  <%# Week navigation + Filters — single row %>
+<div class="space-y-5">
+  <%# Week navigation + filters %>
   <% week_start = @date.beginning_of_week(:monday) %>
   <% week_end = @date.end_of_week(:monday) %>
-  <%= form_with url: time_entries_path, method: :get, class: "flex items-center gap-2 flex-nowrap", data: { controller: "filter" } do |f| %>
-    <%= f.hidden_field :date, value: @date %>
-    <div class="flex items-center gap-1">
-      <%= link_to time_entries_path(date: (week_start - 7.days)), class: "btn btn-ghost btn-sm btn-circle" do %>
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-      <% end %>
-      <span class="text-sm font-semibold min-w-[10rem] text-center"><%= week_start.strftime("%b %-d") %> – <%= week_end.strftime("%b %-d, %Y") %></span>
-      <%= link_to time_entries_path(date: (week_start + 7.days)), class: "btn btn-ghost btn-sm btn-circle" do %>
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-      <% end %>
-    </div>
-    <div class="w-px h-5 bg-base-300/40"></div>
-    <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
-        { include_blank: "All projects" },
-        class: "select select-bordered select-sm rounded-lg w-36", data: { action: "change->filter#submit" } %>
-    <%= f.select :tag_id, @tags.map { |t| [t.name, t.id] },
-        { include_blank: "All tags" },
-        class: "select select-bordered select-sm rounded-lg w-28", data: { action: "change->filter#submit" } %>
-  <% end %>
 
-  <%# Week summary stats %>
-  <% week_total = @entries.sum(&:duration_seconds) %>
-  <% today_entries = @entries_by_day[Date.current] || [] %>
-  <% today_total = today_entries.sum(&:duration_seconds) %>
-  <% week_target = 40 * 3600 %>
-  <% progress_pct = [(week_total.to_f / week_target * 100).round, 100].min %>
-  <div class="flex items-center gap-6 px-1">
-    <div class="flex items-center gap-2">
-      <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  <% week_total_seconds = @entries.sum(&:duration_seconds) %>
+  <% today_seconds = @entries.select { |e| e.started_at.to_date == Date.current }.sum(&:duration_seconds) %>
+  <% weekly_goal_seconds = 40 * 3600 %>
+  <% progress_pct = [(week_total_seconds.to_f / weekly_goal_seconds * 100).round, 100].min %>
+  <% remaining_seconds = [weekly_goal_seconds - week_total_seconds, 0].max %>
+
+  <div class="m3-goal-card">
+    <%# Week navigation + filters %>
+    <div class="flex items-center gap-3 pb-5 mb-5 flex-wrap" style="border-bottom: 1px solid var(--color-outline-variant)">
+      <div class="flex items-center gap-2">
+        <%= link_to time_entries_path(date: (week_start - 7.days)), class: "m3-week-arrow" do %>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        <% end %>
+        <span class="text-[0.9375rem] font-semibold min-w-[11rem] text-center" style="color: var(--color-on-surface)"><%= week_start.strftime("%b %-d") %> – <%= week_end.strftime("%b %-d, %Y") %></span>
+        <%= link_to time_entries_path(date: (week_start + 7.days)), class: "m3-week-arrow" do %>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        <% end %>
       </div>
-      <div>
-        <div class="text-xs text-base-content/50">Today</div>
-        <div class="text-sm font-bold mono-duration"><%= format_duration(today_total) %></div>
+
+      <%= form_with url: time_entries_path, method: :get, class: "flex items-center gap-2 ml-3", data: { controller: "filter" } do |f| %>
+        <%= f.hidden_field :date, value: @date %>
+        <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
+            { include_blank: "All projects" },
+            class: "m3-filter-pill", data: { action: "change->filter#submit" } %>
+        <%= f.select :tag_id, @tags.map { |t| [t.name, t.id] },
+            { include_blank: "All tags" },
+            class: "m3-filter-pill", data: { action: "change->filter#submit" } %>
+      <% end %>
+    </div>
+
+    <%# Today + Weekly goal %>
+    <div class="flex items-center gap-4"
+         <%= "data-controller=day-timer data-day-timer-base-seconds-value=#{today_seconds} data-day-timer-week-base-seconds-value=#{week_total_seconds} data-day-timer-weekly-goal-seconds-value=#{weekly_goal_seconds} data-day-timer-started-at-value=#{@running_timer.started_at.iso8601}" if @running_timer %>>
+      <div class="flex items-center gap-3 px-5 py-3.5 rounded-[var(--radius-md)] flex-shrink-0" style="background: var(--color-primary-container)">
+        <div class="flex items-center justify-center w-10 h-10 rounded-full" style="background: rgba(74, 103, 65, 0.15)">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" style="color: var(--color-on-primary-container)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        </div>
+        <div>
+          <div class="text-xs font-medium" style="color: var(--color-on-primary-container)">Today</div>
+          <div class="text-[1.5rem] font-bold tracking-tight mono-duration" style="color: var(--color-on-primary-container)" data-day-timer-target="display"><%= format("%02d:%02d:%02d", today_seconds / 3600, (today_seconds % 3600) / 60, today_seconds % 60) %></div>
+        </div>
+      </div>
+
+      <div class="flex-1">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-medium" style="color: var(--color-on-surface-variant)">Weekly goal</span>
+          <div class="flex items-center gap-2">
+            <span class="text-[0.9375rem] font-bold mono-duration" style="color: var(--color-on-surface)" data-day-timer-target="weekDisplay"><%= format("%02d:%02d:%02d", week_total_seconds / 3600, (week_total_seconds % 3600) / 60, week_total_seconds % 60) %></span>
+            <span class="text-xs font-medium mono-duration" style="color: var(--color-outline)">/ <%= format("%02d:%02d:%02d", weekly_goal_seconds / 3600, (weekly_goal_seconds % 3600) / 60, weekly_goal_seconds % 60) %></span>
+          </div>
+        </div>
+        <div class="m3-progress-track">
+          <div class="m3-progress-fill" style="width: <%= progress_pct %>%" data-day-timer-target="progressBar"></div>
+        </div>
+        <div class="flex items-center justify-between mt-1.5">
+          <span class="text-[0.6875rem] font-medium" style="color: var(--color-on-surface-variant)" data-day-timer-target="progressText"><%= progress_pct %>% complete</span>
+          <span class="text-[0.6875rem] mono-duration" style="color: var(--color-outline)" data-day-timer-target="remainingText"><%= format("%02d:%02d:%02d", remaining_seconds / 3600, (remaining_seconds % 3600) / 60, remaining_seconds % 60) %> remaining</span>
+        </div>
       </div>
     </div>
-    <div class="flex-1">
-      <div class="flex items-center justify-between mb-1">
-        <span class="text-[10px] text-base-content/40 font-medium">Weekly goal</span>
-        <span class="text-[10px] text-base-content/40 font-medium mono-duration"><%= format_duration(week_total) %> / 40:00:00</span>
-      </div>
-      <div class="h-1.5 rounded-full bg-base-200/80 overflow-hidden">
-        <div class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-500" style="width: <%= progress_pct %>%"></div>
-      </div>
-    </div>
+
   </div>
 
-  <%# Entries list with bulk actions %>
+  <%# Entries %>
   <div data-controller="bulk-select">
     <%# Bulk toolbar %>
-    <div class="hidden items-center gap-2 bg-base-100 p-3 rounded-xl border border-base-300/40 mb-3 flex-wrap" data-bulk-select-target="toolbar">
+    <div class="hidden items-center gap-2 p-3 rounded-[var(--radius-md)] mb-3 flex-wrap" style="background: var(--color-surface); border: 1px solid var(--color-outline-variant)" data-bulk-select-target="toolbar">
       <span class="text-sm font-semibold"><span data-bulk-select-target="count">0</span> selected</span>
-      <div class="w-px h-5 bg-base-300/60 mx-1"></div>
+      <div class="w-px h-5 mx-1" style="background: var(--color-outline-variant)"></div>
 
       <%= form_with url: bulk_destroy_time_entries_path, method: :post, class: "inline" do |f| %>
         <div data-bulk-select-target="idsContainer"></div>
-        <%= f.submit "Delete", class: "btn btn-error btn-xs rounded-lg",
+        <%= f.submit "Delete", class: "m3-btn m3-btn-error m3-btn-sm",
             data: { turbo_confirm: "Delete selected entries?" } %>
       <% end %>
 
@@ -66,27 +83,38 @@
         <div data-bulk-select-target="idsContainer"></div>
         <%= f.hidden_field :bulk_action, value: "change_project" %>
         <%= f.select :project_id, @projects.map { |p| [p.name, p.id] },
-            { include_blank: "Move to..." }, class: "select select-bordered select-xs rounded-lg" %>
-        <%= f.submit "Move", class: "btn btn-ghost btn-xs" %>
+            { include_blank: "Move to..." }, class: "m3-input-compact" %>
+        <%= f.submit "Move", class: "m3-btn m3-btn-text m3-btn-sm" %>
       <% end %>
 
     </div>
 
-    <%# Time entries grouped by day %>
-    <% @entries_by_day.sort_by { |date, _| date }.reverse.each do |date, entries| %>
-      <div class="day-header">
-        <div class="flex items-center gap-2">
-          <span class="day-header-label"><%= date.strftime("%A, %B %-d") %></span>
-          <% if date == Date.current %>
-            <span class="text-[10px] font-semibold text-primary bg-primary/8 px-2 py-0.5 rounded-full uppercase tracking-wide">Today</span>
+    <%# Inject running timer into today's group if present %>
+    <% display_days = @entries_by_day.dup %>
+    <% if @running_timer && @running_timer.started_at.to_date >= week_start && @running_timer.started_at.to_date <= week_end %>
+      <% timer_date = @running_timer.started_at.to_date %>
+      <% display_days[timer_date] ||= [] %>
+      <% display_days[timer_date] = [@running_timer] + display_days[timer_date] %>
+    <% end %>
+
+    <%# Grouped by day %>
+    <% display_days.sort_by { |date, _| date }.reverse.each do |date, entries| %>
+      <% day_total = entries.sum(&:duration_seconds) %>
+      <% is_today = date == Date.current %>
+      <% has_running = is_today && @running_timer %>
+      <div class="m3-day-header" style="<%= 'padding-bottom: 0.625rem;' if is_today %>"
+           <%= "data-controller=day-timer data-day-timer-base-seconds-value=#{day_total} data-day-timer-started-at-value=#{@running_timer.started_at.iso8601}" if has_running %>>
+        <div class="flex items-center gap-3">
+          <span class="m3-day-label"><%= date.strftime("%A, %B %-d") %></span>
+          <% if is_today %>
+            <span class="m3-today-badge">Today</span>
           <% end %>
         </div>
-        <span class="day-header-total"><%= format_duration(entries.sum(&:duration_seconds)) %></span>
+        <span class="m3-day-total" <% if has_running %>data-day-timer-target="display"<% end %>><%= format("%02d:%02d:%02d", day_total / 3600, (day_total % 3600) / 60, day_total % 60) %></span>
       </div>
 
-      <div class="glow-card">
-        <% entries.sort_by(&:started_at).reverse.each_with_index do |entry, i| %>
-          <% if i > 0 %><div class="border-t border-black/[0.04] mx-4"></div><% end %>
+      <div class="flex flex-col gap-2">
+        <% entries.sort_by(&:started_at).reverse.each do |entry| %>
           <%= render "time_entries/time_entry_row", entry: entry %>
         <% end %>
       </div>
@@ -98,7 +126,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
         <p class="empty-state-title">No time entries this week</p>
-        <p class="empty-state-desc">Start a timer or <%= link_to "create a manual entry", new_time_entry_path, class: "text-primary hover:underline" %></p>
+        <p class="empty-state-desc">Start a timer or <%= link_to "create a manual entry", new_time_entry_path, style: "color: var(--color-primary); text-decoration: underline;" %></p>
       </div>
     <% end %>
   </div>

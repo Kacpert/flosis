@@ -10,6 +10,48 @@
 #     schedule: at 5am every day
 
 production:
+  # A setup run a deploy cut off is picked up again once its unit's deadline
+  # has passed (the Designs setup, feature by feature).
+  resume_design_setups:
+    class: Designs::ResumeSetupsJob
+    schedule: every 10 minutes
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
+  jira_sync:
+    class: JiraSyncJob
+    schedule: every 15 minutes
+  holiday_yearly_grant:
+    class: HolidayYearlyGrantJob
+    schedule: "0 0 1 1 *"
+  # Evaluated in the app time zone (Warsaw): fires once at 11:00 Polish time on
+  # weekdays. The job then sends ONE combined digest (reminders + praise) at a
+  # random offset within 2 hours, so the single message lands sometime 11:00–13:00.
+  discord_time_logging_reminders:
+    class: DiscordReminderJob
+    schedule: "0 11 * * 1-5"
+  # Every 7 minutes between 09:00 and 19:59 Warsaw; the job itself bounds the
+  # window to 09:00–20:00 and only triggers AI when a PR is new/changed.
+  pr_review_check:
+    class: PrReviewCheckJob
+    schedule: "*/7 9-19 * * *"
+  # Evaluated in the app time zone (Warsaw): once at 05:00 daily. Pulls the latest
+  # master of the elvium checkout, then refreshes each Jira project's features
+  # summary (Workshop-enabled workspaces only). Preserves the prior summary on any
+  # failure — never blanks it.
+  project_features_scan:
+    class: ProjectFeaturesScanJob
+    schedule: "0 5 * * *"
+  # Evaluated in the app time zone (Warsaw): every 5 minutes, enqueues an
+  # AlertRuleRunJob for each active AlertRule whose schedule says it's due
+  # right now (AlertRule#due?). The dispatch itself is cheap (no AI calls) —
+  # the per-rule AI evaluation happens in the enqueued job.
+  # Credentials rot on their own — a Figma token expired unnoticed and the AI
+  # was the one to break the news, to a client. Ask every integration whether it
+  # still works, so the topbar chips report health rather than "configured".
+  integration_health:
+    class: IntegrationHealthJob
+    schedule: every 30 minutes
+  alert_rules_dispatch:
+    class: AlertRulesDispatchJob
+    schedule: every 5 minutes

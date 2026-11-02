@@ -1,6 +1,9 @@
 class ProjectsController < ApplicationController
   include WorkspaceScoped
 
+  before_action { require_product!(:time_hr) }
+
+  before_action :require_admin!
   before_action :set_project, only: %i[show edit update destroy archive unarchive]
 
   def index
@@ -9,6 +12,7 @@ class ProjectsController < ApplicationController
   end
 
   def show
+    @tab = params[:tab] || "settings"
     @tasks = @project.tasks.order(:name)
     @time_entries = @project.time_entries.completed.includes(:user, :task, :tags).order(started_at: :desc).limit(20)
     @total_seconds = @project.time_entries.completed.sum(:duration_seconds)
@@ -18,6 +22,13 @@ class ProjectsController < ApplicationController
       .group("tasks.id", "tasks.name", "tasks.status")
       .sum(:duration_seconds)
       .sort_by { |_, seconds| -seconds }
+
+    if @tab == "members"
+      @memberships = @project.project_memberships.eager_load(:user).order("users.name")
+      @available_users = current_workspace.users
+        .where.not(id: @project.project_memberships.select(:user_id))
+        .order(:name)
+    end
   end
 
   def new
@@ -29,6 +40,7 @@ class ProjectsController < ApplicationController
     @project = current_workspace.projects.build(project_params)
 
     if @project.save
+      JiraSyncService.new(@project).sync if @project.jira_connected?
       redirect_to projects_path, notice: "Project created."
     else
       @clients = current_workspace.clients.active.order(:name)
@@ -42,6 +54,7 @@ class ProjectsController < ApplicationController
 
   def update
     if @project.update(project_params)
+      JiraSyncService.new(@project).sync if @project.jira_connected? && @project.saved_change_to_external_reference?
       redirect_to projects_path, notice: "Project updated."
     else
       @clients = current_workspace.clients.active.order(:name)
@@ -71,7 +84,9 @@ class ProjectsController < ApplicationController
   end
 
   def project_params
-    params.require(:project).permit(:name, :client_id, :color, :hourly_rate_cents,
-                                    :budget_type, :budget_cents, :budget_hours)
+    params.require(:project).permit(:name, :client_id, :color, :currency,
+                                    :budget_type, :budget_cents, :budget_hours,
+                                    :external_type, :external_reference, :context_info,
+                                    :show_in_workshop)
   end
 end

@@ -1,0 +1,75 @@
+<%# "What am I allowed to see?", answered per project. This page is in the HR
+    design system, so it restates the Configuration legend in m3 markup rather
+    than rendering it — the sentences come from PermissionPreset either way, so
+    the two screens cannot drift apart in what they claim. %>
+<div class="m3-card-elevated p-6">
+  <h2 class="text-lg font-semibold mb-1" style="color: var(--color-on-surface)">Your access</h2>
+  <p class="text-sm mb-4" style="color: var(--color-on-surface-variant)">
+    <% if workspace_admin? %>
+      You are a workspace administrator: you hold all six permissions
+      in every project in this workspace, and you cannot be removed from a single one.
+    <% else %>
+      Permissions are set per project. To change them, ask an administrator &mdash; they
+      are on each project's Configuration &rsaquo; Users.
+    <% end %>
+  </p>
+
+  <% if @access_rows.empty? %>
+    <p class="text-sm" data-access-empty style="color: var(--color-on-surface-variant)">
+      <%# Three different facts, and saying the wrong one is worse than saying
+          nothing. An administrator holds every permission on every project, so
+          for them an empty card is about the workspace. Someone holding only
+          all-off rows IS on their projects — most of the staff are in exactly
+          that position — and only lacks Workshop standing there. %>
+      <% if workspace_admin? %>
+        There are no projects in this workspace yet.
+      <% elsif @memberships_without_access %>
+        Your hours and hourly rate attach to the projects you are on, but none of them
+        gives you any Workshop access yet.
+      <% else %>
+        You are not on any project yet.
+      <% end %>
+      <% if current_membership&.time_hr_access? %>
+        You do have access to Time &amp; HR, where you log your own hours and holidays.
+      <% end %>
+    </p>
+  <% else %>
+    <div class="space-y-4">
+      <% @access_rows.each do |access| %>
+        <%# The id, not the name: the surrounding layout prints project names of
+            its own (the project switcher, the timer bar), so only a hook that
+            belongs to this card can tell a test what the card itself claims. %>
+        <div class="rounded-xl p-4" data-access-project="<%= access.project.id %>"
+             style="border: 1px solid var(--color-outline-variant)">
+          <div class="flex items-baseline justify-between gap-3 mb-3">
+            <span class="font-semibold" style="color: var(--color-on-surface)"><%= access.project.name %></span>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                  style="background: var(--color-secondary-container); color: var(--color-on-secondary-container)">
+              <%= access.role_label %>
+            </span>
+          </div>
+
+          <dl class="space-y-2">
+            <% PermissionPreset::PERMISSIONS.each do |permission| %>
+              <% held = access.can?(permission) %>
+              <%# A row you do not hold is muted by colour alone, not dimmed:
+                  the sentence explaining a permission you lack is the one you
+                  need in order to ask for it, and opacity dropped it below the
+                  AA contrast floor in every theme. %>
+              <div class="flex gap-3 text-sm">
+                <dt class="flex items-center gap-2 font-medium shrink-0"
+                    style="width: 11rem; color: var(--color-on-surface<%= "-variant" unless held %>)">
+                  <%# A tick or a dash, so the state survives being read without colour. %>
+                  <span aria-hidden="true"><%= held ? "&#10003;".html_safe : "&ndash;".html_safe %></span>
+                  <span><%= PermissionPreset.label(permission) %></span>
+                  <span class="sr-only"><%= held ? "allowed" : "not allowed" %></span>
+                </dt>
+                <dd style="color: var(--color-on-surface-variant)"><%= PermissionPreset.description(permission) %></dd>
+              </div>
+            <% end %>
+          </dl>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>

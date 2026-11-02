@@ -1,0 +1,5 @@
+<% content_for :title, "New library entry · Flosis" %>
+
+<%= link_to "‹ Library", workshop_library_entries_path, class: "clar-text-muted text-[12.5px] no-underline" %>
+<h1 class="clar-h1 mt-2 mb-5">New library entry</h1>
+<%= render "workshop/library_entries/form", entry: @entry, body: @body %>

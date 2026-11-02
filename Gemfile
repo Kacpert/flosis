@@ -1,11 +1,15 @@
 source "https://rubygems.org"
 
+gem "dotenv-rails"
+
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 8.1.2"
 # The modern asset pipeline for Rails [https://github.com/rails/propshaft]
 gem "propshaft"
-# Use postgresql as the database for Active Record
-gem "pg", "~> 1.1"
+# Use postgresql as the database for Active Record (development/test)
+gem "pg", "~> 1.1", groups: [:development, :test]
+# Use MySQL for production hosting
+gem "mysql2", "~> 0.5", groups: [:production]
 # Use the Puma web server [https://github.com/puma/puma]
 gem "puma", ">= 5.0"
 # Use JavaScript with ESM import maps [https://github.com/rails/importmap-rails]
@@ -21,7 +25,8 @@ gem "jbuilder"
 gem "bcrypt", "~> 3.1.7"
 
 # Tailwind CSS [https://github.com/rails/tailwindcss-rails]
-gem "tailwindcss-rails", "~> 4.2"
+# Only needed locally for asset precompilation (assets are rsynced to production)
+gem "tailwindcss-rails", "~> 4.2", groups: [:development, :test]
 
 # PDF generation
 gem "prawn", "~> 2.5"
@@ -45,10 +50,11 @@ gem "solid_cable"
 gem "bootsnap", require: false
 
 # Deploy this application anywhere as a Docker container [https://kamal-deploy.org]
-gem "kamal", require: false
+gem "kamal", require: false, groups: [:development]
 
 # Add HTTP asset caching/compression and X-Sendfile acceleration to Puma [https://github.com/basecamp/thruster/]
-gem "thruster", require: false
+# Not needed on shared hosting (using .htaccess reverse proxy)
+gem "thruster", require: false, groups: [:development]
 
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
 gem "image_processing", "~> 1.2"
@@ -71,10 +77,17 @@ group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
   gem "claude-on-rails"
+
+  # Deployment
+  gem "capistrano", "~> 3.20", require: false
+  gem "capistrano-rails", "~> 1.6", require: false
+  gem "capistrano-rbenv", "~> 2.2", require: false
+  gem "capistrano-bundler", "~> 2.1", require: false
 end
 
 group :test do
   # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
   gem "capybara"
   gem "selenium-webdriver"
+  gem "webmock"
 end

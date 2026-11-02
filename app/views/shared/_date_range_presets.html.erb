@@ -1,14 +1,14 @@
 <div class="flex flex-wrap gap-1.5 mb-3" data-controller="date-presets">
-  <button type="button" class="btn btn-ghost btn-xs rounded-lg text-base-content/60" data-action="click->date-presets#apply"
+  <button type="button" class="m3-btn m3-btn-text m3-btn-sm" data-action="click->date-presets#apply"
           data-from="<%= Date.current %>" data-to="<%= Date.current %>">Today</button>
-  <button type="button" class="btn btn-ghost btn-xs rounded-lg text-base-content/60" data-action="click->date-presets#apply"
+  <button type="button" class="m3-btn m3-btn-text m3-btn-sm" data-action="click->date-presets#apply"
           data-from="<%= Date.current.beginning_of_week(:monday) %>" data-to="<%= Date.current.end_of_week(:monday) %>">This Week</button>
-  <button type="button" class="btn btn-ghost btn-xs rounded-lg text-base-content/60" data-action="click->date-presets#apply"
+  <button type="button" class="m3-btn m3-btn-text m3-btn-sm" data-action="click->date-presets#apply"
           data-from="<%= (Date.current - 1.week).beginning_of_week(:monday) %>" data-to="<%= (Date.current - 1.week).end_of_week(:monday) %>">Last Week</button>
-  <button type="button" class="btn btn-ghost btn-xs rounded-lg text-base-content/60" data-action="click->date-presets#apply"
+  <button type="button" class="m3-btn m3-btn-text m3-btn-sm" data-action="click->date-presets#apply"
           data-from="<%= Date.current.beginning_of_month %>" data-to="<%= Date.current %>">This Month</button>
-  <button type="button" class="btn btn-ghost btn-xs rounded-lg text-base-content/60" data-action="click->date-presets#apply"
+  <button type="button" class="m3-btn m3-btn-text m3-btn-sm" data-action="click->date-presets#apply"
           data-from="<%= (Date.current - 1.month).beginning_of_month %>" data-to="<%= (Date.current - 1.month).end_of_month %>">Last Month</button>
-  <button type="button" class="btn btn-ghost btn-xs rounded-lg text-base-content/60" data-action="click->date-presets#apply"
+  <button type="button" class="m3-btn m3-btn-text m3-btn-sm" data-action="click->date-presets#apply"
           data-from="<%= Date.current.beginning_of_year %>" data-to="<%= Date.current %>">This Year</button>
 </div>
