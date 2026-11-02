@@ -7,7 +7,8 @@ require "test_helper"
 # column :json by itself, so only the model's own declaration protects
 # production. Every JSON column Workshop Designs v2 added must have one.
 class DesignsJsonColumnsTest < ActiveSupport::TestCase
-  COLUMNS = { ChatMessage => %w[data], DesignMerge => %w[screens what_changed], Project => %w[design_app_repos] }.freeze
+  COLUMNS = { ChatMessage => %w[data], DesignMerge => %w[screens what_changed], Project => %w[design_app_repos],
+              DesignSetup => %w[notes step_seconds], DesignSetupFeature => %w[contexts screens notes] }.freeze
 
   test "the JSON columns Designs v2 added are declared :json in their models" do
     COLUMNS.each do |model, columns|

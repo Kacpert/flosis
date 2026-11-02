@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_02_100600) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_02_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -242,6 +242,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_100600) do
     t.index ["task_id"], name: "index_design_requests_on_task_id", unique: true
   end
 
+  create_table "design_setup_features", force: :cascade do |t|
+    t.text "brief"
+    t.integer "components_new", default: 0, null: false
+    t.integer "components_reused", default: 0, null: false
+    t.json "contexts"
+    t.datetime "created_at", null: false
+    t.bigint "design_setup_id", null: false
+    t.bigint "design_turn_id"
+    t.text "error"
+    t.datetime "finished_at"
+    t.string "key", null: false
+    t.string "name", null: false
+    t.json "notes"
+    t.integer "position", null: false
+    t.json "screens"
+    t.string "stage"
+    t.datetime "started_at"
+    t.string "status", default: "todo", null: false
+    t.datetime "updated_at", null: false
+    t.index ["design_setup_id", "key"], name: "index_design_setup_features_on_design_setup_id_and_key", unique: true
+    t.index ["design_setup_id", "position"], name: "index_design_setup_features_on_design_setup_id_and_position", unique: true
+    t.index ["design_turn_id"], name: "index_design_setup_features_on_design_turn_id"
+  end
+
   create_table "design_setup_roles", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "login_url", null: false
@@ -265,6 +289,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_100600) do
     t.bigint "design_thread_id"
     t.text "error"
     t.datetime "finished_at"
+    t.json "notes"
     t.datetime "notified_at"
     t.integer "pages"
     t.string "phase", default: "design_system", null: false
@@ -272,6 +297,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_100600) do
     t.bigint "started_by_id"
     t.string "status", default: "active", null: false
     t.integer "step", default: 0, null: false
+    t.json "step_seconds"
+    t.datetime "step_started_at"
+    t.datetime "unit_deadline_at"
+    t.string "unit_job_id"
     t.datetime "updated_at", null: false
     t.index ["design_thread_id"], name: "index_design_setups_on_design_thread_id"
     t.index ["project_id"], name: "index_design_setups_on_project_id"
@@ -912,6 +941,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_100600) do
   add_foreign_key "design_requests", "tasks"
   add_foreign_key "design_requests", "users", column: "designer_id"
   add_foreign_key "design_requests", "users", column: "requester_id"
+  add_foreign_key "design_setup_features", "design_setups"
+  add_foreign_key "design_setup_features", "design_turns", on_delete: :nullify
   add_foreign_key "design_setup_roles", "projects"
   add_foreign_key "design_setups", "design_threads", on_delete: :nullify
   add_foreign_key "design_setups", "projects"

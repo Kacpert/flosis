@@ -30,7 +30,7 @@ class Designs::SubjectTest < ActiveSupport::TestCase
 
   test "the setup prompt follows the phase" do
     assert_includes Designs::Subject.for(@session).system_text, LibraryEntry.find_by!(key: "setup-design-system").current_version.body
-    @setup.next_phase!
+    @setup.update!(phase: "components")
     assert_includes Designs::Subject.for(@session).system_text, LibraryEntry.find_by!(key: "setup-components").current_version.body
   end
 
