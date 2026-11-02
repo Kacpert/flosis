@@ -108,6 +108,24 @@ class JiraSyncServiceTest < ActiveSupport::TestCase
     assert_equal "Done", done_task.jira_status_name
   end
 
+  test "an issue that reaches Done queues the merge of its task's open design thread" do
+    task = @project.tasks.create!(name: "ELV-3 Done issue", external_reference: "ELV-3", external_type: "jira", status: :active)
+    thread = DesignThread.create!(project: @project, task: task, author: users(:one), title: "x", branch: "design/ELV-3-done")
+
+    JiraSyncService.new(@project, client: stub_client(@jira_issues)).sync
+
+    assert_enqueued_with(job: Designs::AutoMergeJob, args: [ thread.id ])
+  end
+
+  test "an issue that was already Done queues nothing" do
+    task = @project.tasks.create!(name: "ELV-3 Done issue", external_reference: "ELV-3", external_type: "jira", status: :done)
+    DesignThread.create!(project: @project, task: task, author: users(:one), title: "x", branch: "design/ELV-3-done")
+
+    JiraSyncService.new(@project, client: stub_client(@jira_issues)).sync
+
+    assert_no_enqueued_jobs only: Designs::AutoMergeJob
+  end
+
   test "does not touch local tasks" do
     mock_client = stub_client(@jira_issues)
 
