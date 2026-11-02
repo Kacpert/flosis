@@ -6,9 +6,10 @@ require "tmpdir"
 # in its worktree; then Flosis, never Claude, puts what it left through the
 # leak guard, commits, pushes and publishes it, and posts the reply in the chat.
 #
-# Claude gets file tools (no Bash, no git, no web), the project's own key, a
-# cost cap, a time limit, and the application as a read-only copy of what its
-# checkout has committed. A setup turn gets, from its subject, a browser on
+# Claude gets file tools (no Bash, no git, no web), the project's own key (or,
+# for a project without one, the server's Claude login, as every other AI
+# feature of Flosis runs today), a cost cap, a time limit, and the application
+# as a read-only copy of what its checkout has committed. A setup turn gets, from its subject, a browser on
 # the client's test environment instead (an MCP server) and the repositories
 # the run cloned, on a setup turn's bounds. A turn starts from its branch's last
 # commit. Whatever goes wrong before its own commit is made fails it, on the
@@ -51,7 +52,6 @@ class Designs::TurnJob < ApplicationJob
   # Claude so).
   TOOLS = %w[Read Glob Grep Edit Write].freeze
 
-  NO_KEY = "This project has no Anthropic API key of its own. Add it in Configuration › AI.".freeze
   NO_ANSWER = "Claude returned no answer — it may have hit the cost cap or the time limit.".freeze
   # What the publish failed on can name the preview folder, so it goes to the
   # log only.
@@ -125,8 +125,6 @@ class Designs::TurnJob < ApplicationJob
     subject = Designs::Subject.for(turn.chat_session)
     repo = Designs::Repo.new(subject.project)
     key = subject.api_key
-    raise Failure, subject.missing_key_message unless key
-
     worktree = subject.checkout!(repo)
     start = repo.head(subject.wip_branch)
     start_clean(turn, repo, worktree)

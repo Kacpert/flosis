@@ -208,16 +208,21 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
-  test "a project without its own API key fails the turn with the way out" do
+  # Kacper, 2026-11-02: until clients bring their own keys, a project without
+  # one runs on the server's Claude login, as every other AI feature does.
+  test "a project without its own API key runs on the server's Claude login" do
     with_design_remote do |repo, remote|
       seed_master(repo)
       repo.project.update!(anthropic_api_key: nil)
       task = tasks(:jira_task)
       task.update!(project: repo.project)
-      fake_claude
+      options = nil
+      fake_claude(during: ->(opts) { options = opts })
       turn = new_turn(task)
       with_remote_url(remote) { Designs::TurnJob.perform_now(turn.id) }
-      assert_match(/Configuration › AI/, turn.reload.error)
+      assert turn.reload.succeeded?, turn.error
+      assert options.key?(:api_key)
+      assert_nil options[:api_key]
     end
   end
 
@@ -1038,9 +1043,9 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
-  # Workshop Designs v2: the setup runs on the project's own key, as its turns
-  # do; without one (and without Flosis's) it fails with the way out.
-  test "a setup turn runs on the project's own key, and without any key fails with the way out" do
+  # The setup runs on the project's own key, as its turns do; without one
+  # (and without Flosis's) on the server's Claude login.
+  test "a setup turn runs on the project's own key, and without any key on the server's Claude login" do
     with_design_remote do |repo, remote|
       seed_master(repo)
       ENV.delete("FLOSIS_DESIGNS_SETUP_API_KEY")
@@ -1053,8 +1058,8 @@ class Designs::TurnJobTest < ActiveJob::TestCase
 
       repo.project.update!(anthropic_api_key: nil)
       turn = run_turn(next_turn(turn.chat_session, "Again"), remote)
-      assert turn.failed?
-      assert_equal Designs::TurnJob::NO_KEY, turn.error
+      assert turn.succeeded?, turn.error
+      assert_nil options[:api_key]
     end
   end
 

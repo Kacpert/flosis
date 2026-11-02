@@ -20,12 +20,13 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     ENV.delete("FLOSIS_DESIGNS_SETUP_API_KEY")
   end
 
-  test "without the project's key or Flosis's setup key there is none, and the way out is named" do
+  # Without a key the turn runs on the server's Claude login (TurnJob).
+  test "without the project's key or Flosis's setup key there is none" do
     ENV.delete("FLOSIS_DESIGNS_SETUP_API_KEY")
     @session.project.update!(anthropic_api_key: nil)
     subject = Designs::Subject.for(@session)
     assert_nil subject.api_key
-    assert_equal Designs::TurnJob::NO_KEY, subject.missing_key_message
+    assert_not subject.respond_to?(:missing_key_message), "nothing asks for a key any more"
   end
 
   test "a setup turn has a browser, a thread turn has none" do

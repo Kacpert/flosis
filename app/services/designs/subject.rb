@@ -58,7 +58,6 @@ module Designs::Subject
     def library_version_ids = composition.version_ids
     def turn_message(request) = Designs::Prompt.thread_message(thread: @thread, request: request)
     def api_key = ProjectCredentials.new(project).designs_api_key
-    def missing_key_message = Designs::TurnJob::NO_KEY
     def add_dirs = []
     def secrets = ProjectCredentials.new(project).all_secrets
     def prepare! = nil
@@ -137,7 +136,6 @@ module Designs::Subject
     def library_version_ids = composition.version_ids
     def turn_message(request) = Designs::Prompt.turn_message(task: @task, request: request)
     def api_key = ProjectCredentials.new(project).designs_api_key
-    def missing_key_message = Designs::TurnJob::NO_KEY
 
     # Ruling P5-R1: no folder beyond the per-turn copy of the app.
     def add_dirs = []
@@ -157,7 +155,6 @@ module Designs::Subject
   end
 
   class SetupSubject
-    NO_KEY = "Flosis's setup key is not configured (FLOSIS_DESIGNS_SETUP_API_KEY).".freeze
     NO_SETUP = "This project has no setup run.".freeze
     # The browser's tools (lib/designs_crawler/browser.mjs), as the CLI names
     # them; only the map's turn may save the features.
@@ -257,10 +254,9 @@ module Designs::Subject
       end
     end
 
-    # Workshop Designs v2: the project's own key, as its turns use; Flosis's
-    # setup key only for a project that has none.
+    # The project's own key, as its turns use; Flosis's setup key for a
+    # project that has none; with neither, the server's Claude login.
     def api_key = ProjectCredentials.new(project).designs_api_key || ENV["FLOSIS_DESIGNS_SETUP_API_KEY"].presence
-    def missing_key_message = Designs::TurnJob::NO_KEY
 
     # The app's repositories the run cloned and the materials, all read-only.
     def add_dirs
