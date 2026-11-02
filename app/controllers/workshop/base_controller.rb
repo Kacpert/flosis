@@ -26,7 +26,7 @@ class Workshop::BaseController < ApplicationController
                     "WHEN 'details' THEN 2 ELSE 3 END".freeze
 
   def load_pipeline
-    scope = current_workshop_project.tasks.pipeline.includes(:design_request)
+    scope = current_workshop_project.tasks.pipeline.includes(:design_request, :design_thread)
     scope = scope.where(workshop_stage: params[:stage]) if Task::WORKSHOP_STAGES.include?(params[:stage])
     scope = case params[:source]
             when "jira"  then scope.jira_synced

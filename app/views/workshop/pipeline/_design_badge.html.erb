@@ -1,0 +1,7 @@
+<%# A pipeline row's design thread (Workshop Designs v2): open, behind its task
+    or master, or merged. It opens the thread. %>
+<% need = thread.open? && (Designs::Threads.description_change(thread).present? || Designs::Threads.behind(thread).any?) %>
+<% label, badge, icon = if thread.merged? then [ "Designs merged", "clar-badge-success", :check ] elsif need then [ "Designs need update", "clar-badge-warn", :pen ] else [ "Design thread", "clar-badge-ai", :pen ] end %>
+<span class="clar-badge <%= badge %> whitespace-nowrap cursor-pointer inline-flex items-center gap-1" title="Open in Designs"
+      data-controller="designs-badge" data-designs-badge-url-value="<%= workshop_designs_overview_path(thread: thread.id) %>"
+      data-action="click->designs-badge#open"><%= designs_icon(icon, 11) %><%= label %></span>

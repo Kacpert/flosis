@@ -65,6 +65,7 @@ module Designs::Subject
     def after_turn(repo)
       base = repo.merge_base(wip_branch, Designs::Repo::MASTER)
       @thread.update!(base_sha: base) if base && base != @thread.base_sha
+      Designs::SyncJiraLinksJob.perform_later(@thread.task_id) if @thread.task&.external_reference.present?
     end
 
     # The screens the turn changed, from the commit it started on to the one

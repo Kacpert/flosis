@@ -15,60 +15,43 @@ class Designs::JiraLinksTest < ActiveSupport::TestCase
     ENV.delete("DESIGNS_PREVIEW_URL")
   end
 
-  def approved_task(repo, manifest)
+  # A task whose design thread changed the given screens against master.
+  def thread_task(repo, files = { "designs/admin/jobs.html" => "<title>Jobs</title><p>new</p>" })
     task = tasks(:jira_task)
     task.update!(project: repo.project, external_reference: "REC-1")
     repo.project.update!(jira_site: "acme.atlassian.net", jira_email: "j@acme.test", jira_api_token: "jt", design_preview_token: "t0k")
-    dir = repo.worktree!("wip/REC-1")
-    sha = commit_files(repo, dir, {
-      "designs/contexts.json" => { dimensions: [ { id: "role", name: "Role", values: [ { id: "admin", name: "Admin" }, { id: "viewer", name: "Viewer" } ] } ] }.to_json,
-      "designs/tasks/REC-1.json" => manifest.to_json,
-      "designs/jobs.html" => "jobs"
-    })
-    repo.point!("design/REC-1", to: sha)
+    thread = DesignThread.create!(project: repo.project, task: task, author: users(:one), title: "Jobs", branch: "design/REC-1-jobs",
+                                  base_sha: repo.head("master"))
+    commit_files(repo, repo.worktree!(thread.branch, from: thread.base_sha), files)
     task
   end
 
-  test "an overview link plus one per screen and context, with the project's own Jira" do
+  test "a link to the task's designs plus one per screen its thread changed, with the project's own Jira" do
     with_design_remote do |repo, remote|
       seed_master(repo)
-      task = approved_task(repo, { screens: [ { path: "designs/jobs.html", title: "Jobs", contexts: %w[admin viewer] } ] })
+      task = thread_task(repo)
       stub_request(:get, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink").to_return(status: 200, body: "[]")
       posts = stub_request(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink").to_return(status: 200, body: "{}")
       result = with_remote_url(remote) { Designs::JiraLinks.new(task).sync! }
       assert result[:ok], result[:error]
-      assert_requested posts, times: 3
-      assert_requested(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink") { |req|
-        JSON.parse(req.body)["object"]["url"] == "https://preview.example/test-workspace/elvium/REC-1/design/designs/jobs.html?ctx=viewer"
-      }
-      assert_requested(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink") { |req|
-        body = JSON.parse(req.body)
-        body["globalId"] == "flosis-design:#{repo.project.id}:REC-1:designs/jobs.html:viewer" &&
-          body["object"]["title"] == "Design · Jobs · Viewer"
-      }
-      assert_requested(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink") { |req|
-        body = JSON.parse(req.body)
-        body["globalId"] == "flosis-design:#{repo.project.id}:REC-1:index" && body["object"]["title"] == "Design · REC-1 · overview"
-      }
-    end
-  end
-
-  test "a screen that names no context gets one link, with the defaults" do
-    with_design_remote do |repo, remote|
-      seed_master(repo)
-      task = approved_task(repo, { screens: [ { path: "designs/jobs.html", title: "Jobs" } ] })
-      stub_request(:get, %r{/remotelink\z}).to_return(status: 200, body: "[]")
-      posts = stub_request(:post, %r{/remotelink\z}).to_return(status: 200, body: "{}")
-      with_remote_url(remote) { Designs::JiraLinks.new(task).sync! }
       assert_requested posts, times: 2
-      assert_requested(:post, %r{/remotelink\z}) { |req| JSON.parse(req.body)["object"]["url"].end_with?("/designs/jobs.html?ctx=admin") }
+      assert_requested(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink") { |req|
+        body = JSON.parse(req.body)
+        body["globalId"] == "flosis-design:#{repo.project.id}:REC-1:designs/admin/jobs.html" &&
+          body["object"]["url"] == "https://preview.example/test-workspace/elvium/REC-1/design/designs/admin/jobs.html" &&
+          body["object"]["title"] == "Design · Admin › Jobs"
+      }
+      assert_requested(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink") { |req|
+        body = JSON.parse(req.body)
+        body["globalId"] == "flosis-design:#{repo.project.id}:REC-1:index" && body["object"]["title"] == "Designs · design/REC-1-jobs"
+      }
     end
   end
 
-  test "a screen gone from the manifest loses its link" do
+  test "a screen the thread no longer changes loses its link" do
     with_design_remote do |repo, remote|
       seed_master(repo)
-      task = approved_task(repo, { screens: [] })
+      task = thread_task(repo)
       stale = "flosis-design:#{repo.project.id}:REC-1:designs/old.html:admin"
       other = "flosis-design:#{repo.project.id}:REC-10:index"
       stub_request(:get, %r{/remotelink\z}).to_return(status: 200, body: [ { globalId: stale, id: 9 }, { globalId: other, id: 10 },
@@ -84,7 +67,7 @@ class Designs::JiraLinksTest < ActiveSupport::TestCase
   test "syncing links never writes the description" do
     with_design_remote do |repo, remote|
       seed_master(repo)
-      task = approved_task(repo, { screens: [] })
+      task = thread_task(repo)
       stub_request(:get, %r{/remotelink\z}).to_return(status: 200, body: "[]")
       stub_request(:post, %r{/remotelink\z}).to_return(status: 200, body: "{}")
       with_remote_url(remote) { Designs::JiraLinks.new(task).sync! }
@@ -95,7 +78,7 @@ class Designs::JiraLinksTest < ActiveSupport::TestCase
   test "the first failure stops the sync and is returned" do
     with_design_remote do |repo, remote|
       seed_master(repo)
-      task = approved_task(repo, { screens: [ { path: "designs/jobs.html", title: "Jobs" } ] })
+      task = thread_task(repo)
       posts = stub_request(:post, %r{/remotelink\z}).to_return(status: 403, body: "{}")
       result = with_remote_url(remote) { Designs::JiraLinks.new(task).sync! }
       assert_not result[:ok]
@@ -123,21 +106,28 @@ class Designs::JiraLinksTest < ActiveSupport::TestCase
     end
   end
 
-  test "the job records how the links went on the approval" do
+  test "the job sends a task's links, and a failure is said in its thread" do
     with_design_remote do |repo, remote|
       seed_master(repo)
-      task = approved_task(repo, { screens: [] })
-      approval = task.design_approvals.create!(user: users(:one), number: 1, tag: "approved/REC-1/1", design_sha: "a", master_sha: "b")
+      task = thread_task(repo)
+      session = ChatSession.create!(project: repo.project, workspace: repo.project.workspace, user: users(:one), purpose: "designs_thread",
+                                    claude_session_id: SecureRandom.uuid, codebase_path: "/tmp")
+      task.design_thread.update!(chat_session: session)
       stub_request(:get, %r{/remotelink\z}).to_return(status: 200, body: "[]")
       stub_request(:post, %r{/remotelink\z}).to_return(status: 500, body: "{}")
-      with_remote_url(remote) { Designs::SyncJiraLinksJob.perform_now(approval.id) }
-      assert_match(/500/, approval.reload.jira_links_error)
-      assert_nil approval.jira_links_synced_at
-
-      stub_request(:post, %r{/remotelink\z}).to_return(status: 200, body: "{}")
-      with_remote_url(remote) { Designs::SyncJiraLinksJob.perform_now(approval.id) }
-      assert_nil approval.reload.jira_links_error
-      assert approval.jira_links_synced_at
+      with_remote_url(remote) { Designs::SyncJiraLinksJob.perform_now(task.id) }
+      assert_match(/\AThe Jira links could not be updated: .*500/, session.chat_messages.where(kind: "system").last.content)
     end
   end
+
+  test "a task with no design thread has no links to send" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "REC-1")
+      repo.project.update!(jira_site: "acme.atlassian.net", jira_email: "j@acme.test", jira_api_token: "jt")
+      assert_equal "This task has no design thread yet.", with_remote_url(remote) { Designs::JiraLinks.new(task).sync![:error] }
+    end
+  end
+
 end

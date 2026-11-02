@@ -1,21 +1,26 @@
-# Sends an approval's Web links to the task's Jira issue (Designs::JiraLinks)
-# and records how that went on the approval: when they last went out, or why
-# they did not, for the Designs screen to show and to retry.
+# Sends a task's design links to its Jira issue (Designs::JiraLinks), after
+# its design thread changed or merged. A failure is said in the thread, for
+# the next change to try again.
 class Designs::SyncJiraLinksJob < ApplicationJob
   queue_as :default
 
-  def perform(approval_id)
-    approval = DesignApproval.find_by(id: approval_id)
-    return unless approval
+  QUIET = [ Designs::JiraLinks::NO_JIRA, Designs::JiraLinks::NO_ISSUE ].freeze
 
-    result = Designs::JiraLinks.new(approval.task).sync!
-    if result[:ok]
-      approval.update!(jira_links_synced_at: Time.current, jira_links_error: nil)
-    else
-      approval.update!(jira_links_error: result[:error].to_s.truncate(1_000))
-    end
+  def perform(task_id)
+    task = Task.find_by(id: task_id) or return
+    result = Designs::JiraLinks.new(task).sync!
+    return if result[:ok] || QUIET.include?(result[:error])
+
+    note(task, "The Jira links could not be updated: #{result[:error].to_s.truncate(500)}")
   rescue StandardError => e
-    Rails.logger.error("[#{self.class.name}] approval #{approval_id}: #{e.class}: #{e.message}")
-    approval&.update!(jira_links_error: "The links could not be sent: #{e.class.name}")
+    Rails.logger.error("[#{self.class.name}] task #{task_id}: #{e.class}: #{e.message}")
+    note(task, "The Jira links could not be updated: #{e.class.name}") if task
+  end
+
+  private
+
+  def note(task, text)
+    thread = task.design_thread
+    Designs::Threads.note(thread, text) if thread&.chat_session
   end
 end

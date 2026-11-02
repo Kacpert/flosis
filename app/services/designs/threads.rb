@@ -234,6 +234,7 @@ module Designs::Threads
     by = how == "manual" ? "by #{user&.name || 'someone'}" : "· #{merge.how_label.delete_prefix('Auto · ')}"
     note(thread, "Merged into master as #{merge.short_sha} #{by}")
     publish(thread, branch: Designs::Repo::MASTER, slot: "master", base: nil)
+    Designs::SyncJiraLinksJob.perform_later(thread.task_id) if thread.task&.external_reference.present?
     merge
   end
 end

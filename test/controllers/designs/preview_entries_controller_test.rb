@@ -31,6 +31,17 @@ class Designs::PreviewEntriesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "<p>jobs</p>", response.body
   end
 
+  test "a task's lasting link opens its design thread's branch" do
+    task = tasks(:jira_task)
+    task.update!(project: @project, external_reference: "SP-1051")
+    DesignThread.create!(project: @project, task: task, author: users(:one), title: "x", branch: "design/SP-1051-inline")
+    write("design/SP-1051-inline/designs/candidate/apply.html", "<p>apply</p>")
+    sign_in_as(users(:one))
+
+    get "/test-workspace/elvium/SP-1051/design/designs/candidate/apply.html"
+    assert_granted("design/SP-1051-inline", "designs/candidate/apply.html")
+  end
+
   test "the project's link opens master, and a task's opens its last approved version" do
     sign_in_as(users(:one))
     get "/test-workspace/elvium/design/"

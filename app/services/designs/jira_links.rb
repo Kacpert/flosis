@@ -1,17 +1,18 @@
-# The Web links from a task's Jira issue to its approved designs: one to the
-# overview, and one per screen of the task's manifest and context it is shown
-# in. They are read from the task's design branch (the last approved work),
-# written with the project's own Jira credentials, and never touch the
+# The Web links from a task's Jira issue to its designs (Workshop Designs v2):
+# one to the designs of the task's thread, and one per screen the thread
+# changed against master. They are lasting links (/<org>/<project>/<KEY>/
+# design/…), which open the thread's branch for whoever may see the project;
+# they are written with the project's own Jira credentials and never touch the
 # description: Jira's sync rewrites that every few minutes.
 #
 # Each link is known by a stable globalId, so writing one again updates it,
-# and a link Flosis made for a screen the designs no longer have is deleted.
+# and a link Flosis made for a screen the thread no longer changes is deleted.
 #   flosis-design:<project id>:<slug>:index
-#   flosis-design:<project id>:<slug>:<screen path>:<ctx joined by ,>
+#   flosis-design:<project id>:<slug>:<screen path>
 class Designs::JiraLinks
   NO_JIRA = "This project isn't connected to Jira.".freeze
   NO_ISSUE = "This task has no Jira issue yet.".freeze
-  NO_DESIGNS = "This task has no approved designs yet.".freeze
+  NO_DESIGNS = "This task has no design thread yet.".freeze
 
   Link = Data.define(:global_id, :url, :title)
 
@@ -65,49 +66,31 @@ class Designs::JiraLinks
     { ok: true, error: nil }
   end
 
-  # The overview and every screen-and-context link, from the design branch as
-  # this clone has it after a fetch, else as origin has it; nil when the task
-  # has no approved design.
+  # The thread's link and one per screen it changed, from its branch as this
+  # clone has it after a fetch, else as origin has it; nil without a thread.
   def build_links
+    thread = @task.design_thread
+    return if thread.nil? || thread.fresh?
+
     repo = Designs::Repo.new(@project)
     repo.ensure_clone!
-    design = Designs::BranchNames.design(@task)
-    ref = if repo.head(design)
-      "refs/heads/#{design}"
-    elsif repo.remote_head(design)
-      "refs/remotes/origin/#{design}"
+    ref = if repo.head(thread.branch)
+      "refs/heads/#{thread.branch}"
+    elsif repo.remote_head(thread.branch)
+      "refs/remotes/origin/#{thread.branch}"
     end
     return unless ref
 
-    branch = Designs::WorkingBranch.new(Designs::WorkingBranch::GitTree.new(repo: repo, ref: ref), slug)
+    at = ->(at_ref) { Designs::Screens.new(paths: repo.ls_files(at_ref, "designs/"), reader: ->(path) { repo.read_file(at_ref, path) }) }
+    head = at.call(ref)
     publisher = Designs::Publisher.new(@project, nil)
-    overview = Link.new(global_id: "#{prefix}index", url: publisher.url(slug), title: "Design · #{slug} · overview")
-    screens = branch.screens.flat_map { |screen| screen_links(screen, branch.dimensions, publisher) }
-    [ overview, *screens ].uniq(&:global_id)
-  end
-
-  # One link per context the screen names (that value in place of its own
-  # dimension's default), or one with the defaults when it names none that a
-  # dimension has.
-  def screen_links(screen, dimensions, publisher)
-    defaults = dimensions.map { |dimension| dimension["default"] }
-    variants = screen["contexts"].filter_map do |value|
-      index = dimensions.index { |dimension| dimension["values"].any? { |option| option["id"] == value } }
-      defaults.dup.tap { |ctx| ctx[index] = value } if index
+    overview = Link.new(global_id: "#{prefix}index", url: publisher.url(slug), title: "Designs · #{thread.branch}")
+    screens = Designs::Changes.new(base: at.call(thread.base_sha.presence || Designs::Repo::MASTER), head: head).changed.map do |change|
+      screen = head.find(change[:context], change[:screen])
+      Link.new(global_id: "#{prefix}#{screen[:path]}", url: publisher.url(slug, screen[:path]),
+               title: "Design · #{change[:context].humanize} › #{screen[:name]}")
     end
-    variants = [ defaults ] if variants.empty?
-    variants.map do |ctx|
-      Link.new(global_id: "#{prefix}#{screen["path"]}:#{ctx.join(",")}",
-               url: publisher.url(slug, screen["path"], ctx: ctx),
-               title: "Design · #{screen["title"]} · #{context_names(ctx, dimensions)}")
-    end
-  end
-
-  def context_names(ctx, dimensions)
-    names = ctx.each_with_index.map do |value, index|
-      dimensions[index]["values"].find { |option| option["id"] == value }&.fetch("name") || value
-    end
-    names.empty? ? "default" : names.join(" + ")
+    [ overview, *screens ]
   end
 
   def failure(error)

@@ -4,10 +4,29 @@
 # Designs module, where the thread shows what happened.
 class Workshop::DesignThreadsController < Workshop::BaseController
   before_action { require_permission!(:designs) }
-  before_action :set_thread, except: :create
+  before_action :set_thread, except: %i[create start_from_task]
 
   def create
     thread = Designs::Threads.start!(project: current_workshop_project, user: current_user)
+    redirect_to workshop_designs_overview_path(thread: thread.id)
+  end
+
+  # "Design with AI" on a task: its thread, started on the task's
+  # description, or the one it already has. A project without designs is sent
+  # to set them up first.
+  def start_from_task
+    project = current_workshop_project
+    task = project.tasks.find(params[:id])
+    unless project.designs_ready?
+      flash[:clar_toast] = "Set up Designs for #{project.name} first"
+      return redirect_to(workshop_designs_overview_path)
+    end
+
+    thread = task.design_thread
+    unless thread
+      thread = Designs::Threads.start_from_task!(task, user: current_user)
+      flash[:clar_toast] = "Design thread started · #{thread.branch}"
+    end
     redirect_to workshop_designs_overview_path(thread: thread.id)
   end
 

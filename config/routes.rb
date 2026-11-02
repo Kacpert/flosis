@@ -100,6 +100,7 @@ Rails.application.routes.draw do
   namespace :workshop do
     get "pipeline", to: "pipeline#index", as: :pipeline
     get "designs", to: "designs_module#show", as: :designs_overview
+    post "ideas/:id/design_thread", to: "design_threads#start_from_task", as: :start_idea_design_thread
     resources :design_threads, only: :create, path: "designs/threads" do
       member { post :message; post :merge; post :update_description; post :update_master; post :create_task }
     end

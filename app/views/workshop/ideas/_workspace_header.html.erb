@@ -33,9 +33,6 @@
     </div>
 
     <div class="flex-none flex items-center gap-3">
-      <% if idea.project&.designs_ready? %>
-        <%= link_to "Designs", workshop_idea_designs_path(idea), class: "clar-btn py-1.5 no-underline" %>
-      <% end %>
       <%= render "workshop/ideas/stepper", idea: idea, stage: stage %>
     </div>
   </div>
@@ -43,7 +40,11 @@
   <%# The designs strip (status + delivered links) shows in the header only once a
       request exists — in the empty state the "Request from designer" action lives
       in the document-panel footer instead of a banner on top of the panels. %>
-  <% if %w[details ready].include?(stage) && idea.design_request.present? %>
+  <%# Workshop Designs v2: where Designs is on for the project, its strip takes
+      the designer's place, on every stage. %>
+  <% if can?(:designs) && (idea.project&.designs_enabled? || current_user&.flosis_staff?) %>
+    <%= render "workshop/ideas/design_thread_strip", idea: idea %>
+  <% elsif %w[details ready].include?(stage) && idea.design_request.present? %>
     <%= render "workshop/ideas/designs_strip", idea: idea %>
   <% end %>
 </div>

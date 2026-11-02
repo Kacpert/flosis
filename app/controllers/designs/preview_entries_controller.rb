@@ -10,14 +10,16 @@ class Designs::PreviewEntriesController < ApplicationController
     open_preview(Designs::Repo::MASTER)
   end
 
+  # A task's lasting link: its design thread's branch (Workshop Designs v2),
+  # else the slot of that name.
   def task
-    open_preview(params[:key])
+    project = named_project
+    open_preview(task_slot(project, params[:key]), project)
   end
 
   private
 
-  def open_preview(slot)
-    project = named_project
+  def open_preview(slot, project = named_project)
     publisher = project && Designs::Publisher.new(project, nil)
     return head(:not_found) unless publisher&.published?(slot)
 
@@ -35,6 +37,13 @@ class Designs::PreviewEntriesController < ApplicationController
   # The project the link names, among those the Workshop shows whoever opened
   # it, in the workspace the link names rather than the one they last chose.
   # Names are compared as links write them.
+  def task_slot(project, key)
+    return key unless project
+
+    task = key.to_s.start_with?("task-") ? project.tasks.find_by(id: key.delete_prefix("task-")) : project.tasks.find_by(external_reference: key)
+    task&.design_thread&.branch.presence || key
+  end
+
   def named_project
     Current.user.workspaces.find_each do |workspace|
       next unless Designs::Publisher.label(workspace.name, "organization") == params[:organization]
