@@ -61,6 +61,22 @@ class JiraSyncServiceBoardsTest < ActiveSupport::TestCase
     assert_equal "kanban", board.board_type
   end
 
+  # A team-managed Jira project (a new organization's, say) has a board of type
+  # "simple", with sprints of its own.
+  test "syncs a team-managed board and its sprints" do
+    client = build_mock_client(
+      boards: [{ id: 1, name: "SCRUM board", type: "simple" }],
+      board_configs: { 1 => [{ name: "To Do", statuses: [{ id: "1" }] }] },
+      sprints: { 1 => [{ id: 2, name: "SCRUM Sprint 0", state: "active" }] }
+    )
+
+    JiraSyncService.new(@project, client: client).sync
+
+    board = @project.jira_boards.find_by!(jira_board_id: 1)
+    assert_equal [ "SCRUM board", "simple" ], [ board.name, board.board_type ]
+    assert_equal [ "SCRUM Sprint 0" ], board.jira_sprints.pluck(:name)
+  end
+
   test "updates existing boards" do
     client = build_mock_client(
       boards: [{ id: 101, name: "Design Renamed", type: "scrum" }],
