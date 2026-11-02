@@ -166,4 +166,15 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     get workshop_designs_overview_path
     assert_response :not_found
   end
+
+  test "a thread with nothing of its own yet offers no merge" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      Designs::Threads.message!(thread, user: users(:one), text: "Errors under the field")
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_includes response.body, "0 commits ahead"
+      assert_not_includes response.body, "Merge to master"
+    end
+  end
+
 end

@@ -26,7 +26,7 @@
     <a href="<%= @frame_src %>" target="_blank" rel="noopener noreferrer" class="clar-btn no-underline" title="Open this preview in a new tab"
        data-action="designs-canvas#toast" data-designs-canvas-message-param="Opened in new tab · <%= @frame_src.sub(%r{\Ahttps?://}, "") %>"><%= designs_icon(:external, 14) %>Open in new tab</a>
   <% end %>
-  <% if live %>
+  <% if live && @ahead.positive? %>
     <button type="button" class="clar-btn clar-btn-primary" data-action="clar-modal#open" data-clar-modal-id-param="merge-thread"><%= designs_icon(:merge, 14) %>Merge to master</button>
   <% elsif @thread.nil? %>
     <span class="text-[12px] clar-text-faint">Read-only · start a thread to change it</span>

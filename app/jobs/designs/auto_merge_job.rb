@@ -8,7 +8,12 @@ class Designs::AutoMergeJob < ApplicationJob
 
   CONFLICT = "Couldn't merge automatically: master changed the same lines. Update from master, then merge.".freeze
 
-  retry_on Designs::Threads::Busy, wait: 2.minutes, attempts: 15
+  BUSY = "Couldn't merge automatically: the thread stayed busy. Merge it by hand when its turn ends.".freeze
+
+  retry_on Designs::Threads::Busy, wait: 2.minutes, attempts: 15 do |job, _error|
+    thread = DesignThread.find_by(id: job.arguments.first)
+    Designs::Threads.note(thread, BUSY) if thread&.open?
+  end
 
   def perform(thread_id)
     thread = DesignThread.find_by(id: thread_id)
@@ -17,7 +22,9 @@ class Designs::AutoMergeJob < ApplicationJob
     Designs::Threads.merge!(thread, how: "auto")
   rescue Designs::Repo::Conflict
     Designs::Threads.note(thread, CONFLICT)
-  rescue Designs::Threads::AlreadyMerged
+  rescue GitRunner::Error => e
+    Designs::Threads.note(thread, "Couldn't merge automatically: #{e.message.to_s.lines.first.to_s.strip.truncate(300)}. Merge it by hand.")
+  rescue Designs::Threads::AlreadyMerged, Designs::Threads::NothingToMerge
     nil
   end
 end

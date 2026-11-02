@@ -47,6 +47,7 @@ class Workshop::DesignsModuleController < Workshop::BaseController
 
   def load_canvas
     live = @thread&.open? && !@thread.fresh?
+    @ahead = live && @repo.head(@thread.branch, lock: false) ? @repo.commits_ahead(@thread.branch, lock: false) : 0
     @mode = live ? (params[:mode].presence_in(MODES) || "branch") : "master"
     @slot = @mode == "master" ? Designs::Repo::MASTER : @thread.branch
     screens = published_screens(@slot)

@@ -9,10 +9,12 @@
 module Designs::Threads
   class Busy < StandardError; end
   class AlreadyMerged < StandardError; end
+  class NothingToMerge < StandardError; end
 
   NEW_TITLE = "New thread".freeze
   TITLE_LIMIT = 64
   BUSY = "The design repo is busy — try again in a minute.".freeze
+  NOTHING_TO_MERGE = "Nothing to merge yet: this thread has no changes of its own.".freeze
   START_FROM_TASK = <<~REQUEST.freeze
     Design this task. Read its current description and compare it with master. Where a screen already
     covers it, update that screen instead of making a new one; where nothing does, draft it as a new
@@ -117,27 +119,39 @@ module Designs::Threads
     raise Busy, BUSY
   end
 
-  # Merges the thread into master: a merge commit, pushed, recorded, master
-  # published, and the thread read-only after it.
+  # Merges the thread into master: a merge commit, pushed and recorded under
+  # the repo's lock, so master never moves on GitHub without its merge in the
+  # history; a push GitHub refuses puts master back. Then master is published
+  # and the thread is read-only.
   def merge!(thread, user: nil, how: "manual")
     raise AlreadyMerged, "#{thread.branch} is already merged" if thread.merged?
 
     repo = Designs::Repo.new(thread.project)
-    sha, commits, screens = repo.synchronize(wait: false) do
+    merge = repo.synchronize(wait: false) do
       raise AlreadyMerged, "#{thread.branch} is already merged" if thread.reload.merged?
 
       refuse_while_turns_run!(thread)
       repo.ensure_clone!
       repo.worktree!(thread.branch, from: thread.base_sha.presence || Designs::Repo::MASTER)
-      counted = repo.commits_ahead(thread.branch)
-      changed = changed_screens(repo, thread)
-      merged = repo.merge_into_master!(thread.branch, message: "Merge #{thread.branch}: #{thread.title}")
-      repo.push!(Designs::Repo::MASTER)
-      [ merged, counted, changed ]
+      commits = repo.commits_ahead(thread.branch)
+      raise NothingToMerge, NOTHING_TO_MERGE unless commits.positive?
+
+      screens = changed_screens(repo, thread)
+      sha = repo.merge_into_master!(thread.branch, message: "Merge #{thread.branch}: #{thread.title}")
+      begin
+        repo.push!(Designs::Repo::MASTER)
+      rescue StandardError
+        repo.reset_master!
+        raise
+      end
+      record_merge!(thread, user, how, sha, commits, screens)
     end
-    record_merge!(thread, user, how, sha, commits, screens)
+    after_merge!(thread)
+    merge
   rescue Designs::Repo::Busy
     raise Busy, BUSY
+  rescue Designs::Repo::NothingToMerge
+    raise NothingToMerge, NOTHING_TO_MERGE
   end
 
   def short(sha) = sha.to_s.first(7)
@@ -235,8 +249,11 @@ module Designs::Threads
     thread.update!(status: "merged", merged_sha: sha, merged_at: merge.merged_at)
     by = how == "manual" ? "by #{user&.name || 'someone'}" : "· #{merge.how_label.delete_prefix('Auto · ')}"
     note(thread, "Merged into master as #{merge.short_sha} #{by}")
+    merge
+  end
+
+  def after_merge!(thread)
     publish(thread, branch: Designs::Repo::MASTER, slot: "master", base: nil)
     Designs::SyncJiraLinksJob.perform_later(thread.task_id) if thread.task&.external_reference.present?
-    merge
   end
 end

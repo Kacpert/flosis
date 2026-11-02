@@ -24,8 +24,7 @@
     <% elsif thread.fresh? %>
       <span class="text-[11.5px] clar-text-faint">No changes yet</span>
     <% else %>
-      <% ahead = @repo.commits_ahead(thread.branch) rescue 0 %>
-      <span class="text-[11.5px] clar-text-faint"><%= ahead %> commits ahead<%= " · #{@behind.size} merge#{'s' unless @behind.size == 1} behind master" if @behind.any? %></span>
+      <span class="text-[11.5px] clar-text-faint"><%= @ahead %> commits ahead<%= " · #{@behind.size} merge#{'s' unless @behind.size == 1} behind master" if @behind.any? %></span>
     <% end %>
   </div>
   <div class="flex gap-1.5 flex-wrap mt-2.5">

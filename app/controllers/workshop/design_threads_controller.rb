@@ -43,10 +43,13 @@ class Workshop::DesignThreadsController < Workshop::BaseController
     merge = Designs::Threads.merge!(@thread, user: current_user)
     flash[:clar_toast] = "Merged into master · #{merge.short_sha}"
     redirect_to workshop_designs_overview_path(tab: "history", merge: merge.id)
-  rescue Designs::Threads::Busy, Designs::Threads::AlreadyMerged => e
+  rescue Designs::Threads::Busy, Designs::Threads::AlreadyMerged, Designs::Threads::NothingToMerge => e
     redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
   rescue Designs::Repo::Conflict
-    redirect_to workshop_designs_overview_path(thread: @thread.id), alert: Designs::AutoMergeJob::CONFLICT
+    redirect_to workshop_designs_overview_path(thread: @thread.id), alert: "Master changed the same lines. Update from master, then merge."
+  rescue GitRunner::Error => e
+    redirect_to workshop_designs_overview_path(thread: @thread.id),
+                alert: "The merge did not reach GitHub, so master stays as it was: #{e.message.to_s.lines.first.to_s.strip.truncate(200)}"
   end
 
   def update_description

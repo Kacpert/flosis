@@ -116,4 +116,17 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
     assert_no_enqueued_jobs only: Designs::TurnJob
   end
 
+
+  test "merging a thread with nothing of its own says so instead of failing" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      Designs::Threads.message!(thread, user: users(:one), text: "Nothing yet")
+      DesignTurn.update_all(status: "succeeded")
+
+      post merge_workshop_design_thread_path(thread)
+      assert_redirected_to workshop_designs_overview_path(thread: thread.id)
+      assert_equal Designs::Threads::NOTHING_TO_MERGE, flash[:alert]
+    end
+  end
+
 end

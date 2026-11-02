@@ -60,4 +60,22 @@ class Designs::AutoMergeJobTest < ActiveSupport::TestCase
       assert_equal Designs::AutoMergeJob::CONFLICT, waiting.chat_session.chat_messages.where(kind: "system").ordered.last.content
     end
   end
+
+  test "a merge git cannot finish is said in the thread, not dropped" do
+    with_threads_remote do |repo, remote|
+      seed_master(repo)
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "SP-1040")
+      thread = thread_with_work(repo, { "designs/admin/pipeline.html" => "<title>Pipeline</title>" }, task: task)
+      hook = File.join(remote, "hooks", "pre-receive")
+      File.write(hook, "#!/bin/sh\nexit 1\n")
+      File.chmod(0o755, hook)
+
+      Designs::AutoMergeJob.perform_now(thread.id)
+
+      assert thread.reload.open?
+      assert_match(/\ACouldn't merge automatically: /, thread.chat_session.chat_messages.where(kind: "system").ordered.last.content)
+    end
+  end
+
 end

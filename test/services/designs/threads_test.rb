@@ -184,4 +184,34 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     end
   end
 
+
+  test "a thread with no changes of its own has nothing to merge, and says so" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = Designs::Threads.start!(project: repo.project, user: @user)
+      Designs::Threads.message!(thread, user: @user, text: "Nothing yet")
+      DesignTurn.update_all(status: "succeeded")
+
+      error = assert_raises(Designs::Threads::NothingToMerge) { Designs::Threads.merge!(thread.reload, user: @user) }
+      assert_equal Designs::Threads::NOTHING_TO_MERGE, error.message
+      assert thread.reload.open?
+    end
+  end
+
+  test "a push GitHub refuses leaves master as it was and records nothing" do
+    with_threads_remote do |repo, remote|
+      before = seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      hook = File.join(remote, "hooks", "pre-receive")
+      File.write(hook, "#!/bin/sh\nexit 1\n")
+      File.chmod(0o755, hook)
+
+      assert_raises(GitRunner::Error) { Designs::Threads.merge!(thread, user: @user) }
+      assert_equal before, repo.head("master")
+      assert_equal before, remote_branch_sha(remote, "master")
+      assert_empty DesignMerge.all
+      assert thread.reload.open?
+    end
+  end
+
 end
