@@ -63,6 +63,22 @@ class ProjectCredentialsTest < ActiveSupport::TestCase
     ENV.delete("JIRA_DOMAIN")
   end
 
+  # A project on a Jira of its own (another organization's) must never send
+  # the server's login there: a blank field stays blank.
+  test "a project on another Jira site never borrows the server's login" do
+    ENV["JIRA_DOMAIN"] = "env.atlassian.net"
+    ENV["JIRA_EMAIL"] = "env@example.com"
+    ENV["JIRA_API_TOKEN"] = "env_token"
+    @project.update!(jira_site: "other.atlassian.net", jira_email: nil, jira_api_token: nil)
+    creds = ProjectCredentials.new(@project)
+    assert_equal [ "other.atlassian.net", nil, nil ], [ creds.jira_site, creds.jira_email, creds.jira_api_token ]
+
+    @project.update!(jira_site: "env.atlassian.net")
+    assert_equal [ "env@example.com", "env_token" ], [ creds.jira_email, creds.jira_api_token ], "the server's own site keeps its login"
+  ensure
+    %w[JIRA_DOMAIN JIRA_EMAIL JIRA_API_TOKEN].each { |k| ENV.delete(k) }
+  end
+
   # The CLI already runs off the machine's own key, so a project that never set
   # one keeps working exactly as it does today.
   test "the AI key falls back to the environment" do

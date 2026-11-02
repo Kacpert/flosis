@@ -9,6 +9,11 @@ class JiraWriter
   SPEC_VALUE = "Added specification and branch".freeze
   DETAILED_VALUE = "Detailed".freeze
 
+  # The writer for a project's Jira (see JiraClient.for).
+  def self.for(project)
+    new(client: JiraClient.for(project))
+  end
+
   def initialize(client: JiraClient.new)
     @client = client
   end

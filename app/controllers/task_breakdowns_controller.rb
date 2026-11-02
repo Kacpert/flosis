@@ -41,7 +41,7 @@ class TaskBreakdownsController < ApplicationController
   # Pushes the latest breakdown spec to the linked Jira issue. Admin + Workshop
   # only. No silent success — a failed write surfaces an alert.
   def update_jira
-    result = JiraWriter.new.commit_breakdown(@task)
+    result = JiraWriter.for(@task.project).commit_breakdown(@task)
     if result[:ok]
       redirect_to jira_task_breakdown_path(@task), notice: "Spec pushed to Jira: #{result[:key]}."
     else

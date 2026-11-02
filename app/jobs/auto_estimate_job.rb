@@ -71,7 +71,7 @@ class AutoEstimateJob < ApplicationJob
   def write_to_jira(task, project, points)
     return if task.external_reference.blank?
 
-    client = JiraClient.new
+    client = JiraClient.for(project)
     Array(project.estimation_field_names).each do |field_name|
       field_id = field_id_for(project, client, field_name)
       next if field_id.blank?

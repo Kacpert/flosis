@@ -1,6 +1,14 @@
 require "test_helper"
 
 class JiraSyncServiceTest < ActiveSupport::TestCase
+  test "a project is synced with its own Jira" do
+    project = projects(:jira_project)
+    project.update!(jira_site: "flosis-test.atlassian.net", jira_email: "kacper@example.test", jira_api_token: "project-token")
+    client = JiraSyncService.new(project).instance_variable_get(:@client)
+    assert_equal [ "flosis-test.atlassian.net", "kacper@example.test", "project-token" ],
+                 %i[@domain @email @api_token].map { |name| client.instance_variable_get(name) }
+  end
+
   include ActiveJob::TestHelper
 
   setup do

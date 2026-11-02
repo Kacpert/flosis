@@ -6,6 +6,14 @@ class JiraClient
   TIMEOUT = 10
   PROJECT_KEY_FORMAT = /\A[A-Z][A-Z0-9_]+\z/
 
+  # The client for a project: its own Jira (a new organization's site, with
+  # its login) or the machine's when it sets none (ProjectCredentials). Every
+  # call made for a project goes through this one.
+  def self.for(project)
+    credentials = ProjectCredentials.new(project)
+    new(domain: credentials.jira_site, email: credentials.jira_email, api_token: credentials.jira_api_token)
+  end
+
   def initialize(domain: ENV["JIRA_DOMAIN"], email: ENV["JIRA_EMAIL"], api_token: ENV["JIRA_API_TOKEN"])
     @domain = domain
     @email = email

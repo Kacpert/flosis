@@ -30,7 +30,7 @@ class Workshop::DesignRequestsController < Workshop::BaseController
       designer = designer_id.present? ? User.find(designer_id) : nil
       design_request.request_changes!(designer: designer, note: update_params[:note])
 
-      sync_result = JiraWriter.new.sync_design_links(@idea, design_request.links)
+      sync_result = JiraWriter.for(@idea.project).sync_design_links(@idea, design_request.links)
       flash[:clar_toast] = if sync_result[:ok]
         "Design request changes requested"
       else
@@ -40,7 +40,7 @@ class Workshop::DesignRequestsController < Workshop::BaseController
       links = normalize_links(update_params[:links])
       design_request.deliver!(links)
 
-      sync_result = JiraWriter.new.sync_design_links(@idea, links)
+      sync_result = JiraWriter.for(@idea.project).sync_design_links(@idea, links)
       flash[:clar_toast] = if sync_result[:ok]
         "Designs delivered · #{links.size} link#{"s" unless links.size == 1} added to Jira description"
       else
