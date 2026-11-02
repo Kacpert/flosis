@@ -130,15 +130,18 @@ class WorkshopReport
     { name: name, count: count }
   end
 
+  # Named by this workspace's member with that email, else by Jira's name for
+  # the assignee. A lookup across all users printed the name of someone in
+  # another workspace who happened to share the Jira account's email.
   def top_fixer
-    counts = delivered_bugs.where.not(assignee_email: [ nil, "" ])
-                            .pluck(Arel.sql("LOWER(assignee_email)"))
-                            .tally
-    return nil if counts.empty?
+    rows = delivered_bugs.where.not(assignee_email: [ nil, "" ])
+                         .pluck(Arel.sql("LOWER(assignee_email)"), :assignee_name)
+    return nil if rows.empty?
 
-    top_email, count = counts.max_by { |(_, c)| c }
-    name = user_by_email(top_email)&.name || top_email
-    { name: name, count: count }
+    top_email, count = rows.map(&:first).tally.max_by { |(_, c)| c }
+    member = @project.workspace.users.find_by("LOWER(email_address) = ?", top_email)
+    jira_name = rows.find { |email, name| email == top_email && name.present? }&.last
+    { name: member&.name || jira_name || top_email, count: count }
   end
 
   # ---------------------------------------------------------------------
