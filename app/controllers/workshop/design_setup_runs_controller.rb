@@ -9,7 +9,7 @@
 class Workshop::DesignSetupRunsController < Workshop::BaseController
   before_action { require_permission!(:designs) }
   before_action(except: :show) { require_permission!(:configuration) }
-  before_action :require_designs_visible!
+  include DesignsVisibility
 
   FRAMEWORKS = [ [ "vue", "Vue.js", "3.4" ], [ "react", "React", "18.3" ], [ "angular", "Angular", "17" ], [ "html", "HTML + CSS", nil ] ].freeze
   UI_SYSTEMS = [ [ "foundation", "Foundation", "6.8" ], [ "bootstrap", "Bootstrap", "5.3" ], [ "tailwind", "Tailwind", "4" ],
@@ -77,11 +77,6 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
   end
 
   private
-
-  def require_designs_visible!
-    project = current_workshop_project
-    raise ActionController::RoutingError, "Not Found" unless project && (project.designs_enabled? || current_user.flosis_staff?)
-  end
 
   def incomplete
     flash.now[:alert] = INCOMPLETE

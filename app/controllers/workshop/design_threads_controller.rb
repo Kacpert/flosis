@@ -4,6 +4,7 @@
 # Designs module, where the thread shows what happened.
 class Workshop::DesignThreadsController < Workshop::BaseController
   before_action { require_permission!(:designs) }
+  include DesignsVisibility
   before_action :set_thread, except: %i[create start_from_task]
 
   def create

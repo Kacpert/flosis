@@ -6,7 +6,7 @@
 # Until Flosis staff switch Designs on for a project, only they see it.
 class Workshop::DesignsModuleController < Workshop::BaseController
   before_action { require_permission!(:designs) }
-  before_action :require_designs_visible!
+  include DesignsVisibility
 
   TABS = %w[system components history].freeze
   MODES = %w[branch master changes].freeze
@@ -33,11 +33,6 @@ class Workshop::DesignsModuleController < Workshop::BaseController
   end
 
   private
-
-  def require_designs_visible!
-    project = current_workshop_project
-    raise ActionController::RoutingError, "Not Found" unless project && (project.designs_enabled? || current_user.flosis_staff?)
-  end
 
   # What a thread's row in the list shows beside its title.
   def row_for(thread)

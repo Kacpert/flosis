@@ -101,4 +101,19 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
       assert_response :redirect
     end
   end
+
+  test "nobody outside Flosis staff can act on threads while Designs is off for the project" do
+    thread = DesignThread.create!(project: @project, author: users(:one), title: "x")
+    @project.update!(designs_enabled: false)
+    users(:one).update!(flosis_staff: false)
+
+    assert_no_difference -> { DesignThread.count } do
+      post workshop_design_threads_path
+    end
+    assert_response :not_found
+    post message_workshop_design_thread_path(thread), params: { text: "Do it" }
+    assert_response :not_found
+    assert_no_enqueued_jobs only: Designs::TurnJob
+  end
+
 end

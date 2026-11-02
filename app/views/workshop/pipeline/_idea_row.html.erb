@@ -31,7 +31,7 @@
     </div>
   </div>
 
-  <% if idea.design_thread && can?(:designs) %>
+  <% if idea.design_thread && can?(:designs) && (idea.project.designs_enabled? || current_user.flosis_staff?) %>
     <%= render "workshop/pipeline/design_badge", thread: idea.design_thread %>
   <% elsif idea.design_request&.requested? %>
     <span class="clar-badge clar-badge-warn whitespace-nowrap">
