@@ -2,6 +2,9 @@ require "test_helper"
 
 class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
   setup do
+    # Inside PrReviewCheckJob's review hours: the polling chip reads the clock,
+    # and a run after 20:00 would otherwise find it paused.
+    travel_to Time.zone.local(2026, 11, 3, 10, 0)
     @workspace = workspaces(:one)
     @workspace.update!(workshop_enabled: true)
     @project = projects(:jira_project)
@@ -74,6 +77,29 @@ class Workshop::ProcessControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "body", /AI PR reviews are turned off/
     assert_select "body", /Configuration/
+  end
+
+  # The switch sits in Configuration's GitHub dialog, and the bare page opens
+  # on a tab without it: four tabs clicked through and no sign of the switch.
+  test "the way out of the off state opens the GitHub dialog that holds the switch" do
+    @project.update!(pr_review_enabled: false)
+
+    get workshop_process_path
+
+    assert_select "a[href=?]", workshop_configuration_path(tab: "integrations", manage: "github"), text: /Go to Configuration/
+  end
+
+  # PrReviewCheckJob only polls 09:00–20:00. A chip promising a poll every
+  # 7 minutes at night kept reviews switched on in the evening at "last never"
+  # until morning, with nothing saying why.
+  test "outside the review hours the chip says the poller is paused until morning" do
+    travel_to Time.zone.local(2026, 11, 3, 23, 30)
+
+    get workshop_process_path
+
+    assert_response :success
+    assert_select "body", /Paused until 09:00/
+    assert_no_match(/Polling every/, response.body)
   end
 
   # The chip used to print the raw setting while PrReviewCheckJob floors the

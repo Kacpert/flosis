@@ -16,8 +16,14 @@
     </div>
     <%# Status pill — a bordered surface chip, not the interactive .clar-chip. %>
     <div class="inline-flex items-center gap-[7px] text-[12px] clar-text-muted border clar-divider rounded-[8px] px-[11px] py-[7px] bg-[color:var(--surface)]">
-      <span class="w-1.5 h-1.5 rounded-full bg-[var(--success)]"></span>
-      Polling every <%= @poll_minutes %> min &middot; last <%= clar_time_ago(current_workshop_project.pr_polled_at) || "never" %>
+      <% if @polling_now %>
+        <span class="w-1.5 h-1.5 rounded-full bg-[var(--success)]"></span>
+        Polling every <%= @poll_minutes %> min &middot; last <%= clar_time_ago(current_workshop_project.pr_polled_at) || "never" %>
+      <% else %>
+        <% hours = PrReviewCheckJob::WINDOW %>
+        <span class="w-1.5 h-1.5 rounded-full bg-[var(--faint)]"></span>
+        Paused until <%= "%02d:00" % hours.first %> &middot; PRs are checked <%= "%02d:00" % hours.first %>&ndash;<%= "%02d:00" % hours.last %>
+      <% end %>
     </div>
   </div>
 
@@ -82,7 +88,8 @@
   <div class="clar-card p-8 text-center max-w-md mx-auto">
     <p class="clar-text-muted text-[14px] leading-relaxed">AI PR reviews are turned off for this project.</p>
     <% if respond_to?(:workshop_configuration_path) %>
-      <%= link_to "Go to Configuration", workshop_configuration_path, class: "clar-btn clar-btn-primary clar-btn-block mt-4 no-underline" %>
+      <%# The switch is in the GitHub dialog, so the link opens it there. %>
+      <%= link_to "Go to Configuration", workshop_configuration_path(tab: "integrations", manage: "github"), class: "clar-btn clar-btn-primary clar-btn-block mt-4 no-underline" %>
     <% else %>
       <%# workshop_configuration_path doesn't exist yet (lands in Task 9.1) — no link target to offer. %>
       <p class="text-[12px] clar-text-faint mt-3">Configuration page is coming in a later step.</p>
