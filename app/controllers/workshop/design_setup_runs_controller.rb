@@ -49,6 +49,7 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
 
   def show
     @project = current_workshop_project
+    DesignSetup.fail_stale!
     @setup = @project.design_setups.where(design_thread_id: nil).order(:id).last
     redirect_to(workshop_designs_overview_path) if @setup.nil? || @setup.done?
   end

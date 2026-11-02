@@ -98,4 +98,15 @@ class Workshop::DesignSetupRunsControllerTest < ActionDispatch::IntegrationTest
     get workshop_pipeline_path
     assert_not_includes response.body, "Designs ready · #{@project.name} @ master"
   end
+
+  test "a run a deploy killed shows as stopped, with Retry" do
+    setup = @project.design_setups.create!(status: "active", phase: "components", step: 4, started_by: users(:one))
+    setup.update_columns(updated_at: 3.hours.ago)
+
+    get workshop_design_setup_run_path
+    assert_equal "failed", setup.reload.status
+    assert_includes response.body, DesignTurn::INTERRUPTED
+    assert_select "button", text: "Retry"
+  end
+
 end

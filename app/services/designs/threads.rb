@@ -205,7 +205,9 @@ module Designs::Threads
       "adjusted. If nothing needs changing, change nothing and say so."
   end
 
+  # A turn a deploy killed is failed first, so it never keeps a thread busy.
   def refuse_while_turns_run!(thread)
+    DesignTurn.fail_stale!
     raise Busy, BUSY if DesignTurn.active.where(chat_session_id: thread.chat_session_id).exists?
   end
 

@@ -23,6 +23,17 @@ class DesignSetup < ApplicationRecord
   scope :active, -> { where(status: "active") }
   scope :running, -> { where(status: "active").where(finished_at: nil) }
 
+  # A run that has said nothing for longer than any of its steps may take was
+  # cut off (a deploy restarts the worker): it is failed, so Retry shows.
+  def self.stale_after
+    [ DesignTurn.stale_after, CRAWL_LIMIT ].max + 30.minutes
+  end
+
+  def self.fail_stale!
+    now = Time.current
+    running.where(updated_at: ...(now - stale_after)).update_all(status: "failed", error: DesignTurn::INTERRUPTED, updated_at: now)
+  end
+
   # The design's seven steps, named for this project.
   def steps
     project = self.project

@@ -171,4 +171,17 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
       assert_enqueued_jobs 1, only: Designs::TurnJob
     end
   end
+
+  test "a turn a deploy killed stops keeping the thread busy" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      DesignTurn.where(chat_session: thread.chat_session).update_all(status: "running", started_at: 3.hours.ago)
+
+      Designs::Threads.merge!(thread, user: @user)
+      assert thread.reload.merged?
+      assert DesignTurn.where(chat_session: thread.chat_session).all?(&:failed?)
+    end
+  end
+
 end

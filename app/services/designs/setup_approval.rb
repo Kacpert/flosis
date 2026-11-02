@@ -48,6 +48,7 @@ class Designs::SetupApproval
   end
 
   def refuse_while_turns_run!
+    DesignTurn.fail_stale!
     active = DesignTurn.active.joins(:chat_session)
                        .where(chat_sessions: { project_id: @project.id, purpose: "designs_setup" }).exists?
     raise TurnActive, "a setup turn is still queued or running" if active
