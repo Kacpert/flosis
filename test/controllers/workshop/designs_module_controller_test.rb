@@ -177,4 +177,19 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+
+  test "the design system page shows only colour values, never anything else a theme might hold" do
+    with_designs do |repo|
+      dir = repo.root
+      commit_files(repo, dir, { "design-system/theme.css" => "@theme { --color-primary: #1779ba; --color-evil: url(https://evil.test/x); --color-mix: rgb(1 2 3); }" })
+      repo.push!("master")
+      Designs::Publisher.new(@project, repo).publish!("master", "master")
+
+      get workshop_designs_overview_path(tab: "system")
+      assert_includes response.body, "background: #1779ba"
+      assert_includes response.body, "background: rgb(1 2 3)"
+      assert_not_includes response.body, "background: url("
+    end
+  end
+
 end

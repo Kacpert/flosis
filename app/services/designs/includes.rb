@@ -10,6 +10,10 @@
 # does an include still there after the tenth round (a cycle).
 module Designs::Includes
   MAX_ROUNDS = 10
+  # No screen's markup grows past this, however its components nest: a
+  # component that includes itself twice would otherwise double each round.
+  MAX_BYTES = 2_000_000
+  TOO_LARGE = "Components too large to show".freeze
   PLACEHOLDER = /\{\{\s*([\w-]+)\s*\}\}/
 
   module_function
@@ -22,9 +26,12 @@ module Designs::Includes
     cache = {}
     MAX_ROUNDS.times do
       includes = document.css("x-include[src]")
-      break if includes.empty?
+      break if includes.empty? || document.to_html.bytesize > MAX_BYTES
 
       includes.each { |element| include!(element, reader, cache, root) }
+    end
+    if document.to_html.bytesize > MAX_BYTES
+      document.css("x-include[src]").each { |element| element.replace(marker(document, element["src"], TOO_LARGE)) }
     end
     document.css("x-include[src]").each { |element| element.replace(marker(document, element["src"])) }
     document.to_html
@@ -63,7 +70,13 @@ module Designs::Includes
     end
   end
 
-  def marker(document, src)
-    Nokogiri::XML::Node.new("div", document).tap { |node| node["data-flosis-missing"] = src.to_s }
+  # The runtime's own red box (runtime/flosis.js errorBox), so a component
+  # that cannot be shown says so in Changes too.
+  def marker(document, src, text = "Missing component")
+    Nokogiri::XML::Node.new("div", document).tap do |node|
+      node["data-flosis-missing"] = src.to_s
+      node["style"] = "border:2px solid #c00;padding:8px"
+      node.content = "#{text}: #{src}"
+    end
   end
 end

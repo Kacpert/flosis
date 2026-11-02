@@ -89,11 +89,15 @@ class Workshop::DesignsModuleController < Workshop::BaseController
     @generate_draft = Designs::GeneratedTask.draft(@thread, changed: names)
   end
 
+  # A colour as a theme writes one, and nothing else: the swatch puts it in a
+  # style attribute on the app's own page.
+  COLOUR = /\A(#\h{3,8}|(rgba?|hsla?|oklch|oklab|lab|lch|color)\([\w\s.,%\/+-]*\)|[a-z]+)\z/i
+
   # The theme's custom properties, by what they are for.
   def tokens_in(file)
     pairs = file&.file? ? file.read.scan(/--([\w-]+)\s*:\s*([^;]+);/).map { |name, value| [ name, value.strip ] } : []
     {
-      colors: pairs.select { |name, _| name.start_with?("color-") }.map { |name, value| [ name.delete_prefix("color-"), value ] },
+      colors: pairs.select { |name, value| name.start_with?("color-") && COLOUR.match?(value) }.map { |name, value| [ name.delete_prefix("color-"), value ] },
       type: pairs.select { |name, _| name.start_with?("font-", "text-", "leading-", "tracking-") },
       spacing: pairs.select { |name, _| name.start_with?("spacing") },
       radius: pairs.select { |name, _| name.start_with?("radius") }

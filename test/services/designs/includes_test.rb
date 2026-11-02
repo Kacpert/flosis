@@ -50,4 +50,19 @@ class Designs::IncludesTest < ActiveSupport::TestCase
     assert_equal [ "components/missing.html" ], read
     assert_equal 6, Nokogiri::HTML5(html).css("[data-flosis-missing]").size
   end
+
+  test "a missing component shows as the runtime's red box, naming its src" do
+    html = expand('<body><x-include src="components/missing.html"></x-include></body>', {})
+    box = Nokogiri::HTML5(html).at("[data-flosis-missing]")
+    assert_equal "Missing component: components/missing.html", box.text
+    assert_includes box["style"], "border:2px solid #c00"
+  end
+
+  test "an include that grows past the size cap stops growing" do
+    html = expand('<body><x-include src="components/twice.html"></x-include></body>',
+                  "components/twice.html" => ("<p>#{'x' * 2_000}</p>" + '<x-include src="components/twice.html"></x-include>' * 2))
+    assert_operator html.bytesize, :<, Designs::Includes::MAX_BYTES * 3
+    assert_includes html, "Components too large to show"
+  end
+
 end
