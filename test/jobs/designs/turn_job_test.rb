@@ -254,10 +254,11 @@ class Designs::TurnJobTest < ActiveJob::TestCase
 
       assert turn.succeeded?, turn.error
       worktree = repo.worktree!("wip/REC-1").to_s
-      assert_equal %i[add_dirs allowed_tools api_key append_system_prompt_file codebase_path max_budget_usd restricted timeout],
+      assert_equal %i[add_dirs allowed_tools api_key append_system_prompt_file codebase_path max_budget_usd mcp_config restricted timeout],
                    seen.keys.sort
       assert_equal worktree, seen[:codebase_path]
       assert_equal %w[Read Glob Grep Edit Write], seen[:allowed_tools]
+      assert_nil seen[:mcp_config], "only a setup turn has a browser"
       assert_equal true, seen[:restricted]
       assert_equal "sk-ant", seen[:api_key]
       assert_equal 120, seen[:timeout]
@@ -1053,17 +1054,91 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
-  test "a turn waits while the crawl runs" do
+  # The Designs setup, feature by feature: a setup turn drives a browser on the
+  # test environment (lib/designs_crawler/browser.mjs), signed in from the
+  # states the run's sign-in left, and reads the app from the repositories
+  # the run cloned.
+  def setup_browser(project)
+    project.update!(anthropic_api_key: "sk-project", design_app_url: "https://staging.test")
+    project.design_setup_roles.create!(name: "Admin", login_url: "https://staging.test/login", username: "a", password: "p4ssword-xyz", position: 0)
+    project.design_setup_roles.create!(name: "Member", login_url: "https://staging.test/login", username: "m", password: "m3mber-xyz", position: 1)
+    turn = setup_turn(project)
+    setup = DesignSetup.find_by!(project: project)
+    setup.run_dir.join("auth").mkpath
+    setup.run_dir.join("auth", "1-admin.json").write("{}")
+    setup.run_dir.join("apps", "1-acme-app").mkpath
+    [ turn, setup ]
+  end
+
+  test "a setup turn drives the browser, on a setup turn's bounds" do
     with_design_remote do |repo, remote|
       seed_master(repo)
-      turn = setup_turn(repo.project)
-      DesignSetup.find_by!(project: repo.project).update!(crawl_requested_at: Time.current, crawled_at: nil)
-      fake_claude
-      assert_enqueued_with(job: Designs::TurnJob, args: [ turn.id ]) { run_turn(turn, remote) }
-      assert turn.reload.queued?
+      turn, setup = setup_browser(repo.project)
+      options = mcp = browser = nil
+      fake_claude(during: lambda { |opts|
+        options = opts
+        mcp = JSON.parse(File.read(opts[:mcp_config]))
+        browser = File.read(mcp.dig("mcpServers", "flosis_browser", "env", "FLOSIS_BROWSER_CONFIG"))
+      })
+      turn = run_turn(turn, remote)
+
+      assert turn.succeeded?, turn.error
+      server = mcp.dig("mcpServers", "flosis_browser")
+      assert_equal [ "node", File.join(Designs::SignIn.crawler_dir, "browser.mjs") ], [ server["command"], server["args"].first ]
+      config = JSON.parse(browser)
+      assert_equal "https://staging.test", config["baseUrl"]
+      assert_equal [ [ "1-admin", "Admin", setup.run_dir.join("auth", "1-admin.json").to_s ] ],
+                   config["contexts"].map { |context| context.values_at("slug", "name", "statePath") }, "only a context that signed in"
+      assert_equal options[:codebase_path], config["worktree"]
+      assert_equal setup.run_dir.join("progress.json").to_s, config["progressPath"]
+      assert_includes options[:allowed_tools], "mcp__flosis_browser__compare"
+      assert_includes options[:allowed_tools], "Read"
+      assert_not_includes options[:allowed_tools], "mcp__flosis_browser__save_features", "only the map saves features"
+      assert_equal [ DesignTurn.setup_timeout, DesignTurn.setup_budget_usd ], options.values_at(:timeout, :max_budget_usd)
+      assert_not File.exist?(options[:mcp_config]), "the MCP config is gone after the turn"
+    end
+  end
+
+  test "the browser's config holds no password" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      turn, = setup_browser(repo.project)
+      seen = []
+      fake_claude(during: lambda { |opts|
+        seen << File.read(opts[:mcp_config])
+        seen << File.read(JSON.parse(seen.first).dig("mcpServers", "flosis_browser", "env", "FLOSIS_BROWSER_CONFIG"))
+      })
       run_turn(turn, remote)
-      assert_equal [ "Waiting for the crawl to finish…" ], turn.chat_session.chat_messages.where(kind: "system").pluck(:content)
-      assert_empty @calls
+      seen.each { |text| assert_no_match(/p4ssword-xyz|m3mber-xyz/, text) }
+    end
+  end
+
+  test "the map's turn may save the features" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      turn, setup = setup_browser(repo.project)
+      setup.update!(phase: "map")
+      options = config = nil
+      fake_claude(during: lambda { |opts|
+        options = opts
+        config = JSON.parse(File.read(JSON.parse(File.read(opts[:mcp_config])).dig("mcpServers", "flosis_browser", "env", "FLOSIS_BROWSER_CONFIG")))
+      })
+      run_turn(turn, remote)
+      assert_includes options[:allowed_tools], "mcp__flosis_browser__save_features"
+      assert_equal setup.run_dir.join("features.json").to_s, config["featuresPath"]
+    end
+  end
+
+  test "a setup turn reads the cloned repositories, not the app checkout" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      turn, setup = setup_browser(repo.project)
+      app_checkout(repo.project, "app/views/home.html.erb" => "<h1>Home</h1>")
+      options = nil
+      fake_claude(during: ->(opts) { options = opts })
+      run_turn(turn, remote)
+      assert_includes options[:add_dirs], setup.run_dir.join("apps", "1-acme-app").to_s
+      assert_empty options[:add_dirs].grep(/#{Designs::AppCopy::PREFIX}/)
     end
   end
 

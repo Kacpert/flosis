@@ -10,8 +10,10 @@ class DesignTurn < ApplicationRecord
 
   STATUSES = %w[queued running succeeded failed].freeze
   # "design" answers a person's message. "resolve_conflicts" is the turn that
-  # "Update from master" starts when master changed the same files.
-  KINDS = %w[design resolve_conflicts].freeze
+  # "Update from master" starts when master changed the same files. "setup" is
+  # a setup run's (the map, the design system or one feature): it runs on a
+  # setup turn's bounds.
+  KINDS = %w[design resolve_conflicts setup].freeze
   # Not finished yet: while a chat has one, the screen keeps polling and the
   # work cannot be approved.
   ACTIVE = %w[queued running].freeze
@@ -42,6 +44,10 @@ class DesignTurn < ApplicationRecord
     kind == "resolve_conflicts"
   end
 
+  def setup?
+    kind == "setup"
+  end
+
   # What a resolve_conflicts turn asks for, naming the files master changed
   # too.
   def self.resolve_request(paths)
@@ -68,6 +74,10 @@ class DesignTurn < ApplicationRecord
 
   DEFAULT_TIMEOUT_SECONDS = 900
   DEFAULT_BUDGET_USD = 5
+  # A setup turn builds a whole feature, browser and all. Its bounds stop a
+  # turn that runs away; they are not there to save money.
+  DEFAULT_SETUP_TIMEOUT_SECONDS = 7_200
+  DEFAULT_SETUP_BUDGET_USD = 60
 
   # How long the CLI may run one turn, in seconds: DESIGNS_TURN_TIMEOUT_SECONDS
   # when it is a positive whole number, else fifteen minutes. stale_after
@@ -85,6 +95,18 @@ class DesignTurn < ApplicationRecord
     budget&.finite? && budget.positive? ? budget : DEFAULT_BUDGET_USD
   end
 
+  # A setup turn's: DESIGNS_SETUP_TIMEOUT_SECONDS and DESIGNS_SETUP_BUDGET_USD,
+  # read as the two above.
+  def self.setup_timeout
+    seconds = Integer(ENV["DESIGNS_SETUP_TIMEOUT_SECONDS"].to_s, 10, exception: false)
+    seconds&.positive? ? seconds : DEFAULT_SETUP_TIMEOUT_SECONDS
+  end
+
+  def self.setup_budget_usd
+    budget = Float(ENV["DESIGNS_SETUP_BUDGET_USD"].to_s, exception: false)
+    budget&.finite? && budget.positive? ? budget : DEFAULT_SETUP_BUDGET_USD
+  end
+
   # How long a turn may stay running before it counts as cut off: the CLI's
   # timeout (turn_timeout), plus five minutes for what Flosis does after Claude
   # answers — committing, pushing and publishing. A deploy restarts the queue
@@ -95,19 +117,25 @@ class DesignTurn < ApplicationRecord
     turn_timeout.seconds + 5.minutes
   end
 
+  def self.setup_stale_after
+    setup_timeout.seconds + 5.minutes
+  end
+
   # Fails every running turn older than stale_after and returns how many. One
   # UPDATE, not a load and a save per turn: the screen calls this on every
   # poll, and a job that took a turn over in the meantime (start! sets a fresh
   # started_at) is no longer matched by the time the UPDATE runs.
   def self.fail_stale!
     now = Time.current
-    where(status: "running", started_at: ...(now - stale_after))
-      .update_all(status: "failed", error: INTERRUPTED, finished_at: now, updated_at: now)
+    failed = { status: "failed", error: INTERRUPTED, finished_at: now, updated_at: now }
+    where(status: "running", started_at: ...(now - stale_after)).where.not(kind: "setup").update_all(failed) +
+      where(status: "running", kind: "setup", started_at: ...(now - setup_stale_after)).update_all(failed)
   end
 
-  # Running for longer than stale_after. Only a running turn can be: a queued
+  # Running for longer than stale_after (setup_stale_after, for a setup turn).
+  # Only a running turn can be: a queued
   # one has not started, and a finished one was not cut off.
   def stale?
-    running? && started_at.present? && started_at < self.class.stale_after.ago
+    running? && started_at.present? && started_at < (setup? ? self.class.setup_stale_after : self.class.stale_after).ago
   end
 end

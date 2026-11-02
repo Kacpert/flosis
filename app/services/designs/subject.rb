@@ -1,7 +1,11 @@
+require "tempfile"
+
 # What a design turn is for, and what differs with it (Designs::TurnJob runs
-# both kinds): a task's turn works on wip/<slug> on the project's own key; a
-# setup run's works on wip/setup on Flosis's key, with the phase's prompt and
-# the crawl bundle and materials to read. Everything else is the same turn.
+# every kind): a thread's turn works on the thread's branch, a task's on
+# wip/<slug>, both on the project's own key, with file tools and a copy of the
+# app's checkout; a setup run's works on wip/setup (or its re-import's
+# thread), with the phase's prompt, the repositories the run cloned, and a
+# browser on the client's test environment. Everything else is the same turn.
 #
 # A subject composes the library once (Rulings P3-R1, P5-R4): the prompt
 # Claude gets, the texts the leak guard refuses and the versions the turn
@@ -58,7 +62,13 @@ module Designs::Subject
     def add_dirs = []
     def secrets = ProjectCredentials.new(project).all_secrets
     def prepare! = nil
-    def crawling? = false
+    # File tools, the app's checkout copied for the turn, no browser and a
+    # thread turn's bounds.
+    def tools = Designs::TurnJob::TOOLS
+    def with_mcp(_worktree) = yield(nil)
+    def timeout = DesignTurn.turn_timeout
+    def budget_usd = DesignTurn.turn_budget_usd
+    def app_copy? = true
 
     # The thread is based on the master commit its branch last took in: a turn
     # that resolved a merge with master moves it. Read before the branch is
@@ -133,7 +143,13 @@ module Designs::Subject
     def add_dirs = []
     def secrets = ProjectCredentials.new(project).all_secrets
     def prepare! = nil
-    def crawling? = false
+    # File tools, the app's checkout copied for the turn, no browser and a
+    # thread turn's bounds.
+    def tools = Designs::TurnJob::TOOLS
+    def with_mcp(_worktree) = yield(nil)
+    def timeout = DesignTurn.turn_timeout
+    def budget_usd = DesignTurn.turn_budget_usd
+    def app_copy? = true
     def publish_base = nil
     def chips(*) = []
     def refresh_base(_repo) = nil
@@ -143,6 +159,13 @@ module Designs::Subject
   class SetupSubject
     NO_KEY = "Flosis's setup key is not configured (FLOSIS_DESIGNS_SETUP_API_KEY).".freeze
     NO_SETUP = "This project has no setup run.".freeze
+    # The browser's tools (lib/designs_crawler/browser.mjs), as the CLI names
+    # them; only the map's turn may save the features.
+    BROWSER_TOOLS = %w[open click fill_form screenshot design compare check_design progress].map { |name| "mcp__flosis_browser__#{name}" }.freeze
+    MAP_TOOLS = %w[mcp__flosis_browser__save_features].freeze
+    PHASE_TITLES = { "map" => "the feature map", "design_system" => "the design system", "feature" => "one feature",
+                     "components" => "the components", "designs" => "the screens" }.freeze
+    VIEWPORT = { width: 1440, height: 900 }.freeze
 
     def initialize(session)
       @session = session
@@ -179,15 +202,16 @@ module Designs::Subject
     def forbidden_texts = composition.texts
     def library_version_ids = composition.version_ids
 
-    # The stack and the app's repositories come with every setup turn
-    # (Workshop Designs v2's form), for the phases to check them.
+    # The stack, the app's repositories and the contexts, by the slugs the
+    # browser knows them by, come with every setup turn; the request is last.
     def turn_message(request)
       ui = Workshop::DesignsModuleController::UI_SYSTEMS.fetch(project.designs_ui_system, project.designs_ui_system.to_s.humanize)
       framework = Workshop::DesignsModuleController::FRAMEWORKS.fetch(project.designs_framework, project.designs_framework.to_s.humanize)
       repos = Array(project.design_app_repos).filter_map { |row| "#{row['role']}: #{row['repo']}" if row.is_a?(Hash) }
+      contexts = project.design_setup_roles.map { |role| "#{role.name}: #{Designs::SignIn.slug(role)}" }
       <<~MESSAGE
         ## Setup run
-        Phase #{DesignSetup::PHASES.index(setup.phase) + 1} of #{DesignSetup::PHASES.size}: #{setup.phase.humanize.downcase}
+        This turn: #{PHASE_TITLES.fetch(setup.phase, setup.phase.humanize.downcase)}
 
         ## Stack
         #{[ framework, project.designs_framework_version ].compact_blank.join(' ')} with #{[ ui, project.designs_ui_version ].compact_blank.join(' ')}
@@ -195,9 +219,35 @@ module Designs::Subject
         ## App repositories
         #{repos.join("\n").presence || "(the project's own repository)"}
 
+        ## Contexts
+        #{contexts.join("\n").presence || "(none)"}
+
         ## Request
         #{request.to_s.strip}
       MESSAGE
+    end
+
+    def tools = Designs::TurnJob::TOOLS + BROWSER_TOOLS + (setup.phase == "map" ? MAP_TOOLS : [])
+    def timeout = DesignTurn.setup_timeout
+    def budget_usd = DesignTurn.setup_budget_usd
+    # The app comes from the repositories the run cloned (add_dirs).
+    def app_copy? = false
+
+    # The turn's browser: its config written beside the run's states (no
+    # password is in it), and the CLI's MCP config in the system's temp folder,
+    # gone when the turn is done. A killed turn's is swept with its prompt's.
+    def with_mcp(worktree)
+      FileUtils.mkdir_p(setup.run_dir)
+      File.chmod(0o700, setup.run_dir)
+      config = setup.run_dir.join("browser.json")
+      File.write(config, JSON.generate(browser_config(worktree)), perm: 0o600)
+      server = { command: "node", args: [ File.join(Designs::SignIn.crawler_dir, "browser.mjs") ],
+                 env: { "FLOSIS_BROWSER_CONFIG" => config.to_s }.merge(ENV.slice("PLAYWRIGHT_BROWSERS_PATH", "TMPDIR")) }
+      Tempfile.create([ "#{Designs::TurnJob::PROMPT_PREFIX}-mcp", ".json" ]) do |file|
+        file.write(JSON.generate(mcpServers: { flosis_browser: server }))
+        file.close
+        yield file.path
+      end
     end
 
     # Workshop Designs v2: the project's own key, as its turns use; Flosis's
@@ -205,10 +255,9 @@ module Designs::Subject
     def api_key = ProjectCredentials.new(project).designs_api_key || ENV["FLOSIS_DESIGNS_SETUP_API_KEY"].presence
     def missing_key_message = Designs::TurnJob::NO_KEY
 
-    # Ruling P5-R1/P5-R3: the crawl bundle and the materials, both under the
-    # project's designs_dir and read-only; the app comes as the turn's copy.
+    # The app's repositories the run cloned and the materials, all read-only.
     def add_dirs
-      [ setup.crawl_dir, materials_dir.to_s ].compact.select { |dir| File.directory?(dir) }
+      [ *Designs::AppRepos.new(setup).dirs, materials_dir.to_s ].select { |dir| File.directory?(dir) }
     end
 
     # Every credential of the project, and every role's password.
@@ -216,7 +265,6 @@ module Designs::Subject
       (ProjectCredentials.new(project).all_secrets + project.design_setup_roles.map(&:password)).compact.uniq
     end
 
-    def crawling? = setup.crawling?
     # A re-import shows its Changes against its thread's base.
     def publish_base = setup.design_thread&.base_sha.presence
     def chips(*) = []
@@ -246,9 +294,24 @@ module Designs::Subject
       Pathname(project.designs_dir).join("design-materials")
     end
 
+    # What the browser is given: the test environment, each context that
+    # signed in (its state, never its password), the worktree its designs are
+    # served from, and where it writes the feature's progress and the map.
+    def browser_config(worktree)
+      contexts = project.design_setup_roles.filter_map do |role|
+        slug = Designs::SignIn.slug(role)
+        state = setup.run_dir.join("auth", "#{slug}.json")
+        { slug: slug, name: role.name, statePath: state.to_s } if state.file?
+      end
+      { baseUrl: project.design_app_url, contexts: contexts, worktree: worktree.to_s,
+        progressPath: setup.run_dir.join("progress.json").to_s,
+        featuresPath: (setup.run_dir.join("features.json").to_s if setup.phase == "map"),
+        featureKey: setup.features.find_by(status: "running")&.key, viewport: VIEWPORT }
+    end
+
     def readable
       lines = []
-      lines << "- The crawl of the running app, one folder per role: #{setup.crawl_dir}" if setup.crawl_dir.present?
+      Designs::AppRepos.new(setup).dirs.each { |dir| lines << "- The app's code: #{dir}" }
       lines << "- Materials the team uploaded: #{materials_dir}" if project.design_materials.attached?
       Array(project.design_figma_urls).each { |url| lines << "- Figma: #{url}" }
       return "" if lines.empty?

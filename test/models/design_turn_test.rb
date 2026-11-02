@@ -34,6 +34,35 @@ class DesignTurnTest < ActiveSupport::TestCase
     assert fresh.reload.running?
   end
 
+  # A setup turn builds a whole feature: its bounds are a setup turn's, so it
+  # is not taken for cut off once a thread turn would be.
+  test "a long setup turn is not stale, a design turn as old is" do
+    long = turn(status: "running", kind: "setup", started_at: 30.minutes.ago)
+    design = turn(status: "running", started_at: 30.minutes.ago)
+    with_env("DESIGNS_TURN_TIMEOUT_SECONDS" => nil, "DESIGNS_SETUP_TIMEOUT_SECONDS" => nil) do
+      assert_equal 1, DesignTurn.fail_stale!
+      assert_not long.reload.stale?
+    end
+    assert long.reload.running?
+    assert design.reload.failed?
+    travel 2.hours + 6.minutes do
+      assert long.reload.stale?
+      assert_equal 1, DesignTurn.fail_stale!
+    end
+  end
+
+  test "a setup turn's bounds" do
+    with_env("DESIGNS_SETUP_TIMEOUT_SECONDS" => nil, "DESIGNS_SETUP_BUDGET_USD" => nil) do
+      assert_equal [ 7200, 60 ], [ DesignTurn.setup_timeout, DesignTurn.setup_budget_usd ]
+    end
+    with_env("DESIGNS_SETUP_TIMEOUT_SECONDS" => "600", "DESIGNS_SETUP_BUDGET_USD" => "12.5") do
+      assert_equal [ 600, 12.5 ], [ DesignTurn.setup_timeout, DesignTurn.setup_budget_usd ]
+    end
+    with_env("DESIGNS_SETUP_TIMEOUT_SECONDS" => "ten", "DESIGNS_SETUP_BUDGET_USD" => "-1") do
+      assert_equal [ 7200, 60 ], [ DesignTurn.setup_timeout, DesignTurn.setup_budget_usd ]
+    end
+  end
+
   test "the designs api key never falls back to the server's key" do
     project = projects(:jira_project)
     project.update!(anthropic_api_key: nil)

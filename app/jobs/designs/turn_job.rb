@@ -6,9 +6,11 @@ require "tmpdir"
 # in its worktree; then Flosis, never Claude, puts what it left through the
 # leak guard, commits, pushes and publishes it, and posts the reply in the chat.
 #
-# Claude gets file tools only (no Bash, no git, no web), the project's own
-# key, a cost cap, a time limit, and the application as a read-only copy of
-# what its checkout has committed. A turn starts from its branch's last
+# Claude gets file tools (no Bash, no git, no web), the project's own key, a
+# cost cap, a time limit, and the application as a read-only copy of what its
+# checkout has committed. A setup turn gets, from its subject, a browser on
+# the client's test environment instead (an MCP server) and the repositories
+# the run cloned, on a setup turn's bounds. A turn starts from its branch's last
 # commit. Whatever goes wrong before its own commit is made fails it, on the
 # turn and in the chat, and is never re-raised: the worktree is put back, so
 # the branch stays where the last good turn left it. Once the commit is made,
@@ -55,9 +57,6 @@ class Designs::TurnJob < ApplicationJob
   # log only.
   PREVIEW_NOT_UPDATED = "Saved, but the preview could not be updated. It refreshes with the next turn.".freeze
   UP_TO_DATE = "Brought up to date with master.".freeze
-  WAITING_FOR_CRAWL = "Waiting for the crawl to finish…".freeze
-  # How often a setup turn looks again while the crawl runs.
-  CRAWL_POLL = 30.seconds
 
   # A line git writes into a file whose merge collided. The separator must be
   # the whole line: a longer row of "=" underlines a Markdown heading.
@@ -96,7 +95,6 @@ class Designs::TurnJob < ApplicationJob
   def perform(turn_id)
     turn = DesignTurn.find_by(id: turn_id)
     return unless turn
-    return wait_for_crawl(turn) if waiting_for_crawl?(turn)
 
     run(turn) if claim(turn)
   end
@@ -118,20 +116,6 @@ class Designs::TurnJob < ApplicationJob
       turn.start!
       true
     end
-  end
-
-  # A setup turn queued while its run's crawl goes on waits for it, rather
-  # than designing blind: it stays queued and looks again later. The chat says
-  # so once.
-  def waiting_for_crawl?(turn)
-    turn.queued? && turn.chat_session.purpose == "designs_setup" && Designs::Subject.for(turn.chat_session).crawling?
-  end
-
-  def wait_for_crawl(turn)
-    session = turn.chat_session
-    said = session.chat_messages.where(kind: "system", content: WAITING_FOR_CRAWL).where("id > ?", turn.chat_message_id).exists?
-    session.chat_messages.create!(role: "assistant", kind: "system", content: WAITING_FOR_CRAWL) unless said
-    self.class.set(wait: CRAWL_POLL).perform_later(turn.id)
   end
 
   # Everything that differs between a task's turn and a setup run's comes
@@ -239,23 +223,31 @@ class Designs::TurnJob < ApplicationJob
   end
 
   # Claude's answer to the person's request, as the CLI gives it back. Nothing
-  # it is given lives in the worktree: the system prompt is a temp file and
-  # the app a temp copy, both gone when it is done.
+  # it is given lives in the worktree: the system prompt and the MCP config
+  # are temp files and the app a temp copy, all gone when it is done.
   def ask_claude(turn, repo, worktree, key, subject)
     # A resolving turn asks about the files that collide now: master may have
     # moved since "Update from master" named them.
     request = @conflicts ? DesignTurn.resolve_request(@conflicts) : turn.chat_message.content
     prompt = subject.turn_message(request)
     with_system_prompt(subject) do |system_prompt|
-      Designs::AppCopy.open(subject.project) do |app|
-        cli = self.class.claude_factory.call(
-          codebase_path: worktree.to_s, allowed_tools: TOOLS, restricted: true, api_key: key,
-          append_system_prompt_file: system_prompt, add_dirs: [ app, *subject.add_dirs ].compact,
-          max_budget_usd: DesignTurn.turn_budget_usd, timeout: DesignTurn.turn_timeout
-        )
-        converse(cli, turn, prompt, repo, worktree)
+      with_app(subject) do |app|
+        subject.with_mcp(worktree) do |mcp_config|
+          cli = self.class.claude_factory.call(
+            codebase_path: worktree.to_s, allowed_tools: subject.tools, restricted: true, api_key: key,
+            append_system_prompt_file: system_prompt, add_dirs: [ app, *subject.add_dirs ].compact,
+            max_budget_usd: subject.budget_usd, timeout: subject.timeout, mcp_config: mcp_config
+          )
+          converse(cli, turn, prompt, repo, worktree)
+        end
       end
     end
+  end
+
+  # The app's checkout, copied for the turn, when the subject reads the app
+  # that way; nil otherwise.
+  def with_app(subject, &block)
+    subject.app_copy? ? Designs::AppCopy.open(subject.project, &block) : yield(nil)
   end
 
   # The chat's first turn starts its Claude session under the id the chat was

@@ -28,6 +28,26 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     assert_equal Designs::TurnJob::NO_KEY, subject.missing_key_message
   end
 
+  test "a setup turn has a browser, a thread turn has none" do
+    subject = Designs::Subject.for(@session)
+    assert_equal false, subject.app_copy?
+    assert_equal [ DesignTurn.setup_timeout, DesignTurn.setup_budget_usd ], [ subject.timeout, subject.budget_usd ]
+    assert_includes subject.tools, "mcp__flosis_browser__fill_form"
+
+    thread = @project.design_threads.create!(author: users(:one), title: "T", branch: "design/t",
+                                             chat_session: Designs::Threads.new_session(@project, users(:one)))
+    other = Designs::Subject.for(thread.chat_session)
+    assert_equal [ Designs::TurnJob::TOOLS, true, DesignTurn.turn_timeout ], [ other.tools, other.app_copy?, other.timeout ]
+    other.with_mcp("/tmp") { |path| assert_nil path }
+  end
+
+  test "a setup turn is told the contexts by the names the browser knows them by" do
+    @project.design_setup_roles.create!(name: "Hiring manager", login_url: "https://s.test/login", username: "h", password: "p", position: 1)
+    message = Designs::Subject.for(@session).turn_message("Build the timesheet")
+    assert_includes message, "Hiring manager: 2-hiring-manager"
+    assert message.rstrip.end_with?("Build the timesheet")
+  end
+
   test "the setup prompt follows the phase" do
     assert_includes Designs::Subject.for(@session).system_text, LibraryEntry.find_by!(key: "setup-design-system").current_version.body
     @setup.update!(phase: "components")
@@ -49,23 +69,23 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     assert_includes Designs::Subject.for(@session).secrets, "s3cret-pass"
   end
 
-  # Ruling P5-R1: the app is read through the turn's own copy, never the live
-  # checkout; setup adds the crawl bundle and the materials, read-only.
-  test "a setup reads the crawl bundle and the materials, and names them and the Figma files in its prompt" do
+  # The Designs setup, feature by feature: a setup turn reads the app from
+  # the repositories the run cloned (never the live checkout) and the
+  # materials, all read-only, and its prompt names them and the Figma files.
+  test "a setup reads the cloned repositories and the materials, and names them and the Figma files in its prompt" do
     Dir.mktmpdir("designs") do |dir|
       @project.update_columns(workspace_dir: dir)
-      crawl = File.join(@project.designs_dir, "design-crawls", "20261101T120000Z")
-      FileUtils.mkdir_p(crawl)
-      @setup.update!(crawl_dir: crawl)
+      app = @setup.run_dir.join("apps", "1-acme-app").to_s
+      FileUtils.mkdir_p(app)
       @project.update!(design_figma_urls: [ "https://figma.com/file/abc" ])
       @project.design_materials.attach(io: StringIO.new("brand"), filename: "brand.pdf", content_type: "application/pdf")
       subject = Designs::Subject.for(@session)
       subject.prepare!
       materials = File.join(@project.designs_dir, "design-materials")
-      assert_equal [ crawl, materials ], subject.add_dirs
+      assert_equal [ app, materials ], subject.add_dirs
       assert_equal "brand", File.read(File.join(materials, "brand.pdf"))
       assert_equal "444", format("%o", File.stat(File.join(materials, "brand.pdf")).mode & 0o777)
-      assert_includes subject.system_text, crawl
+      assert_includes subject.system_text, app
       assert_includes subject.system_text, "https://figma.com/file/abc"
       assert_not_includes subject.add_dirs, @project.repo_checkout_path
       subject.prepare!
