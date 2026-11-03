@@ -180,22 +180,28 @@ class AlertRule < ApplicationRecord
     alert_runs.newest_first.first
   end
 
-  # :not_run | :error | :fired | :quiet — chip state for the rules list card.
+  # :not_run | :error | :fired | :quiet | :logged — chip state for the rules
+  # list card. :logged is a run of a rule that doesn't notify: told to post
+  # nothing, the AI never fires, so "No condition met" could sit over a run
+  # that found exactly what the rule watches for.
   def last_run_status
     run = last_run
     return :not_run if run.nil?
     return :error if run.status == "error"
-    run.fired? ? :fired : :quiet
+    return :fired if run.fired?
+
+    notify_enabled? && discord_webhook ? :quiet : :logged
   end
 
-  # "Sent · {summary}" / "No condition met" / "Not run yet" / "Run failed" —
-  # the chip label itself.
+  # "Sent · {summary}" / "Not sent · {summary}" / "No condition met" /
+  # "Not run yet" / "Run failed" — the chip label itself.
   def last_run_chip_label
     run = last_run
     case last_run_status
     when :not_run then "Not run yet"
     when :error   then run.summary.presence || "Run failed"
     when :fired   then "Sent · #{run.summary}"
+    when :logged  then "Not sent · #{run.summary.presence || "notifications off"}"
     else "No condition met"
     end
   end

@@ -183,6 +183,9 @@ class Workshop::ConfigurationController < Workshop::BaseController
 
     names = Array(attrs[:estimation_field_names]).map { |n| n.to_s.strip }.reject(&:blank?)
     names.any? ? attrs[:estimation_field_names] = names : attrs.delete(:estimation_field_names)
+    # The status picker's "pick a status" placeholder submits a blank with
+    # every auto-save; it chooses nothing, so it keeps the stored status.
+    attrs.delete(:estimation_status_trigger) if attrs.key?(:estimation_status_trigger) && attrs[:estimation_status_trigger].blank?
 
     saved = project.update(attrs)
     if saved
@@ -212,10 +215,15 @@ class Workshop::ConfigurationController < Workshop::BaseController
 
   def load_ai_tab
     project = current_workshop_project
-    @estimation_board_name = project&.name
+    target = project && EstimationTarget.new(project)
+    @estimation_board_name = target&.board_name
     @estimation_field_names = project&.estimation_field_names ||
                               [ EstimationSettings::DEFAULT_ESTIMATION_FIELD_NAME ]
+    # nil off the project's own Jira: the card then offers the built-in names.
+    @estimation_jira_fields = target&.field_names
+    @estimation_statuses = target&.statuses || []
     @estimation_trigger = project&.estimation_trigger
+    @estimation_status_trigger = project&.estimation_status_trigger
     @pr_review_prompt = project&.pr_review_prompt.presence || PrReviewJob::DEFAULT_PROMPT
     @poll_minutes = project&.pr_poll_minutes || 7
   end

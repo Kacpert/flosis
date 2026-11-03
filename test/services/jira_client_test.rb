@@ -22,6 +22,28 @@ class JiraClientTest < ActiveSupport::TestCase
     assert_requested stub
   end
 
+  # The Estimation target card offers the number fields an estimate can be
+  # written to on this project: the site's own, and this team-managed
+  # project's, never another project's or a system field.
+  test "fetch_number_fields lists the custom number fields this project can carry" do
+    stub_request(:get, "#{@base_url}/field").to_return(status: 200, body: [
+      { id: "customfield_10016", name: "Story point estimate", custom: true, schema: { type: "number" } },
+      { id: "customfield_10200", name: "AI estimation", custom: true, schema: { type: "number" }, scope: { type: "PROJECT", project: { id: "10000" } } },
+      { id: "customfield_10300", name: "Their estimate", custom: true, schema: { type: "number" }, scope: { type: "PROJECT", project: { id: "10099" } } },
+      { id: "customfield_10020", name: "Sprint", custom: true, schema: { type: "array" } },
+      { id: "aggregatetimespent", name: "Σ Time Spent", custom: false, schema: { type: "number" } }
+    ].to_json)
+    stub_request(:get, "#{@base_url}/project/SCRUM").to_return(status: 200, body: { id: "10000", key: "SCRUM" }.to_json)
+
+    assert_equal [ "AI estimation", "Story point estimate" ], @client.fetch_number_fields("SCRUM")
+  end
+
+  test "fetch_number_fields is nil when Jira can't be read" do
+    stub_request(:get, "#{@base_url}/field").to_return(status: 401, body: "")
+
+    assert_nil @client.fetch_number_fields("SCRUM")
+  end
+
   test "fetch_projects returns list of projects" do
     stub_request(:get, "#{@base_url}/project/search")
       .with(

@@ -70,7 +70,8 @@ module ClarHelper
 
   # Text color for the AI Alerts rules-list "last run" status chip
   # (AlertRule#last_run_status: :fired/:quiet are both green "ok" outcomes,
-  # :error is red, :not_run is neutral gray).
+  # :error is red, :not_run and :logged — a rule that doesn't notify — are
+  # neutral gray).
   # The topbar's integration chips. Each is one of three states:
   #   configured and its last health check passed → on (green)
   #   configured but the last check FAILED        → broken (red, reason on hover)

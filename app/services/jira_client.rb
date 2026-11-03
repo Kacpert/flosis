@@ -382,6 +382,19 @@ class JiraClient
     field && field["id"]
   end
 
+  # The names of the custom number fields an estimate can be written to on
+  # this project: the site's own, and this team-managed project's (Jira scopes
+  # those to it), never another project's. nil when Jira can't be read.
+  def fetch_number_fields(project_key)
+    data = get("/rest/api/3/field")
+    return nil unless data.is_a?(Array)
+
+    project_id = get("/rest/api/3/project/#{project_key}")&.dig("id") if project_key.to_s.match?(PROJECT_KEY_FORMAT)
+    data.select { |f| f["custom"] && f.dig("schema", "type") == "number" }
+        .select { |f| (scope = f.dig("scope", "project", "id")).nil? || scope.to_s == project_id.to_s }
+        .map { |f| f["name"] }.uniq.sort
+  end
+
   # Sets a numeric custom field (e.g. story points) on an issue. Same
   # never-raises {ok:, error:} contract as update_issue_description.
   def set_number_field(issue_key:, field_id:, value:)

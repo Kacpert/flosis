@@ -10,6 +10,49 @@ class ProjectEstimationSettingsTest < ActiveSupport::TestCase
     workspaces(:one).projects.create!(name: "Estimation Co", color: "#123456", **attributes)
   end
 
+  # The field ids are a property of the site they were looked up on: a project
+  # moved to its own Jira kept the first customer's "AI estimation" id and
+  # showed it as verified on a Jira without that field.
+  test "moving a project to another Jira forgets the field ids it looked up" do
+    moved = project(jira_site: "elvium.atlassian.net", jira_ai_estimation_field_id: "customfield_10178",
+                    jira_ai_actions_field_id: "customfield_10212", jira_story_points_field_id: "customfield_10016")
+
+    moved.update!(jira_site: "rubyonsites.atlassian.net")
+
+    assert_nil moved.jira_ai_estimation_field_id
+    assert_nil moved.jira_ai_actions_field_id
+    assert_nil moved.jira_story_points_field_id
+  end
+
+  test "a field id saved with the new site is the new site's, and stays" do
+    moved = project(jira_site: "elvium.atlassian.net", jira_ai_estimation_field_id: "customfield_10178")
+
+    moved.update!(jira_site: "rubyonsites.atlassian.net", jira_story_points_field_id: "customfield_10016")
+
+    assert_nil moved.jira_ai_estimation_field_id
+    assert_equal "customfield_10016", moved.jira_story_points_field_id
+  end
+
+  test "saving the same Jira again keeps the field ids" do
+    kept = project(jira_site: "acme.atlassian.net", jira_ai_estimation_field_id: "customfield_1")
+
+    kept.update!(jira_site: "https://acme.atlassian.net/", name: "Renamed")
+
+    assert_equal "customfield_1", kept.jira_ai_estimation_field_id
+  end
+
+  # The words are the project's: the status it waits for, and the "AI actions"
+  # mark only where its Jira has that field (the push alone triggers it).
+  test "the trigger reads the project's status and its AI actions field" do
+    estimating = project(estimation_status_trigger: "In Review")
+
+    assert_equal "Status changes to “In Review”", estimating.estimation_trigger_label("status")
+    assert_equal "The brief is pushed to Jira", estimating.estimation_trigger_label("briefed")
+    estimating.jira_ai_actions_field_id = "customfield_10212"
+    assert_equal "AI actions = Briefed", estimating.estimation_trigger_label("briefed")
+    assert_equal "Added to a sprint", estimating.estimation_trigger_label("sprint")
+  end
+
   test "estimation_field_names defaults to AI estimation when nil" do
     assert_equal [ "AI estimation" ], project.estimation_field_names
   end
