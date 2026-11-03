@@ -197,7 +197,8 @@ class Designs::TemplateTest < ActiveSupport::TestCase
 
   # Just enough of a browser for runtime/flosis.js to run to the end: a page
   # served from http://preview.test, a fetch that answers with the files below
-  # (and 404 for anything else), and elements that load at once. Prints the
+  # (and 404 for anything else), elements that load at once, and a kit whose
+  # styles are already in. Prints the
   # text of each page-wide error box the runtime put up, as JSON.
   RUNTIME_PAGE = <<~'JS'.freeze
     const fs = require("fs");
@@ -210,7 +211,7 @@ class Designs::TemplateTest < ActiveSupport::TestCase
     };
     const errors = [];
     const messages = [];
-    const element = (tag) => ({ tag, textContent: "", setAttribute() {}, append() {} });
+    const element = (tag) => ({ tag, textContent: "", setAttribute() {}, append() {}, remove() {} });
     globalThis.window = globalThis;
     globalThis.parent = { postMessage(message) { messages.push(message); } };
     globalThis.location = { protocol: "http:", search: "", origin: "http://preview.test", pathname };
@@ -224,7 +225,8 @@ class Designs::TemplateTest < ActiveSupport::TestCase
       body: { prepend(box) { errors.push(box.textContent); } },
       documentElement: { setAttribute() {} },
       createElement: element,
-      querySelectorAll: () => [],
+      // The kit's styles, as Tailwind's browser build writes them, are in.
+      querySelectorAll: (selector) => (selector === "style" ? [{ textContent: "/*! tailwindcss v4.2.1 */" }] : []),
       addEventListener() {},
       dispatchEvent() {},
     };

@@ -37,6 +37,9 @@ class Designs::Publisher
     php php3 php4 php5 php6 php7 php8 phtml phar pht phps cgi fcgi pl py sh asp aspx jsp shtml shtm stm
   ].freeze
 
+  # The design runtime every preview serves (#current_runtime!).
+  RUNTIME_SOURCE = Rails.root.join("lib/designs_template", Designs::Repo::RUNTIME).freeze
+
   # What a context id may be made of, the same for a dimension and a value
   # (the design repo's README says so). A link carries contexts as they are.
   CONTEXT = /\A[A-Za-z0-9_-]+\z/
@@ -114,6 +117,7 @@ class Designs::Publisher
       staging = folder.join(".staging-#{SecureRandom.hex(8)}")
       begin
         unpack(sha, into: staging)
+        current_runtime!(staging)
         strip_unservable!(staging)
         write_screens!(staging)
         write_changes!(staging, base) if base
@@ -284,6 +288,14 @@ class Designs::Publisher
   # temp folder: nothing but the published files belongs in the document root.
   # The folder is 0700 until open_up! has set the modes: the raw tree, with
   # whatever is still to be stripped from it, is not readable by Apache.
+  # runtime/flosis.js is Flosis's own (LeakGuard keeps the AI out of
+  # runtime/), and each repo holds the copy it started with: the preview
+  # serves the current one, so a fix to it reaches repos started before it.
+  def current_runtime!(staging)
+    target = staging.join(Designs::Repo::RUNTIME)
+    FileUtils.cp(RUNTIME_SOURCE, target) if target.file?
+  end
+
   def unpack(sha, into:)
     Dir.mktmpdir("designs-publish") do |tmp|
       tarball = File.join(tmp, "export.tar")

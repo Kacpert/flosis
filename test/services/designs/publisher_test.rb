@@ -27,6 +27,19 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     end
   end
 
+  # runtime/flosis.js is Flosis's own (LeakGuard keeps the AI out of runtime/),
+  # and each repo holds the copy it started with: a fix to it, such as keeping
+  # a page hidden until it is styled, reaches older repos only if the preview
+  # serves the current one.
+  test "a preview serves the current design runtime, not the branch's copy" do
+    with_design_remote do |repo, _|
+      seed_master(repo, { "index.html" => "<h1>Home</h1>" })
+      dir = Designs::Publisher.new(repo.project, repo).publish!("master", "master")
+      assert_equal Rails.root.join("lib/designs_template", Designs::Repo::RUNTIME).read, dir.join(Designs::Repo::RUNTIME).read
+      assert_equal "644", format("%o", dir.join(Designs::Repo::RUNTIME).stat.mode & 0o777)
+    end
+  end
+
   test "republishing replaces the slot and leaves nothing else behind" do
     with_design_remote do |repo, _|
       seed_master(repo, { "designs/old.html" => "old" })
