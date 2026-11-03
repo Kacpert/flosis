@@ -44,6 +44,24 @@ class PrReviewCheckJobTest < ActiveJob::TestCase
     assert_nil claim.reviewed_at, "claim is not yet reviewed"
   end
 
+  # The Process page says when the poller is paused, so it asks the job for
+  # the hours perform honours rather than keeping its own copy.
+  test "reviews from 09:00 until 20:00 local time" do
+    refute PrReviewCheckJob.polling_now?(Time.zone.local(2026, 6, 15, 8, 59))
+    assert PrReviewCheckJob.polling_now?(Time.zone.local(2026, 6, 15, 9, 0))
+    assert PrReviewCheckJob.polling_now?(Time.zone.local(2026, 6, 15, 19, 59))
+    refute PrReviewCheckJob.polling_now?(Time.zone.local(2026, 6, 15, 20, 0))
+  end
+
+  test "polls nothing outside the review hours" do
+    travel_to Time.zone.local(2026, 6, 15, 23, 0) do
+      with_github(fake_github(prs: [ pr(7, "abc") ])) do
+        assert_no_enqueued_jobs(only: PrReviewJob) { PrReviewCheckJob.perform_now }
+      end
+    end
+    assert_nil @project.reload.pr_polled_at
+  end
+
   test "a second check does not double-enqueue an already-claimed PR" do
     travel_to Time.zone.local(2026, 6, 15, 10, 0) do
       fake = fake_github(prs: [ pr(7, "abc") ])

@@ -25,8 +25,15 @@ class PrReviewCheckJob < ApplicationJob
     [ POLL_FLOOR_MINUTES, project&.pr_poll_minutes.to_i ].max
   end
 
+  # Whether PRs are checked at this hour. Public for the same reason: outside
+  # WINDOW the Process page says the poller is paused instead of promising a
+  # poll that won't come until morning.
+  def self.polling_now?(time = Time.current)
+    WINDOW.cover?(time.hour)
+  end
+
   def perform
-    return unless WINDOW.cover?(Time.current.hour)
+    return unless self.class.polling_now?
 
     Project.active.where(pr_review_enabled: true).find_each do |project|
       next unless due?(project)

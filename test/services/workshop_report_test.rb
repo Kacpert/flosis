@@ -249,6 +249,16 @@ class WorkshopReportTest < ActiveSupport::TestCase
     assert_equal 2, top[:count]
   end
 
+  # Only the project's workspace is asked whose email it is: the Jira account's
+  # address also belonged to a user of another workspace, and the card printed
+  # that user's name. Jira's own name for the assignee comes next.
+  test "bug_stats top_fixer names a member of this workspace, else the Jira assignee" do
+    User.create!(name: "test test", email_address: "jira@example.com", password: "password12")
+    delivered(issue_type: "Bug", resolved_at: @now, assignee_email: "jira@example.com", assignee_name: "Kacper T")
+
+    assert_equal "Kacper T", report.bug_stats[:top_fixer][:name]
+  end
+
   test "bug_stats top_fixer is nil when nothing delivered this period" do
     assert_nil report.bug_stats[:top_fixer]
   end

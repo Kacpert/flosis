@@ -37,7 +37,10 @@
 <% if project.nil? %>
   <div class="clar-card p-4.5 text-[13px] clar-text-muted">No project selected &mdash; pick one in the top bar to edit its integrations.</div>
 <% else %>
-<div class="flex flex-col gap-3" data-controller="clar-modal">
+<%# A link can name the dialog to open (?manage=github), as the PR tab's
+    "Go to Configuration" does: its switch lives in the GitHub dialog. %>
+<% open_panel = "manage-#{params[:manage]}" if cards.any? { |card| card[:key] == params[:manage] } %>
+<div class="flex flex-col gap-3" data-controller="clar-modal" <%= tag.attributes(data: { clar_modal_open_value: open_panel }) %>>
   <% cards.each do |card| %>
     <div class="clar-card !rounded-[13px] flex items-center gap-[15px] py-4 px-4.5">
       <span class="w-10 h-10 rounded-[10px] bg-[var(--surface-2)] flex items-center justify-center clar-text-text flex-none">

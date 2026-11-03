@@ -11,11 +11,17 @@ import { Controller } from "@hotwired/stimulus"
 // the untagged panel, "Existing Jira task" opens the "jira-picker" panel).
 // Backdrop click closes; clicks on the panel itself don't bubble to the
 // backdrop; Escape closes; body scroll is locked while open.
+// data-clar-modal-open-value="foo" opens panel "foo" as the page loads, for a
+// link that should land inside a dialog (the PR tab's way to the GitHub
+// switch on the Configuration page).
 export default class extends Controller {
   static targets = ["panel"]
+  static values = { open: String }
 
   connect() {
     this.boundKeydown = this.handleKeydown.bind(this)
+    const panel = this.panelTargets.find((p) => p.dataset.clarModalPanelIdValue === this.openValue)
+    if (this.openValue && panel) this.show(panel)
   }
 
   disconnect() {
@@ -27,6 +33,10 @@ export default class extends Controller {
     if (event) event.preventDefault()
     const panel = this.resolvePanel(event)
     if (!panel) return
+    this.show(panel)
+  }
+
+  show(panel) {
     // Close any other panel in this scope first — only one modal open at a
     // time (the Configuration page has several manage modals under one
     // controller; without this they'd stack on top of each other).

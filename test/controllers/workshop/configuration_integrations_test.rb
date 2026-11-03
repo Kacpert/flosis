@@ -20,6 +20,22 @@ class Workshop::ConfigurationIntegrationsTest < ActionDispatch::IntegrationTest
     assert_select "[data-clar-modal-panel-id-value='manage-jira'] input[name='project[external_reference]']"
   end
 
+  # The PR tab's "Go to Configuration" names the dialog to open, so it lands on
+  # the review switch instead of a page of cards with no sign of it.
+  test "a link naming an integration opens its dialog" do
+    get workshop_configuration_path(tab: "integrations", manage: "github")
+
+    assert_response :success
+    assert_select "[data-controller='clar-modal'][data-clar-modal-open-value='manage-github']"
+  end
+
+  test "a link naming no known integration opens nothing" do
+    get workshop_configuration_path(tab: "integrations", manage: "nope")
+
+    assert_response :success
+    assert_select "[data-clar-modal-open-value]", count: 0
+  end
+
   # PROJECT KEY was a read-only box and external_reference was not a permitted
   # field, so a project that reused Jira credentials could never be given a
   # board afterwards — it stayed connected to Jira and able to return nothing.
