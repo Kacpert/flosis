@@ -24,7 +24,7 @@ module EstimationSettings
   ].freeze
 
   ESTIMATION_TRIGGERS = {
-    "sprint" => "Added to a Development sprint",
+    "sprint" => "Added to a sprint",
     "status" => "Status changes to “Ready for dev”",
     "briefed" => "AI actions = Briefed",
     "manual" => "Manually, on request"
@@ -34,8 +34,15 @@ module EstimationSettings
     normalize_field_names(super)
   end
 
-  def estimation_trigger_label
-    ESTIMATION_TRIGGERS[estimation_trigger] || estimation_trigger
+  # In the project's own words: the status it waits for, and the "AI actions"
+  # mark only where its Jira has that field — a push without it still
+  # triggers (BriefCommitsController), it just marks nothing.
+  def estimation_trigger_label(trigger = estimation_trigger)
+    case trigger
+    when "status" then "Status changes to “#{estimation_status_trigger}”"
+    when "briefed" then jira_ai_actions_field_id.present? ? ESTIMATION_TRIGGERS["briefed"] : "The brief is pushed to Jira"
+    else ESTIMATION_TRIGGERS[trigger] || trigger
+    end
   end
 
   private

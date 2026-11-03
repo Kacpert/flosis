@@ -58,6 +58,11 @@ class Project < ApplicationRecord
     site.strip.sub(%r{\Ahttps?://}i, "").sub(%r{/.*\z}m, "")
   }
 
+  # The cached field ids belong to the site they were looked up on (see
+  # ProjectCreator::CREDENTIALS). A project moved to another Jira kept the old
+  # site's "AI estimation" and showed it verified on a Jira without one.
+  before_update :forget_jira_field_ids, if: :jira_site_moved?
+
   # A setup run's inputs (Workshop::DesignSetupInputsController), for staff.
   has_many :design_setup_roles, -> { order(:position, :id) }, dependent: :destroy
   has_many :design_setups, dependent: :destroy
@@ -233,5 +238,21 @@ class Project < ApplicationRecord
     return unless design_repo.casecmp?(self.class.normalize_value_for(:design_repo, github_repo))
 
     errors.add(:design_repo, "must be a different repository from the app's")
+  end
+
+  # Moved means another site in effect: filling in the server's own site, as
+  # the Jira dialog does for a project that had none, moves nothing.
+  def jira_site_moved?
+    return false unless will_save_change_to_jira_site?
+
+    from, to = jira_site_change_to_be_saved.map { |site| site.presence || ENV["JIRA_DOMAIN"].presence }
+    !from.to_s.casecmp?(to.to_s)
+  end
+
+  # An id written in the same save was looked up on the new site, and stays.
+  def forget_jira_field_ids
+    %i[jira_ai_estimation_field_id jira_ai_actions_field_id jira_story_points_field_id].each do |column|
+      self[column] = nil unless will_save_change_to_attribute?(column)
+    end
   end
 end

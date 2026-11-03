@@ -1,4 +1,5 @@
 require "test_helper"
+require "webmock/minitest"
 
 class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
   setup do
@@ -428,6 +429,62 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
   end
 
   # ---- Integrations tab (Task 9.2) ----------------------------------------
+
+  # The card was the first customer's Jira for everyone: Elvium's field names,
+  # its "Ready for dev" status and the project's name for a board. A project on
+  # its own Jira gets that Jira's board, statuses and number fields, and a
+  # chosen field the Jira lacks says so.
+  test "the estimation target reads the project's own Jira" do
+    @project.update!(jira_site: "flosis-test.atlassian.net", jira_email: "kacper@example.test", jira_api_token: "t",
+                     external_reference: "SCRUM", estimation_field_names: [ "AI estimation" ], estimation_status_trigger: "Ready for dev")
+    board = @project.jira_boards.create!(jira_board_id: 1, name: "SCRUM board", board_type: "simple")
+    board.jira_board_columns.create!(name: "Review", position: 0).jira_board_column_statuses.create!(jira_status_id: "1", jira_status_name: "In Review")
+    stub_request(:get, "https://flosis-test.atlassian.net/rest/api/3/field").to_return(status: 200, body: [
+      { id: "customfield_10016", name: "Story point estimate", custom: true, schema: { type: "number" } }
+    ].to_json)
+    stub_request(:get, "https://flosis-test.atlassian.net/rest/api/3/project/SCRUM").to_return(status: 200, body: { id: "10000" }.to_json)
+
+    get workshop_configuration_path(tab: "ai")
+
+    assert_response :success
+    assert_select "body", /SCRUM board/
+    assert_select "input[name='project[estimation_field_names][]'][value='Story point estimate']"
+    assert_select "input[name='project[estimation_field_names][]'][value='T-shirt size']", count: 0
+    assert_select "label", text: /AI estimation.*not in Jira/m
+    assert_select "select[name='project[estimation_status_trigger]'] option", text: "In Review"
+    assert_select "select[name='project[estimation_status_trigger]'] option[selected]", count: 0
+    assert_select "body", /The brief is pushed to Jira/
+    assert_select "body", /Added to a sprint/
+  end
+
+  test "the status picker's placeholder keeps the stored status" do
+    @project.update!(estimation_status_trigger: "Ready for dev")
+
+    patch workshop_configuration_path, params: { project: { estimation_trigger: "manual", estimation_status_trigger: "" }, tab: "ai" }
+
+    assert_equal "Ready for dev", @project.reload.estimation_status_trigger
+  end
+
+  test "a project on the server's Jira keeps the built-in field names" do
+    get workshop_configuration_path(tab: "ai")
+
+    assert_response :success
+    assert_select "input[name='project[estimation_field_names][]'][value='T-shirt size']"
+    assert_select "body", text: /not in Jira/, count: 0
+  end
+
+  # Both marks printed one verdict for all three fields, so a verified
+  # "AI estimation" read as missing, and the site was the server's.
+  test "the Jira card marks each AI field on its own and names the project's site" do
+    @project.update!(jira_site: "flosis-test.atlassian.net", jira_email: "kacper@example.test", jira_api_token: "t",
+                     jira_ai_estimation_field_id: "customfield_2",
+                     jira_ai_actions_field_id: nil, jira_story_points_field_id: "customfield_10016")
+
+    get workshop_configuration_path(tab: "integrations")
+
+    assert_response :success
+    assert_select "body", /flosis-test\.atlassian\.net · fields “AI estimation” ✓ “AI actions” ×/
+  end
 
   test "integrations tab renders the 4 cards with live status/detail" do
     @project.update!(

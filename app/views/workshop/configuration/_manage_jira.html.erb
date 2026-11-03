@@ -55,6 +55,9 @@
           </div>
         <% end %>
       </div>
+      <% if project.jira_ai_estimation_field_id.blank? || project.jira_ai_actions_field_id.blank? %>
+        <div class="text-[11px] clar-text-faint -mt-2.5 mb-4">Not verified means this Jira has no field of that name yet. Add it to the project in Jira, then Verify fields: a Number field &ldquo;AI estimation&rdquo; for the AI&rsquo;s estimates, a Checkbox field &ldquo;AI actions&rdquo; (Briefed, Detailed) for what the AI did.</div>
+      <% end %>
 
       <div class="flex justify-end gap-2.5">
         <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>

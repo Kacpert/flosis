@@ -56,7 +56,8 @@
       <div class="text-[12px] clar-text-faint mb-1.5">Jira field(s) to write</div>
       <div data-controller="clar-field-chip">
         <div class="flex flex-wrap gap-1.5 mb-1.5" data-clar-field-chip-target="list">
-          <% EstimationSettings::ESTIMATION_FIELD_OPTIONS.each do |field_name| %>
+          <% field_options = @estimation_jira_fields || EstimationSettings::ESTIMATION_FIELD_OPTIONS %>
+          <% field_options.each do |field_name| %>
             <% checked = @estimation_field_names.include?(field_name) %>
             <label class="clar-chip cursor-pointer <%= 'clar-chip-active' if checked %>">
               <input type="checkbox" name="project[estimation_field_names][]" value="<%= field_name %>"
@@ -65,12 +66,14 @@
               <%= field_name %>
             </label>
           <% end %>
-          <% (@estimation_field_names - EstimationSettings::ESTIMATION_FIELD_OPTIONS).each do |field_name| %>
+          <%# A chosen name the project's Jira has no number field for stays, and
+              says so: AutoEstimateJob skips a field it can't find. %>
+          <% (@estimation_field_names - field_options).each do |field_name| %>
             <label class="clar-chip clar-chip-active cursor-pointer">
               <input type="checkbox" name="project[estimation_field_names][]" value="<%= field_name %>"
                      class="sr-only" checked
                      data-action="change->auto-save#save">
-              <%= field_name %>
+              <%= field_name %><% if @estimation_jira_fields %> <span class="clar-text-faint">&middot; not in Jira</span><% end %>
             </label>
           <% end %>
         </div>
@@ -81,6 +84,9 @@
           <button type="button" class="clar-btn !text-[12px] !py-1.5 !px-3" data-action="click->clar-field-chip#add">Add</button>
         </div>
       </div>
+      <% if @estimation_jira_fields && (@estimation_field_names - @estimation_jira_fields).any? %>
+        <div class="text-[11px] clar-text-warn mb-1.5">A field marked &ldquo;not in Jira&rdquo; gets nothing: add a Number field of that name to the project in Jira, or pick one it has.</div>
+      <% end %>
       <div class="text-[11px] clar-text-faint mb-3.5">Use more than one field when a team keeps separate scales (e.g. points + confidence). At least one field is required.</div>
 
       <div class="text-[12px] clar-text-faint mb-1.5">Estimate a story when&hellip;</div>
@@ -89,7 +95,20 @@
           <label class="flex items-center gap-2.5 text-[13px] font-medium text-left px-2.5 py-2 rounded-[9px] border cursor-pointer <%= @estimation_trigger == value ? 'border-[color:var(--primary)] bg-[var(--primary-soft)]' : 'border-[color:var(--border)]' %> clar-text-text">
             <input type="radio" name="project[estimation_trigger]" value="<%= value %>" <%= "checked" if @estimation_trigger == value %>
                    class="accent-[var(--primary)]" data-action="change->auto-save#save">
-            <%= label %>
+            <% if value == "status" && @estimation_statuses.any? %>
+              <%# The statuses its boards really have; a stored one they lack
+                  (the "Ready for dev" every project starts with) is not offered. %>
+              Status changes to
+              <select name="project[estimation_status_trigger]" class="clar-select !w-auto !text-[12.5px] !py-1 !pl-2.5 !pr-7"
+                      data-action="change->auto-save#save">
+                <% unless @estimation_statuses.include?(@estimation_status_trigger) %>
+                  <option value="">pick a status</option>
+                <% end %>
+                <%= options_for_select(@estimation_statuses, @estimation_status_trigger) %>
+              </select>
+            <% else %>
+              <%= current_workshop_project&.estimation_trigger_label(value) || label %>
+            <% end %>
           </label>
         <% end %>
       </div>

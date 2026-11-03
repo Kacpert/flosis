@@ -9,13 +9,15 @@
 
   jira_fields_verified = project&.jira_ai_actions_field_id.present? &&
     project.jira_ai_estimation_field_id.present? && project.jira_story_points_field_id.present?
+  # The project's own site (typed in, so escaped), and each field its own mark.
   jira_detail = if @jira_configured
-    domain = ENV["JIRA_DOMAIN"]
-    fields = %(fields &ldquo;AI estimation&rdquo; #{jira_fields_verified ? '&check;' : '&times;'} &ldquo;AI actions&rdquo; #{jira_fields_verified ? '&check;' : '&times;'})
+    domain = ERB::Util.html_escape(ProjectCredentials.new(project).jira_site)
+    mark = ->(field_id) { field_id.present? ? "&check;" : "&times;" }
+    fields = %(fields &ldquo;AI estimation&rdquo; #{mark.(project.jira_ai_estimation_field_id)} &ldquo;AI actions&rdquo; #{mark.(project.jira_ai_actions_field_id)})
     verified = jira_fields_verified ? "AI fields verified" : "fields not verified"
     "#{domain} &middot; #{fields} &middot; #{verified}".html_safe
   else
-    "Not configured &mdash; set JIRA_DOMAIN / JIRA_EMAIL / JIRA_API_TOKEN on the server".html_safe
+    "Not configured &mdash; add the site, email and API token under Manage".html_safe
   end
 
   discord_detail = @discord_webhooks.any? ? @discord_webhooks.map(&:channel_name).join(" &middot; ").html_safe : "No webhooks yet".html_safe
