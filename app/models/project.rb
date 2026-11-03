@@ -233,9 +233,14 @@ class Project < ApplicationRecord
     errors.add(:design_style_pack_key, "is not an available style pack")
   end
 
+  # The app's repositories are the GitHub integration's and the ones the setup
+  # reads (design_app_repos, "owner/name@branch"): any of them as the target
+  # would have the AI commit designs into the application.
   def design_repo_is_not_the_app_repo
-    return if design_repo.blank? || github_repo.blank?
-    return unless design_repo.casecmp?(self.class.normalize_value_for(:design_repo, github_repo))
+    return if design_repo.blank?
+
+    app_repos = [ github_repo, *Array(design_app_repos).map { |row| row["repo"].to_s.split("@").first if row.is_a?(Hash) } ]
+    return unless app_repos.compact_blank.any? { |repo| design_repo.casecmp?(self.class.normalize_value_for(:design_repo, repo)) }
 
     errors.add(:design_repo, "must be a different repository from the app's")
   end
