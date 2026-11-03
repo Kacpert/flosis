@@ -24,6 +24,27 @@ class AlertRuleTest < ActiveSupport::TestCase
     )
   end
 
+  # A rule that doesn't notify is told to post nothing, so its runs never fire:
+  # the chip read a green "No condition met" over a run that found 58 open
+  # tickets against a limit of 15.
+  test "the last run of a rule that doesn't notify reads as not sent, with what it found" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, name: "Too many tickets", notify_enabled: false,
+                             prompt: "Alert over 15 open tickets.", frequency: "daily", run_at_time: "13:00")
+    rule.alert_runs.create!(fired: false, summary: "58 open tickets vs threshold 15", status: "ok", ran_at: Time.current)
+
+    assert_equal :logged, rule.last_run_status
+    assert_equal "Not sent · 58 open tickets vs threshold 15", rule.last_run_chip_label
+  end
+
+  test "a quiet run of a rule that notifies still reads no condition met" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, name: "Too many tickets", notify_enabled: true,
+                             discord_webhook: @webhook, prompt: "Alert over 15 open tickets.", frequency: "daily", run_at_time: "13:00")
+    rule.alert_runs.create!(fired: false, summary: "9 open tickets", status: "ok", ran_at: Time.current)
+
+    assert_equal :quiet, rule.last_run_status
+    assert_equal "No condition met", rule.last_run_chip_label
+  end
+
   # --- hourly ---
 
   test "hourly: due when last_run_at is nil" do
