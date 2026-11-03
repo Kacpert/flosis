@@ -60,6 +60,17 @@ class Workshop::DesignSetupRunsControllerTest < ActionDispatch::IntegrationTest
     assert_no_enqueued_jobs only: Designs::SetupRunJob
   end
 
+  # The app's own repository as the target was refused by the record, and the
+  # refusal escaped as a bare 422: the form came back with no word of why.
+  test "the app's own repository as the target says why and starts nothing" do
+    post workshop_design_setup_run_path, params: FORM.merge(repo: "github.com/acme/app.git")
+
+    assert_response :unprocessable_entity
+    assert_includes response.body, "Design repo must be a different repository from the app&#39;s"
+    assert_nil @project.reload.design_repo
+    assert_no_enqueued_jobs only: Designs::SetupRunJob
+  end
+
   test "Build designs saves the setup and starts the import in the background" do
     post workshop_design_setup_run_path, params: FORM
 

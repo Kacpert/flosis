@@ -56,6 +56,22 @@ class ProjectDesignSettingsTest < ActiveSupport::TestCase
     assert @project.valid?, "a project with no app repo can use any design repo"
   end
 
+  # The setup form names the app's repositories as read-only sources: one of
+  # them as the target would have the AI commit designs into the application.
+  test "the design repo is none of the app repositories the setup reads" do
+    @project.github_repo = nil
+    @project.design_app_repos = [ { "role" => "Frontend", "repo" => "acme/web@production" }, { "role" => "API", "repo" => "acme/api" } ]
+
+    [ "acme/web", "Acme/API" ].each do |same|
+      @project.design_repo = same
+      assert_not @project.valid?, same
+      assert_equal [ "must be a different repository from the app's" ], @project.errors[:design_repo], same
+    end
+
+    @project.design_repo = "acme/web-designs"
+    assert @project.valid?
+  end
+
   # GitHub's own limits: an owner of 39 characters, a name of 100.
   test "the design repo is at most 140 characters" do
     @project.design_repo = "#{"o" * 39}/#{"n" * 100}"

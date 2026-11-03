@@ -108,7 +108,7 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
   end
 
   def incomplete
-    flash.now[:alert] = INCOMPLETE
+    flash.now[:alert] = @refusal || INCOMPLETE
     render :new, status: :unprocessable_entity
   end
 
@@ -161,6 +161,11 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
       @project.design_setup_roles.where.not(id: kept).destroy_all
     end
     true
+  rescue ActiveRecord::RecordInvalid => e
+    # What only the record can judge (the target being one of the app's own
+    # repositories) is said on the form; it used to escape as a bare 422.
+    @refusal = e.record.errors.full_messages.to_sentence
+    false
   end
 
   def origin(url)
