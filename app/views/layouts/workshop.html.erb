@@ -38,7 +38,8 @@
     <div class="clar-app flex flex-col h-screen overflow-hidden"
          data-controller="clar-theme clar-toast"
          data-clar-theme="<%= pending_theme %>"
-         data-clar-toast-initial-value="<%= flash[:clar_toast] %>">
+         data-clar-toast-initial-value="<%= flash[:clar_toast] %>"
+         data-clar-toast-link-value="<%= flash[:clar_toast_link] %>">
       <script>
         (function(el){
           var t = el.ownerDocument.documentElement.dataset.clarThemePending;
@@ -69,6 +70,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
         </span>
         <span data-clar-toast-target="message"></span>
+        <a data-clar-toast-target="link" class="hidden clar-text-primary font-semibold no-underline" style="pointer-events: auto;">Open</a>
       </div>
     </div>
   </body>

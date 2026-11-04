@@ -1,5 +1,5 @@
-# What the person does with a whole import on its page (Designs imports):
-# Retry all the features that could not finish or were not started (the
+# What the person does with imports (Designs imports): New import, a resync
+# from the app since the last one; and on an import's page, Retry all the features that could not finish or were not started (the
 # features the AI asked something about wait for their answer instead), and
 # Missing feature? · Add, which puts a feature the map missed on the import,
 # from the person's description, for the AI to find and build like any other.
@@ -7,7 +7,27 @@ class Workshop::DesignImportsController < Workshop::BaseController
   before_action { require_permission!(:designs) }
   before_action { require_permission!(:configuration) }
   include DesignsVisibility
-  before_action :load_import
+  before_action :load_import, except: :create
+
+  # New import: a resync from the last import that is over, once master has
+  # the first one and while no import runs.
+  def create
+    project = current_workshop_project
+    since = helpers.import_resync_from(project)
+    if since.nil?
+      flash[:clar_toast] = "A new import starts once the first one is on master."
+      return redirect_to workshop_designs_overview_path(tab: "imports")
+    end
+    if project.design_setups.working.exists?
+      flash[:clar_toast] = "An import is already running. It goes on from where it is."
+      return redirect_to workshop_designs_overview_path(tab: "imports")
+    end
+
+    resync = project.design_setups.create!(kind: "resync", since_setup: since, status: "active", phase: "resync", step: 0, started_by: current_user)
+    resync.start_work!
+    flash[:clar_toast] = "Looking for what changed in the app since #{resync.since_label}"
+    redirect_to helpers.import_page_path(resync)
+  end
 
   def retry_all
     features = @import.needs_you.select(&:retryable?)

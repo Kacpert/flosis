@@ -56,6 +56,8 @@ class Designs::SetupRunJob < ApplicationJob
   UNREADABLE_RETRIES = 2
   MAP_REQUEST = "Map the app's features, in the order they are to be built, and save the map.".freeze
   DESIGN_SYSTEM_REQUEST = "Build the design system: the tokens, fonts, icons and logos, from the app's code and its pages.".freeze
+  RESYNC_REQUEST = "Find what changed in the app since the last import: the features of the map the changes touch, and the features " \
+                   "that are new. Save them with save_features, once, at the end.".freeze
   IMPORT_SUMMARY = "Initial import: the design system, the components and the screens of every feature, " \
                    "built from the test environment and the app's repositories.".freeze
 
@@ -64,20 +66,25 @@ class Designs::SetupRunJob < ApplicationJob
     # repositories and stops a Claude a killed worker left (by its session
     # id, which only its command line carries), here and now; and how often
     # the heartbeat beats, in seconds. Tests stand in for them.
-    attr_writer :turn_runner, :sign_in, :app_repos, :killer, :heartbeat_every
+    attr_writer :turn_runner, :sign_in, :app_repos, :killer, :heartbeat_every, :app_changes
 
     def turn_runner = @turn_runner || ->(turn_id) { Designs::TurnJob.perform_now(turn_id) }
     def sign_in = @sign_in || ->(setup) { Designs::SignIn.new(setup).call }
     def app_repos = @app_repos || ->(setup) { Designs::AppRepos.new(setup).fetch! }
+    def app_changes = @app_changes || ->(setup) { Designs::AppChanges.new(setup).fetch! }
     def killer = @killer || ->(session_id) { system("pkill", "-TERM", "-f", session_id, out: File::NULL, err: File::NULL) }
     def heartbeat_every = @heartbeat_every || 300
 
-    # Stops what an earlier attempt at the run left: its setup turns still
-    # marked running or queued, whose jobs are gone (whoever calls this holds
-    # the run's unit), and the Claude each may still be running.
+    # Stops what an earlier attempt at the run left: its setup turns (and the
+    # turns that bring an accepted proposal up to date) still marked running
+    # or queued, whose jobs are gone (whoever calls this holds the run's
+    # unit), and the Claude each may still be running. Another import's turns
+    # are left alone; a session from before sessions knew their import counts
+    # for every import of its project.
     def stop_attempts!(setup)
-      DesignTurn.joins(:chat_session).includes(:chat_session).where(kind: "setup", status: DesignTurn::ACTIVE)
-                .where(chat_sessions: { project_id: setup.project_id, purpose: "designs_setup" }).find_each do |turn|
+      DesignTurn.joins(:chat_session).includes(:chat_session).where(kind: %w[setup resolve_conflicts], status: DesignTurn::ACTIVE)
+                .where(chat_sessions: { project_id: setup.project_id, purpose: "designs_setup" })
+                .where("chat_sessions.design_setup_id = ? OR chat_sessions.design_setup_id IS NULL", setup.id).find_each do |turn|
         killer.call(turn.chat_session.claude_session_id)
         turn.fail!(DesignTurn::INTERRUPTED)
       end
@@ -90,12 +97,15 @@ class Designs::SetupRunJob < ApplicationJob
     return wait_turn(setup) if another_import_runs?(setup)
     return unless setup.claim_unit!(job_id, limit: UNIT_GRACE)
 
+    # Work queued after the import is over: what goes wrong is that
+    # feature's, never the import's, which master already has.
+    @follow_up = !setup.running?
     self.class.stop_attempts!(setup)
     setup.update!(paused_until: nil) if setup.paused_until
     heartbeat = beat(setup)
     if setup.running?
       setup.start_step!
-      send(DesignSetup::STEPS.fetch(setup.step), setup)
+      send(setup.step_names.fetch(setup.step), setup)
     else
       follow_up(setup)
     end
@@ -105,15 +115,43 @@ class Designs::SetupRunJob < ApplicationJob
   rescue Paused => e
     pause(setup, e.until_time)
   rescue *STOPS => e
-    stop(setup, e.message)
+    @follow_up ? give_up_feature(setup, trouble(e)) : stop(setup, e.message)
   rescue StandardError => e
     Rails.logger.error("[#{self.class.name}] setup #{setup_id}: #{e.class}: #{e.message}")
-    stop(setup, "#{e.class.name}: #{e.message}")
+    @follow_up ? give_up_feature(setup, trouble(e)) : stop(setup, "#{e.class.name}: #{e.message}")
   ensure
     heartbeat&.kill
   end
 
   private
+
+  # A feature queued after the import, which something outside its turn
+  # stopped (a sign-in, a push GitHub refused, the host): it couldn't finish,
+  # and the queue goes on.
+  def give_up_feature(setup, message)
+    return unless setup
+
+    ours = setup.with_lock do
+      next false if setup.unit_job_id.present? && setup.unit_job_id != job_id
+
+      setup.features.where(status: "running").find_each do |feature|
+        feature.update!(status: "failed", stage: nil, finished_at: Time.current, error: message.to_s.truncate(1_000))
+      end
+      setup.update!(unit_job_id: nil, unit_deadline_at: 1.second.ago)
+      true
+    end
+    go_on(setup.reload) if ours
+  end
+
+  # What stopped a feature, in plain words.
+  def trouble(error)
+    case error
+    when Designs::SignIn::Failure then "Couldn't sign in: #{error.message}"
+    when Designs::AppRepos::Failure then "Couldn't read the app: #{error.message}"
+    when Failure then error.message
+    else "#{error.class.name}: #{error.message}"
+    end
+  end
 
   # The next unit, or, for an import whose queue is empty, its settling.
   def go_on(setup)
@@ -163,6 +201,7 @@ class Designs::SetupRunJob < ApplicationJob
 
     setup.with_lock do
       next if setup.unit_job_id.present? && setup.unit_job_id != job_id
+      next if setup.done?
 
       setup.update!(status: "failed", error: message.to_s.truncate(1_000), unit_job_id: nil, unit_deadline_at: nil)
     end
@@ -193,8 +232,8 @@ class Designs::SetupRunJob < ApplicationJob
       project.reload
       raise Failure, project.design_repo_error.presence || "The designs repository could not be set up." unless project.design_repo_status == "ready"
     end
-    self.class.app_repos.call(setup)
-    setup.finish_step!
+    fetched = self.class.app_repos.call(setup)
+    setup.finish_step!(app_commits: Array(fetched).map { |row| row.slice("repo", "branch", "sha") })
   end
 
   def sign_in(setup)
@@ -212,16 +251,90 @@ class Designs::SetupRunJob < ApplicationJob
     self.class.sign_in.call(setup)
     setup.update!(phase: "map")
     run_turn!(setup, MAP_REQUEST)
-    rows = begin
-      Array(JSON.parse(map.read)).select { |row| row.is_a?(Hash) }
-    rescue JSON::ParserError, SystemCallError
-      []
-    end
+    rows = saved_features(map)
     raise Failure, "The map found no features." if rows.empty?
 
     setup.features.destroy_all
     setup.add_features!(rows)
     setup.finish_step!
+  end
+
+  # The rows the map's (or a resync's) save_features wrote, [] for none.
+  def saved_features(file)
+    Array(JSON.parse(file.read)).select { |row| row.is_a?(Hash) }
+  rescue JSON::ParserError, SystemCallError
+    []
+  end
+
+  # A resync's look at what changed (Designs imports): the app's diffs since
+  # the import it starts from, and a turn that reads them with the map, walks
+  # the app and saves the features the changes touch and the new ones. Those
+  # become the resync's features. Nothing changed: nothing to build.
+  def find_changes(setup)
+    FileUtils.mkdir_p(setup.run_dir)
+    File.chmod(0o700, setup.run_dir)
+    changed = self.class.app_changes.call(setup).select { |row| row["path"] }
+    if changed.empty?
+      setup.note!("Finding what changed", "Nothing changed in the app's repositories since #{setup.since_label}.")
+      return setup.finish_step!
+    end
+
+    map = setup.run_dir.join("features.json")
+    FileUtils.rm_f(map)
+    self.class.sign_in.call(setup)
+    setup.update!(phase: "resync")
+    run_turn!(setup, resync_request(setup, changed))
+    add_resync_features!(setup, saved_features(map))
+    setup.finish_step!
+  end
+
+  def resync_request(setup, changed)
+    map = setup.project.design_feature_map.map do |feature|
+      "- #{feature.key} · #{feature.name} · contexts: #{feature.contexts.join(', ').presence || 'every context'} · " \
+        "screens: #{feature.screens.join(', ').presence || 'as its brief says'}\n  #{feature.brief.to_s.squish.truncate(300)}"
+    end
+    diffs = changed.map do |row|
+      "- #{row['repo']}#{" @ #{row['branch']}" if row['branch']}: #{row['from'].to_s.first(7)}..#{row['to'].to_s.first(7)}, the diff in #{row['path']}"
+    end
+    "#{RESYNC_REQUEST}\n\n## The map\n#{map.join("\n").presence || '(no features yet)'}\n\n" \
+      "## What changed in the app since #{setup.since_label}\n#{diffs.join("\n")}"
+  end
+
+  # A feature the changes touch is the map's, with what changed in its code;
+  # one the map lacks is new. A proposal of an earlier import still waiting
+  # for the same feature is replaced by this one.
+  def add_resync_features!(setup, rows)
+    known = setup.project.design_feature_map.index_by(&:key)
+    taken = known.keys + setup.features.pluck(:key)
+    position = setup.features.maximum(:position).to_i
+    rows.each do |row|
+      existing = known[row["key"].to_s]
+      attributes = if existing
+                     { key: existing.key, name: existing.name, source: "changed", brief: existing.brief,
+                       contexts: Array(row["contexts"]).map(&:to_s).presence || existing.contexts,
+                       screens: Array(row["screens"]).map(&:to_s).presence || existing.screens }
+                   else
+                     name = row["name"].to_s.strip.presence || "Feature"
+                     { key: DesignSetupFeature.key_for(name, taken), name: name.truncate(120), source: "new", brief: row["brief"].to_s,
+                       contexts: Array(row["contexts"]).map(&:to_s), screens: Array(row["screens"]).map(&:to_s) }
+                   end
+      next if setup.features.exists?(key: attributes[:key])
+
+      taken << attributes[:key]
+      feature = setup.features.create!(attributes.merge(position: position += 1, status: "todo", queued_at: Time.current,
+                                                        code_changes: row["changes"].to_s.strip.presence, notes: Array(row["notes"]).map(&:to_s)))
+      replace_older_proposals!(feature)
+    end
+    setup.features.reset
+  end
+
+  def replace_older_proposals!(feature)
+    setup = feature.design_setup
+    DesignSetupFeature.joins(:design_setup).where(design_setups: { project_id: setup.project_id }).where.not(design_setup_id: setup.id)
+                      .where(key: feature.key, status: "review").find_each do |older|
+      Designs::ImportLanding.new(older).discard!
+      older.update!(status: "set_aside", branch: nil, review: older.review.merge("rejected" => "Replaced by “#{setup.title}”"))
+    end
   end
 
   def design_system(setup)
@@ -236,6 +349,8 @@ class Designs::SetupRunJob < ApplicationJob
   # the turn's notes) or failed (noted, and the run goes on). With none left,
   # the step is over.
   def features(setup)
+    return resync_features(setup) if setup.resync?
+
     feature = setup.features.pending.first
     return setup.finish_step! unless feature
 
@@ -323,6 +438,19 @@ class Designs::SetupRunJob < ApplicationJob
     end
   end
 
+  # A resync's features are each built on a branch of their own off master
+  # and land there as they finish, as features queued after an import do.
+  def resync_features(setup)
+    return setup.finish_step! unless setup.features.pending.exists?
+
+    follow_up(setup)
+  end
+
+  # A resync is over once its features have landed, one by one.
+  def finish(setup)
+    setup.finish_step!(status: "approved", finished_at: Time.current, settled_at: Time.current)
+  end
+
   def commit(setup)
     if (thread = setup.design_thread)
       Designs::Threads.note(thread, "Re-import from staging finished. Check what changed, then merge it.")
@@ -345,13 +473,14 @@ class Designs::SetupRunJob < ApplicationJob
   # killed attempt left running is queued again first, on the same branch.
   def follow_up(setup)
     setup.features.where(status: "running").find_each { |feature| feature.update!(status: "todo") }
-    feature = setup.features.where(status: "todo").order(:queued_at, :position).first or return
+    feature = setup.features.where(status: "todo").reorder(:queued_at, :position).first or return
 
+    feature.update!(status: "running", stage: "building", started_at: Time.current, error: nil, resets_at: nil)
     self.class.sign_in.call(setup)
     self.class.app_repos.call(setup) if Designs::AppRepos.new(setup).dirs.empty?
     repo = Designs::Repo.new(setup.project)
     branch = feature.branch.presence || fresh_branch!(repo, feature)
-    feature.update!(status: "running", stage: "building", started_at: Time.current, error: nil, branch: branch, resets_at: nil)
+    feature.update!(branch: branch)
     FileUtils.rm_f(setup.run_dir.join("progress.json"))
     setup.update!(phase: "feature")
     before = repo.head(branch)
@@ -391,7 +520,8 @@ class Designs::SetupRunJob < ApplicationJob
            elsif feature.reply
              "## Before you start\n#{feature.reply}"
            end
-    [ Designs::FeatureBrief.for(feature), (threads_on_master(feature.design_setup) unless feature.design_setup.running?), said ].compact.join("\n")
+    setup = feature.design_setup
+    [ Designs::FeatureBrief.for(feature), (threads_on_master(setup) unless setup.first? && setup.running?), said ].compact.join("\n")
   end
 
   # The designs threads merged into master, for an update not to throw them
@@ -422,6 +552,8 @@ class Designs::SetupRunJob < ApplicationJob
     review!(feature, turn, e.touched)
   rescue Designs::Repo::Conflict
     feature.update!(status: "failed", stage: nil, finished_at: Time.current, error: Designs::ImportLanding::CONFLICT)
+  rescue Designs::ImportLanding::NotLanded => e
+    feature.update!(status: "failed", stage: nil, finished_at: Time.current, error: e.message)
   end
 
   # The update waits for the person: what it brings in, keeps and replaces, as

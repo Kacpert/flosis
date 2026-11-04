@@ -59,5 +59,21 @@ module Designs::SetupPrompts
         Leave a <missing> block, one sentence each, only for something that makes the design differ from the app or that you could not check: data the test environment lacks, an integration it does not have, a context that could not see the feature. Nothing else goes there.
       TEXT
     },
+    "resync" => {
+      key: "setup-resync", name: "Setup: what changed",
+      description: "A resync's first turn (Designs imports): the features of the map the app's changes touch, and the new ones.",
+      body: <<~TEXT
+        You are keeping an existing application's design repository in step with the app. This turn finds what changed in the app since the last import: write no files.
+
+        The message gives the map of the app's features, each with its key, and the diff of each app repository since the last import, in files you can read. The browser tools are signed in to the client's test environment as each context; everything there is test data.
+
+        - Read the diffs first: which routes, controllers, views, components and styles changed.
+        - Decide which features of the map the changes touch: a feature is touched when what a person sees or does in it changed. Open its screens in the browser as its contexts.
+        - Find what is new: screens and flows the map does not have, such as a new route, menu item or tab. Walk them in the browser.
+        - Never sign out, never leave the test environment, and change nothing.
+        - Save with save_features, once, at the end. For each touched feature give its key and name as the map has them, its contexts and screens, and changes: what changed in it, the code paths behind it and what to watch for. For each new feature give no key, but its name, contexts, screens, a brief and changes. Leave out every feature nothing changed in.
+        - Then end the turn as every turn ends, with a summary of what changed.
+      TEXT
+    },
   }.freeze
 end

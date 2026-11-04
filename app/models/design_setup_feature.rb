@@ -75,6 +75,9 @@ class DesignSetupFeature < ApplicationRecord
     finished_at - started_at if started_at && finished_at
   end
 
+  # A row from before the imports existed has none.
+  def review = super || {}
+
   # What its card is about, from what happened: :waiting, :review, :limit
   # (Claude's session limit stopped it), :unreadable (the CLI's answer could
   # not be read), :error, :paused (stopped by the limit, and resuming by

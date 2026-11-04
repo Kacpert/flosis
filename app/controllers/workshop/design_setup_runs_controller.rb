@@ -51,7 +51,7 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
 
   def show
     @project = current_workshop_project
-    @setup = @project.design_setups.where(design_thread_id: nil).order(:id).last
+    @setup = @project.design_setups.first_imports.order(:id).last
     return redirect_to(workshop_designs_overview_path) if @setup.nil?
     # Once master has it, the import's page is in Designs (Designs imports).
     return redirect_to(workshop_designs_overview_path(tab: "imports", import: @setup.id)) if @setup.done?
@@ -64,13 +64,23 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
     @where = where_line(roles)
   end
 
+  # The import shown (else the latest): a stopped run goes on from its step;
+  # an import already on master that an older bug marked failed is put back,
+  # and what is queued on it goes on.
   def retry
-    setup = current_workshop_project.design_setups.order(:id).last
-    if setup&.failed?
+    project = current_workshop_project
+    setup = params[:import].present? ? project.design_setups.find_by(id: params[:import]) : project.design_setups.order(:id).last
+    if setup&.failed? && setup.finished_at.nil?
       setup.update!(status: "active", error: nil, unit_job_id: nil, unit_deadline_at: nil)
       Designs::SetupRunJob.perform_later(setup.id)
+    elsif setup&.failed?
+      setup.update!(status: "approved", error: nil, unit_job_id: nil, unit_deadline_at: nil)
+      setup.features.where(status: "running").update_all(status: "todo")
+      setup.start_work!
     end
-    redirect_to setup&.design_thread ? workshop_designs_overview_path(thread: setup.design_thread_id) : workshop_design_setup_run_path
+    return redirect_to(workshop_designs_overview_path(thread: setup.design_thread_id)) if setup&.design_thread
+
+    redirect_to setup ? helpers.import_page_path(setup) : workshop_design_setup_run_path
   end
 
   # A full rebuild on a thread of its own, which people trim and merge.

@@ -25,15 +25,18 @@ class Workshop::BaseController < ApplicationController
   end
 
   # Workshop Designs v2: whoever started a project's Designs setup is told
-  # once, on their next page, that master is ready.
+  # once, on their next page, that master is ready, with a link to the
+  # import's page.
   def announce_designs_ready
     project = current_workshop_project or return
-    setup = project.design_setups.where(status: "approved", design_thread_id: nil, notified_at: nil, started_by: current_user)
+    setup = project.design_setups.first_imports.where(status: "approved", notified_at: nil, started_by: current_user)
                    .where.not(finished_at: nil).order(:id).last
     return unless setup
 
     setup.update_column(:notified_at, Time.current)
     flash.now[:clar_toast] = "Designs ready · #{project.name} @ master"
+    # Designs imports: the notice leads to the import's page.
+    flash.now[:clar_toast_link] = workshop_designs_overview_path(tab: "imports", import: setup.id)
   end
 
   def set_pipeline_badge

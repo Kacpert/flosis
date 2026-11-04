@@ -50,6 +50,14 @@ class Designs::AppReposTest < ActiveSupport::TestCase
     assert_equal [ dir.to_s ], Designs::AppRepos.new(@setup).dirs
   end
 
+  # Designs imports: a later import takes the app's changes from these.
+  test "each repository read records its commit" do
+    repos("acme/app@production")
+    fetched = Designs::AppRepos.new(@setup).fetch!
+    head = IO.popen([ "git", "-C", @remotes["acme/app"], "rev-parse", "refs/heads/production" ], &:read).strip
+    assert_equal head, fetched.first["sha"]
+  end
+
   # A shared host: a link the repository tracks must not let Claude read
   # beyond it (Flosis's .env, another client's folder), as AppCopy ensures.
   test "a link a repository tracks is dropped" do

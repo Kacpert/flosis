@@ -140,6 +140,14 @@ class Project < ApplicationRecord
     designs_enabled? && design_repo_status == "ready"
   end
 
+  # The map of the app's features as the imports left it (Designs imports):
+  # each feature's latest row, whichever import it came from, in the order the
+  # features first appeared; those set aside are not on it.
+  def design_feature_map
+    DesignSetupFeature.joins(:design_setup).where(design_setups: { project_id: id, kind: %w[first resync] }).where.not(status: "set_aside")
+                      .order(:id).group_by(&:key).values.map(&:last)
+  end
+
   # Where the project's design repo lives (its clone, worktrees and lock): the
   # project's own folder. The legacy Elvium project's workspace_dir is the app
   # checkout itself, so Elvium gets the folder any other project would have.
