@@ -170,4 +170,16 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     assert_equal [ "design/re-import", "abc1234" ], [ subject.wip_branch, subject.publish_base ]
   end
 
+  # Final review M9: a re-import's cards have no actions, so its features are
+  # never told to stop and ask.
+  test "a feature's turn may ask the person, a re-import's may not" do
+    @setup.update!(phase: "feature")
+    @session.update!(design_setup: @setup)
+    assert_includes Designs::Subject.for(@session).system_text, "<blocked>"
+
+    thread = DesignThread.create!(project: @project, author: users(:one), title: "Re-import from staging", branch: "design/re-import", base_sha: "abc1234")
+    reimport = @project.design_setups.create!(kind: "reimport", status: "active", phase: "feature", step: 4, started_by: users(:one), design_thread: thread)
+    @session.update!(design_setup: reimport)
+    assert_not_includes Designs::Subject.for(@session.reload).system_text, "<blocked>"
+  end
 end

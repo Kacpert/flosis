@@ -167,6 +167,8 @@ module Designs::Subject
     TEXT
     # A feature's turn may stop on what only the person can fix (Designs
     # imports): its feature waits for their answer while the import goes on.
+    # A re-import's may not: nobody answers on its page; it is fixed on its
+    # thread.
     BLOCKED_NOTE = <<~TEXT.freeze
       # When only the person can unblock the feature
       If the feature cannot be built honestly because of something only the person can fix on the test account (an integration that is not connected, data you cannot create there, a context that cannot reach the feature), stop building it. Keep what you built so far, and end the turn with one <blocked> block: a single question for the person, saying what to fix and where. They will answer, and a later turn goes on from where you stopped. A gap you can build around from the code is a <missing> note, not a <blocked> block.
@@ -222,7 +224,7 @@ module Designs::Subject
 
     def system_text
       "#{Designs::Prompt.system_text(project: project, composition: composition)}\n#{readable}\n#{BROWSER_NOTE}" \
-        "#{"\n#{BLOCKED_NOTE}" if setup.phase == 'feature'}"
+        "#{"\n#{BLOCKED_NOTE}" if setup.phase == 'feature' && !setup.reimport?}"
     end
 
     def forbidden_texts = composition.texts
