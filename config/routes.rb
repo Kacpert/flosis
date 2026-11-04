@@ -56,12 +56,12 @@ Rails.application.routes.draw do
     end
   end
 
-  # Personal-access-token JSON API (Api::V1::BaseController): book hours,
-  # delete recent ones, list the projects they can go on. Nothing else.
+  # Personal-access-token JSON API (Api::V1::BaseController): list and book
+  # hours, delete recent ones, list the projects they can go on. Nothing else.
   namespace :api, defaults: { format: :json } do
     namespace :v1 do
       resources :projects, only: [ :index ]
-      resources :time_entries, only: [ :create, :destroy ]
+      resources :time_entries, only: [ :index, :create, :destroy ]
     end
   end
 

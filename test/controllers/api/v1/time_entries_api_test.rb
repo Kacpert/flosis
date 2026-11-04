@@ -158,3 +158,58 @@ class Api::V1::TimeEntriesDeleteApiTest < ActionDispatch::IntegrationTest
     assert TimeEntry.exists?(entry.id)
   end
 end
+
+class Api::V1::TimeEntriesListApiTest < ActionDispatch::IntegrationTest
+  setup do
+    @user = users(:two)
+    @workspace = workspaces(:one)
+    @project = projects(:jira_project)
+    _, @raw = ApiToken.issue!(user: @user, workspace: @workspace, name: "test")
+    TimeEntry.where(user: @user).delete_all
+  end
+
+  def entry_for(user, started_at, project: @project)
+    TimeEntry.create!(workspace: @workspace, user: user, project: project,
+                      started_at: started_at, stopped_at: started_at + 1.hour)
+  end
+
+  def list(params = {}, raw = @raw)
+    get api_v1_time_entries_path, params: params, headers: { "Authorization" => "Bearer #{raw}" }
+  end
+
+  test "lists the person's own entries from the last 36 days by default, newest first" do
+    recent = entry_for(@user, 2.days.ago)
+    newer = entry_for(@user, 1.day.ago)
+    entry_for(@user, 40.days.ago)
+    entry_for(users(:one), 1.day.ago)
+
+    list
+    assert_response :ok
+    body = response.parsed_body
+    assert_equal [ newer.id, recent.id ], body["time_entries"].map { |entry| entry["id"] }
+    assert_equal 120, body["total_minutes"]
+    assert body["time_entries"].all? { |entry| entry["deletable"] }
+  end
+
+  test "filters by date range and project, and flags old entries as not deletable" do
+    old = entry_for(@user, Time.zone.local(2026, 9, 10, 9))
+    entry_for(@user, Time.zone.local(2026, 9, 10, 12), project: projects(:plain_project))
+
+    list(from: "2026-09-10", to: "2026-09-10", project_id: @project.id)
+    assert_response :ok
+    entries = response.parsed_body["time_entries"]
+    assert_equal [ old.id ], entries.map { |entry| entry["id"] }
+    assert_equal false, entries.first["deletable"]
+  end
+
+  test "refuses bad dates and a token without the read scope" do
+    list(from: "10.09.2026")
+    assert_response :unprocessable_entity
+    list(from: "2026-09-10", to: "2026-09-01")
+    assert_response :unprocessable_entity
+
+    _, no_read = ApiToken.issue!(user: @user, workspace: @workspace, name: "c", scopes: %w[time_entries:create])
+    list({}, no_read)
+    assert_response :forbidden
+  end
+end
