@@ -128,6 +128,10 @@ review card, drawn after his answer on what wins).
     **Add**.
 - (Call) The "master is ready" notice the setup sends once leads to the
   import's page.
+- (Call) Anyone with the Designs permission sees Imports. Starting an import
+  and every action on a card (Send and continue, Retry, Add, Accept, Reject,
+  Set aside) needs the Configuration permission, as the setup's own actions
+  do.
 
 ## Statuses a feature can end in
 
