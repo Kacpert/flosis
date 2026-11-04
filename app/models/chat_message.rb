@@ -8,7 +8,7 @@ class ChatMessage < ApplicationRecord
   # v2) adds the task description's diff, the merges that came in from master,
   # and a request Flosis made on the person's behalf, which is not shown.
   # Other chats leave it empty.
-  KINDS = %w[summary context missing error system diff master request].freeze
+  KINDS = %w[summary context missing error system diff master request blocked comes_in kept replaced].freeze
 
   # Structured parts of a design thread's message (chips, a description's
   # diff, the merges that came in). Declared :json, as MariaDB would type the

@@ -165,6 +165,12 @@ module Designs::Subject
 
       This turn has a browser: the flosis_browser tools, signed in to the client's test environment as each context of the run. What the base prompt says about opening no browser does not hold for this turn; everything else in it does. A context's designs go in the folder the message names for it, never in a folder named after its browser slug.
     TEXT
+    # A feature's turn may stop on what only the person can fix (Designs
+    # imports): its feature waits for their answer while the import goes on.
+    BLOCKED_NOTE = <<~TEXT.freeze
+      # When only the person can unblock the feature
+      If the feature cannot be built honestly because of something only the person can fix on the test account (an integration that is not connected, data you cannot create there, a context that cannot reach the feature), stop building it. Keep what you built so far, and end the turn with one <blocked> block: a single question for the person, saying what to fix and where. They will answer, and a later turn goes on from where you stopped. A gap you can build around from the code is a <missing> note, not a <blocked> block.
+    TEXT
     MAP_TOOLS = %w[mcp__flosis_browser__save_features].freeze
     PHASE_TITLES = { "map" => "the feature map", "design_system" => "the design system", "feature" => "one feature" }.freeze
     VIEWPORT = { width: 1440, height: 900 }.freeze
@@ -211,7 +217,8 @@ module Designs::Subject
     end
 
     def system_text
-      "#{Designs::Prompt.system_text(project: project, composition: composition)}\n#{readable}\n#{BROWSER_NOTE}"
+      "#{Designs::Prompt.system_text(project: project, composition: composition)}\n#{readable}\n#{BROWSER_NOTE}" \
+        "#{"\n#{BLOCKED_NOTE}" if setup.phase == 'feature'}"
     end
 
     def forbidden_texts = composition.texts

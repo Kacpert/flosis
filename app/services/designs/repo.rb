@@ -355,6 +355,31 @@ class Designs::Repo
     synchronize { git("branch", "--force", branch, to) }
   end
 
+  # A branch back at an earlier commit, in its worktree when it has one
+  # (Designs imports: a feature's half-built work taken off wip/setup).
+  def rewind!(branch, to:)
+    synchronize do
+      dir = worktree_path(branch)
+      dir.exist? ? git("reset", "--hard", to, chdir: own_checkout!(dir)) : git("branch", "--force", branch, to)
+    end
+  end
+
+  # Merges a branch into the one checked out in a worktree, with a merge
+  # commit (Designs imports: a feature that went on from its own branch joins
+  # wip/setup). A collision is aborted and raised as Conflict.
+  def merge_branch_into!(dir, branch, message:)
+    synchronize do
+      dir = own_checkout!(dir)
+      git("merge", "--no-ff", "--no-edit", "--message", message, "refs/heads/#{branch}", chdir: dir)
+    rescue GitRunner::Error
+      raise unless merging?(dir)
+
+      paths = git("diff", "--name-only", "--diff-filter=U", chdir: dir).split("\n")
+      git("merge", "--abort", chdir: dir)
+      raise Conflict, "#{branch} does not merge cleanly: #{paths.join(", ")}"
+    end
+  end
+
   # Merges master, as the clone has it, into the branch checked out in a
   # worktree, and returns the paths that collide: [] once the merge is
   # committed (or master had nothing new), else the merge is left in progress

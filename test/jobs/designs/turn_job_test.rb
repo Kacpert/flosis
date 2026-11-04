@@ -626,6 +626,20 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  test "a question for the person and what an update brings are posted as messages of their own" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      fake_claude(files: { "designs/jobs.html" => "<p>jobs</p>" },
+                  reply: "<summary>Half the board.</summary><blocked>Connect Jira?</blocked><comes-in>A filter.</comes-in>" \
+                         "<kept>Your card.</kept><replaced>The footer button.</replaced>")
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_equal [ [ "summary", "Half the board." ], [ "blocked", "Connect Jira?" ], [ "comes_in", "A filter." ],
+                     [ "kept", "Your card." ], [ "replaced", "The footer button." ] ], assistant_messages(turn).pluck(:kind, :content)
+    end
+  end
+
   test "the reply is posted as its summary, each context and each open question, and the commit is named after the task" do
     with_design_remote do |repo, remote|
       task = design_task(repo)
