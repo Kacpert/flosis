@@ -110,3 +110,51 @@ class Api::V1::TimeEntriesApiTest < ActionDispatch::IntegrationTest
     assert @raw.start_with?("gold_pat_")
   end
 end
+
+class Api::V1::TimeEntriesDeleteApiTest < ActionDispatch::IntegrationTest
+  setup do
+    @user = users(:two)
+    @workspace = workspaces(:one)
+    @project = projects(:jira_project)
+    _, @raw = ApiToken.issue!(user: @user, workspace: @workspace, name: "test")
+  end
+
+  def entry_for(user, started_at)
+    TimeEntry.create!(workspace: @workspace, user: user, project: @project,
+                      started_at: started_at, stopped_at: started_at + 1.hour)
+  end
+
+  def delete_entry(entry, raw = @raw)
+    delete api_v1_time_entry_path(entry), headers: { "Authorization" => "Bearer #{raw}" }
+  end
+
+  test "deletes one of the person's entries from the last 36 days" do
+    entry = entry_for(@user, 35.days.ago)
+    delete_entry(entry)
+    assert_response :ok
+    assert_equal entry.id, response.parsed_body.dig("deleted", "id")
+    assert_not TimeEntry.exists?(entry.id)
+  end
+
+  test "refuses an entry that started more than 36 days ago" do
+    entry = entry_for(@user, 37.days.ago)
+    delete_entry(entry)
+    assert_response :unprocessable_entity
+    assert TimeEntry.exists?(entry.id)
+  end
+
+  test "someone else's entry is not found" do
+    entry = entry_for(users(:one), 1.day.ago)
+    delete_entry(entry)
+    assert_response :not_found
+    assert TimeEntry.exists?(entry.id)
+  end
+
+  test "a token without the delete scope cannot delete" do
+    _, create_only = ApiToken.issue!(user: @user, workspace: @workspace, name: "c", scopes: %w[time_entries:create projects:read])
+    entry = entry_for(@user, 1.day.ago)
+    delete_entry(entry, create_only)
+    assert_response :forbidden
+    assert TimeEntry.exists?(entry.id)
+  end
+end
