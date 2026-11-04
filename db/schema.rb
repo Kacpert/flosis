@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_02_230000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_04_020000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -144,6 +144,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_230000) do
     t.string "claude_session_id", null: false
     t.string "codebase_path", null: false
     t.datetime "created_at", null: false
+    t.bigint "design_setup_id"
     t.bigint "project_id"
     t.string "purpose", default: "refine", null: false
     t.string "status", default: "active", null: false
@@ -151,9 +152,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_230000) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "workspace_id", null: false
+    t.index ["design_setup_id"], name: "index_chat_sessions_on_design_setup_id"
     t.index ["project_id"], name: "index_chat_sessions_on_project_id"
-    t.index ["task_id", "purpose", "status"], name: "index_chat_sessions_on_task_purpose_status"
     t.index ["task_id"], name: "index_chat_sessions_on_task_id"
+    t.index ["task_id", "purpose", "status"], name: "index_chat_sessions_on_task_purpose_status"
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
     t.index ["workspace_id"], name: "index_chat_sessions_on_workspace_id"
   end
@@ -204,6 +206,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_230000) do
     t.index ["user_id"], name: "index_design_approvals_on_user_id"
   end
 
+  create_table "design_import_views", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "design_setup_id", null: false
+    t.datetime "seen_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["design_setup_id", "user_id"], name: "index_design_import_views_on_design_setup_id_and_user_id", unique: true
+    t.index ["user_id"], name: "index_design_import_views_on_user_id"
+  end
+
   create_table "design_merges", force: :cascade do |t|
     t.string "branch", null: false
     t.integer "commits", default: 1, null: false
@@ -243,7 +255,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_230000) do
   end
 
   create_table "design_setup_features", force: :cascade do |t|
+    t.integer "attempts", default: 0, null: false
+    t.string "branch"
     t.text "brief"
+    t.text "code_changes"
     t.integer "components_new", default: 0, null: false
     t.integer "components_reused", default: 0, null: false
     t.json "contexts"
@@ -256,7 +271,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_230000) do
     t.string "name", null: false
     t.json "notes"
     t.integer "position", null: false
+    t.text "question"
+    t.datetime "queued_at"
+    t.text "reply"
+    t.datetime "resets_at"
+    t.json "review"
     t.json "screens"
+    t.string "source", default: "map", null: false
     t.string "stage"
     t.datetime "started_at"
     t.string "status", default: "todo", null: false
@@ -280,6 +301,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_230000) do
   end
 
   create_table "design_setups", force: :cascade do |t|
+    t.json "app_commits"
     t.datetime "approved_at"
     t.string "crawl_dir"
     t.text "crawl_error"
@@ -289,11 +311,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_230000) do
     t.bigint "design_thread_id"
     t.text "error"
     t.datetime "finished_at"
+    t.string "kind", default: "first", null: false
     t.json "notes"
     t.datetime "notified_at"
     t.integer "pages"
+    t.datetime "paused_until"
     t.string "phase", default: "design_system", null: false
     t.bigint "project_id", null: false
+    t.datetime "settled_at"
+    t.bigint "since_setup_id"
     t.bigint "started_by_id"
     t.string "status", default: "active", null: false
     t.integer "step", default: 0, null: false
@@ -928,6 +954,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_230000) do
   add_foreign_key "bug_attributions", "tasks"
   add_foreign_key "chat_messages", "chat_sessions"
   add_foreign_key "chat_messages", "users"
+  add_foreign_key "chat_sessions", "design_setups", on_delete: :nullify
   add_foreign_key "chat_sessions", "projects"
   add_foreign_key "chat_sessions", "tasks"
   add_foreign_key "chat_sessions", "users"
@@ -936,6 +963,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_230000) do
   add_foreign_key "delivered_issues", "projects"
   add_foreign_key "design_approvals", "tasks"
   add_foreign_key "design_approvals", "users"
+  add_foreign_key "design_import_views", "design_setups", on_delete: :cascade
+  add_foreign_key "design_import_views", "users", on_delete: :cascade
   add_foreign_key "design_merges", "design_threads", on_delete: :nullify
   add_foreign_key "design_merges", "projects"
   add_foreign_key "design_merges", "tasks", on_delete: :nullify
