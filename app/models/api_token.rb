@@ -6,8 +6,9 @@ class ApiToken < ApplicationRecord
   PREFIX = "gold_pat_".freeze
 
   # time_entries:create — book completed hours against one's own projects.
+  # time_entries:delete — delete one's own entries from the last 36 days.
   # projects:read       — list the projects one may book hours against.
-  SCOPES = %w[time_entries:create projects:read].freeze
+  SCOPES = %w[time_entries:create time_entries:delete projects:read].freeze
 
   belongs_to :user
   belongs_to :workspace

@@ -2,13 +2,16 @@ module Api
   module V1
     # Books COMPLETED work only: an entry always has an end, given either as
     # stopped_at or as duration_minutes. The API never starts a running timer,
-    # and it cannot read, change or delete entries — the token is for adding
-    # hours, nothing more.
+    # and it cannot read or change entries. It can delete one, but only the
+    # person's own, and only from the last DELETABLE_FOR days, counted from
+    # when the work started: older hours have been reported and invoiced on.
     class TimeEntriesController < BaseController
       MAX_DURATION = 24.hours
+      DELETABLE_FOR = 36.days
       TIME_FORMAT = /\A\d{4}-\d{2}-\d{2}[T ]\d{1,2}:\d{2}/
 
-      before_action { require_scope!("time_entries:create") }
+      before_action(only: :create) { require_scope!("time_entries:create") }
+      before_action(only: :destroy) { require_scope!("time_entries:delete") }
 
       def create
         attrs = params.permit(:project_id, :description, :started_at, :stopped_at, :duration_minutes, :task_key)
@@ -36,6 +39,18 @@ module Api
         else
           unprocessable("The time entry was not saved.", details: entry.errors.full_messages)
         end
+      end
+
+      def destroy
+        entry = api_workspace.time_entries.where(user: api_user).find_by(id: params[:id])
+        return render_error(:not_found, "No time entry #{params[:id]} of yours in this workspace.") unless entry
+
+        if entry.started_at < DELETABLE_FOR.ago
+          return unprocessable("Time entry #{entry.id} started on #{entry.started_at.to_date}, more than 36 days ago; only entries from the last 36 days can be deleted.")
+        end
+
+        entry.destroy!
+        render json: { deleted: serialize(entry) }
       end
 
       private
@@ -79,7 +94,7 @@ module Api
           task_key: entry.task&.external_reference,
           description: entry.description,
           started_at: entry.started_at.iso8601,
-          stopped_at: entry.stopped_at.iso8601,
+          stopped_at: entry.stopped_at&.iso8601,
           duration_minutes: entry.duration_seconds / 60
         }
       end
