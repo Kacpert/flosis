@@ -87,4 +87,34 @@ class Designs::TurnOutputTest < ActiveSupport::TestCase
       assert_equal [], result.missing
     end
   end
+
+  # Designs imports: a setup turn blocked by something only the person can fix
+  # ends with its question for them.
+  test "a blocked block is the turn's question and stays out of the summary" do
+    result = Designs::TurnOutput.parse(<<~TEXT)
+      <summary>Built the board's empty state.</summary>
+      <blocked>The board is empty for every context. Connect Jira on the test project and tell me to go on.</blocked>
+    TEXT
+    assert_equal "The board is empty for every context. Connect Jira on the test project and tell me to go on.", result.blocked
+    assert_equal "Built the board's empty state.", result.summary
+  end
+
+  test "a reply that is only a question still has a summary" do
+    result = Designs::TurnOutput.parse("<blocked>Connect Jira on the test project?</blocked>")
+    assert_equal [ "Connect Jira on the test project?" ] * 2, [ result.summary, result.blocked ]
+  end
+
+  test "comes-in, kept and replaced blocks are read in order" do
+    result = Designs::TurnOutput.parse("<summary>Updated Bug Reporting.</summary><comes-in>Filter by status.</comes-in>" \
+                                       "<kept>Your redesigned bug card.</kept><replaced>Assign in the card's footer.</replaced>" \
+                                       "<comes-in>The empty state.</comes-in>")
+    assert_equal [ [ "Filter by status.", "The empty state." ], [ "Your redesigned bug card." ], [ "Assign in the card's footer." ] ],
+                 [ result.comes_in, result.kept, result.replaced ]
+    assert_equal "Updated Bug Reporting.", result.summary
+  end
+
+  test "a result made by hand needs only its summary" do
+    result = Designs::TurnOutput::Result.new(summary: "Brought up to date with master.", contexts: [], missing: [])
+    assert_equal [ nil, [], [], [] ], [ result.blocked, result.comes_in, result.kept, result.replaced ]
+  end
 end

@@ -244,19 +244,25 @@ class Designs::SetupRunJob < ApplicationJob
     FileUtils.rm_f(setup.run_dir.join("progress.json"))
     setup.update!(phase: "feature")
     repo = Designs::Repo.new(setup.project)
-    before = repo.head(branch(setup))
-    turn = start_turn(setup, Designs::FeatureBrief.for(feature))
+    before = repo.head(feature.branch.presence || branch(setup))
+    turn = start_turn(setup, follow_up_request(feature))
     feature.update!(design_turn: turn)
     self.class.turn_runner.call(turn.id)
     finish_feature(feature, turn.reload, repo, before)
   end
 
+  # A feature of the import itself, as its turn left it. One that went on
+  # from its own branch (the person answered the AI's question while the
+  # import still ran) joins wip/setup, to land with the rest.
   def finish_feature(feature, turn, repo, before)
     if turn.succeeded?
-      counts = Designs::ComponentCount.between(repo, before, turn.commit_sha || repo.head(branch(feature.design_setup)))
-      notes = turn.chat_session.chat_messages.where(kind: "missing").where("id > ?", turn.chat_message_id).order(:id).pluck(:content)
+      question = question_in(turn)
+      return wait_for_answer(feature, turn, repo, before, question) if question
+
+      counts = Designs::ComponentCount.between(repo, before, turn.commit_sha || repo.head(feature.branch.presence || branch(feature.design_setup)))
+      join_import!(feature, repo) if feature.branch.present?
       feature.update!(status: "done", stage: nil, finished_at: Time.current, components_new: counts[:new],
-                      components_reused: counts[:reused], notes: feature.notes + notes)
+                      components_reused: counts[:reused], notes: feature.notes + missing_in(turn), branch: nil)
     elsif Designs::UsageLimit.hit?(turn.error)
       resets = Designs::UsageLimit.reset_at(turn.error)
       feature.update!(status: "todo", stage: nil, error: turn.error, resets_at: resets, finished_at: Time.current)
@@ -267,6 +273,53 @@ class Designs::SetupRunJob < ApplicationJob
       error = turn.error.presence || "Claude could not finish this feature."
       feature.update!(status: "failed", stage: nil, finished_at: Time.current, error: error,
                       notes: feature.notes + [ "Could not finish: #{error}".truncate(500) ])
+    end
+  rescue Designs::Repo::Conflict => e
+    feature.update!(status: "failed", stage: nil, finished_at: Time.current, error: "Couldn't join the import: #{e.message}".truncate(500))
+  end
+
+  # The AI's question for the person, when it stopped the feature on what
+  # only they can fix.
+  def question_in(turn)
+    turn.chat_session.chat_messages.where(kind: "blocked").where("id > ?", turn.chat_message_id).order(:id).last&.content.presence
+  end
+
+  def missing_in(turn)
+    turn.chat_session.chat_messages.where(kind: "missing").where("id > ?", turn.chat_message_id).order(:id).pluck(:content)
+  end
+
+  # The feature waits for the person's answer, and the run goes on. What it
+  # built so far stays on a branch of its own: taken off wip/setup (or a
+  # re-import's thread) when it was built there, so that nothing half-built
+  # lands with the import.
+  def wait_for_answer(feature, turn, repo, before, question)
+    shared = branch(feature.design_setup)
+    # A branch this very turn began starts where master was.
+    start = before || repo.merge_base(shared, Designs::Repo::MASTER)
+    if feature.branch.blank? && start && turn.commit_sha && turn.commit_sha != start
+      own = Designs::BranchNames.import(feature)
+      repo.synchronize do
+        repo.point!(own, to: turn.commit_sha)
+        repo.rewind!(shared, to: start)
+        repo.push!("refs/heads/#{own}", "+refs/heads/#{shared}")
+      end
+      feature.branch = own
+    end
+    feature.update!(status: "waiting", stage: nil, finished_at: Time.current, question: question, notes: feature.notes + missing_in(turn))
+  end
+
+  # A feature that went on from its own branch during the import joins the
+  # import's branch, and its own goes, here and on GitHub.
+  def join_import!(feature, repo)
+    setup = feature.design_setup
+    target = branch(setup)
+    repo.synchronize do
+      dir = repo.worktree!(target, from: setup.design_thread&.base_sha.presence || Designs::Repo::MASTER)
+      repo.merge_branch_into!(dir, feature.branch, message: "#{feature.name}: built after the person's answer")
+      repo.push!(target, *(":refs/heads/#{feature.branch}" if repo.remote_head(feature.branch)))
+      path = repo.worktree_path(feature.branch)
+      repo.remove_worktree!(path) if path.exist?
+      repo.delete_branch!(feature.branch) if repo.head(feature.branch)
     end
   end
 
@@ -302,7 +355,9 @@ class Designs::SetupRunJob < ApplicationJob
     FileUtils.rm_f(setup.run_dir.join("progress.json"))
     setup.update!(phase: "feature")
     before = repo.head(branch)
-    turn = start_turn(setup, follow_up_request(feature))
+    # An accepted proposal master moved under is brought up to date first.
+    kind = feature.review["accepted"] ? "resolve_conflicts" : "setup"
+    turn = start_turn(setup, follow_up_request(feature), kind: kind)
     feature.update!(design_turn: turn)
     self.class.turn_runner.call(turn.id)
     finish_follow_up(feature, turn.reload, repo, before)
@@ -323,28 +378,62 @@ class Designs::SetupRunJob < ApplicationJob
     name
   end
 
-  # The feature's brief, with what the person said: an answer to the AI's
-  # question, or words to start with.
+  # The feature's brief, with what threads put on master since the import
+  # (for a feature built after it), and what the person said: an answer to
+  # the AI's question, words about its proposal, or words to start with.
   def follow_up_request(feature)
     said = if feature.reply && feature.question
              "## You asked\n#{feature.question}\n\n## They replied\n#{feature.reply}\n\n" \
                "Check what they said (sign in again, look again) and go on from where you stopped: what you built so far is on this branch."
+           elsif feature.reply && feature.review.key?("comes_in")
+             "## What they said about your proposal\n#{feature.reply}\n\n" \
+               "Your proposal is on this branch: change it as they say, then say again what comes in, what is kept and what is replaced."
            elsif feature.reply
              "## Before you start\n#{feature.reply}"
            end
-    [ Designs::FeatureBrief.for(feature), said ].compact.join("\n")
+    [ Designs::FeatureBrief.for(feature), (threads_on_master(feature.design_setup) unless feature.design_setup.running?), said ].compact.join("\n")
+  end
+
+  # The designs threads merged into master, for an update not to throw them
+  # away: what it brings in, keeps and replaces is said in blocks of its own.
+  def threads_on_master(setup)
+    merges = setup.project.design_merges.where(how: %w[manual auto]).newest_first.limit(10).to_a
+    return if merges.empty?
+
+    lines = merges.map { |merge| "- “#{merge.title}”, merged #{merge.merged_at.to_date}: #{Array(merge.screens).first(6).join(', ').presence || 'its screens'}" }
+    "## Work from threads on master\n#{lines.join("\n")}\n\n" \
+      "These were designed in threads and may not be built in the app yet. Keep them, unless the app has the same thing built differently. " \
+      "Say what your work brings in, one <comes-in> block an item; what of the threads' work you keep, one <kept> block each; " \
+      "and what you replace, one <replaced> block each."
   end
 
   def finish_follow_up(feature, turn, repo, before)
     return finish_feature(feature, turn, repo, before) unless turn.succeeded?
 
+    question = question_in(turn)
+    return wait_for_answer(feature, turn, repo, before, question) if question
+
     counts = Designs::ComponentCount.between(repo, before, turn.commit_sha || repo.head(feature.branch))
-    notes = turn.chat_session.chat_messages.where(kind: "missing").where("id > ?", turn.chat_message_id).order(:id).pluck(:content)
-    Designs::ImportLanding.new(feature).land!
-    feature.update!(status: "done", stage: nil, finished_at: Time.current, components_new: counts[:new],
-                    components_reused: counts[:reused], notes: feature.notes + notes, branch: nil)
+    notes = missing_in(turn)
+    feature.update!(components_new: counts[:new], components_reused: counts[:reused], notes: feature.notes + notes)
+    Designs::ImportLanding.new(feature).land!(accepted: feature.review["accepted"].present?)
+    feature.update!(status: "done", stage: nil, finished_at: Time.current, branch: nil)
+  rescue Designs::ImportLanding::NeedsReview => e
+    review!(feature, turn, e.touched)
   rescue Designs::Repo::Conflict
     feature.update!(status: "failed", stage: nil, finished_at: Time.current, error: Designs::ImportLanding::CONFLICT)
+  end
+
+  # The update waits for the person: what it brings in, keeps and replaces, as
+  # the AI said, and the threads whose work it would replace. An AI that said
+  # nothing still leaves the files it would change on the card.
+  def review!(feature, turn, touched)
+    said = turn.chat_session.chat_messages.where("id > ?", turn.chat_message_id).order(:id)
+    lists = %w[comes_in kept replaced].index_with { |kind| said.where(kind: kind).pluck(:content) }
+    paths = touched.map { |item| item[:path] }.uniq
+    lists["replaced"] = paths.map { |path| "What threads made in #{path}" } if lists.values.all?(&:empty?)
+    feature.update!(status: "review", stage: nil, finished_at: Time.current,
+                    review: lists.merge("threads" => touched.filter_map { |item| item[:merge]&.title }.uniq, "paths" => paths))
   end
 
   # A setup turn, run here and now: the run waits for it, and a step's turn
@@ -361,12 +450,12 @@ class Designs::SetupRunJob < ApplicationJob
 
   # Each unit is a Claude session of its own: a feature starts afresh, from
   # the repository, never from the last feature's conversation.
-  def start_turn(setup, request)
+  def start_turn(setup, request, kind: "setup")
     project = setup.project
     session = ChatSession.create!(project: project, workspace: project.workspace, user: setup.started_by, purpose: "designs_setup",
                                   claude_session_id: SecureRandom.uuid, codebase_path: project.designs_dir.to_s, design_setup: setup)
     message = session.chat_messages.create!(role: "user", user: setup.started_by, content: request)
-    DesignTurn.create!(chat_session: session, chat_message: message, kind: "setup")
+    DesignTurn.create!(chat_session: session, chat_message: message, kind: kind)
   end
 
   def branch(setup) = setup.design_thread&.branch || Designs::BranchNames::SETUP

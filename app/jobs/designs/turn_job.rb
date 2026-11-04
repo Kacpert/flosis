@@ -346,13 +346,19 @@ class Designs::TurnJob < ApplicationJob
   end
 
   # The reply as the chat shows it: the summary, then each context Claude
-  # added and each question it left open, a message apiece, then Flosis's
-  # notes on what did not go out, cut to fit as an error is.
+  # added and each question it left open, a message apiece, then a setup
+  # turn's question for the person and what its update brings in, keeps and
+  # replaces (Designs imports), then Flosis's notes on what did not go out,
+  # cut to fit as an error is.
   # A design thread's summary carries the screens the turn changed, as chips.
   def post_reply(session, output, notes, chips = [])
     replies = [ [ "summary", output.summary ] ] +
               output.contexts.map { |text| [ "context", text ] } +
               output.missing.map { |text| [ "missing", text ] } +
+              [ output.blocked ].compact.map { |text| [ "blocked", text ] } +
+              output.comes_in.map { |text| [ "comes_in", text ] } +
+              output.kept.map { |text| [ "kept", text ] } +
+              output.replaced.map { |text| [ "replaced", text ] } +
               notes.map { |note| [ "system", note.truncate(DesignTurn::ERROR_LIMIT) ] }
     replies.each do |kind, text|
       data = { "chips" => chips } if kind == "summary" && chips.any?

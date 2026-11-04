@@ -95,6 +95,17 @@ module DesignImportsHelper
       ("#{notes} #{notes == 1 ? 'note' : 'notes'}" if notes.positive?) ].compact.join(" · ")
   end
 
+  # A proposal's first screen, on its branch and on master, for the review
+  # card's "Open screens: proposed · master"; nil when it changes no screen.
+  def import_review_links(feature)
+    path = Array(feature.review["paths"]).find { |file| file.start_with?("designs/") && file.count("/") == 2 } or return
+    project = feature.design_setup.project
+    publisher = Designs::Publisher.new(project, Designs::Repo.new(project))
+    { proposed: (publisher.grant_url(feature.branch, path) if feature.branch), master: publisher.grant_url(Designs::Repo::MASTER, path) }
+  rescue Designs::Publisher::Error, ArgumentError
+    nil
+  end
+
   # Where Open takes a built feature: the first screen its turn's commit
   # wrote, on master's canvas; nil when that cannot be told.
   def import_open_path(repo, feature)

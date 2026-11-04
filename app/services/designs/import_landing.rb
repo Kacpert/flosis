@@ -7,8 +7,21 @@
 # lock, with the branch's deletion on GitHub in the same atomic push; a push
 # GitHub refuses puts master back. Then the branch goes here too and master
 # is published.
+#
+# An update that would replace a thread's work on master (Designs::ThreadWork)
+# does not land: it raises NeedsReview, and the person's Accept lands it.
 class Designs::ImportLanding
   CONFLICT = "Couldn't land on master: master changed the same files while it was built. Retry builds it again from master.".freeze
+
+  # The update would replace what a thread put on master.
+  class NeedsReview < StandardError
+    attr_reader :touched
+
+    def initialize(touched)
+      @touched = touched
+      super("it would replace a thread's work on master")
+    end
+  end
 
   def initialize(feature)
     @feature = feature
@@ -19,8 +32,9 @@ class Designs::ImportLanding
 
   # The merge, or nil when the branch has nothing master lacks (the feature
   # already matched it). Raises Designs::Repo::Conflict, master untouched,
-  # when the branch does not merge cleanly.
-  def land!
+  # when the branch does not merge cleanly, and NeedsReview, unless accepted,
+  # when it would replace a thread's work.
+  def land!(accepted: false)
     branch = @feature.branch
     merge = @repo.synchronize do
       @repo.ensure_clone!
@@ -29,6 +43,12 @@ class Designs::ImportLanding
       @repo.follow_origin!(branch)
       commits = @repo.commits_ahead(branch)
       next unless commits.positive?
+
+      unless accepted
+        base = @repo.merge_base(branch, Designs::Repo::MASTER)
+        touched = Designs::ThreadWork.new(@repo, @project).touched(base: base, head: "refs/heads/#{branch}")
+        raise NeedsReview, touched if touched.any?
+      end
 
       screens = changed_screens(branch)
       sha = @repo.merge_into_master!(branch, message: "Import: #{@feature.name}")
@@ -44,6 +64,20 @@ class Designs::ImportLanding
     forget!(branch)
     publish_master! if merge
     merge
+  end
+
+  # A proposal let go (Reject): its branch goes here and on GitHub, and its
+  # preview with it.
+  def discard!
+    branch = @feature.branch or return
+    @repo.synchronize do
+      @repo.ensure_clone!
+      path = @repo.worktree_path(branch)
+      @repo.remove_worktree!(path) if path.exist?
+      @repo.delete_branch!(branch) if @repo.head(branch)
+      @repo.push!(":refs/heads/#{branch}") if @repo.remote_head(branch)
+    end
+    Designs::Publisher.new(@project, @repo).unpublish!(branch)
   end
 
   private

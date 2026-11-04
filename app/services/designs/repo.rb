@@ -14,6 +14,8 @@ require "securerandom"
 # The token reaches git only for what talks to GitHub (clone, fetch, push), and
 # only through GitRunner's askpass: never in .git/config or in a remote URL.
 class Designs::Repo
+  # What blame_commits gives for lines nobody can place.
+  UNPLACED = "unplaced".freeze
   MASTER = Designs::BranchNames::MASTER
   IDENTITY = { "user.name" => "Flosis", "user.email" => "designs@flosis.com" }.freeze
 
@@ -231,6 +233,52 @@ class Designs::Repo
     []
   end
 
+  # The lines a change from one commit to another takes away or rewrites,
+  # by file, as [start, count] ranges of the old side: { path => ranges }. A
+  # file only added to has none (Designs imports: what an update would
+  # replace on master).
+  def diff_hunks(from, to)
+    synchronize do
+      hunks = Hash.new { |hash, key| hash[key] = [] }
+      path = nil
+      git("diff", "-U0", "--no-color", "--no-renames", "--no-ext-diff", from, to).each_line do |line|
+        if line.start_with?("--- ")
+          path = line.start_with?("--- a/") ? line.chomp.delete_prefix("--- a/") : nil
+        elsif path && (hunk = line.match(/\A@@ -(\d+)(?:,(\d+))? \+/))
+          count = (hunk[2] || "1").to_i
+          hunks[path] << [ hunk[1].to_i, count ] if count.positive?
+        end
+      end
+      hunks.reject { |_path, ranges| ranges.empty? }
+    end
+  end
+
+  # The commits the given lines of a file last came from, at ref. A file git
+  # cannot blame gives UNPLACED: nobody can say where its lines came from.
+  def blame_commits(ref, path, ranges)
+    synchronize do
+      lines = ranges.flat_map { |start, count| [ "-L", "#{start},+#{count}" ] }
+      git("blame", "--porcelain", *lines, ref, "--", path).scan(/^(\h{40}) \d+ \d+/).flatten.uniq
+    end
+  rescue GitRunner::Error
+    [ UNPLACED ]
+  end
+
+  # A commit's subject line, or "" for one this clone does not have.
+  def commit_subject(sha)
+    synchronize { git("log", "-1", "--format=%s", sha).strip }
+  rescue GitRunner::Error
+    ""
+  end
+
+  # The commits a merge brought in from its second parent ([] for a commit
+  # that is not a merge).
+  def merged_commits(merge_sha)
+    synchronize { git("rev-list", "#{merge_sha}^1..#{merge_sha}^2").split("\n") }
+  rescue GitRunner::Error
+    []
+  end
+
   # The last commit two branches share, or nil when either is missing.
   def merge_base(a, b)
     synchronize { git("merge-base", "refs/heads/#{a}", "refs/heads/#{b}").strip.presence }
@@ -353,6 +401,31 @@ class Designs::Repo
 
   def point!(branch, to:)
     synchronize { git("branch", "--force", branch, to) }
+  end
+
+  # A branch back at an earlier commit, in its worktree when it has one
+  # (Designs imports: a feature's half-built work taken off wip/setup).
+  def rewind!(branch, to:)
+    synchronize do
+      dir = worktree_path(branch)
+      dir.exist? ? git("reset", "--hard", to, chdir: own_checkout!(dir)) : git("branch", "--force", branch, to)
+    end
+  end
+
+  # Merges a branch into the one checked out in a worktree, with a merge
+  # commit (Designs imports: a feature that went on from its own branch joins
+  # wip/setup). A collision is aborted and raised as Conflict.
+  def merge_branch_into!(dir, branch, message:)
+    synchronize do
+      dir = own_checkout!(dir)
+      git("merge", "--no-ff", "--no-edit", "--message", message, "refs/heads/#{branch}", chdir: dir)
+    rescue GitRunner::Error
+      raise unless merging?(dir)
+
+      paths = git("diff", "--name-only", "--diff-filter=U", chdir: dir).split("\n")
+      git("merge", "--abort", chdir: dir)
+      raise Conflict, "#{branch} does not merge cleanly: #{paths.join(", ")}"
+    end
   end
 
   # Merges master, as the clone has it, into the branch checked out in a
