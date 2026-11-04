@@ -127,7 +127,7 @@ class Designs::SetupRunJob < ApplicationJob
   # Another import's unit holds the server: Chromium, Claude and the MCP
   # browser take most of the threads the host allows (Designs imports).
   def another_import_runs?(setup)
-    DesignSetup.where.not(id: setup.id).where.not(unit_job_id: nil).where(unit_deadline_at: Time.current..).exists?
+    DesignSetup.unit_running?(except: setup.id)
   end
 
   # The job comes back later. Meanwhile the run's deadline is kept ahead, so

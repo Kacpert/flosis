@@ -227,6 +227,12 @@ class DesignSetup < ApplicationRecord
     seen.nil? || seen < settled_at
   end
 
+  # Whether an import's unit runs on the server now: its browser, its Claude
+  # and the browser's MCP server are up (Designs imports).
+  def self.unit_running?(except: nil)
+    where.not(id: except).where.not(unit_job_id: nil).where(unit_deadline_at: Time.current..).exists?
+  end
+
   # Whether any of the project's imports is lit for user: the Imports line.
   def self.lit_for?(project, user)
     join = sanitize_sql_array([ "LEFT JOIN design_import_views seen ON seen.design_setup_id = design_setups.id AND seen.user_id = ?", user.id ])
