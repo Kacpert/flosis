@@ -5,29 +5,30 @@
 <% retry_path = retry_workshop_design_import_feature_path(setup, feature) %>
 <% aside_path = set_aside_workshop_design_import_feature_path(setup, feature) %>
 <% words = "[&::-webkit-details-marker]:hidden list-none" %>
+<% small = "!py-1.5 !px-3 !text-[12.5px]" %>
 <div class="mt-3">
   <% if problem == :waiting %>
     <%= form_with url: reply_workshop_design_import_feature_path(setup, feature), method: :post, class: "flex gap-2 items-start" do %>
       <textarea name="reply" rows="2" required class="clar-input flex-1 !text-[12.5px] resize-y" placeholder="What you fixed, or what the AI should know…"></textarea>
-      <button type="submit" class="clar-btn clar-btn-primary whitespace-nowrap">Send and continue</button>
+      <button type="submit" class="clar-btn clar-btn-primary whitespace-nowrap <%= small %>">Send and continue</button>
     <% end %>
     <div class="flex gap-2 mt-2 flex-wrap">
-      <%= button_to "Retry", retry_path, class: "clar-btn", form: { class: "contents" } %>
-      <%= button_to "Not needed", aside_path, class: "clar-btn", form: { class: "contents" } %>
+      <%= button_to "Retry", retry_path, class: "clar-btn #{small}", form: { class: "contents" } %>
+      <%= button_to "Not needed", aside_path, class: "clar-btn #{small}", form: { class: "contents" } %>
     </div>
   <% elsif problem != :review %>
     <div class="flex gap-2 flex-wrap items-start">
-      <%= button_to "Retry", retry_path, class: "clar-btn", form: { class: "contents" } %>
+      <%= button_to "Retry", retry_path, class: "clar-btn #{small}", form: { class: "contents" } %>
       <% unless %i[limit paused].include?(problem) %>
         <details class="group">
-          <summary class="clar-btn cursor-pointer select-none <%= words %>">Tell the AI something first…</summary>
+          <summary class="clar-btn cursor-pointer select-none <%= words %> <%= small %>">Tell the AI something first…</summary>
           <%= form_with url: retry_path, method: :post, class: "flex gap-2 items-start mt-2 w-[min(560px,80vw)]" do %>
             <textarea name="words" rows="2" required class="clar-input flex-1 !text-[12.5px] resize-y" placeholder="Where to look, what to skip, what changed…"></textarea>
-            <button type="submit" class="clar-btn clar-btn-primary whitespace-nowrap">Retry</button>
+            <button type="submit" class="clar-btn clar-btn-primary whitespace-nowrap <%= small %>">Retry</button>
           <% end %>
         </details>
       <% end %>
-      <%= button_to "Not needed", aside_path, class: "clar-btn", form: { class: "contents" } %>
+      <%= button_to "Not needed", aside_path, class: "clar-btn #{small}", form: { class: "contents" } %>
     </div>
   <% end %>
 </div>

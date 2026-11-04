@@ -19,7 +19,7 @@
     </div>
     <% retryable = cards.count(&:retryable?) %>
     <% if import_actions?(setup) && retryable > 1 %>
-      <%= button_to "Retry all #{retryable}", retry_all_workshop_design_import_path(setup), class: "clar-btn clar-btn-primary", form: { class: "contents" } %>
+      <%= button_to "Retry all #{retryable}", retry_all_workshop_design_import_path(setup), class: "clar-btn clar-btn-primary !py-1.5 !px-3.5 !text-[12.5px]", form: { class: "contents" } %>
     <% end %>
   </div>
 
