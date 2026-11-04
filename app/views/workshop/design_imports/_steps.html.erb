@@ -4,6 +4,7 @@
 <% blink = tag.span(class: "w-[7px] h-[7px] rounded-full clar-blink", style: "background: var(--ai);") %>
 <% circle = "w-5 h-5 rounded-full flex items-center justify-center flex-none text-white" %>
   <div class="clar-card px-5.5 py-5 mb-4">
+    <%= render "workshop/design_imports/paused", setup: setup %>
     <div class="flex justify-between text-[12.5px] clar-text-muted mb-2"><span><%= setup.percent %>%</span><span><%= setup.time_left %></span></div>
     <div class="h-1.5 rounded bg-[var(--surface-2)] overflow-hidden mb-3.5"><div class="h-1.5 rounded" style="width: <%= setup.percent %>%; background: var(--ai);"></div></div>
     <% setup.steps.each_with_index do |(label, minutes), i| %>

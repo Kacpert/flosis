@@ -163,6 +163,20 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
     assert_includes body, "The AI's answer could not be read."
   end
 
+  test "the page says the run is paused until the limit resets" do
+    @project.update!(design_repo_status: "pending")
+    travel_to Time.zone.local(2026, 11, 4, 6, 55) do
+      setup = @project.design_setups.create!(status: "active", phase: "feature", step: 4, started_by: users(:one),
+                                             paused_until: Time.zone.local(2026, 11, 4, 8, 0))
+      setup.features.create!(name: "Designs", key: "designs", position: 1, status: "todo", resets_at: Time.zone.local(2026, 11, 4, 8, 0),
+                             error: "Claude stopped with an error: You've hit your session limit · resets 8am (Europe/Warsaw)")
+      get workshop_design_setup_run_path
+    end
+    body = CGI.unescapeHTML(response.body)
+    assert_includes body, "Paused until 08:00 · Claude's session limit ran out. The import goes on by itself."
+    assert_includes body, "The import goes on by itself at 08:00."
+  end
+
   test "a stopped import shows why, with Retry" do
     @project.update!(design_repo_status: "pending")
     @project.design_setups.create!(status: "failed", phase: "map", step: 2, started_by: users(:one), error: "The map found no features.")

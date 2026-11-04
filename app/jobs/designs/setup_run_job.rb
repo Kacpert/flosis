@@ -28,17 +28,32 @@
 # (Designs::BranchNames.import), landing on master by itself as it finishes
 # (Designs::ImportLanding). The import settles when its queue is empty. Only
 # one import unit runs on the server at a time: a job that finds another
-# import's unit live waits its turn.
+# import's unit live waits its turn. A turn that Claude's session limit stops
+# pauses the run until the limit resets (its feature to do again, and nothing
+# after it tried meanwhile), and the job comes back then; an answer the CLI
+# could not read is tried twice more before its feature couldn't finish.
 class Designs::SetupRunJob < ApplicationJob
   queue_as :designs
 
   class Failure < StandardError; end
+
+  # Claude's session limit ran out: the run waits until it resets.
+  class Paused < StandardError
+    attr_reader :until_time
+
+    def initialize(until_time)
+      @until_time = until_time
+      super("paused until #{until_time}")
+    end
+  end
 
   STOPS = [ Failure, Designs::AppRepos::Failure, Designs::SignIn::Failure ].freeze
   # How long a unit's claim lasts without a heartbeat.
   UNIT_GRACE = 15.minutes
   # How long a job waits while another import's unit runs on the server.
   WAIT_TURN = 2.minutes
+  # How many more times a feature whose answer could not be read is tried.
+  UNREADABLE_RETRIES = 2
   MAP_REQUEST = "Map the app's features, in the order they are to be built, and save the map.".freeze
   DESIGN_SYSTEM_REQUEST = "Build the design system: the tokens, fonts, icons and logos, from the app's code and its pages.".freeze
   IMPORT_SUMMARY = "Initial import: the design system, the components and the screens of every feature, " \
@@ -76,6 +91,7 @@ class Designs::SetupRunJob < ApplicationJob
     return unless setup.claim_unit!(job_id, limit: UNIT_GRACE)
 
     self.class.stop_attempts!(setup)
+    setup.update!(paused_until: nil) if setup.paused_until
     heartbeat = beat(setup)
     if setup.running?
       setup.start_step!
@@ -86,6 +102,8 @@ class Designs::SetupRunJob < ApplicationJob
     heartbeat.kill
     setup.release_unit!(job_id)
     go_on(setup.reload)
+  rescue Paused => e
+    pause(setup, e.until_time)
   rescue *STOPS => e
     stop(setup, e.message)
   rescue StandardError => e
@@ -117,6 +135,25 @@ class Designs::SetupRunJob < ApplicationJob
   def wait_turn(setup)
     setup.with_lock { setup.update!(unit_deadline_at: UNIT_GRACE.from_now) if setup.unit_job_id.nil? }
     self.class.set(wait: WAIT_TURN).perform_later(setup.id)
+  end
+
+  # The run waits for Claude's limit to reset: its unit is let go, with the
+  # deadline past the reset, so the resume job leaves it alone meanwhile, and
+  # its job comes back then.
+  def pause(setup, until_time)
+    paused = setup.with_lock do
+      next false if setup.unit_job_id.present? && setup.unit_job_id != job_id
+
+      setup.update!(paused_until: until_time, unit_job_id: nil, unit_deadline_at: until_time + UNIT_GRACE)
+      true
+    end
+    self.class.set(wait_until: until_time).perform_later(setup.id) if paused
+  end
+
+  # Why a turn failed, when it is a reason to wait rather than fail: Claude's
+  # session limit, with when it resets.
+  def limit!(turn)
+    raise Paused, Designs::UsageLimit.reset_at(turn.error) if Designs::UsageLimit.hit?(turn.error)
   end
 
   # A run stops only by the job that holds its unit: one that lost it (its
@@ -203,7 +240,7 @@ class Designs::SetupRunJob < ApplicationJob
     return setup.finish_step! unless feature
 
     self.class.sign_in.call(setup)
-    feature.update!(status: "running", stage: "building", started_at: feature.started_at || Time.current, error: nil)
+    feature.update!(status: "running", stage: "building", started_at: feature.started_at || Time.current, error: nil, resets_at: nil)
     FileUtils.rm_f(setup.run_dir.join("progress.json"))
     setup.update!(phase: "feature")
     repo = Designs::Repo.new(setup.project)
@@ -220,6 +257,12 @@ class Designs::SetupRunJob < ApplicationJob
       notes = turn.chat_session.chat_messages.where(kind: "missing").where("id > ?", turn.chat_message_id).order(:id).pluck(:content)
       feature.update!(status: "done", stage: nil, finished_at: Time.current, components_new: counts[:new],
                       components_reused: counts[:reused], notes: feature.notes + notes)
+    elsif Designs::UsageLimit.hit?(turn.error)
+      resets = Designs::UsageLimit.reset_at(turn.error)
+      feature.update!(status: "todo", stage: nil, error: turn.error, resets_at: resets, finished_at: Time.current)
+      raise Paused, resets
+    elsif DesignSetupFeature::UNREADABLE.match?(turn.error.to_s) && feature.attempts < UNREADABLE_RETRIES
+      feature.update!(status: "todo", stage: nil, error: turn.error, attempts: feature.attempts + 1)
     else
       error = turn.error.presence || "Claude could not finish this feature."
       feature.update!(status: "failed", stage: nil, finished_at: Time.current, error: error,
@@ -310,6 +353,7 @@ class Designs::SetupRunJob < ApplicationJob
     turn = start_turn(setup, request)
     self.class.turn_runner.call(turn.id)
     turn.reload
+    limit!(turn) unless turn.succeeded?
     raise Failure, turn.error.presence || "Claude could not finish this step." unless turn.succeeded?
 
     turn

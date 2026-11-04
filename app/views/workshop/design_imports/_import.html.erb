@@ -38,6 +38,7 @@
     <%= render "workshop/design_imports/steps", setup: setup %>
   <% elsif running || queued.any? %>
     <div class="clar-card px-4.5 py-3.5 mb-4">
+      <%= render "workshop/design_imports/paused", setup: setup %>
       <div class="flex items-center gap-2 text-[12.5px] font-bold clar-text-ai">
         <span class="w-[7px] h-[7px] rounded-full clar-blink" style="background: var(--ai);"></span>
         Working on <%= pluralize((running ? 1 : 0) + queued.size, "feature") %>

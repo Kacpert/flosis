@@ -161,6 +161,8 @@ class DesignSetup < ApplicationRecord
   def failed? = status == "failed"
   def done? = status == "approved"
   def running? = status == "active" && finished_at.nil?
+  # Waiting for Claude's session limit to reset (Designs imports).
+  def paused? = paused_until&.future? || false
   KINDS.each { |name| define_method("#{name}?") { kind == name } }
 
   # What its entry and its page are called: "First import · from

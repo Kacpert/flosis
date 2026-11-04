@@ -1,0 +1,4 @@
+<%# Claude's session limit ran out: the import waits for it to reset. %>
+<% if setup.paused? %>
+  <div class="text-[12.5px] font-semibold clar-text-warn mb-3">Paused until <%= setup.paused_until.in_time_zone.strftime("%H:%M") %> · Claude's session limit ran out. The import goes on by itself.</div>
+<% end %>
