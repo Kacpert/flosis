@@ -1,0 +1,92 @@
+# Designs imports, as the mockups beside the design draw them: the Imports
+# line in the Designs list, each import's entry, and the cards of an import's
+# page, worst first, each saying in plain words what happened.
+module DesignImportsHelper
+  # The order the cards come in: what only the person can unblock first,
+  # then what could not finish, then what Claude's limit stopped, then the
+  # reviews.
+  CARD_ORDER = { waiting: 0, error: 1, unreadable: 1, limit: 2, paused: 2, review: 3 }.freeze
+
+  # The Imports line: lit while an import has settled since the person last
+  # opened it; on its right "N need you" while any card waits, else the date of
+  # the last import.
+  def import_line(project, user)
+    waiting = DesignSetupFeature.needs_you.where(design_setup_id: project.design_setups.select(:id)).count
+    last = project.design_setups.maximum(:created_at)
+    { lit: DesignSetup.lit_for?(project, user), right: waiting.positive? ? "#{waiting} need you" : last&.in_time_zone&.strftime("%b %-d") }
+  end
+
+  def import_cards(setup)
+    setup.needs_you.to_a.sort_by { |feature| [ CARD_ORDER.fetch(feature.problem, 4), feature.position ] }
+  end
+
+  # "Finished today at 06:50", "Nov 3, 01:40–06:50", "Started today at 01:40".
+  def import_when(setup, range: false)
+    started = setup.created_at.in_time_zone
+    ended = setup.finished_at&.in_time_zone
+    day = ->(time) { time.to_date == Time.zone.today ? "today" : time.strftime("%b %-d") }
+    return "Started #{day.(started)} at #{started.strftime('%H:%M')}" unless ended
+    return "#{started.strftime('%b %-d')}, #{started.strftime('%H:%M')}–#{ended.strftime('%H:%M')}" if range
+
+    "Finished #{day.(ended)} at #{ended.strftime('%H:%M')}"
+  end
+
+  # "as Admin, Product Owner, Product Manager".
+  def import_contexts(project)
+    names = project.design_setup_roles.order(:position).map(&:name)
+    "as #{names.join(', ')}" if names.any?
+  end
+
+  def import_card_label(feature)
+    case feature.problem
+    when :waiting then "Waiting for you"
+    when :review then "Review what comes in"
+    when :limit, :paused then "Not started"
+    else "Couldn't finish"
+    end
+  end
+
+  # The theme's tone for the card's border and its label.
+  def import_card_tone(feature)
+    case feature.problem
+    when :waiting then "warn"
+    when :review then "ai"
+    when :limit, :paused then "muted"
+    else "danger"
+    end
+  end
+
+  # What happened, in plain words.
+  def import_card_text(feature)
+    case feature.problem
+    when :waiting then feature.question.to_s
+    when :review then "Developers changed this feature's code. Part of its design came from a thread, so nothing lands on master until you decide."
+    when :unreadable then "The AI's answer could not be read."
+    when :limit
+      stopped = (feature.finished_at || feature.updated_at).in_time_zone
+      resets = Designs::UsageLimit.reset_at(feature.error, now: stopped).in_time_zone
+      "Claude's session limit ran out at #{stopped.strftime('%H:%M')} (it resets at #{resets.strftime('%H:%M')})."
+    when :paused then "Claude's session limit stopped it. The import goes on by itself at #{feature.resets_at.in_time_zone.strftime('%H:%M')}."
+    else feature.error.to_s.truncate(300).presence || "Claude could not finish this feature."
+    end
+  end
+
+  # A built feature's line: "6 screens · 9 new, 4 reused · 4 notes".
+  def import_built_line(feature)
+    screens = feature.screens.size
+    components = [ ("#{feature.components_new} new" if feature.components_new.positive?),
+                   ("#{feature.components_reused} reused" if feature.components_reused.positive?) ].compact.join(", ").presence
+    notes = feature.notes.size
+    [ ("#{screens} #{screens == 1 ? 'screen' : 'screens'}" if screens.positive?), components,
+      ("#{notes} #{notes == 1 ? 'note' : 'notes'}" if notes.positive?) ].compact.join(" · ")
+  end
+
+  # Where Open takes a built feature: the first screen its turn's commit
+  # wrote, on master's canvas; nil when that cannot be told.
+  def import_open_path(repo, feature)
+    sha = feature.design_turn&.commit_sha or return
+    path = repo.files_changed_in(sha, "designs/", lock: false).find { |file| file.count("/") == 2 && !file.end_with?(".changes.html") } or return
+    _, context, file = path.split("/")
+    workshop_designs_overview_path(ctx: context, screen: file.delete_suffix(".html"))
+  end
+end

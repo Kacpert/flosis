@@ -52,7 +52,9 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
   def show
     @project = current_workshop_project
     @setup = @project.design_setups.where(design_thread_id: nil).order(:id).last
-    return redirect_to(workshop_designs_overview_path) if @setup.nil? || @setup.done?
+    return redirect_to(workshop_designs_overview_path) if @setup.nil?
+    # Once master has it, the import's page is in Designs (Designs imports).
+    return redirect_to(workshop_designs_overview_path(tab: "imports", import: @setup.id)) if @setup.done?
 
     @features = @setup.features.to_a
     @up_next = @features.find { |feature| feature.status == "todo" }

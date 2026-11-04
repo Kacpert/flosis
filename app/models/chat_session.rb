@@ -5,6 +5,8 @@ class ChatSession < ApplicationRecord
   belongs_to :project, optional: true
   belongs_to :workspace
   belongs_to :user
+  # A Designs setup turn's: the import it works for.
+  belongs_to :design_setup, optional: true
 
   # Declared before chat_messages on purpose: a turn points at the user's
   # message that started it, so destroying a session has to remove its turns

@@ -1,0 +1,27 @@
+<%# One card of Needs you (import-page.html, review-card.html): the feature,
+    where it stands, what happened in plain words, and what the person can do
+    about it. %>
+<% tone = import_card_tone(feature) %>
+<% problem = feature.problem %>
+<div class="clar-card px-4 py-3.5 mb-2.5" data-import-card="<%= feature.key %>" style="border-color: <%= tone == 'muted' ? 'var(--border)' : "var(--#{tone})" %>;">
+  <div class="flex items-center justify-between gap-3">
+    <div class="font-semibold text-[14px] clar-text-text min-w-0"><%= feature.name %></div>
+    <span class="text-[11px] font-bold whitespace-nowrap clar-text-<%= tone %>">● <%= import_card_label(feature) %></span>
+  </div>
+  <div class="text-[13px] clar-text-muted mt-2 leading-[1.5]">
+    <% if problem == :waiting %><span class="font-semibold clar-text-ai">AI:</span> <% end %><%= import_card_text(feature) %>
+  </div>
+  <% if problem == :review %>
+    <% rows = [ [ "COMES IN", "success", feature.review["comes_in"] ], [ "KEPT", "muted", feature.review["kept"] ], [ "REPLACED", "warn", feature.review["replaced"] ] ] %>
+    <div class="grid gap-x-3 gap-y-1.5 mt-3 text-[13px] leading-[1.45]" style="grid-template-columns: 92px minmax(0, 1fr);">
+      <% rows.each do |label, row_tone, items| %>
+        <% Array(items).each do |item| %>
+          <span class="text-[11px] font-bold pt-0.5 clar-text-<%= row_tone %>"><%= label %></span><span class="clar-text-text"><%= item %></span>
+        <% end %>
+      <% end %>
+    </div>
+    <% if Array(feature.review["threads"]).any? %>
+      <div class="text-[12px] clar-text-faint mt-2">From <%= Array(feature.review["threads"]).map { |title| "“#{title}”" }.to_sentence %></div>
+    <% end %>
+  <% end %>
+</div>

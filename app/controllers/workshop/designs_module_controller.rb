@@ -8,7 +8,7 @@ class Workshop::DesignsModuleController < Workshop::BaseController
   before_action { require_permission!(:designs) }
   include DesignsVisibility
 
-  TABS = %w[system components history].freeze
+  TABS = %w[system components history imports].freeze
   MODES = %w[branch master changes].freeze
 
   def show
@@ -26,6 +26,7 @@ class Workshop::DesignsModuleController < Workshop::BaseController
     @threads = @project.design_threads.open.includes(:task).order(updated_at: :desc)
     @merges = @project.design_merges.newest_first.includes(:user, :task)
     @tab = params[:tab].presence_in(TABS) || "canvas"
+    load_imports if @tab == "imports"
     @behind = @thread ? Designs::Threads.behind(@thread) : []
     @description_change = @thread && Designs::Threads.description_change(@thread)
     @rows = @threads.map { |thread| row_for(thread) }
@@ -35,6 +36,14 @@ class Workshop::DesignsModuleController < Workshop::BaseController
   end
 
   private
+
+  # Imports (Designs imports): every import, newest first, and the one asked
+  # for, which counts as opened by whoever looks at it.
+  def load_imports
+    @imports = @project.design_setups.newest_first.includes(:features, :since_setup).to_a
+    @import = @imports.find { |setup| setup.id.to_s == params[:import].to_s } if params[:import].present?
+    @import&.seen_by!(current_user)
+  end
 
   # What a thread's row in the list shows beside its title.
   def row_for(thread)

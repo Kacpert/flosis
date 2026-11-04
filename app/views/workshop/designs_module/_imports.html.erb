@@ -1,0 +1,38 @@
+<%# Imports (imports-v2.html): every import of the designs from the app, newest
+    first, or one import's page. %>
+<div class="flex-1 overflow-y-auto">
+  <div class="max-w-[980px] mx-auto px-7 pt-5.5 pb-14">
+    <% if @import %>
+      <%= link_to workshop_designs_overview_path(tab: "imports"), class: "inline-flex items-center gap-2 text-[12.5px] font-semibold clar-text-muted no-underline mb-3" do %>
+        <span class="w-6 h-6 rounded-[7px] border border-[color:var(--border)] bg-[var(--surface)] flex items-center justify-center clar-text-text"><%= designs_icon(:back, 14) %></span>All imports
+      <% end %>
+      <%= render "workshop/design_imports/import", setup: @import %>
+    <% else %>
+      <%= link_to workshop_designs_overview_path, class: "inline-flex items-center gap-2 text-[12.5px] font-semibold clar-text-muted no-underline mb-3" do %>
+        <span class="w-6 h-6 rounded-[7px] border border-[color:var(--border)] bg-[var(--surface)] flex items-center justify-center clar-text-text"><%= designs_icon(:back, 14) %></span>Back to canvas · <span class="clar-mono text-[11.5px]">master</span>
+      <% end %>
+      <div class="flex items-start justify-between gap-4 flex-wrap mb-4">
+        <div>
+          <h2 class="m-0 text-[21px] font-bold tracking-[-.4px] clar-text-text">Imports</h2>
+          <p class="mt-1.5 mb-0 text-[13px] clar-text-muted">Every import of the designs from the app: the first one, and each one after it.</p>
+        </div>
+      </div>
+      <% @imports.each do |setup| %>
+        <% waiting = setup.needs_you.size %>
+        <%= link_to workshop_designs_overview_path(tab: "imports", import: setup.id), class: "block clar-card px-4 py-3 mb-2 no-underline clar-row-hover",
+              style: (setup.lit_for?(current_user) ? "border-color: var(--warn);" : nil), data: { import_entry: setup.id } do %>
+          <div class="flex items-center justify-between gap-3 text-[13.5px]">
+            <b class="clar-text-text min-w-0" data-import-title><%= setup.title %></b>
+            <% if waiting.positive? %><span class="text-[12px] font-semibold clar-text-warn whitespace-nowrap"><%= waiting %> need you</span><% end %>
+          </div>
+          <div class="text-[12px] clar-text-muted mt-1">
+            <%= [ import_when(setup, range: true), (setup.running? ? "Running in the background" : setup.summary), import_contexts(@project) ].compact.join(" · ") %>
+          </div>
+        <% end %>
+      <% end %>
+      <% if @imports.empty? %>
+        <p class="text-[13px] clar-text-faint">No imports yet.</p>
+      <% end %>
+    <% end %>
+  </div>
+</div>

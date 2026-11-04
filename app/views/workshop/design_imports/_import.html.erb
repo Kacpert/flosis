@@ -1,0 +1,75 @@
+<%# An import's page in Designs (import-page.html): what it is, how far it got
+    and for whom, its progress while it runs, Needs you, Built and what was set
+    aside. It stays after the import ends. %>
+<% project = setup.project %>
+<% features = setup.features.to_a %>
+<% cards = import_cards(setup) %>
+<% built = features.select(&:done?) %>
+<% aside = features.select { |feature| feature.status == "set_aside" } %>
+<% running = features.find(&:running?) %>
+<% queued = features.select { |feature| feature.status == "todo" && feature.resets_at.nil? } %>
+<div <% if setup.busy? %>data-controller="designs-refresh" data-designs-refresh-interval-value="15000"<% end %>>
+  <div class="flex items-start justify-between gap-4 mb-4 flex-wrap">
+    <div class="min-w-0">
+      <h2 class="m-0 text-[21px] font-bold tracking-[-.4px] clar-text-text"><%= setup.title %></h2>
+      <div class="text-[12.5px] clar-text-muted mt-1.5 leading-[1.5]">
+        <%= [ import_when(setup), import_contexts(project) ].compact.join(" · ") %> ·
+        <b class="clar-text-text"><%= setup.summary %></b><% if cards.any? %> · <b class="clar-text-warn"><%= cards.size %> need you</b><% end %>
+      </div>
+    </div>
+  </div>
+
+  <% if setup.failed? %>
+    <div class="clar-card px-4.5 py-3.5 mb-4" style="border-color: var(--danger);">
+      <div class="text-[12.5px] font-bold clar-text-danger mb-1">The import stopped</div>
+      <div class="text-[13px] clar-text-muted leading-[1.5] whitespace-pre-line"><%= setup.error %></div>
+      <% if can?(:configuration) %>
+        <div class="mt-3"><%= button_to "Retry", retry_workshop_design_setup_run_path, class: "clar-btn", form: { class: "contents" } %></div>
+      <% end %>
+    </div>
+  <% elsif setup.running? %>
+    <div class="flex items-center gap-2 text-[12.5px] font-bold clar-text-ai mb-2">
+      <span class="w-[7px] h-[7px] rounded-full clar-blink" style="background: var(--ai);"></span>Running in the background
+    </div>
+    <%= render "workshop/design_imports/steps", setup: setup %>
+  <% elsif running || queued.any? %>
+    <div class="clar-card px-4.5 py-3.5 mb-4">
+      <div class="flex items-center gap-2 text-[12.5px] font-bold clar-text-ai">
+        <span class="w-[7px] h-[7px] rounded-full clar-blink" style="background: var(--ai);"></span>
+        Working on <%= pluralize((running ? 1 : 0) + queued.size, "feature") %>
+      </div>
+      <% if running %>
+        <% progress = Designs::RunProgress.screens(setup, running) %>
+        <div class="text-[13px] clar-text-text mt-2"><b><%= running.name %></b> <span class="clar-text-muted">· <%= progress.value?("checking") ? "Checking against the app" : "Building" %></span></div>
+        <% if progress.any? %>
+          <div class="mt-2 flex flex-wrap gap-1.5">
+            <% progress.each do |screen, status| %>
+              <span class="text-[12px] clar-text-muted bg-[var(--surface-2)] rounded-lg px-2.5 py-1"><%= screen %> · <%= status %></span>
+            <% end %>
+          </div>
+        <% end %>
+      <% end %>
+      <% if queued.any? %>
+        <div class="text-[12px] clar-text-faint mt-2">Up next: <%= queued.sort_by { |feature| [ feature.queued_at || feature.created_at, feature.position ] }.map(&:name).join(", ") %></div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%= render "workshop/design_imports/cards", setup: setup, cards: cards if cards.any? %>
+  <%= render "workshop/design_imports/built", setup: setup, built: built, repo: @repo if built.any? %>
+
+  <% if aside.any? %>
+    <div class="text-[11px] tracking-[.06em] font-bold clar-text-muted mt-1 mb-2">SET ASIDE · <%= aside.size %></div>
+    <div class="clar-card overflow-hidden mb-5">
+      <% aside.each_with_index do |feature, i| %>
+        <div class="px-4 py-2.5 text-[13px] clar-text-muted <%= 'border-t border-[color:var(--border)]' if i.positive? %>" data-import-aside="<%= feature.key %>">
+          <b class="clar-text-text"><%= feature.name %></b><% if feature.review["rejected"].present? %> · <%= feature.review["rejected"] %><% else %> · Not needed<% end %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if features.empty? && !setup.busy? && !setup.failed? %>
+    <p class="text-[13px] clar-text-faint">Nothing to build in this import.</p>
+  <% end %>
+</div>

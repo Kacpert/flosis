@@ -1,0 +1,26 @@
+<%# An import's steps while it runs (the approved progress screen's): how far
+    along it is, the time left and each step with its time. %>
+<% check = designs_icon(:check, 12) %>
+<% blink = tag.span(class: "w-[7px] h-[7px] rounded-full clar-blink", style: "background: var(--ai);") %>
+<% circle = "w-5 h-5 rounded-full flex items-center justify-center flex-none text-white" %>
+  <div class="clar-card px-5.5 py-5 mb-4">
+    <div class="flex justify-between text-[12.5px] clar-text-muted mb-2"><span><%= setup.percent %>%</span><span><%= setup.time_left %></span></div>
+    <div class="h-1.5 rounded bg-[var(--surface-2)] overflow-hidden mb-3.5"><div class="h-1.5 rounded" style="width: <%= setup.percent %>%; background: var(--ai);"></div></div>
+    <% setup.steps.each_with_index do |(label, minutes), i| %>
+      <% done = setup.step > i %>
+      <% current = setup.step == i %>
+      <% failed = current && setup.failed? %>
+      <div class="flex items-center gap-2.5 py-[7px] text-[13.5px] <%= (done || current) ? 'clar-text-text' : 'clar-text-faint' %>">
+        <span class="<%= circle %>" style="background: <%= done ? 'var(--success)' : failed ? 'var(--danger)' : current ? 'var(--ai-soft)' : 'var(--surface-2)' %>;">
+          <% if done %><%= check %><% elsif failed %><%= designs_icon(:close, 12) %><% elsif current %><%= blink %><% end %>
+        </span>
+        <span class="flex-1 min-w-0 <%= 'clar-text-danger' if failed %>"><%= label %></span>
+        <% taken = setup.minutes_taken(i) if done %>
+        <span class="text-[11.5px] clar-text-faint whitespace-nowrap"><%= done ? (taken ? setup_duration(taken) : "") : "~#{setup_duration(minutes)}" %></span>
+      </div>
+      <% if failed %>
+        <div class="ml-[30px] mb-2 text-[12.5px] clar-text-danger leading-[1.5] whitespace-pre-line"><%= setup.error %></div>
+      <% end %>
+    <% end %>
+  </div>
+

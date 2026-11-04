@@ -1,0 +1,7 @@
+<%# Needs you: a card per feature that needs the person, worst first. %>
+<div class="text-[11px] tracking-[.06em] font-bold clar-text-muted mt-1 mb-2">NEEDS YOU · <%= cards.size %></div>
+<div class="mb-5">
+  <% cards.each do |feature| %>
+    <%= render "workshop/design_imports/card", setup: setup, feature: feature %>
+  <% end %>
+</div>

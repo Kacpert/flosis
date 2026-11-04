@@ -11,10 +11,18 @@
 # deadline passes and picked up again (Designs::ResumeSetupsJob). A run is
 # active while it goes, approved once master has it, and failed when it cannot
 # go on at all; what only makes the design differ from the app is a note.
+#
+# Each run is an import (Designs imports), with a page that stays: the first
+# one, from the setup form; a re-import, on a thread of its own; or a resync,
+# which brings what developers built since an earlier import. Once it is over
+# it settles, and settles again each time a batch of its features (retried,
+# answered or added) is done; the Imports line is lit for whoever has not
+# opened it since.
 class DesignSetup < ApplicationRecord
   # The phase prompt the run's turns get (Designs::SetupPrompts).
   PHASES = %w[map design_system feature].freeze
   STATUSES = %w[active approved failed].freeze
+  KINDS = %w[first reimport resync].freeze
   STEPS = %i[read_repos sign_in map_features design_system features commit].freeze
   STEP_MINUTES = [ 10, 2, 20, 30, nil, 3 ].freeze
   FEATURES_STEP = STEPS.index(:features)
@@ -25,15 +33,23 @@ class DesignSetup < ApplicationRecord
   belongs_to :project
   belongs_to :started_by, class_name: "User", optional: true
   belongs_to :design_thread, optional: true
+  # A resync's: the import whose app commits it starts from.
+  belongs_to :since_setup, class_name: "DesignSetup", optional: true
   has_many :features, -> { order(:position) }, class_name: "DesignSetupFeature", dependent: :destroy
+  has_many :views, class_name: "DesignImportView", dependent: :delete_all
 
   # Production is MariaDB: the columns read as text unless typed here.
   attribute :notes, :json, default: []
   attribute :step_seconds, :json, default: []
+  # [{ "repo", "branch", "sha" }]: each app repository as the import read it.
+  attribute :app_commits, :json, default: []
 
   validates :phase, inclusion: { in: PHASES }
   validates :status, inclusion: { in: STATUSES }
+  validates :kind, inclusion: { in: KINDS }
 
+  scope :first_imports, -> { where(kind: "first") }
+  scope :newest_first, -> { order(id: :desc) }
   scope :active, -> { where(status: "active") }
   scope :running, -> { where(status: "active").where(finished_at: nil) }
   # Running, with a unit whose deadline has passed: its job is gone.
@@ -142,8 +158,73 @@ class DesignSetup < ApplicationRecord
 
   def failed? = status == "failed"
   def done? = status == "approved"
+  def running? = status == "active" && finished_at.nil?
+  KINDS.each { |name| define_method("#{name}?") { kind == name } }
+
+  # What its entry and its page are called: "First import · from
+  # app.flosis.com", "Changes since Nov 3", "Re-import from staging".
+  def title
+    case kind
+    when "resync" then "Changes since #{since_setup&.created_at&.in_time_zone&.strftime('%b %-d') || 'the last import'}"
+    when "reimport" then "Re-import from staging"
+    else [ "First import", (app_host && "from #{app_host}") ].compact.join(" · ")
+    end
+  end
+
+  # "6 of 11 features built"; a resync's "3 updated · 1 new". A feature set
+  # aside is not counted.
+  def summary
+    counted = features.reject { |feature| feature.status == "set_aside" }
+    built = counted.select(&:done?)
+    return "#{built.size} of #{counted.size} features built" unless resync?
+
+    updated = built.count { |feature| feature.source == "changed" }
+    added = built.size - updated
+    [ ("#{updated} updated" if updated.positive?), ("#{added} new" if added.positive?) ].compact.join(" · ").presence || "Nothing updated yet"
+  end
+
+  # The features with a card in Needs you, in the map's order.
+  def needs_you
+    features.needs_you
+  end
+
+  # Running, or with a feature queued or under way after it was over.
+  def busy?
+    running? || features.pending.exists?
+  end
+
+  def settle!
+    update!(settled_at: Time.current)
+  end
+
+  def seen_by!(user)
+    view = views.find_or_initialize_by(user: user)
+    view.update!(seen_at: Time.current)
+  rescue ActiveRecord::RecordNotUnique
+    views.find_by!(user: user).update!(seen_at: Time.current)
+  end
+
+  # Settled since user last opened it (or never opened).
+  def lit_for?(user)
+    return false unless settled_at
+
+    seen = views.find_by(user: user)&.seen_at
+    seen.nil? || seen < settled_at
+  end
+
+  # Whether any of the project's imports is lit for user: the Imports line.
+  def self.lit_for?(project, user)
+    join = sanitize_sql_array([ "LEFT JOIN design_import_views seen ON seen.design_setup_id = design_setups.id AND seen.user_id = ?", user.id ])
+    project.design_setups.where.not(settled_at: nil).joins(join).where("seen.id IS NULL OR seen.seen_at < design_setups.settled_at").exists?
+  end
 
   private
+
+  def app_host
+    URI.parse(project.design_app_url.to_s).host.presence
+  rescue URI::InvalidURIError
+    nil
+  end
 
   # "acme/app @ production" for a repository named with its branch.
   def repo_names
