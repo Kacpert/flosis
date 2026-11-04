@@ -1,6 +1,5 @@
 class PrReviewJob < ApplicationJob
   queue_as :default
-  include WaitsForDesignImport
 
   CAPS = { "initial" => 5, "followup" => 5 }.freeze
 

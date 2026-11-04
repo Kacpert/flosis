@@ -13,7 +13,6 @@
 # scheduler for every other rule).
 class AlertRuleRunJob < ApplicationJob
   queue_as :default
-  include WaitsForDesignImport
 
   # One run per rule at a time. AlertRulesDispatchJob re-checks every 5 minutes
   # and last_run_at only moves when a run ends, so a run longer than that got a
