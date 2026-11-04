@@ -8,6 +8,7 @@ class Workspace < ApplicationRecord
   has_many :projects, dependent: :destroy
   has_many :tags, dependent: :destroy
   has_many :time_entries, dependent: :destroy
+  has_many :api_tokens, dependent: :destroy
   has_many :integrations, dependent: :destroy
   has_many :chat_sessions, dependent: :destroy
   has_many :feedback_meetings, dependent: :destroy
