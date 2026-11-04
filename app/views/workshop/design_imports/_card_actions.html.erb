@@ -1,6 +1,7 @@
 <%# What the person can do about a card: answer the AI's question (Send and
-    continue), Retry (with words for the AI first, if they like), or set it
-    aside (Not needed). %>
+    continue), Retry (with words for the AI first, if they like), set it aside
+    (Not needed), or decide on a proposal (Accept, Reject, or words for a new
+    one), with its screens to open beside master's (review-card.html). %>
 <% problem = feature.problem %>
 <% retry_path = retry_workshop_design_import_feature_path(setup, feature) %>
 <% aside_path = set_aside_workshop_design_import_feature_path(setup, feature) %>
@@ -16,7 +17,25 @@
       <%= button_to "Retry", retry_path, class: "clar-btn #{small}", form: { class: "contents" } %>
       <%= button_to "Not needed", aside_path, class: "clar-btn #{small}", form: { class: "contents" } %>
     </div>
-  <% elsif problem != :review %>
+  <% elsif problem == :review %>
+    <% links = import_review_links(feature) %>
+    <% if links %>
+      <div class="text-[12.5px] clar-text-muted mb-2.5">Open screens:
+        <% if links[:proposed] %><%= link_to "proposed", links[:proposed], target: "_blank", rel: "noopener", class: "clar-text-primary font-semibold no-underline" %> · <% end %><%= link_to "master", links[:master], target: "_blank", rel: "noopener", class: "clar-text-primary font-semibold no-underline" %>
+      </div>
+    <% end %>
+    <div class="flex gap-2 flex-wrap items-start">
+      <%= button_to "Accept", accept_workshop_design_import_feature_path(setup, feature), class: "clar-btn clar-btn-primary #{small}", form: { class: "contents" } %>
+      <%= button_to "Reject", reject_workshop_design_import_feature_path(setup, feature), class: "clar-btn #{small}", form: { class: "contents" } %>
+      <details>
+        <summary class="clar-btn cursor-pointer select-none <%= words %> <%= small %>">Tell the AI something first…</summary>
+        <%= form_with url: revise_workshop_design_import_feature_path(setup, feature), method: :post, class: "flex gap-2 items-start mt-2 w-[min(560px,80vw)]" do %>
+          <textarea name="words" rows="2" required class="clar-input flex-1 !text-[12.5px] resize-y" placeholder="Take the filter, keep my card…"></textarea>
+          <button type="submit" class="clar-btn clar-btn-primary whitespace-nowrap <%= small %>">Send</button>
+        <% end %>
+      </details>
+    </div>
+  <% else %>
     <div class="flex gap-2 flex-wrap items-start">
       <%= button_to "Retry", retry_path, class: "clar-btn #{small}", form: { class: "contents" } %>
       <% unless %i[limit paused].include?(problem) %>

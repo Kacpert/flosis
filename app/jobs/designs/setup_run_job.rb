@@ -355,7 +355,9 @@ class Designs::SetupRunJob < ApplicationJob
     FileUtils.rm_f(setup.run_dir.join("progress.json"))
     setup.update!(phase: "feature")
     before = repo.head(branch)
-    turn = start_turn(setup, follow_up_request(feature))
+    # An accepted proposal master moved under is brought up to date first.
+    kind = feature.review["accepted"] ? "resolve_conflicts" : "setup"
+    turn = start_turn(setup, follow_up_request(feature), kind: kind)
     feature.update!(design_turn: turn)
     self.class.turn_runner.call(turn.id)
     finish_follow_up(feature, turn.reload, repo, before)
@@ -376,16 +378,33 @@ class Designs::SetupRunJob < ApplicationJob
     name
   end
 
-  # The feature's brief, with what the person said: an answer to the AI's
-  # question, or words to start with.
+  # The feature's brief, with what threads put on master since the import
+  # (for a feature built after it), and what the person said: an answer to
+  # the AI's question, words about its proposal, or words to start with.
   def follow_up_request(feature)
     said = if feature.reply && feature.question
              "## You asked\n#{feature.question}\n\n## They replied\n#{feature.reply}\n\n" \
                "Check what they said (sign in again, look again) and go on from where you stopped: what you built so far is on this branch."
+           elsif feature.reply && feature.review.key?("comes_in")
+             "## What they said about your proposal\n#{feature.reply}\n\n" \
+               "Your proposal is on this branch: change it as they say, then say again what comes in, what is kept and what is replaced."
            elsif feature.reply
              "## Before you start\n#{feature.reply}"
            end
-    [ Designs::FeatureBrief.for(feature), said ].compact.join("\n")
+    [ Designs::FeatureBrief.for(feature), (threads_on_master(feature.design_setup) unless feature.design_setup.running?), said ].compact.join("\n")
+  end
+
+  # The designs threads merged into master, for an update not to throw them
+  # away: what it brings in, keeps and replaces is said in blocks of its own.
+  def threads_on_master(setup)
+    merges = setup.project.design_merges.where(how: %w[manual auto]).newest_first.limit(10).to_a
+    return if merges.empty?
+
+    lines = merges.map { |merge| "- “#{merge.title}”, merged #{merge.merged_at.to_date}: #{Array(merge.screens).first(6).join(', ').presence || 'its screens'}" }
+    "## Work from threads on master\n#{lines.join("\n")}\n\n" \
+      "These were designed in threads and may not be built in the app yet. Keep them, unless the app has the same thing built differently. " \
+      "Say what your work brings in, one <comes-in> block an item; what of the threads' work you keep, one <kept> block each; " \
+      "and what you replace, one <replaced> block each."
   end
 
   def finish_follow_up(feature, turn, repo, before)
@@ -396,11 +415,25 @@ class Designs::SetupRunJob < ApplicationJob
 
     counts = Designs::ComponentCount.between(repo, before, turn.commit_sha || repo.head(feature.branch))
     notes = missing_in(turn)
-    Designs::ImportLanding.new(feature).land!
-    feature.update!(status: "done", stage: nil, finished_at: Time.current, components_new: counts[:new],
-                    components_reused: counts[:reused], notes: feature.notes + notes, branch: nil)
+    feature.update!(components_new: counts[:new], components_reused: counts[:reused], notes: feature.notes + notes)
+    Designs::ImportLanding.new(feature).land!(accepted: feature.review["accepted"].present?)
+    feature.update!(status: "done", stage: nil, finished_at: Time.current, branch: nil)
+  rescue Designs::ImportLanding::NeedsReview => e
+    review!(feature, turn, e.touched)
   rescue Designs::Repo::Conflict
     feature.update!(status: "failed", stage: nil, finished_at: Time.current, error: Designs::ImportLanding::CONFLICT)
+  end
+
+  # The update waits for the person: what it brings in, keeps and replaces, as
+  # the AI said, and the threads whose work it would replace. An AI that said
+  # nothing still leaves the files it would change on the card.
+  def review!(feature, turn, touched)
+    said = turn.chat_session.chat_messages.where("id > ?", turn.chat_message_id).order(:id)
+    lists = %w[comes_in kept replaced].index_with { |kind| said.where(kind: kind).pluck(:content) }
+    paths = touched.map { |item| item[:path] }.uniq
+    lists["replaced"] = paths.map { |path| "What threads made in #{path}" } if lists.values.all?(&:empty?)
+    feature.update!(status: "review", stage: nil, finished_at: Time.current,
+                    review: lists.merge("threads" => touched.filter_map { |item| item[:merge]&.title }.uniq, "paths" => paths))
   end
 
   # A setup turn, run here and now: the run waits for it, and a step's turn
@@ -417,12 +450,12 @@ class Designs::SetupRunJob < ApplicationJob
 
   # Each unit is a Claude session of its own: a feature starts afresh, from
   # the repository, never from the last feature's conversation.
-  def start_turn(setup, request)
+  def start_turn(setup, request, kind: "setup")
     project = setup.project
     session = ChatSession.create!(project: project, workspace: project.workspace, user: setup.started_by, purpose: "designs_setup",
                                   claude_session_id: SecureRandom.uuid, codebase_path: project.designs_dir.to_s, design_setup: setup)
     message = session.chat_messages.create!(role: "user", user: setup.started_by, content: request)
-    DesignTurn.create!(chat_session: session, chat_message: message, kind: "setup")
+    DesignTurn.create!(chat_session: session, chat_message: message, kind: kind)
   end
 
   def branch(setup) = setup.design_thread&.branch || Designs::BranchNames::SETUP

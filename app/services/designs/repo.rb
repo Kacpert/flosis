@@ -14,6 +14,8 @@ require "securerandom"
 # The token reaches git only for what talks to GitHub (clone, fetch, push), and
 # only through GitRunner's askpass: never in .git/config or in a remote URL.
 class Designs::Repo
+  # What blame_commits gives for lines nobody can place.
+  UNPLACED = "unplaced".freeze
   MASTER = Designs::BranchNames::MASTER
   IDENTITY = { "user.name" => "Flosis", "user.email" => "designs@flosis.com" }.freeze
 
@@ -227,6 +229,52 @@ class Designs::Repo
   # commit this clone does not have). A page reads it, so it can skip the lock.
   def files_changed_in(sha, prefix, lock: true)
     reading(lock) { git("diff-tree", "--no-commit-id", "--name-only", "-r", "--root", sha, "--", prefix).split("\n").sort }
+  rescue GitRunner::Error
+    []
+  end
+
+  # The lines a change from one commit to another takes away or rewrites,
+  # by file, as [start, count] ranges of the old side: { path => ranges }. A
+  # file only added to has none (Designs imports: what an update would
+  # replace on master).
+  def diff_hunks(from, to)
+    synchronize do
+      hunks = Hash.new { |hash, key| hash[key] = [] }
+      path = nil
+      git("diff", "-U0", "--no-color", "--no-renames", "--no-ext-diff", from, to).each_line do |line|
+        if line.start_with?("--- ")
+          path = line.start_with?("--- a/") ? line.chomp.delete_prefix("--- a/") : nil
+        elsif path && (hunk = line.match(/\A@@ -(\d+)(?:,(\d+))? \+/))
+          count = (hunk[2] || "1").to_i
+          hunks[path] << [ hunk[1].to_i, count ] if count.positive?
+        end
+      end
+      hunks.reject { |_path, ranges| ranges.empty? }
+    end
+  end
+
+  # The commits the given lines of a file last came from, at ref. A file git
+  # cannot blame gives UNPLACED: nobody can say where its lines came from.
+  def blame_commits(ref, path, ranges)
+    synchronize do
+      lines = ranges.flat_map { |start, count| [ "-L", "#{start},+#{count}" ] }
+      git("blame", "--porcelain", *lines, ref, "--", path).scan(/^(\h{40}) \d+ \d+/).flatten.uniq
+    end
+  rescue GitRunner::Error
+    [ UNPLACED ]
+  end
+
+  # A commit's subject line, or "" for one this clone does not have.
+  def commit_subject(sha)
+    synchronize { git("log", "-1", "--format=%s", sha).strip }
+  rescue GitRunner::Error
+    ""
+  end
+
+  # The commits a merge brought in from its second parent ([] for a commit
+  # that is not a merge).
+  def merged_commits(merge_sha)
+    synchronize { git("rev-list", "#{merge_sha}^1..#{merge_sha}^2").split("\n") }
   rescue GitRunner::Error
     []
   end
