@@ -17,6 +17,10 @@
         <b class="clar-text-text"><%= setup.summary %></b><% if cards.any? %> · <b class="clar-text-warn"><%= cards.size %> need you</b><% end %>
       </div>
     </div>
+    <% retryable = cards.count(&:retryable?) %>
+    <% if import_actions?(setup) && retryable > 1 %>
+      <%= button_to "Retry all #{retryable}", retry_all_workshop_design_import_path(setup), class: "clar-btn clar-btn-primary", form: { class: "contents" } %>
+    <% end %>
   </div>
 
   <% if setup.failed? %>

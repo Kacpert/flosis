@@ -21,6 +21,14 @@
 # turn that failed. "Retry" goes on from that step. A feature whose turn fails
 # is marked and noted, and the run goes on. A re-import runs on its own thread
 # and stops short of master: the thread is merged like any other.
+#
+# After an import is over (Designs imports), the job also builds what is
+# queued on it: features retried, answered or added from its page, one a unit
+# in the order they were asked for, each on a branch of its own off master
+# (Designs::BranchNames.import), landing on master by itself as it finishes
+# (Designs::ImportLanding). The import settles when its queue is empty. Only
+# one import unit runs on the server at a time: a job that finds another
+# import's unit live waits its turn.
 class Designs::SetupRunJob < ApplicationJob
   queue_as :designs
 
@@ -29,6 +37,8 @@ class Designs::SetupRunJob < ApplicationJob
   STOPS = [ Failure, Designs::AppRepos::Failure, Designs::SignIn::Failure ].freeze
   # How long a unit's claim lasts without a heartbeat.
   UNIT_GRACE = 15.minutes
+  # How long a job waits while another import's unit runs on the server.
+  WAIT_TURN = 2.minutes
   MAP_REQUEST = "Map the app's features, in the order they are to be built, and save the map.".freeze
   DESIGN_SYSTEM_REQUEST = "Build the design system: the tokens, fonts, icons and logos, from the app's code and its pages.".freeze
   IMPORT_SUMMARY = "Initial import: the design system, the components and the screens of every feature, " \
@@ -61,16 +71,21 @@ class Designs::SetupRunJob < ApplicationJob
 
   def perform(setup_id)
     setup = DesignSetup.find_by(id: setup_id)
-    return unless setup&.status == "active" && setup.finished_at.nil?
+    return unless setup && (setup.running? || setup.follow_up?)
+    return wait_turn(setup) if another_import_runs?(setup)
     return unless setup.claim_unit!(job_id, limit: UNIT_GRACE)
 
     self.class.stop_attempts!(setup)
     heartbeat = beat(setup)
-    setup.start_step!
-    send(DesignSetup::STEPS.fetch(setup.step), setup)
+    if setup.running?
+      setup.start_step!
+      send(DesignSetup::STEPS.fetch(setup.step), setup)
+    else
+      follow_up(setup)
+    end
     heartbeat.kill
     setup.release_unit!(job_id)
-    self.class.perform_later(setup.id) if setup.reload.status == "active" && setup.finished_at.nil?
+    go_on(setup.reload)
   rescue *STOPS => e
     stop(setup, e.message)
   rescue StandardError => e
@@ -81,6 +96,28 @@ class Designs::SetupRunJob < ApplicationJob
   end
 
   private
+
+  # The next unit, or, for an import whose queue is empty, its settling.
+  def go_on(setup)
+    if setup.running? || setup.follow_up?
+      self.class.perform_later(setup.id)
+    elsif setup.done? && setup.features.where("queued_at > ?", setup.settled_at || setup.finished_at || setup.created_at).exists?
+      setup.settle!
+    end
+  end
+
+  # Another import's unit holds the server: Chromium, Claude and the MCP
+  # browser take most of the threads the host allows (Designs imports).
+  def another_import_runs?(setup)
+    DesignSetup.where.not(id: setup.id).where.not(unit_job_id: nil).where(unit_deadline_at: Time.current..).exists?
+  end
+
+  # The job comes back later. Meanwhile the run's deadline is kept ahead, so
+  # that the resume job does not take it for stalled and queue it again.
+  def wait_turn(setup)
+    setup.with_lock { setup.update!(unit_deadline_at: UNIT_GRACE.from_now) if setup.unit_job_id.nil? }
+    self.class.set(wait: WAIT_TURN).perform_later(setup.id)
+  end
 
   # A run stops only by the job that holds its unit: one that lost it (its
   # run was picked up again) leaves the run to the job that has it.
@@ -203,7 +240,68 @@ class Designs::SetupRunJob < ApplicationJob
                                                     "#{setup.features.where(status: 'done').size} features, every context" ],
                                     merged_at: Time.current)
     end
-    setup.finish_step!(status: "approved", finished_at: Time.current)
+    setup.finish_step!(status: "approved", finished_at: Time.current, settled_at: Time.current)
+  end
+
+  # One feature queued on an import that is over: the first queued, on its
+  # branch (a fresh one off master, unless it goes on from where it stopped),
+  # built by a turn of its own and landed on master by itself. A feature a
+  # killed attempt left running is queued again first, on the same branch.
+  def follow_up(setup)
+    setup.features.where(status: "running").find_each { |feature| feature.update!(status: "todo") }
+    feature = setup.features.where(status: "todo").order(:queued_at, :position).first or return
+
+    self.class.sign_in.call(setup)
+    self.class.app_repos.call(setup) if Designs::AppRepos.new(setup).dirs.empty?
+    repo = Designs::Repo.new(setup.project)
+    branch = feature.branch.presence || fresh_branch!(repo, feature)
+    feature.update!(status: "running", stage: "building", started_at: Time.current, error: nil, branch: branch, resets_at: nil)
+    FileUtils.rm_f(setup.run_dir.join("progress.json"))
+    setup.update!(phase: "feature")
+    before = repo.head(branch)
+    turn = start_turn(setup, follow_up_request(feature))
+    feature.update!(design_turn: turn)
+    self.class.turn_runner.call(turn.id)
+    finish_follow_up(feature, turn.reload, repo, before)
+  end
+
+  # A branch off master for the feature, made afresh: one an earlier attempt
+  # left goes, here and on GitHub.
+  def fresh_branch!(repo, feature)
+    name = Designs::BranchNames.import(feature)
+    repo.synchronize do
+      repo.ensure_clone!
+      path = repo.worktree_path(name)
+      repo.remove_worktree!(path) if path.exist?
+      repo.delete_branch!(name) if repo.head(name)
+      repo.push!(":refs/heads/#{name}") if repo.remote_head(name)
+      repo.worktree!(name, from: Designs::Repo::MASTER)
+    end
+    name
+  end
+
+  # The feature's brief, with what the person said: an answer to the AI's
+  # question, or words to start with.
+  def follow_up_request(feature)
+    said = if feature.reply && feature.question
+             "## You asked\n#{feature.question}\n\n## They replied\n#{feature.reply}\n\n" \
+               "Check what they said (sign in again, look again) and go on from where you stopped: what you built so far is on this branch."
+           elsif feature.reply
+             "## Before you start\n#{feature.reply}"
+           end
+    [ Designs::FeatureBrief.for(feature), said ].compact.join("\n")
+  end
+
+  def finish_follow_up(feature, turn, repo, before)
+    return finish_feature(feature, turn, repo, before) unless turn.succeeded?
+
+    counts = Designs::ComponentCount.between(repo, before, turn.commit_sha || repo.head(feature.branch))
+    notes = turn.chat_session.chat_messages.where(kind: "missing").where("id > ?", turn.chat_message_id).order(:id).pluck(:content)
+    Designs::ImportLanding.new(feature).land!
+    feature.update!(status: "done", stage: nil, finished_at: Time.current, components_new: counts[:new],
+                    components_reused: counts[:reused], notes: feature.notes + notes, branch: nil)
+  rescue Designs::Repo::Conflict
+    feature.update!(status: "failed", stage: nil, finished_at: Time.current, error: Designs::ImportLanding::CONFLICT)
   end
 
   # A setup turn, run here and now: the run waits for it, and a step's turn
@@ -222,7 +320,7 @@ class Designs::SetupRunJob < ApplicationJob
   def start_turn(setup, request)
     project = setup.project
     session = ChatSession.create!(project: project, workspace: project.workspace, user: setup.started_by, purpose: "designs_setup",
-                                  claude_session_id: SecureRandom.uuid, codebase_path: project.designs_dir.to_s)
+                                  claude_session_id: SecureRandom.uuid, codebase_path: project.designs_dir.to_s, design_setup: setup)
     message = session.chat_messages.create!(role: "user", user: setup.started_by, content: request)
     DesignTurn.create!(chat_session: session, chat_message: message, kind: "setup")
   end

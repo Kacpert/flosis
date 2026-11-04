@@ -105,6 +105,14 @@ Rails.application.routes.draw do
       post :retry
       post :reimport
     end
+    # Designs imports: an import's page lives in Designs (tab=imports); what
+    # the person does there posts here.
+    resources :design_imports, only: :create, path: "designs/imports" do
+      member { post :retry_all; post :add_feature }
+      resources :features, only: [], controller: "design_import_features" do
+        member { post :retry; post :reply; post :set_aside; post :accept; post :reject; post :revise }
+      end
+    end
     resources :design_threads, only: :create, path: "designs/threads" do
       member { post :message; post :merge; post :update_description; post :update_master; post :create_task; post :attach }
     end

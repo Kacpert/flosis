@@ -52,8 +52,10 @@ class DesignSetup < ApplicationRecord
   scope :newest_first, -> { order(id: :desc) }
   scope :active, -> { where(status: "active") }
   scope :running, -> { where(status: "active").where(finished_at: nil) }
-  # Running, with a unit whose deadline has passed: its job is gone.
-  scope :stalled, -> { running.where.not(unit_deadline_at: nil).where(unit_deadline_at: ...Time.current) }
+  # Running, or over with features queued or under way (Designs imports).
+  scope :working, -> { running.or(where(status: "approved", id: DesignSetupFeature.pending.select(:design_setup_id))) }
+  # Working, with a unit whose deadline has passed: its job is gone.
+  scope :stalled, -> { working.where.not(unit_deadline_at: nil).where(unit_deadline_at: ...Time.current) }
 
   # "About 6 h left", "About 40 min left".
   def self.time_left(minutes)
@@ -195,6 +197,17 @@ class DesignSetup < ApplicationRecord
 
   def settle!
     update!(settled_at: Time.current)
+  end
+
+  # Over, with features queued after it: retried, answered or added.
+  def follow_up?
+    done? && features.where(status: %w[todo running]).exists?
+  end
+
+  # Starts the run's job on what is queued; one that finds nothing to do, or
+  # its unit taken, does nothing.
+  def start_work!
+    Designs::SetupRunJob.perform_later(id)
   end
 
   def seen_by!(user)

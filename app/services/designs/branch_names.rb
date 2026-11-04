@@ -25,6 +25,12 @@ module Designs::BranchNames
     "design/#{slug(task)}"
   end
 
+  # A feature of an import built after the import (Designs imports), on a
+  # branch of its own off master until it lands: "wip/import-12-bug-reporting".
+  def import(feature)
+    "wip/import-#{feature.design_setup_id}-#{feature.key}"
+  end
+
   def approval_tag(slug, n)
     "approved/#{slug}/#{n}"
   end
