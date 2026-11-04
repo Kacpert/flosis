@@ -50,6 +50,9 @@ class Workshop::DesignImportFeaturesController < Workshop::BaseController
     @import.start_work!
     flash[:clar_toast] = "Master changed the same lines · bringing #{@feature.name} up to date first"
     back
+  rescue Designs::ImportLanding::NotLanded => e
+    flash[:clar_toast] = e.message
+    back
   end
 
   # Master stays as it is, and the proposal goes.

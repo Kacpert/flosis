@@ -64,11 +64,19 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
     @where = where_line(roles)
   end
 
+  # The import shown (else the latest): a stopped run goes on from its step;
+  # an import already on master that an older bug marked failed is put back,
+  # and what is queued on it goes on.
   def retry
-    setup = current_workshop_project.design_setups.order(:id).last
-    if setup&.failed?
+    project = current_workshop_project
+    setup = params[:import].present? ? project.design_setups.find_by(id: params[:import]) : project.design_setups.order(:id).last
+    if setup&.failed? && setup.finished_at.nil?
       setup.update!(status: "active", error: nil, unit_job_id: nil, unit_deadline_at: nil)
       Designs::SetupRunJob.perform_later(setup.id)
+    elsif setup&.failed?
+      setup.update!(status: "approved", error: nil, unit_job_id: nil, unit_deadline_at: nil)
+      setup.features.where(status: "running").update_all(status: "todo")
+      setup.start_work!
     end
     return redirect_to(workshop_designs_overview_path(thread: setup.design_thread_id)) if setup&.design_thread
 

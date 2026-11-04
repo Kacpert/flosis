@@ -82,7 +82,7 @@
 
   <div class="flex justify-end gap-2 mt-4">
     <% if @setup.failed? && can?(:configuration) %>
-      <%= button_to "Retry", retry_workshop_design_setup_run_path, class: "clar-btn", form: { class: "contents" } %>
+      <%= button_to "Retry", retry_workshop_design_setup_run_path(import: @setup.id), class: "clar-btn", form: { class: "contents" } %>
     <% end %>
     <%= link_to "Continue working", workshop_pipeline_path, class: "clar-btn clar-btn-primary no-underline" %>
   </div>

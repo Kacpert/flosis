@@ -75,12 +75,16 @@ class Designs::SetupRunJob < ApplicationJob
     def killer = @killer || ->(session_id) { system("pkill", "-TERM", "-f", session_id, out: File::NULL, err: File::NULL) }
     def heartbeat_every = @heartbeat_every || 300
 
-    # Stops what an earlier attempt at the run left: its setup turns still
-    # marked running or queued, whose jobs are gone (whoever calls this holds
-    # the run's unit), and the Claude each may still be running.
+    # Stops what an earlier attempt at the run left: its setup turns (and the
+    # turns that bring an accepted proposal up to date) still marked running
+    # or queued, whose jobs are gone (whoever calls this holds the run's
+    # unit), and the Claude each may still be running. Another import's turns
+    # are left alone; a session from before sessions knew their import counts
+    # for every import of its project.
     def stop_attempts!(setup)
-      DesignTurn.joins(:chat_session).includes(:chat_session).where(kind: "setup", status: DesignTurn::ACTIVE)
-                .where(chat_sessions: { project_id: setup.project_id, purpose: "designs_setup" }).find_each do |turn|
+      DesignTurn.joins(:chat_session).includes(:chat_session).where(kind: %w[setup resolve_conflicts], status: DesignTurn::ACTIVE)
+                .where(chat_sessions: { project_id: setup.project_id, purpose: "designs_setup" })
+                .where("chat_sessions.design_setup_id = ? OR chat_sessions.design_setup_id IS NULL", setup.id).find_each do |turn|
         killer.call(turn.chat_session.claude_session_id)
         turn.fail!(DesignTurn::INTERRUPTED)
       end
@@ -93,6 +97,9 @@ class Designs::SetupRunJob < ApplicationJob
     return wait_turn(setup) if another_import_runs?(setup)
     return unless setup.claim_unit!(job_id, limit: UNIT_GRACE)
 
+    # Work queued after the import is over: what goes wrong is that
+    # feature's, never the import's, which master already has.
+    @follow_up = !setup.running?
     self.class.stop_attempts!(setup)
     setup.update!(paused_until: nil) if setup.paused_until
     heartbeat = beat(setup)
@@ -108,15 +115,43 @@ class Designs::SetupRunJob < ApplicationJob
   rescue Paused => e
     pause(setup, e.until_time)
   rescue *STOPS => e
-    stop(setup, e.message)
+    @follow_up ? give_up_feature(setup, trouble(e)) : stop(setup, e.message)
   rescue StandardError => e
     Rails.logger.error("[#{self.class.name}] setup #{setup_id}: #{e.class}: #{e.message}")
-    stop(setup, "#{e.class.name}: #{e.message}")
+    @follow_up ? give_up_feature(setup, trouble(e)) : stop(setup, "#{e.class.name}: #{e.message}")
   ensure
     heartbeat&.kill
   end
 
   private
+
+  # A feature queued after the import, which something outside its turn
+  # stopped (a sign-in, a push GitHub refused, the host): it couldn't finish,
+  # and the queue goes on.
+  def give_up_feature(setup, message)
+    return unless setup
+
+    ours = setup.with_lock do
+      next false if setup.unit_job_id.present? && setup.unit_job_id != job_id
+
+      setup.features.where(status: "running").find_each do |feature|
+        feature.update!(status: "failed", stage: nil, finished_at: Time.current, error: message.to_s.truncate(1_000))
+      end
+      setup.update!(unit_job_id: nil, unit_deadline_at: 1.second.ago)
+      true
+    end
+    go_on(setup.reload) if ours
+  end
+
+  # What stopped a feature, in plain words.
+  def trouble(error)
+    case error
+    when Designs::SignIn::Failure then "Couldn't sign in: #{error.message}"
+    when Designs::AppRepos::Failure then "Couldn't read the app: #{error.message}"
+    when Failure then error.message
+    else "#{error.class.name}: #{error.message}"
+    end
+  end
 
   # The next unit, or, for an import whose queue is empty, its settling.
   def go_on(setup)
@@ -166,6 +201,7 @@ class Designs::SetupRunJob < ApplicationJob
 
     setup.with_lock do
       next if setup.unit_job_id.present? && setup.unit_job_id != job_id
+      next if setup.done?
 
       setup.update!(status: "failed", error: message.to_s.truncate(1_000), unit_job_id: nil, unit_deadline_at: nil)
     end
@@ -437,13 +473,14 @@ class Designs::SetupRunJob < ApplicationJob
   # killed attempt left running is queued again first, on the same branch.
   def follow_up(setup)
     setup.features.where(status: "running").find_each { |feature| feature.update!(status: "todo") }
-    feature = setup.features.where(status: "todo").order(:queued_at, :position).first or return
+    feature = setup.features.where(status: "todo").reorder(:queued_at, :position).first or return
 
+    feature.update!(status: "running", stage: "building", started_at: Time.current, error: nil, resets_at: nil)
     self.class.sign_in.call(setup)
     self.class.app_repos.call(setup) if Designs::AppRepos.new(setup).dirs.empty?
     repo = Designs::Repo.new(setup.project)
     branch = feature.branch.presence || fresh_branch!(repo, feature)
-    feature.update!(status: "running", stage: "building", started_at: Time.current, error: nil, branch: branch, resets_at: nil)
+    feature.update!(branch: branch)
     FileUtils.rm_f(setup.run_dir.join("progress.json"))
     setup.update!(phase: "feature")
     before = repo.head(branch)
@@ -515,6 +552,8 @@ class Designs::SetupRunJob < ApplicationJob
     review!(feature, turn, e.touched)
   rescue Designs::Repo::Conflict
     feature.update!(status: "failed", stage: nil, finished_at: Time.current, error: Designs::ImportLanding::CONFLICT)
+  rescue Designs::ImportLanding::NotLanded => e
+    feature.update!(status: "failed", stage: nil, finished_at: Time.current, error: e.message)
   end
 
   # The update waits for the person: what it brings in, keeps and replaces, as

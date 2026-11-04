@@ -13,6 +13,9 @@
 class Designs::ImportLanding
   CONFLICT = "Couldn't land on master: master changed the same files while it was built. Retry builds it again from master.".freeze
 
+  # GitHub took nothing: master is put back, and the branch keeps the work.
+  class NotLanded < StandardError; end
+
   # The update would replace what a thread put on master.
   class NeedsReview < StandardError
     attr_reader :touched
@@ -55,9 +58,9 @@ class Designs::ImportLanding
       deletion = (":refs/heads/#{branch}" if @repo.remote_head(branch))
       begin
         @repo.push!(Designs::Repo::MASTER, *deletion, atomic: true)
-      rescue StandardError
+      rescue StandardError => e
         @repo.reset_master!
-        raise
+        raise NotLanded, "Couldn't land on master: #{(e.message.presence || e.class.name).lines.last.to_s.strip.delete_suffix('.').truncate(300)}."
       end
       record!(sha, branch, screens, commits)
     end

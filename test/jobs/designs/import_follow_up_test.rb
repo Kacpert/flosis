@@ -145,6 +145,22 @@ class Designs::ImportFollowUpTest < ActiveSupport::TestCase
     end
   end
 
+  # Final review C2.
+  test "a feature from before the imports existed can be answered" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        setup = finished_import(repo, [ [ "Jira Tasks board", "waiting", { question: "Connect Jira?" } ] ])
+        setup.features.update_all(review: nil)
+        Designs::SetupRunJob.turn_runner = fake_turns(repo, setup)
+        setup.features.sole.reload.queue!(reply: "Connected it.", fresh: false)
+        run_work(setup)
+
+        assert_equal [ "done", "approved" ], [ setup.features.sole.status, setup.status ]
+      end
+    end
+  end
+
   test "the import settles once its last queued feature is done" do
     with_design_remote do |repo, remote|
       with_remote_url(remote) do
@@ -182,6 +198,64 @@ class Designs::ImportFollowUpTest < ActiveSupport::TestCase
     end
   end
 
+  # Final review C1: an import that is over never fails for one feature's
+  # trouble outside its turn.
+  test "an error outside the turn fails that feature, not the import" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        setup = finished_import(repo, [ [ "Designs", "failed", { error: "Failed to parse Claude response" } ],
+                                        [ "Profile", "failed", { error: "Failed to parse Claude response" } ] ])
+        Designs::SetupRunJob.sign_in = ->(_setup) { raise Designs::SignIn::Failure, "No context could sign in." }
+        Designs::SetupRunJob.turn_runner = ->(_turn_id) { flunk "nothing is built without a sign-in" }
+        setup.features.each(&:queue!)
+        run_work(setup)
+
+        assert_equal [ "approved", nil ], [ setup.status, setup.error ]
+        assert_equal [ [ "failed", "Couldn't sign in: No context could sign in." ] ] * 2, setup.features.map { [ _1.status, _1.error ] }
+        assert_nil setup.unit_job_id
+        assert_operator setup.settled_at, :>, 1.minute.ago
+      end
+    end
+  end
+
+  test "a refused landing push couldn't land, and says why" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        setup = finished_import(repo, [ [ "Bug Reporting", "failed", { error: "Failed to parse Claude response" } ] ])
+        hook = File.join(remote, "hooks", "pre-receive")
+        File.write(hook, "#!/bin/sh\nwhile read old new ref; do [ \"$ref\" = refs/heads/master ] && { echo 'master is protected' >&2; exit 1; }; done\nexit 0\n")
+        File.chmod(0o755, hook)
+        Designs::SetupRunJob.turn_runner = fake_turns(repo, setup)
+        setup.features.sole.queue!
+        run_work(setup)
+
+        feature = setup.features.sole
+        assert_equal [ "failed", "approved" ], [ feature.status, setup.status ]
+        assert_match(/\ACouldn't land on master: /, feature.error)
+        assert repo.head(feature.branch.presence || "wip/import-#{setup.id}-bug-reporting"), "the work stays on its branch"
+      end
+    end
+  end
+
+  # Final review I1.
+  test "queued features are built in the order they were asked for" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        setup = finished_import(repo, [ [ "Designs", "failed", { error: "Failed to parse Claude response" } ],
+                                        [ "Profile", "failed", { error: "Failed to parse Claude response" } ] ])
+        Designs::SetupRunJob.turn_runner = fake_turns(repo, setup)
+        travel_to(2.minutes.ago) { setup.features.find_by!(name: "Profile").queue! }
+        setup.features.find_by!(name: "Designs").queue!
+        run_work(setup)
+
+        assert_equal [ "Profile", "Designs" ], @requests.map { _1[/Build the feature "([^"]+)"/, 1] }
+      end
+    end
+  end
+
   test "a follow-up a deploy cut off is picked up again" do
     with_design_remote do |repo, _remote|
       setup = finished_import(repo, [ [ "Bug Reporting", "running", { branch: "wip/import-1-bug-reporting" } ] ])
@@ -190,6 +264,29 @@ class Designs::ImportFollowUpTest < ActiveSupport::TestCase
       Designs::ResumeSetupsJob.perform_now
       assert_enqueued_with(job: Designs::SetupRunJob, args: [ setup.id ])
       assert_nil setup.reload.unit_job_id
+    end
+  end
+
+  # Final review I3.
+  test "resuming one import stops its own turns and leaves another import's alone" do
+    with_design_remote do |repo, _remote|
+      setup = finished_import(repo, [ [ "Bug Reporting", "running", { branch: "wip/import-1-bug-reporting" } ] ])
+      setup.update!(unit_job_id: "gone", unit_deadline_at: 1.minute.ago)
+      other = repo.project.design_setups.create!(kind: "resync", since_setup: setup, status: "active", phase: "feature", step: 3, started_by: users(:one),
+                                                 unit_job_id: "live", unit_deadline_at: 10.minutes.from_now)
+      turn = lambda do |import, kind|
+        session = ChatSession.create!(project: repo.project, workspace: repo.project.workspace, user: users(:one), purpose: "designs_setup",
+                                      claude_session_id: SecureRandom.uuid, codebase_path: "/tmp", design_setup: import)
+        message = session.chat_messages.create!(role: "user", user: users(:one), content: "Build it.")
+        DesignTurn.create!(chat_session: session, chat_message: message, kind: kind, status: "running", started_at: Time.current)
+      end
+      cut_off, resolving, live = turn.(setup, "setup"), turn.(setup, "resolve_conflicts"), turn.(other, "setup")
+      killed = []
+      Designs::SetupRunJob.killer = ->(session_id) { killed << session_id }
+
+      Designs::ResumeSetupsJob.perform_now
+      assert_equal [ "failed", "failed", "running" ], [ cut_off, resolving, live ].map { _1.reload.status }
+      assert_equal [ cut_off, resolving ].map { _1.chat_session.claude_session_id }.sort, killed.sort
     end
   end
 
