@@ -69,6 +69,9 @@ class DesignSetup < ApplicationRecord
     minutes < 60 ? "About #{minutes} min left" : "About #{(minutes / 60.0).round} h left"
   end
 
+  # An import from before they were recorded has none.
+  def app_commits = super || []
+
   # The run's steps, in the order its job takes them.
   def step_names = resync? ? RESYNC_STEPS : STEPS
 

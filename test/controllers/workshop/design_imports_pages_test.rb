@@ -147,6 +147,17 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Final review C2: a feature from before the imports existed has no review.
+  test "a feature from before the imports existed can be set aside and its page still opens" do
+    with_designs do
+      import = first_import([ [ "Designs setup", "set_aside" ], [ "Profile", "failed", { error: "Failed to parse Claude response" } ] ])
+      import.features.update_all(review: nil)
+      get workshop_designs_overview_path(tab: "imports", import: import.id)
+      assert_response :success
+      assert_includes response.body, "Not needed"
+    end
+  end
+
   test "the setup page shows a first import that is still running" do
     @project.update!(design_repo_status: "pending")
     setup = @project.design_setups.create!(status: "active", phase: "feature", step: 4, started_by: users(:one))
@@ -179,13 +190,13 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
 
   test "a stopped import shows why, with Retry" do
     @project.update!(design_repo_status: "pending")
-    @project.design_setups.create!(status: "failed", phase: "map", step: 2, started_by: users(:one), error: "The map found no features.")
+    stopped = @project.design_setups.create!(status: "failed", phase: "map", step: 2, started_by: users(:one), error: "The map found no features.")
 
     get workshop_design_setup_run_path
     assert_response :success
     assert_includes response.body, "The build stopped"
     assert_includes response.body, "The map found no features."
-    assert_select "form[action=?]", retry_workshop_design_setup_run_path
+    assert_select "form[action=?]", retry_workshop_design_setup_run_path(import: stopped.id)
   end
 
   test "Designs stays open while a resync runs, and Imports offers a new one" do
@@ -219,6 +230,29 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
     @project.design_setups.create!(kind: "resync", since_setup: first, status: "approved", phase: "feature", step: 5, started_by: users(:one), finished_at: Time.current)
     get workshop_pipeline_path
     assert_not_includes response.body, "Designs ready"
+  end
+
+  # Final review C1 and M1.
+  test "Designs never locks behind a first import that is over" do
+    with_designs do
+      import = first_import([ [ "Bug Reporting", "done" ] ])
+      import.update!(status: "active")
+      get workshop_designs_overview_path
+      assert_response :success
+    end
+  end
+
+  test "Retry on a stopped import's page retries that import" do
+    with_designs do
+      first = first_import([ [ "Bug Reporting", "done" ] ])
+      stopped = @project.design_setups.create!(kind: "resync", since_setup: first, status: "failed", phase: "resync", step: 2, started_by: users(:one), error: "boom")
+      newer = @project.design_setups.create!(kind: "resync", since_setup: first, status: "approved", phase: "feature", step: 5, started_by: users(:one), finished_at: Time.current)
+      post retry_workshop_design_setup_run_path, params: { import: stopped.id }
+      assert_equal [ "active", nil ], [ stopped.reload.status, stopped.error ]
+      assert_equal "approved", newer.reload.status
+      assert_enqueued_with(job: Designs::SetupRunJob, args: [ stopped.id ])
+      assert_redirected_to workshop_designs_overview_path(tab: "imports", import: stopped.id)
+    end
   end
 
   test "once master has the first import its page is in Designs" do
