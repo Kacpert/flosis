@@ -128,6 +128,23 @@ class Designs::ImportFollowUpTest < ActiveSupport::TestCase
     end
   end
 
+  test "an added feature is looked for before it is built" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        setup = finished_import(repo, [ [ "App shell", "done" ] ])
+        setup.features.create!(name: "Timesheet", key: "timesheet", position: 2, status: "todo", source: "added", contexts: %w[1-admin],
+                               brief: "The weekly timesheet under Time & HR.", queued_at: Time.current)
+        Designs::SetupRunJob.turn_runner = fake_turns(repo, setup)
+        run_work(setup)
+
+        assert_includes @requests.sole, "It is not on the map yet: find it in the app's code and in the app first."
+        assert_includes @requests.sole, "The weekly timesheet under Time & HR."
+        assert_equal "done", setup.features.find_by!(key: "timesheet").status
+      end
+    end
+  end
+
   test "the import settles once its last queued feature is done" do
     with_design_remote do |repo, remote|
       with_remote_url(remote) do

@@ -74,6 +74,25 @@
     </div>
   <% end %>
 
+  <% if import_actions?(setup) && setup.done? %>
+    <% roles = project.design_setup_roles.order(:position).to_a %>
+    <div class="rounded-xl border border-dashed border-[color:var(--border)] px-4 py-3.5 mt-1 mb-5" id="missing-feature">
+      <div class="font-semibold text-[14px] clar-text-text mb-2">Missing feature?</div>
+      <%= form_with url: add_feature_workshop_design_import_path(setup), method: :post do %>
+        <textarea name="description" rows="2" required class="clar-input w-full !text-[12.5px] resize-y" placeholder="What should the AI look at? Where is it, who can see it, what matters…"></textarea>
+        <div class="flex items-center justify-between gap-3 mt-2 flex-wrap">
+          <div class="flex items-center gap-3 flex-wrap text-[12.5px] clar-text-muted">
+            <span>As:</span>
+            <% roles.each do |role| %>
+              <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" name="contexts[]" value="<%= Designs::SignIn.slug(role) %>" checked><%= role.name %></label>
+            <% end %>
+          </div>
+          <button type="submit" class="clar-btn clar-btn-primary !py-1.5 !px-3.5 !text-[12.5px]">Add</button>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
   <% if features.empty? && !setup.busy? && !setup.failed? %>
     <p class="text-[13px] clar-text-faint">Nothing to build in this import.</p>
   <% end %>

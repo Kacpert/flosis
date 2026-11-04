@@ -79,6 +79,37 @@ class Workshop::DesignImportActionsTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?]", retry_all_workshop_design_import_path(@import), text: /Retry all 2/
   end
 
+  test "Add makes a feature from the description and queues it like any other" do
+    @project.design_setup_roles.create!(name: "Admin", login_url: "https://s.test/login", username: "a", password: "p", position: 0)
+    @project.design_setup_roles.create!(name: "Member", login_url: "https://s.test/login", username: "m", password: "p", position: 1)
+    description = "The weekly timesheet under Time & HR. Only admins see it; it lists every person's hours."
+    post add_feature_workshop_design_import_path(@import), params: { description: description, contexts: [ "1-admin" ] }
+    assert_redirected_to page_path
+
+    added = @import.features.order(:id).last
+    assert_equal [ "added", "todo", description, [ "1-admin" ] ], [ added.source, added.status, added.brief, added.contexts ]
+    assert_equal "The weekly timesheet under Time & HR.", added.name
+    assert_equal @import.features.maximum(:position), added.position
+    assert_enqueued_with(job: Designs::SetupRunJob, args: [ @import.id ])
+  end
+
+  test "an empty description is refused" do
+    assert_no_difference -> { @import.features.count } do
+      post add_feature_workshop_design_import_path(@import), params: { description: "   " }
+    end
+    assert_no_enqueued_jobs only: Designs::SetupRunJob
+  end
+
+  test "Missing feature? offers the contexts to use" do
+    @project.design_setup_roles.create!(name: "Admin", login_url: "https://s.test/login", username: "a", password: "p", position: 0)
+    get page_path
+    assert_select "form[action=?]", add_feature_workshop_design_import_path(@import) do
+      assert_select "textarea[name=description]"
+      assert_select "input[type=checkbox][name='contexts[]'][value='1-admin'][checked]"
+    end
+    assert_includes response.body, "Missing feature?"
+  end
+
   test "someone without configuration cannot retry" do
     project_memberships(:two_elvium).update!(designs: true, configuration: false)
     sign_in_as(users(:two))
