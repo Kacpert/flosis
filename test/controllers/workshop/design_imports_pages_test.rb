@@ -207,6 +207,13 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "the master-ready notice leads to the import's page" do
+    import = @project.design_setups.create!(status: "approved", phase: "feature", step: 6, started_by: users(:one), finished_at: Time.current)
+    get workshop_pipeline_path
+    assert_includes response.body, "Designs ready · #{@project.name} @ master"
+    assert_select "[data-clar-toast-link-value=?]", workshop_designs_overview_path(tab: "imports", import: import.id)
+  end
+
   test "Designs ready is told for the first import only" do
     first = @project.design_setups.create!(status: "approved", phase: "feature", step: 6, started_by: users(:one), finished_at: 1.hour.ago, notified_at: 1.hour.ago)
     @project.design_setups.create!(kind: "resync", since_setup: first, status: "approved", phase: "feature", step: 5, started_by: users(:one), finished_at: Time.current)
