@@ -25,6 +25,8 @@
   <div class="flex flex-col min-h-0 min-w-0">
     <% if @tab == "canvas" %>
       <%= render "canvas" %>
+    <% elsif @tab == "imports" %>
+      <%= render "imports" %>
     <% else %>
       <%= render "library" %>
     <% end %>

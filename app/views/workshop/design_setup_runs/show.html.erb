@@ -18,26 +18,9 @@
   <p class="mt-1.5 mb-1.5 clar-text-muted text-[14px] leading-[1.55]">This takes several hours: the features are built one by one, and each is checked against the app before the next one starts. You can leave this page and keep working. We’ll notify you when master is ready.</p>
   <p class="mt-0 mb-5 clar-text-faint text-[12.5px]"><%= @where %></p>
 
-  <div class="clar-card px-5.5 py-5 mb-4">
-    <div class="flex justify-between text-[12.5px] clar-text-muted mb-2"><span><%= @setup.percent %>%</span><span><%= @setup.time_left %></span></div>
-    <div class="h-1.5 rounded bg-[var(--surface-2)] overflow-hidden mb-3.5"><div class="h-1.5 rounded" style="width: <%= @setup.percent %>%; background: var(--ai);"></div></div>
-    <% @setup.steps.each_with_index do |(label, minutes), i| %>
-      <% done = @setup.step > i %>
-      <% current = @setup.step == i %>
-      <% failed = current && @setup.failed? %>
-      <div class="flex items-center gap-2.5 py-[7px] text-[13.5px] <%= (done || current) ? 'clar-text-text' : 'clar-text-faint' %>">
-        <span class="<%= circle %>" style="background: <%= done ? 'var(--success)' : failed ? 'var(--danger)' : current ? 'var(--ai-soft)' : 'var(--surface-2)' %>;">
-          <% if done %><%= check %><% elsif failed %><%= designs_icon(:close, 12) %><% elsif current %><%= blink %><% end %>
-        </span>
-        <span class="flex-1 min-w-0 <%= 'clar-text-danger' if failed %>"><%= label %></span>
-        <% taken = @setup.minutes_taken(i) if done %>
-        <span class="text-[11.5px] clar-text-faint whitespace-nowrap"><%= done ? (taken ? setup_duration(taken) : "") : "~#{setup_duration(minutes)}" %></span>
-      </div>
-      <% if failed %>
-        <div class="ml-[30px] mb-2 text-[12.5px] clar-text-danger leading-[1.5] whitespace-pre-line"><%= @setup.error %></div>
-      <% end %>
-    <% end %>
-  </div>
+  <%= render "workshop/design_imports/steps", setup: @setup %>
+  <% cards = import_cards(@setup) %>
+  <%= render "workshop/design_imports/cards", setup: @setup, cards: cards if cards.any? %>
 
   <% if notes.any? %>
     <div class="clar-card px-5.5 py-5 mb-4">

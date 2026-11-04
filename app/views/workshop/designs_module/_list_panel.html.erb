@@ -30,6 +30,17 @@
       <span class="text-[11px] clar-text-faint"><%= count %></span>
     <% end %>
   <% end %>
+  <%# Imports (imports-link.html): one line like the others, no badge; lit
+      while an import has settled since this person last opened it. %>
+  <% line = import_line(@project, current_user) %>
+  <% here = @tab == "imports" %>
+  <% tone = line[:lit] ? "clar-text-warn" : (here ? "clar-text-primary" : nil) %>
+  <%= link_to workshop_designs_overview_path(tab: "imports"), class: "flex items-center gap-2.5 px-2 py-1.5 rounded-lg no-underline clar-row-hover #{'bg-[var(--primary-soft)]' if here && !line[:lit]}",
+        style: ("background: var(--warn-soft);" if line[:lit]), title: "Every import of the designs from the app", data: { imports_line: true, lit: line[:lit] } do %>
+    <span class="flex <%= tone || 'clar-text-muted' %>"><%= designs_icon(:reload, 15) %></span>
+    <span class="flex-1 text-[13px] font-semibold <%= tone || 'clar-text-text' %>">Imports</span>
+    <span class="text-[11px] <%= line[:lit] ? 'clar-text-warn font-semibold' : 'clar-text-faint' %>"><%= line[:right] %></span>
+  <% end %>
 </div>
 
 <div class="px-2 pt-2.5 pb-1.5 flex items-center gap-2">

@@ -223,6 +223,14 @@ class Designs::Repo
     []
   end
 
+  # The files under a folder that one commit changed, sorted ([] for a
+  # commit this clone does not have). A page reads it, so it can skip the lock.
+  def files_changed_in(sha, prefix, lock: true)
+    reading(lock) { git("diff-tree", "--no-commit-id", "--name-only", "-r", "--root", sha, "--", prefix).split("\n").sort }
+  rescue GitRunner::Error
+    []
+  end
+
   # The last commit two branches share, or nil when either is missing.
   def merge_base(a, b)
     synchronize { git("merge-base", "refs/heads/#{a}", "refs/heads/#{b}").strip.presence }
