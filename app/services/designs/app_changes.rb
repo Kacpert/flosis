@@ -9,7 +9,8 @@ require "find"
 #
 # The history comes from a bare, blobless clone, gone once the diff is
 # written; the project's GitHub token reads it through GitRunner, as the
-# shallow clones of Designs::AppRepos do. Lock files are left out of the
+# shallow clones of Designs::AppRepos do, for the clone and for every file
+# the diff fetches after it. Lock files are left out of the
 # diff, and a diff past MAX_BYTES is cut.
 class Designs::AppChanges
   MAX_BYTES = 400_000
@@ -80,8 +81,11 @@ class Designs::AppChanges
     file
   end
 
+  # The clone holds no file contents: git fetches each one it reads from
+  # GitHub then, so every command needs the token a private repository asks
+  # for.
   def git(history, *args)
-    GitRunner.run!(*args, chdir: history.to_s)
+    GitRunner.run!(*args, chdir: history.to_s, token: token)
   end
 
   def token = ProjectCredentials.new(@project).github_token

@@ -66,6 +66,29 @@ class Designs::AppChangesTest < ActiveSupport::TestCase
     assert_includes Pathname(changes.first["path"]).read, "+<p>Filter</p>"
   end
 
+  # Final review C3: a blobless clone fetches each file it diffs from GitHub,
+  # so every git it runs carries the project's token, and the diff works on a
+  # real partial clone.
+  test "a private repository's history is read with the project's token, file contents and all" do
+    system("git", "-C", @remote, "config", "uploadpack.allowFilter", "true", exception: true)
+    Designs::AppRepos.url_for = ->(_name) { "file://#{@remote}" }
+    @project.update!(github_token: "ghp_private")
+    since = @project.design_setups.create!(status: "approved", started_by: users(:one), app_commits: [ { "repo" => "acme/app", "branch" => nil, "sha" => @first } ])
+    commit({ "app/views/bugs/index.html.erb" => "<h1>Bugs</h1>\n<p>Trend</p>\n" }, at: "2026-11-05T12:00:00+01:00")
+    push
+    tokens = []
+    run = GitRunner.method(:run!)
+    GitRunner.define_singleton_method(:run!) { |*args, chdir:, token: nil| tokens << [ args.first, token ]; run.call(*args, chdir: chdir, token: token) }
+    begin
+      changes = Designs::AppChanges.new(resync_from(since)).fetch!
+    ensure
+      GitRunner.define_singleton_method(:run!, run)
+    end
+
+    assert_includes Pathname(changes.first["path"]).read, "+<p>Trend</p>"
+    assert_equal [ "ghp_private" ], tokens.map(&:last).uniq, "every git run took the token: #{tokens.inspect}"
+  end
+
   test "a repository nothing changed in has no diff" do
     since = @project.design_setups.create!(status: "approved", started_by: users(:one), app_commits: [ { "repo" => "acme/app", "branch" => nil, "sha" => @first } ])
     changes = Designs::AppChanges.new(resync_from(since)).fetch!
