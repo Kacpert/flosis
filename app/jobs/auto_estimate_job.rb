@@ -12,6 +12,7 @@
 #   manual   — the "Estimate" button (Workshop::IdeasController#estimate)
 class AutoEstimateJob < ApplicationJob
   queue_as :default
+  include WaitsForDesignImport
 
   # Same idea as PrReviewJob::CLI_FAILURE_MARKERS: the Claude CLI prints
   # auth/quota/transport failures as plain text instead of raising, so a

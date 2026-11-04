@@ -24,4 +24,5 @@
       <div class="text-[12px] clar-text-faint mt-2">From <%= Array(feature.review["threads"]).map { |title| "“#{title}”" }.to_sentence %></div>
     <% end %>
   <% end %>
+  <%= render "workshop/design_imports/card_actions", setup: setup, feature: feature if import_actions?(setup) %>
 </div>

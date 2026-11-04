@@ -16,6 +16,20 @@ module DesignImportsHelper
     { lit: DesignSetup.lit_for?(project, user), right: waiting.positive? ? "#{waiting} need you" : last&.in_time_zone&.strftime("%b %-d") }
   end
 
+  # Where an import's page is: in Designs once master exists, else on the
+  # setup page, which shows a first import until it lands.
+  def import_page_path(setup)
+    return workshop_design_setup_run_path unless setup.project.designs_ready? && !(setup.first? && !setup.done?)
+
+    workshop_designs_overview_path(tab: "imports", import: setup.id)
+  end
+
+  # Whether the person can act on the import's cards here: a re-import's are
+  # fixed on its thread.
+  def import_actions?(setup)
+    can?(:configuration) && !setup.reimport?
+  end
+
   def import_cards(setup)
     setup.needs_you.to_a.sort_by { |feature| [ CARD_ORDER.fetch(feature.problem, 4), feature.position ] }
   end

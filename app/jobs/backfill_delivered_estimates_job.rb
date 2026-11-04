@@ -11,6 +11,7 @@
 # through to ClaudeCliService.
 class BackfillDeliveredEstimatesJob < ApplicationJob
   queue_as :default
+  include WaitsForDesignImport
 
   MIN_GAP = 3
   MAX_GAP = 10

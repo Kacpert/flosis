@@ -175,14 +175,27 @@ module Designs::Subject
 
     def project = @session.project
     def slug = "setup"
-    # A re-import (Workshop Designs v2) works on its own thread's branch.
-    def wip_branch = setup.design_thread&.branch || Designs::BranchNames::SETUP
+    # A re-import (Workshop Designs v2) works on its own thread's branch, and
+    # a feature built after its import (Designs imports) on its own.
+    def wip_branch = feature&.branch.presence || setup.design_thread&.branch || Designs::BranchNames::SETUP
     def preview_slot = wip_branch
-    def base_branch_for_new_worktree = setup.design_thread&.base_sha.presence || Designs::Repo::MASTER
+    def base_branch_for_new_worktree
+      return Designs::Repo::MASTER if feature&.branch.present?
 
-    # The run's latest active setup.
+      setup.design_thread&.base_sha.presence || Designs::Repo::MASTER
+    end
+
+    # The import the turn's session was made for; a session from before
+    # sessions knew theirs has the run's latest active setup.
     def setup
-      @setup ||= project.design_setups.active.order(:id).last || raise(Designs::TurnJob::Failure, NO_SETUP)
+      @setup ||= @session.design_setup || project.design_setups.active.order(:id).last || raise(Designs::TurnJob::Failure, NO_SETUP)
+    end
+
+    # The feature the run is building, if any.
+    def feature
+      return @feature if defined?(@feature)
+
+      @feature = setup.features.find_by(status: "running")
     end
 
     # wip/setup, made off master when neither this clone nor origin has it.
@@ -309,7 +322,7 @@ module Designs::Subject
       { baseUrl: project.design_app_url, contexts: contexts, worktree: worktree.to_s,
         progressPath: setup.run_dir.join("progress.json").to_s,
         featuresPath: (setup.run_dir.join("features.json").to_s if setup.phase == "map"),
-        featureKey: setup.features.find_by(status: "running")&.key, viewport: VIEWPORT }
+        featureKey: feature&.key, viewport: VIEWPORT }
     end
 
     def readable

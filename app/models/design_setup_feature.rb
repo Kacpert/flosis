@@ -92,6 +92,12 @@ class DesignSetupFeature < ApplicationRecord
     end
   end
 
+  # What Retry all takes: a feature that could not finish or was not
+  # started. A question waits for its answer, a proposal for its review.
+  def retryable?
+    %i[error unreadable limit paused].include?(problem)
+  end
+
   # To do again, at the end of the queue. fresh: built anew from master (the
   # branch it had is let go, and the AI's question with it); otherwise it goes
   # on from its branch, with reply for the AI.

@@ -24,6 +24,7 @@
 # updates the SAME row rather than creating a new one.
 class BugAttributionJob < ApplicationJob
   queue_as :default
+  include WaitsForDesignImport
 
   CLI_FAILURE_MARKERS = /\b(401|403|429|invalid authentication|failed to authenticate|api error|credit balance|rate limit|usage limit|overloaded|unauthorized)\b/i
 
