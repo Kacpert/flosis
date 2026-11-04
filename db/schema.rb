@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_04_040000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_04_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -88,6 +88,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_040000) do
     t.index ["alert_rule_id"], name: "index_alert_runs_on_alert_rule_id"
   end
 
+  create_table "api_tokens", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "expires_at"
+    t.datetime "last_used_at"
+    t.string "name", null: false
+    t.datetime "revoked_at"
+    t.string "scopes", null: false
+    t.string "token_digest", null: false
+    t.string "token_hint", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["token_digest"], name: "index_api_tokens_on_token_digest", unique: true
+    t.index ["user_id"], name: "index_api_tokens_on_user_id"
+    t.index ["workspace_id"], name: "index_api_tokens_on_workspace_id"
+  end
+
   create_table "briefs", force: :cascade do |t|
     t.datetime "briefed_at"
     t.bigint "chat_session_id"
@@ -154,8 +171,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_040000) do
     t.bigint "workspace_id", null: false
     t.index ["design_setup_id"], name: "index_chat_sessions_on_design_setup_id"
     t.index ["project_id"], name: "index_chat_sessions_on_project_id"
-    t.index ["task_id"], name: "index_chat_sessions_on_task_id"
     t.index ["task_id", "purpose", "status"], name: "index_chat_sessions_on_task_purpose_status"
+    t.index ["task_id"], name: "index_chat_sessions_on_task_id"
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
     t.index ["workspace_id"], name: "index_chat_sessions_on_workspace_id"
   end
@@ -947,6 +964,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_040000) do
   add_foreign_key "alert_rules", "projects"
   add_foreign_key "alert_rules", "workspaces"
   add_foreign_key "alert_runs", "alert_rules"
+  add_foreign_key "api_tokens", "users"
+  add_foreign_key "api_tokens", "workspaces"
   add_foreign_key "briefs", "chat_sessions"
   add_foreign_key "briefs", "tasks"
   add_foreign_key "briefs", "workspaces"
