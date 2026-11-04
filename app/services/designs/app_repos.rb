@@ -32,16 +32,17 @@ class Designs::AppRepos
   end
 
   # Clones each repository afresh and returns [{ "role", "repo", "branch",
-  # "dir" }] for those that were read.
+  # "dir", "sha" }] for those that were read: sha is the commit it was read
+  # at, which a later import takes the app's changes from (Designs imports).
   def fetch!
     unseal(root)
     FileUtils.rm_rf(root)
     FileUtils.mkdir_p(root)
     last = nil
-    fetched = rows.each_with_index.filter_map do |(role, name, branch), index|
+    fetched = repos.each_with_index.filter_map do |(role, name, branch), index|
       dir = root.join("#{index + 1}-#{name.parameterize}")
-      clone(name, branch, dir)
-      { "role" => role, "repo" => name, "branch" => branch, "dir" => dir.to_s }
+      sha = clone(name, branch, dir)
+      { "role" => role, "repo" => name, "branch" => branch, "dir" => dir.to_s, "sha" => sha }
     rescue GitRunner::Error, SystemCallError => e
       last = reason(e)
       @setup.note!("Reading the repositories", "#{name}#{" @ #{branch}" if branch} could not be read: #{last}.")
@@ -57,12 +58,8 @@ class Designs::AppRepos
     root.directory? ? root.children.select(&:directory?).sort.map(&:to_s) : []
   end
 
-  private
-
-  def root = @setup.run_dir.join("apps")
-
   # [role, "owner/name", branch or nil] for each row the form saved.
-  def rows
+  def repos
     Array(@project.design_app_repos).filter_map do |row|
       next unless row.is_a?(Hash) && (match = NAME.match(row["repo"].to_s.strip))
 
@@ -70,12 +67,19 @@ class Designs::AppRepos
     end
   end
 
+  private
+
+  def root = @setup.run_dir.join("apps")
+
+  # The commit it was cloned at.
   def clone(name, branch, dir)
     GitRunner.run!("clone", "--quiet", "--depth", "1", *([ "--branch", branch ] if branch), "--",
                    self.class.url_for.call(name), dir.to_s, chdir: root, token: ProjectCredentials.new(@project).github_token)
+    sha = GitRunner.run!("rev-parse", "HEAD", chdir: dir.to_s).strip
     FileUtils.rm_rf(dir.join(".git"))
     Find.find(dir.to_s) { |path| File.delete(path) if File.symlink?(path) }
     seal(dir)
+    sha
   end
 
   def seal(dir)

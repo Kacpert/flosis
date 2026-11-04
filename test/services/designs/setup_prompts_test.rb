@@ -14,9 +14,16 @@ class Designs::SetupPromptsTest < ActiveSupport::TestCase
     assert_includes Designs::SetupPrompts::SEEDS.fetch("design_system")[:body], "mismatch"
   end
 
-  test "a run has a map, a design system and a feature phase" do
-    assert_equal %w[map design_system feature], Designs::SetupPrompts::SEEDS.keys
-    assert_equal %w[setup-map setup-design-system setup-feature], Designs::SetupPrompts::SEEDS.values.map { |seed| seed[:key] }
+  test "a run has a map, a design system and a feature phase, and a resync its look at what changed" do
+    assert_equal %w[map design_system feature resync], Designs::SetupPrompts::SEEDS.keys
+    assert_equal %w[setup-map setup-design-system setup-feature setup-resync], Designs::SetupPrompts::SEEDS.values.map { |seed| seed[:key] }
+  end
+
+  test "a resync saves the features the changes touch by key, and the new ones, with what changed" do
+    body = Designs::SetupPrompts::SEEDS.fetch("resync")[:body]
+    [ "save_features", "key and name as the map has them", "changes", "new feature", "write no files", "Never sign out" ].each do |word|
+      assert_includes body, word, word
+    end
   end
 
   test "the map is saved with its tool, the app shell first" do

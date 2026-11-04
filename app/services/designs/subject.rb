@@ -172,7 +172,11 @@ module Designs::Subject
       If the feature cannot be built honestly because of something only the person can fix on the test account (an integration that is not connected, data you cannot create there, a context that cannot reach the feature), stop building it. Keep what you built so far, and end the turn with one <blocked> block: a single question for the person, saying what to fix and where. They will answer, and a later turn goes on from where you stopped. A gap you can build around from the code is a <missing> note, not a <blocked> block.
     TEXT
     MAP_TOOLS = %w[mcp__flosis_browser__save_features].freeze
-    PHASE_TITLES = { "map" => "the feature map", "design_system" => "the design system", "feature" => "one feature" }.freeze
+    PHASE_TITLES = { "map" => "the feature map", "design_system" => "the design system", "feature" => "one feature",
+                     "resync" => "what changed in the app" }.freeze
+    # The phases whose turn saves features: the map, and a resync's look at
+    # what changed.
+    SAVING = %w[map resync].freeze
     VIEWPORT = { width: 1440, height: 900 }.freeze
 
     def initialize(session)
@@ -251,7 +255,7 @@ module Designs::Subject
       MESSAGE
     end
 
-    def tools = Designs::TurnJob::TOOLS + BROWSER_TOOLS + (setup.phase == "map" ? MAP_TOOLS : [])
+    def tools = Designs::TurnJob::TOOLS + BROWSER_TOOLS + (SAVING.include?(setup.phase) ? MAP_TOOLS : [])
     def timeout = DesignTurn.setup_timeout
     def budget_usd = DesignTurn.setup_budget_usd
     # The app comes from the repositories the run cloned (add_dirs).
@@ -280,7 +284,7 @@ module Designs::Subject
 
     # The app's repositories the run cloned and the materials, all read-only.
     def add_dirs
-      [ *Designs::AppRepos.new(setup).dirs, materials_dir.to_s ].select { |dir| File.directory?(dir) }
+      [ *Designs::AppRepos.new(setup).dirs, materials_dir.to_s, changes_dir.to_s ].select { |dir| File.directory?(dir) }
     end
 
     # Every credential of the project, and every role's password.
@@ -317,6 +321,9 @@ module Designs::Subject
       Pathname(project.designs_dir).join("design-materials")
     end
 
+    # A resync's diffs of the app since the import it starts from.
+    def changes_dir = setup.run_dir.join("changes")
+
     # What the browser is given: the test environment, each context that
     # signed in (its state, never its password), the worktree its designs are
     # served from, and where it writes the feature's progress and the map.
@@ -328,7 +335,7 @@ module Designs::Subject
       end
       { baseUrl: project.design_app_url, contexts: contexts, worktree: worktree.to_s,
         progressPath: setup.run_dir.join("progress.json").to_s,
-        featuresPath: (setup.run_dir.join("features.json").to_s if setup.phase == "map"),
+        featuresPath: (setup.run_dir.join("features.json").to_s if SAVING.include?(setup.phase)),
         featureKey: feature&.key, viewport: VIEWPORT }
     end
 
@@ -336,6 +343,7 @@ module Designs::Subject
       lines = []
       Designs::AppRepos.new(setup).dirs.each { |dir| lines << "- The app's code: #{dir}" }
       lines << "- Materials the team uploaded: #{materials_dir}" if project.design_materials.attached?
+      lines << "- What changed in the app since the last import: #{changes_dir}" if changes_dir.directory?
       Array(project.design_figma_urls).each { |url| lines << "- Figma: #{url}" }
       return "" if lines.empty?
 

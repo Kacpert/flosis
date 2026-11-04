@@ -28,7 +28,7 @@ class Workshop::BaseController < ApplicationController
   # once, on their next page, that master is ready.
   def announce_designs_ready
     project = current_workshop_project or return
-    setup = project.design_setups.where(status: "approved", design_thread_id: nil, notified_at: nil, started_by: current_user)
+    setup = project.design_setups.first_imports.where(status: "approved", notified_at: nil, started_by: current_user)
                    .where.not(finished_at: nil).order(:id).last
     return unless setup
 

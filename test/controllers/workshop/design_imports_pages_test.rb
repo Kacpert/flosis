@@ -188,6 +188,32 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?]", retry_workshop_design_setup_run_path
   end
 
+  test "Designs stays open while a resync runs, and Imports offers a new one" do
+    with_designs do
+      first = first_import([ [ "Bug Reporting", "done" ] ])
+      @project.design_setups.create!(kind: "resync", since_setup: first, status: "active", phase: "resync", step: 2, started_by: users(:one))
+      get workshop_designs_overview_path(tab: "imports")
+      assert_response :success
+      assert_includes response.body, "Changes since Nov 3"
+      assert_select "form[action=?]", workshop_design_imports_path, false, "not while one runs"
+    end
+  end
+
+  test "Imports offers a new import once the last one is over" do
+    with_designs do
+      first_import([ [ "Bug Reporting", "done" ] ])
+      get workshop_designs_overview_path(tab: "imports")
+      assert_select "form[action=?]", workshop_design_imports_path, text: /New import/
+    end
+  end
+
+  test "Designs ready is told for the first import only" do
+    first = @project.design_setups.create!(status: "approved", phase: "feature", step: 6, started_by: users(:one), finished_at: 1.hour.ago, notified_at: 1.hour.ago)
+    @project.design_setups.create!(kind: "resync", since_setup: first, status: "approved", phase: "feature", step: 5, started_by: users(:one), finished_at: Time.current)
+    get workshop_pipeline_path
+    assert_not_includes response.body, "Designs ready"
+  end
+
   test "once master has the first import its page is in Designs" do
     with_designs do
       import = first_import([ [ "Bug Reporting", "done" ] ])

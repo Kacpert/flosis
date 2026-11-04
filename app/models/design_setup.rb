@@ -20,7 +20,7 @@
 # opened it since.
 class DesignSetup < ApplicationRecord
   # The phase prompt the run's turns get (Designs::SetupPrompts).
-  PHASES = %w[map design_system feature].freeze
+  PHASES = %w[map design_system feature resync].freeze
   STATUSES = %w[active approved failed].freeze
   KINDS = %w[first reimport resync].freeze
   STEPS = %i[read_repos sign_in map_features design_system features commit].freeze
@@ -29,6 +29,13 @@ class DesignSetup < ApplicationRecord
   FEATURE_MINUTES = 30
   # What the time left counts on before the map says how many there are.
   GUESSED_FEATURES = 15
+  # A resync's (Designs imports): it reads the app and signs in, finds what
+  # changed since the import it starts from, updates and lands each feature
+  # by itself, and is done.
+  RESYNC_STEPS = %i[read_repos sign_in find_changes features finish].freeze
+  RESYNC_STEP_MINUTES = [ 10, 2, 20, nil, 1 ].freeze
+  # What a resync's time left counts on before it knows what changed.
+  GUESSED_CHANGES = 4
 
   belongs_to :project
   belongs_to :started_by, class_name: "User", optional: true
@@ -62,18 +69,23 @@ class DesignSetup < ApplicationRecord
     minutes < 60 ? "About #{minutes} min left" : "About #{(minutes / 60.0).round} h left"
   end
 
-  # The six steps, named for this project, each with the minutes it is
-  # expected to take from now: [[label, minutes]].
+  # The run's steps, in the order its job takes them.
+  def step_names = resync? ? RESYNC_STEPS : STEPS
+
+  # The six steps (a resync's five), named for this project, each with the
+  # minutes it is expected to take from now: [[label, minutes]].
   def steps
-    labels = [
-      "Reading #{repo_names.join(', ').presence || 'the app repositories'}",
-      "Signing in as #{project.design_setup_roles.map(&:name).join(', ').presence || 'each context'}",
-      features.any? ? "Mapping features: #{features.size} found" : "Mapping features",
-      "Design system: tokens, fonts and icons from #{ui_system}",
-      features.any? ? "Building features one by one: #{features.finished.size} of #{features.size} done" : "Building features one by one",
-      "Committing to #{project.design_repo} @ master"
-    ]
-    labels.zip(STEP_MINUTES.map { |minutes| minutes || features_left * FEATURE_MINUTES })
+    reading = "Reading #{repo_names.join(', ').presence || 'the app repositories'}"
+    signing_in = "Signing in as #{project.design_setup_roles.map(&:name).join(', ').presence || 'each context'}"
+    building = ->(verb) { features.any? ? "#{verb} features one by one: #{features.finished.size} of #{features.size} done" : "#{verb} features one by one" }
+    labels = if resync?
+               [ reading, signing_in, features.any? ? "Finding what changed: #{features.size} to update" : "Finding what changed since #{since_label}",
+                 building.("Updating"), "Done: each feature lands on #{project.design_repo} @ master as it is built" ]
+             else
+               [ reading, signing_in, features.any? ? "Mapping features: #{features.size} found" : "Mapping features",
+                 "Design system: tokens, fonts and icons from #{ui_system}", building.("Building"), "Committing to #{project.design_repo} @ master" ]
+             end
+    labels.zip(step_minutes.map { |minutes| minutes || features_left * FEATURE_MINUTES })
   end
 
   def minutes_left
@@ -81,9 +93,12 @@ class DesignSetup < ApplicationRecord
   end
 
   def percent
-    total = STEP_MINUTES.compact.sum + (features.any? ? features.size : GUESSED_FEATURES) * FEATURE_MINUTES
+    guessed = resync? ? GUESSED_CHANGES : GUESSED_FEATURES
+    total = step_minutes.compact.sum + (features.any? ? features.size : guessed) * FEATURE_MINUTES
     (100 * (1 - minutes_left.to_f / total)).round.clamp(0, 100)
   end
+
+  def step_minutes = resync? ? RESYNC_STEP_MINUTES : STEP_MINUTES
 
   def time_left = self.class.time_left(minutes_left)
 
@@ -169,7 +184,7 @@ class DesignSetup < ApplicationRecord
   # app.flosis.com", "Changes since Nov 3", "Re-import from staging".
   def title
     case kind
-    when "resync" then "Changes since #{since_setup&.created_at&.in_time_zone&.strftime('%b %-d') || 'the last import'}"
+    when "resync" then "Changes since #{since_label}"
     when "reimport" then "Re-import from staging"
     else [ "First import", (app_host && "from #{app_host}") ].compact.join(" · ")
     end
@@ -200,6 +215,9 @@ class DesignSetup < ApplicationRecord
   def settle!
     update!(settled_at: Time.current)
   end
+
+  # "Nov 3": the day of the import a resync starts from.
+  def since_label = since_setup&.created_at&.in_time_zone&.strftime("%b %-d") || "the last import"
 
   # Over, with features queued after it: retried, answered or added.
   def follow_up?
@@ -260,6 +278,6 @@ class DesignSetup < ApplicationRecord
   end
 
   def features_left
-    features.any? ? features.pending.size : GUESSED_FEATURES
+    features.any? ? features.pending.size : (resync? ? GUESSED_CHANGES : GUESSED_FEATURES)
   end
 end

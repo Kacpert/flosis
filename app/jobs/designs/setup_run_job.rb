@@ -56,6 +56,8 @@ class Designs::SetupRunJob < ApplicationJob
   UNREADABLE_RETRIES = 2
   MAP_REQUEST = "Map the app's features, in the order they are to be built, and save the map.".freeze
   DESIGN_SYSTEM_REQUEST = "Build the design system: the tokens, fonts, icons and logos, from the app's code and its pages.".freeze
+  RESYNC_REQUEST = "Find what changed in the app since the last import: the features of the map the changes touch, and the features " \
+                   "that are new. Save them with save_features, once, at the end.".freeze
   IMPORT_SUMMARY = "Initial import: the design system, the components and the screens of every feature, " \
                    "built from the test environment and the app's repositories.".freeze
 
@@ -64,11 +66,12 @@ class Designs::SetupRunJob < ApplicationJob
     # repositories and stops a Claude a killed worker left (by its session
     # id, which only its command line carries), here and now; and how often
     # the heartbeat beats, in seconds. Tests stand in for them.
-    attr_writer :turn_runner, :sign_in, :app_repos, :killer, :heartbeat_every
+    attr_writer :turn_runner, :sign_in, :app_repos, :killer, :heartbeat_every, :app_changes
 
     def turn_runner = @turn_runner || ->(turn_id) { Designs::TurnJob.perform_now(turn_id) }
     def sign_in = @sign_in || ->(setup) { Designs::SignIn.new(setup).call }
     def app_repos = @app_repos || ->(setup) { Designs::AppRepos.new(setup).fetch! }
+    def app_changes = @app_changes || ->(setup) { Designs::AppChanges.new(setup).fetch! }
     def killer = @killer || ->(session_id) { system("pkill", "-TERM", "-f", session_id, out: File::NULL, err: File::NULL) }
     def heartbeat_every = @heartbeat_every || 300
 
@@ -95,7 +98,7 @@ class Designs::SetupRunJob < ApplicationJob
     heartbeat = beat(setup)
     if setup.running?
       setup.start_step!
-      send(DesignSetup::STEPS.fetch(setup.step), setup)
+      send(setup.step_names.fetch(setup.step), setup)
     else
       follow_up(setup)
     end
@@ -193,8 +196,8 @@ class Designs::SetupRunJob < ApplicationJob
       project.reload
       raise Failure, project.design_repo_error.presence || "The designs repository could not be set up." unless project.design_repo_status == "ready"
     end
-    self.class.app_repos.call(setup)
-    setup.finish_step!
+    fetched = self.class.app_repos.call(setup)
+    setup.finish_step!(app_commits: Array(fetched).map { |row| row.slice("repo", "branch", "sha") })
   end
 
   def sign_in(setup)
@@ -212,16 +215,90 @@ class Designs::SetupRunJob < ApplicationJob
     self.class.sign_in.call(setup)
     setup.update!(phase: "map")
     run_turn!(setup, MAP_REQUEST)
-    rows = begin
-      Array(JSON.parse(map.read)).select { |row| row.is_a?(Hash) }
-    rescue JSON::ParserError, SystemCallError
-      []
-    end
+    rows = saved_features(map)
     raise Failure, "The map found no features." if rows.empty?
 
     setup.features.destroy_all
     setup.add_features!(rows)
     setup.finish_step!
+  end
+
+  # The rows the map's (or a resync's) save_features wrote, [] for none.
+  def saved_features(file)
+    Array(JSON.parse(file.read)).select { |row| row.is_a?(Hash) }
+  rescue JSON::ParserError, SystemCallError
+    []
+  end
+
+  # A resync's look at what changed (Designs imports): the app's diffs since
+  # the import it starts from, and a turn that reads them with the map, walks
+  # the app and saves the features the changes touch and the new ones. Those
+  # become the resync's features. Nothing changed: nothing to build.
+  def find_changes(setup)
+    FileUtils.mkdir_p(setup.run_dir)
+    File.chmod(0o700, setup.run_dir)
+    changed = self.class.app_changes.call(setup).select { |row| row["path"] }
+    if changed.empty?
+      setup.note!("Finding what changed", "Nothing changed in the app's repositories since #{setup.since_label}.")
+      return setup.finish_step!
+    end
+
+    map = setup.run_dir.join("features.json")
+    FileUtils.rm_f(map)
+    self.class.sign_in.call(setup)
+    setup.update!(phase: "resync")
+    run_turn!(setup, resync_request(setup, changed))
+    add_resync_features!(setup, saved_features(map))
+    setup.finish_step!
+  end
+
+  def resync_request(setup, changed)
+    map = setup.project.design_feature_map.map do |feature|
+      "- #{feature.key} · #{feature.name} · contexts: #{feature.contexts.join(', ').presence || 'every context'} · " \
+        "screens: #{feature.screens.join(', ').presence || 'as its brief says'}\n  #{feature.brief.to_s.squish.truncate(300)}"
+    end
+    diffs = changed.map do |row|
+      "- #{row['repo']}#{" @ #{row['branch']}" if row['branch']}: #{row['from'].to_s.first(7)}..#{row['to'].to_s.first(7)}, the diff in #{row['path']}"
+    end
+    "#{RESYNC_REQUEST}\n\n## The map\n#{map.join("\n").presence || '(no features yet)'}\n\n" \
+      "## What changed in the app since #{setup.since_label}\n#{diffs.join("\n")}"
+  end
+
+  # A feature the changes touch is the map's, with what changed in its code;
+  # one the map lacks is new. A proposal of an earlier import still waiting
+  # for the same feature is replaced by this one.
+  def add_resync_features!(setup, rows)
+    known = setup.project.design_feature_map.index_by(&:key)
+    taken = known.keys + setup.features.pluck(:key)
+    position = setup.features.maximum(:position).to_i
+    rows.each do |row|
+      existing = known[row["key"].to_s]
+      attributes = if existing
+                     { key: existing.key, name: existing.name, source: "changed", brief: existing.brief,
+                       contexts: Array(row["contexts"]).map(&:to_s).presence || existing.contexts,
+                       screens: Array(row["screens"]).map(&:to_s).presence || existing.screens }
+                   else
+                     name = row["name"].to_s.strip.presence || "Feature"
+                     { key: DesignSetupFeature.key_for(name, taken), name: name.truncate(120), source: "new", brief: row["brief"].to_s,
+                       contexts: Array(row["contexts"]).map(&:to_s), screens: Array(row["screens"]).map(&:to_s) }
+                   end
+      next if setup.features.exists?(key: attributes[:key])
+
+      taken << attributes[:key]
+      feature = setup.features.create!(attributes.merge(position: position += 1, status: "todo", queued_at: Time.current,
+                                                        code_changes: row["changes"].to_s.strip.presence, notes: Array(row["notes"]).map(&:to_s)))
+      replace_older_proposals!(feature)
+    end
+    setup.features.reset
+  end
+
+  def replace_older_proposals!(feature)
+    setup = feature.design_setup
+    DesignSetupFeature.joins(:design_setup).where(design_setups: { project_id: setup.project_id }).where.not(design_setup_id: setup.id)
+                      .where(key: feature.key, status: "review").find_each do |older|
+      Designs::ImportLanding.new(older).discard!
+      older.update!(status: "set_aside", branch: nil, review: older.review.merge("rejected" => "Replaced by “#{setup.title}”"))
+    end
   end
 
   def design_system(setup)
@@ -236,6 +313,8 @@ class Designs::SetupRunJob < ApplicationJob
   # the turn's notes) or failed (noted, and the run goes on). With none left,
   # the step is over.
   def features(setup)
+    return resync_features(setup) if setup.resync?
+
     feature = setup.features.pending.first
     return setup.finish_step! unless feature
 
@@ -323,6 +402,19 @@ class Designs::SetupRunJob < ApplicationJob
     end
   end
 
+  # A resync's features are each built on a branch of their own off master
+  # and land there as they finish, as features queued after an import do.
+  def resync_features(setup)
+    return setup.finish_step! unless setup.features.pending.exists?
+
+    follow_up(setup)
+  end
+
+  # A resync is over once its features have landed, one by one.
+  def finish(setup)
+    setup.finish_step!(status: "approved", finished_at: Time.current, settled_at: Time.current)
+  end
+
   def commit(setup)
     if (thread = setup.design_thread)
       Designs::Threads.note(thread, "Re-import from staging finished. Check what changed, then merge it.")
@@ -391,7 +483,8 @@ class Designs::SetupRunJob < ApplicationJob
            elsif feature.reply
              "## Before you start\n#{feature.reply}"
            end
-    [ Designs::FeatureBrief.for(feature), (threads_on_master(feature.design_setup) unless feature.design_setup.running?), said ].compact.join("\n")
+    setup = feature.design_setup
+    [ Designs::FeatureBrief.for(feature), (threads_on_master(setup) unless setup.first? && setup.running?), said ].compact.join("\n")
   end
 
   # The designs threads merged into master, for an update not to throw them

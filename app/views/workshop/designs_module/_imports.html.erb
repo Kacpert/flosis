@@ -16,6 +16,13 @@
           <h2 class="m-0 text-[21px] font-bold tracking-[-.4px] clar-text-text">Imports</h2>
           <p class="mt-1.5 mb-0 text-[13px] clar-text-muted">Every import of the designs from the app: the first one, and each one after it.</p>
         </div>
+        <% since = import_resync_from(@project) %>
+        <% if can?(:configuration) && since && @imports.none?(&:busy?) %>
+          <div class="flex flex-col items-end gap-1">
+            <%= button_to "New import", workshop_design_imports_path, class: "clar-btn clar-btn-primary !py-1.5 !px-3.5 !text-[12.5px]", form: { class: "contents" } %>
+            <span class="text-[11.5px] clar-text-faint">What developers built since <%= since.created_at.in_time_zone.strftime("%b %-d") %></span>
+          </div>
+        <% end %>
       </div>
       <% @imports.each do |setup| %>
         <% waiting = setup.needs_you.size %>

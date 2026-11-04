@@ -51,7 +51,7 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
 
   def show
     @project = current_workshop_project
-    @setup = @project.design_setups.where(design_thread_id: nil).order(:id).last
+    @setup = @project.design_setups.first_imports.order(:id).last
     return redirect_to(workshop_designs_overview_path) if @setup.nil?
     # Once master has it, the import's page is in Designs (Designs imports).
     return redirect_to(workshop_designs_overview_path(tab: "imports", import: @setup.id)) if @setup.done?
@@ -70,7 +70,9 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
       setup.update!(status: "active", error: nil, unit_job_id: nil, unit_deadline_at: nil)
       Designs::SetupRunJob.perform_later(setup.id)
     end
-    redirect_to setup&.design_thread ? workshop_designs_overview_path(thread: setup.design_thread_id) : workshop_design_setup_run_path
+    return redirect_to(workshop_designs_overview_path(thread: setup.design_thread_id)) if setup&.design_thread
+
+    redirect_to setup ? helpers.import_page_path(setup) : workshop_design_setup_run_path
   end
 
   # A full rebuild on a thread of its own, which people trim and merge.

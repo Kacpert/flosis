@@ -14,7 +14,7 @@ class Workshop::DesignsModuleController < Workshop::BaseController
   def show
     @project = current_workshop_project
     DesignTurn.fail_stale!
-    import = @project.design_setups.where(design_thread_id: nil).order(:id).last
+    import = @project.design_setups.first_imports.order(:id).last
     return redirect_to(workshop_design_setup_run_path) if import && !import.done? && (import.status == "active" || !@project.designs_ready?)
     return render(:not_set_up) unless @project.designs_ready?
 

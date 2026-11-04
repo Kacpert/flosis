@@ -24,6 +24,14 @@ module DesignImportsHelper
     workshop_designs_overview_path(tab: "imports", import: setup.id)
   end
 
+  # The import a new one would start from: the last first import or resync
+  # that is over, once master has the designs; nil before.
+  def import_resync_from(project)
+    return unless project.designs_ready?
+
+    project.design_setups.where(kind: %w[first resync], status: "approved").where.not(finished_at: nil).order(:id).last
+  end
+
   # Whether the person can act on the import's cards here: a re-import's are
   # fixed on its thread.
   def import_actions?(setup)

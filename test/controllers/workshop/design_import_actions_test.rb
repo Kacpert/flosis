@@ -110,6 +110,22 @@ class Workshop::DesignImportActionsTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Missing feature?"
   end
 
+  test "New import starts a resync from the last import" do
+    post workshop_design_imports_path
+    resync = @project.design_setups.order(:id).last
+    assert_equal [ "resync", @import, "active", users(:one) ], [ resync.kind, resync.since_setup, resync.status, resync.started_by ]
+    assert_redirected_to workshop_designs_overview_path(tab: "imports", import: resync.id)
+    assert_enqueued_with(job: Designs::SetupRunJob, args: [ resync.id ])
+  end
+
+  test "a new import is refused while one runs" do
+    @project.design_setups.create!(status: "active", phase: "map", step: 0, started_by: users(:one), kind: "reimport")
+    assert_no_difference -> { @project.design_setups.count } do
+      post workshop_design_imports_path
+    end
+    assert_no_enqueued_jobs only: Designs::SetupRunJob
+  end
+
   test "someone without configuration cannot retry" do
     project_memberships(:two_elvium).update!(designs: true, configuration: false)
     sign_in_as(users(:two))
