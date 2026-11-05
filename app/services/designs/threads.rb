@@ -10,6 +10,7 @@ module Designs::Threads
   class Busy < StandardError; end
   class AlreadyMerged < StandardError; end
   class NothingToMerge < StandardError; end
+  class Gone < StandardError; end
 
   NEW_TITLE = "New thread".freeze
   TITLE_LIMIT = 64
@@ -18,6 +19,9 @@ module Designs::Threads
   IMPORTING = "Re-import from staging is still running on this thread. You can talk here and merge it once it finishes.".freeze
   NOT_AN_INSPIRATION = "Inspirations are images, PDFs or notes (.png, .jpg, .gif, .webp, .svg, .pdf, .txt, .md), up to 10 MB each.".freeze
   NO_BRANCH_YET = "Describe the change first: the thread gets its branch, and its inspirations/, with its first message.".freeze
+  # Where a deleted thread's branch waits on GitHub (archive/design/…).
+  ARCHIVE = "archive/".freeze
+  GONE = "This thread's archive is no longer on GitHub, so it can't come back.".freeze
   INSPIRATION_TYPES = %w[png jpg jpeg gif webp svg pdf txt md].freeze
   INSPIRATION_LIMIT = 10.megabytes
   START_FROM_TASK = <<~REQUEST.freeze
@@ -206,22 +210,60 @@ module Designs::Threads
     raise NothingToMerge, NOTHING_TO_MERGE
   end
 
-  # Deletes a thread nobody wants: its branch, its preview and its
-  # conversation. A merged thread is part of master's history and stays.
-  def delete!(thread)
+  # Deletes a thread nobody wants. Its branch moves to archive/ on GitHub, and
+  # the thread waits under Deleted for DesignThread::KEPT, to be restored; a
+  # thread nothing was ever committed on goes at once. A merged thread is part
+  # of master's history and stays.
+  def delete!(thread, user: nil)
     raise AlreadyMerged, "#{thread.branch} is already merged" if thread.merged?
 
     if thread.fresh?
       refuse_while_turns_run!(thread)
-    else
-      drop_branch!(thread)
+      return destroy_thread!(thread)
     end
-    DesignThread.transaction do
-      thread.destroy!
-      thread.chat_session&.destroy!
-    end
+    return destroy_thread!(thread) unless archive_branch!(thread)
+
+    thread.update!(status: "deleted", deleted_at: Time.current, task: nil, restore_task_id: thread.task_id)
+    note(thread, "Deleted by #{user&.name || 'someone'} · #{thread.branch} kept as #{ARCHIVE}#{thread.branch} " \
+                 "for #{DesignThread::KEPT.in_days.to_i} days")
+    thread
   rescue Designs::Repo::Busy
     raise Busy, BUSY
+  end
+
+  # Brings a deleted thread back while GitHub keeps its archive: the archive is
+  # its branch again, on GitHub in one atomic push and here, and the thread is
+  # open, with its task unless the task has another thread by now.
+  def restore!(thread, user: nil)
+    return thread unless thread.deleted?
+
+    repo = Designs::Repo.new(thread.project)
+    archive = "#{ARCHIVE}#{thread.branch}"
+    repo.synchronize(wait: false) do
+      repo.ensure_clone!
+      sha = repo.remote_head(archive) or raise Gone, GONE
+      repo.push!("#{sha}:refs/heads/#{thread.branch}", ":refs/heads/#{archive}", atomic: true)
+      repo.point!(thread.branch, to: sha)
+    end
+    task = thread.project.tasks.find_by(id: thread.restore_task_id)
+    thread.update!(status: "open", deleted_at: nil, restore_task_id: nil, task: (task unless task&.design_thread))
+    note(thread, "Restored by #{user&.name || 'someone'} from #{archive}")
+    publish(thread)
+    thread
+  rescue Designs::Repo::Busy
+    raise Busy, BUSY
+  end
+
+  # A deleted thread past DesignThread::KEPT goes for good: its archive on
+  # GitHub, then the thread with its conversation.
+  def purge!(thread)
+    repo = Designs::Repo.new(thread.project)
+    archive = "#{ARCHIVE}#{thread.branch}"
+    repo.synchronize do
+      repo.ensure_clone!
+      repo.push!(":refs/heads/#{archive}") if repo.remote_head(archive)
+    end
+    destroy_thread!(thread)
   end
 
   def short(sha) = sha.to_s.first(7)
@@ -297,19 +339,36 @@ module Designs::Threads
     raise Busy, BUSY if DesignTurn.active.where(chat_session_id: thread.chat_session_id).exists?
   end
 
-  # On GitHub first, so a branch GitHub keeps keeps the thread whole and
-  # deleting it again finishes the job; then here, and its preview.
-  def drop_branch!(thread)
+  # One atomic push, so GitHub never holds the work twice or not at all:
+  # archive/<branch> takes the branch's last commit, here or on GitHub, and
+  # the branch goes; a branch GitHub keeps keeps the thread whole. Then the
+  # branch goes here too, with its preview. False when the branch never had a
+  # commit, so there is nothing to keep.
+  def archive_branch!(thread)
     repo = Designs::Repo.new(thread.project)
-    repo.synchronize(wait: false) do
+    sha = repo.synchronize(wait: false) do
       refuse_while_turns_run!(thread)
       repo.ensure_clone!
-      repo.push!(":refs/heads/#{thread.branch}") if repo.remote_head(thread.branch)
+      head = repo.head(thread.branch) || repo.remote_head(thread.branch)
+      if head
+        refs = [ "+#{head}:refs/heads/#{ARCHIVE}#{thread.branch}" ]
+        refs << ":refs/heads/#{thread.branch}" if repo.remote_head(thread.branch)
+        repo.push!(*refs, atomic: true)
+      end
       path = repo.worktree_path(thread.branch)
       repo.remove_worktree!(path) if path.exist?
       repo.delete_branch!(thread.branch) if repo.head(thread.branch)
+      head
     end
     Designs::Publisher.new(thread.project, repo).unpublish!(thread.branch)
+    sha.present?
+  end
+
+  def destroy_thread!(thread)
+    DesignThread.transaction do
+      thread.destroy!
+      thread.chat_session&.destroy!
+    end
   end
 
   # A re-import a deploy cut off is picked up again (Designs::ResumeSetupsJob),

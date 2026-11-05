@@ -95,6 +95,26 @@
   <% if @rows.empty? %>
     <div class="p-2.5 text-[12px] clar-text-faint">No open threads.</div>
   <% end %>
+
+  <%# Deleted threads wait here, their branch in the archive, until they go
+      for good (DesignThread::KEPT). %>
+  <% if @deleted.any? %>
+    <details class="group/deleted mt-2" data-designs-deleted>
+      <summary class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg cursor-pointer list-none clar-row-hover text-[12px] font-semibold clar-text-muted [&::-webkit-details-marker]:hidden">
+        <span class="flex transition-transform group-open/deleted:rotate-90"><%= designs_icon(:next, 12) %></span>Deleted · <%= @deleted.size %>
+      </summary>
+      <% @deleted.each do |thread| %>
+        <div class="flex items-start gap-2.5 px-2.5 py-2">
+          <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-none bg-[var(--surface-2)] clar-text-faint"><%= designs_icon(:branch, 14) %></span>
+          <div class="flex-1 min-w-0">
+            <div class="text-[13px] font-semibold clar-text-muted leading-[1.35]"><%= thread.title %></div>
+            <div class="text-[11px] clar-text-faint mt-0.5">Deleted <%= designs_ago(thread.deleted_at) %> · <%= thread.days_left.zero? ? "last day" : "#{pluralize(thread.days_left, 'day')} left" %></div>
+          </div>
+          <%= button_to "Restore", restore_workshop_design_thread_path(thread), class: "clar-btn !py-1 !px-2 !text-[11.5px] flex-none", form: { class: "contents" } %>
+        </div>
+      <% end %>
+    </details>
+  <% end %>
 </div>
 
 <div class="p-3 border-t border-[color:var(--border)]">

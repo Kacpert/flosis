@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_05_230000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_06_002000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -356,6 +356,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_230000) do
     t.string "branch"
     t.bigint "chat_session_id"
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
     t.text "described_text"
     t.string "described_version"
     t.string "focus_context"
@@ -363,6 +364,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_230000) do
     t.datetime "merged_at"
     t.string "merged_sha"
     t.bigint "project_id", null: false
+    t.bigint "restore_task_id"
     t.string "status", default: "open", null: false
     t.bigint "task_id"
     t.string "title", null: false

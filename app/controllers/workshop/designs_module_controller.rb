@@ -20,10 +20,11 @@ class Workshop::DesignsModuleController < Workshop::BaseController
 
     @repo = Designs::Repo.new(@project)
     @publisher = Designs::Publisher.new(@project, @repo)
-    @thread = @project.design_threads.find_by(id: params[:thread]) if params[:thread].present?
+    @thread = @project.design_threads.live.find_by(id: params[:thread]) if params[:thread].present?
     return render(partial: "messages", locals: { thread: @thread }) if params[:frame] == "messages" && @thread
 
     @threads = @project.design_threads.open.includes(:task).order(updated_at: :desc)
+    @deleted = @project.design_threads.deleted.order(deleted_at: :desc)
     @merges = @project.design_merges.newest_first.includes(:user, :task)
     @tab = params[:tab].presence_in(TABS) || "canvas"
     load_imports if @tab == "imports"

@@ -40,6 +40,15 @@ class QueueConfigTest < ActiveSupport::TestCase
     end
   end
 
+  # A deleted design thread waits DesignThread::KEPT under Deleted; a nightly
+  # run takes the ones past it for good.
+  test "deleted design threads past their 20 days go every night in production" do
+    tasks = ActiveSupport::ConfigurationFile.parse(Rails.root.join("config/recurring.yml")).deep_symbolize_keys.fetch(:production)
+    purge = tasks.values.find { |task| task[:class] == "Designs::PurgeDeletedThreadsJob" }
+    assert purge, "no recurring task runs Designs::PurgeDeletedThreadsJob"
+    assert_equal "30 4 * * *", purge[:schedule]
+  end
+
   # A design turn runs for minutes. On the general worker it would hold one
   # of the threads every other job runs on.
   test "design turns run on a worker of their own and nowhere else" do

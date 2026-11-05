@@ -276,25 +276,92 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     end
   end
 
-  test "deleting a thread takes its branch, here and on GitHub, its preview and its conversation" do
+  test "deleting a thread moves its branch to archive/ on GitHub, drops it here with its preview, and keeps the thread" do
     with_threads_remote do |repo, remote|
       master = seed_master(repo)
       thread = thread_with_work(repo, "Stage colours on pipeline", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      work = repo.head(thread.branch)
       Designs::Threads.publish(thread)
       preview = Pathname(@preview_root).join(repo.project.reload.design_preview_token, thread.branch)
       assert preview.exist?
-      session = thread.chat_session
 
-      Designs::Threads.delete!(thread)
+      freeze_time do
+        Designs::Threads.delete!(thread, user: @user)
 
-      assert_nil remote_branch_sha(remote, thread.branch)
-      assert_nil repo.head(thread.branch)
-      assert_not repo.worktree_path(thread.branch).exist?
-      assert_not preview.exist?
-      assert_not DesignThread.exists?(thread.id)
-      assert_not ChatSession.exists?(session.id)
-      assert_not DesignTurn.exists?(chat_session_id: session.id)
-      assert_equal master, remote_branch_sha(remote, "master")
+        assert_nil remote_branch_sha(remote, thread.branch)
+        assert_equal work, remote_branch_sha(remote, "archive/#{thread.branch}")
+        assert_nil repo.head(thread.branch)
+        assert_not repo.worktree_path(thread.branch).exist?
+        assert_not preview.exist?
+        thread.reload
+        assert_equal [ "deleted", Time.current ], [ thread.status, thread.deleted_at ]
+        assert_equal 20, thread.days_left
+        assert ChatSession.exists?(thread.chat_session_id)
+        assert_includes system_lines(thread), "Deleted by #{@user.name} · #{thread.branch} kept as archive/#{thread.branch} for 20 days"
+        assert_equal master, remote_branch_sha(remote, "master")
+      end
+    end
+  end
+
+  test "a deleted thread comes back with its branch, its task and its preview" do
+    with_threads_remote do |repo, remote|
+      seed_master(repo)
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "SP-1051", external_type: "jira")
+      thread = Designs::Threads.start_from_task!(task, user: @user)
+      commit_files(repo, repo.worktree!(thread.branch, from: thread.base_sha), { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      repo.push!(thread.branch)
+      DesignTurn.update_all(status: "succeeded")
+      work = repo.head(thread.branch)
+      Designs::Threads.delete!(thread, user: @user)
+      assert_nil task.reload.design_thread
+
+      Designs::Threads.restore!(thread.reload, user: @user)
+
+      assert_equal work, remote_branch_sha(remote, thread.branch)
+      assert_nil remote_branch_sha(remote, "archive/#{thread.branch}")
+      assert_equal work, repo.head(thread.branch)
+      thread.reload
+      assert_equal [ "open", nil, task ], [ thread.status, thread.deleted_at, thread.task ]
+      assert Pathname(@preview_root).join(repo.project.reload.design_preview_token, thread.branch).exist?
+      assert_equal "Restored by #{@user.name} from archive/#{thread.branch}", system_lines(thread).last
+    end
+  end
+
+  test "a deleted thread whose task has another thread by now comes back without the task" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "SP-1051", external_type: "jira")
+      thread = Designs::Threads.start_from_task!(task, user: @user)
+      commit_files(repo, repo.worktree!(thread.branch, from: thread.base_sha), { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      repo.push!(thread.branch)
+      DesignTurn.update_all(status: "succeeded")
+      Designs::Threads.delete!(thread, user: @user)
+      newer = Designs::Threads.start_from_task!(task.reload, user: @user)
+
+      Designs::Threads.restore!(thread.reload, user: @user)
+
+      assert_nil thread.reload.task
+      assert_equal newer, task.reload.design_thread
+    end
+  end
+
+  test "a thread deleted 20 days ago goes for good: its archive branch and its conversation" do
+    with_threads_remote do |repo, remote|
+      seed_master(repo)
+      old = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      recent = thread_with_work(repo, "Bulk move", { "designs/admin/bulk.html" => "<title>Bulk</title>" })
+      travel_to(21.days.ago) { Designs::Threads.delete!(old, user: @user) }
+      travel_to(19.days.ago) { Designs::Threads.delete!(recent, user: @user) }
+
+      Designs::PurgeDeletedThreadsJob.perform_now
+
+      assert_nil remote_branch_sha(remote, "archive/#{old.branch}")
+      assert_not DesignThread.exists?(old.id)
+      assert_not ChatSession.exists?(old.chat_session_id)
+      assert remote_branch_sha(remote, "archive/#{recent.branch}")
+      assert DesignThread.exists?(recent.id)
     end
   end
 
@@ -322,7 +389,7 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     end
   end
 
-  test "a branch GitHub refuses to delete keeps the thread whole" do
+  test "a branch GitHub refuses to move keeps the thread whole" do
     with_threads_remote do |repo, remote|
       seed_master(repo)
       thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
@@ -330,9 +397,11 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
       File.write(hook, "#!/bin/sh\nexit 1\n")
       File.chmod(0o755, hook)
 
-      assert_raises(GitRunner::Error) { Designs::Threads.delete!(thread) }
+      assert_raises(GitRunner::Error) { Designs::Threads.delete!(thread, user: @user) }
 
-      assert DesignThread.exists?(thread.id)
+      assert thread.reload.open?
+      assert remote_branch_sha(remote, thread.branch)
+      assert_nil remote_branch_sha(remote, "archive/#{thread.branch}")
       assert repo.head(thread.branch)
       assert repo.worktree_path(thread.branch).exist?
     end
