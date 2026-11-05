@@ -139,8 +139,8 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       assert_includes response.body, "Token changes go through threads like any other design change."
 
       get workshop_designs_overview_path(tab: "components")
-      assert_includes response.body, "components/button/button.html"
-      assert_includes response.body, "Used in 0 of 2 context views"
+      assert_not_includes response.body, "components/button/button.html"
+      assert_includes response.body, "None of master's screens uses a component yet."
 
       Designs::Threads.merge!(thread_with_work(repo), user: users(:one))
       get workshop_designs_overview_path(tab: "history")
@@ -211,6 +211,68 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       task.enter_pipeline!(author: users(:one), stage: "briefing")
       get workshop_designs_overview_path(back: task.id)
       assert_select "a[href=?]", workshop_idea_path(task), text: /Back to SP-1051 · #{Regexp.escape(task.name)}/
+      assert_select "a[aria-label=Back]", count: 0
+    end
+  end
+
+  test "Back beside Designs leads to the page before Designs, however far the person went inside" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      get workshop_designs_overview_path, headers: { "Referer" => "http://www.example.com/workshop/reporting?tab=bugs" }
+      assert_select "a[href=?][aria-label=Back]", "/workshop/reporting?tab=bugs"
+
+      get workshop_designs_overview_path(thread: thread.id), headers: { "Referer" => "http://www.example.com/workshop/designs" }
+      get workshop_designs_overview_path(tab: "history"), headers: { "Referer" => "http://www.example.com/workshop/designs?thread=#{thread.id}" }
+      assert_select "a[href=?][aria-label=Back]", "/workshop/reporting?tab=bugs"
+
+      get workshop_designs_overview_path, headers: { "Referer" => "https://elsewhere.example.org/workshop/pipeline" }
+      assert_select "a[href=?][aria-label=Back]", "/workshop/reporting?tab=bugs"
+    end
+  end
+
+  test "Back leads to the Workshop when nobody knows where the person came from" do
+    with_designs do
+      get workshop_designs_overview_path
+      assert_select "a[href=?][aria-label=Back]", workshop_path
+    end
+  end
+
+  test "every badge on the Designs page has the badge's own size, not its row's" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      pages = [ workshop_designs_overview_path, workshop_designs_overview_path(thread: thread.id) ]
+      pages.each do |page|
+        get page
+        badges = css_select("[class*='clar-badge-']")
+        assert badges.any?, page
+        badges.each { |badge| assert_includes badge["class"].split, "clar-badge", "#{page}: #{badge.text.squish}" }
+      end
+
+      Designs::Threads.merge!(thread, user: users(:one))
+      get workshop_designs_overview_path(thread: thread.id)
+      css_select("[class*='clar-badge-']").each { |badge| assert_includes badge["class"].split, "clar-badge", badge.text.squish }
+    end
+  end
+
+  test "Components shows only what master's screens use, straight or through another component" do
+    with_design_remote(@project) do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo, { "designs/candidate/apply.html" => SCREEN.("Application form", '<x-include src="components/form-row/form-row.html"></x-include>'),
+                            "designs/recruiter/pipeline.html" => SCREEN.("Pipeline", '<x-include src="components/button/button.html" label="Move"></x-include>'),
+                            "components/form-row/form-row.html" => '<div><x-include src="components/button/button.html" label="Save"></x-include></div>',
+                            "components/button/button.html" => "<button>{{label}}</button>",
+                            "components/old-banner/old-banner.html" => "<div>Nobody shows this</div>" })
+        @project.reload.update!(design_repo_status: "ready")
+        Designs::Publisher.new(@project, repo).publish!("master", "master")
+
+        get workshop_designs_overview_path(tab: "components")
+        cards = css_select("[data-designs-component]").map { |card| card.text.squish }
+        assert_equal 2, cards.size
+        assert cards.any? { |card| card.include?("components/button/button.html") && card.include?("Used in 2 of 2 context views") }
+        assert cards.any? { |card| card.include?("components/form-row/form-row.html") && card.include?("Used in 1 of 2 context views") }
+        assert_not_includes response.body, "old-banner"
+        assert_select "a[href=?] span", workshop_designs_overview_path(tab: "components"), text: "2"
+      end
     end
   end
 

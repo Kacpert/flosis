@@ -51,9 +51,9 @@
       <span class="flex gap-[5px]"><% 3.times do %><span class="w-[9px] h-[9px] rounded-full bg-[var(--border)]"></span><% end %></span>
       <span class="clar-mono text-[11.5px] clar-text-muted flex-1 min-w-0 truncate" data-designs-canvas-target="path"><%= @current ? @current[:path] : "designs/" %></span>
       <% if @mode == "master" || !live %>
-        <span class="clar-badge-success inline-flex items-center gap-1"><%= designs_icon(:lock, 11) %>master</span>
+        <span class="clar-badge clar-badge-success !py-0.5 !px-2"><%= designs_icon(:lock, 11) %>master</span>
       <% else %>
-        <span class="clar-badge-ai inline-flex items-center gap-1 max-w-[50%] truncate"><%= designs_icon(:branch, 11) %><%= @thread.branch %></span>
+        <span class="clar-badge clar-badge-ai !py-0.5 !px-2 max-w-[50%] truncate"><%= designs_icon(:branch, 11) %><%= @thread.branch %></span>
       <% end %>
     </div>
     <% if @frame_src %>

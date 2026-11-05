@@ -7,6 +7,12 @@
     <% end %>
   <% end %>
   <div class="flex items-center gap-2">
+    <% unless @back %>
+      <%= link_to @way_back, class: "w-6 h-6 rounded-[7px] border border-[color:var(--border)] bg-[var(--surface)] flex items-center justify-center clar-text-text flex-none no-underline",
+            title: "Back to where you were before Designs", "aria-label": "Back" do %>
+        <%= designs_icon(:back, 14) %>
+      <% end %>
+    <% end %>
     <h1 class="m-0 text-[17px] font-bold tracking-[-.3px] clar-text-text flex-1 designs-cut">Designs</h1>
     <button type="button" class="clar-btn !p-0 w-7 h-7 justify-center" title="Show menu" data-action="designs-immersive#peekNav"><%= designs_icon(:panel, 15) %></button>
     <button type="button" class="clar-btn !p-0 w-[30px] h-[30px] justify-center" title="Design settings"
@@ -59,7 +65,7 @@
   <%= link_to workshop_designs_overview_path, class: "flex items-start gap-2.5 w-full px-2.5 py-2 rounded-lg no-underline clar-row-hover #{'bg-[var(--bg)] border border-[color:var(--border)]' if @thread.nil? && @tab == 'canvas'}" do %>
     <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-none" style="background: var(--success-soft); color: var(--success);"><%= designs_icon(:lock, 14) %></span>
     <div class="flex-1 min-w-0">
-      <div class="flex items-center gap-1.5"><span class="clar-mono text-[13px] font-semibold clar-text-text">master</span><span class="clar-badge-success designs-cut">Read-only</span></div>
+      <div class="flex items-center gap-1.5"><span class="clar-mono text-[13px] font-semibold clar-text-text">master</span><span class="clar-badge clar-badge-success !py-0.5 !px-1.5 designs-cut">Read-only</span></div>
       <div class="text-[11.5px] clar-text-faint mt-0.5 designs-cut"><%= last ? "Last merge #{last.short_sha} · #{designs_ago(last.merged_at)}" : "No merges yet" %></div>
     </div>
   <% end %>

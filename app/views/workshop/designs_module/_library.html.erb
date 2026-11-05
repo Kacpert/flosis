@@ -37,14 +37,14 @@
       <p class="mt-1.5 mb-5 text-[13px] clar-text-muted">On master. Built in <%= @stack[:framework] %> with <%= @stack[:ui] %> classes, matched against <%= @app_repos.first || "the app" %>.</p>
       <div class="grid gap-3.5" style="grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));">
         <% @components.each do |component| %>
-          <div class="clar-card p-0 overflow-hidden">
+          <div class="clar-card p-0 overflow-hidden" data-designs-component>
             <div class="h-[124px] bg-[#f7f7f7] border-b border-[color:var(--border)] overflow-hidden">
               <% if component[:preview] %><iframe src="<%= component[:preview] %>" title="<%= component[:name] %>" sandbox="allow-scripts" class="border-0 pointer-events-none origin-top-left" style="width: 500px; height: 248px; transform: scale(.5);"></iframe><% end %>
             </div>
             <div class="px-3.5 py-3"><div class="text-[13.5px] font-bold clar-text-text"><%= component[:name] %></div><div class="clar-mono text-[11px] clar-text-faint mt-0.5"><%= component[:path] %></div><div class="text-[12px] clar-text-muted mt-1.5">Used in <%= component[:used] %> of <%= @screen_count %> context views</div></div>
           </div>
         <% end %>
-        <% if @components.empty? %><p class="text-[13px] clar-text-faint">No components on master yet.</p><% end %>
+        <% if @components.empty? %><p class="text-[13px] clar-text-faint">None of master's screens uses a component yet.</p><% end %>
       </div>
     <% when "history" %>
       <h2 class="m-0 text-[21px] font-bold tracking-[-.4px] clar-text-text">Merge history</h2>
