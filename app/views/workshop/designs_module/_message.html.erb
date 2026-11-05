@@ -37,7 +37,7 @@
     <% if chips.any? %>
       <div class="flex flex-wrap gap-1.5 mt-2">
         <% chips.each do |screen, context, mark| %>
-          <%= link_to workshop_designs_overview_path(thread: @thread&.id, ctx: context, screen: screen), class: "inline-flex items-center gap-1.5 text-[11.5px] font-semibold clar-text-text bg-[var(--surface-2)] border border-[color:var(--border)] rounded-[7px] px-2 py-1 no-underline", data: { turbo_frame: "_top" } do %>
+          <%= link_to workshop_designs_overview_path(thread: @thread&.id, ctx: context, screen: screen), class: "inline-flex items-center gap-1.5 max-w-full text-[11.5px] font-semibold clar-text-text bg-[var(--surface-2)] border border-[color:var(--border)] rounded-[7px] px-2 py-1 no-underline", data: { turbo_frame: "_top" } do %>
             <span class="clar-mono text-[10.5px] font-bold <%= mark == '+' ? 'clar-text-success' : 'clar-text-ai' %>"><%= mark %></span><%= designs_context_name(@contexts || [], context) %> › <%= designs_screen_name(@screens || [], context, screen) %>
           <% end %>
         <% end %>

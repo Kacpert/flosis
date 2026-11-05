@@ -4,7 +4,7 @@
 <% session = thread.chat_session %>
 <% active = session && DesignTurn.active.where(chat_session: session).exists? %>
 <%= turbo_frame_tag "design_thread_messages", class: "flex-1 min-h-0 flex flex-col" do %>
-  <div class="flex-1 overflow-y-auto px-3.5 pt-4 pb-2.5 flex flex-col gap-3.5"
+  <div class="flex-1 overflow-y-auto px-3.5 pt-4 pb-2.5 flex flex-col gap-3.5 [overflow-wrap:anywhere]"
        data-controller="designs-poll"
        data-designs-poll-active-value="<%= active %>"
        data-designs-poll-commit-value="<%= session && DesignTurn.where(chat_session: session).where.not(commit_sha: nil).maximum(:id) %>"

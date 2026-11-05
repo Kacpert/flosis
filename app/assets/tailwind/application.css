@@ -2390,3 +2390,6 @@ span.flatpickr-weekday {
 .designs-list-resizer:hover::after, .designs-resizing .designs-list-resizer::after { background: var(--primary); }
 .designs-resizing, .designs-resizing * { cursor: col-resize !important; user-select: none; }
 .designs-resizing iframe { pointer-events: none; }
+/* Narrower than the standard column (designs-narrow): each line marked
+   designs-cut stays one line, its text ending in an ellipsis. */
+.designs-narrow .designs-cut { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; flex-wrap: nowrap; }
