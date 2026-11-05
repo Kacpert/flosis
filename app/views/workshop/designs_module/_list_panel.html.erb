@@ -66,23 +66,31 @@
 
   <% @rows.each do |row| %>
     <% thread = row[:thread] %>
-    <%= link_to workshop_designs_overview_path(thread: thread.id), class: "flex items-start gap-2.5 w-full px-2.5 py-2 mt-0.5 rounded-lg no-underline clar-row-hover", data: { filter_text: "#{thread.title} #{thread.branch} #{thread.task&.external_reference}" } do %>
-      <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-none" style="background: var(--ai-soft); color: var(--ai);"><%= designs_icon(:branch, 14) %></span>
-      <div class="flex-1 min-w-0">
-        <div class="text-[13px] font-semibold clar-text-text leading-[1.35]"><%= thread.title %></div>
-        <div class="flex items-center gap-1.5 flex-wrap mt-1">
-          <% if thread.task %>
-            <span class="clar-mono text-[10.5px] font-semibold clar-text-primary bg-[var(--primary-soft)] px-1.5 rounded"><%= Designs::ThreadNames.key(thread.task) %></span>
-          <% else %>
-            <span class="text-[9.5px] font-bold tracking-[.3px] clar-text-muted bg-[var(--surface-2)] border border-[color:var(--border)] px-1.5 rounded">NO TASK</span>
-          <% end %>
-          <% if row[:task_changed] %><span class="text-[10.5px] font-bold clar-text-warn">Task changed</span><% end %>
-          <% if row[:master_changed] %><span class="text-[10.5px] font-bold clar-text-warn">Master changed</span><% end %>
-          <span class="text-[11px] clar-text-faint"><%= designs_ago(thread.updated_at) %></span>
+    <%# Delete takes the chevron's place while the row is hovered. %>
+    <div class="group relative mt-0.5">
+      <%= link_to workshop_designs_overview_path(thread: thread.id), class: "flex items-start gap-2.5 w-full px-2.5 py-2 rounded-lg no-underline clar-row-hover", data: { filter_text: "#{thread.title} #{thread.branch} #{thread.task&.external_reference}" } do %>
+        <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-none" style="background: var(--ai-soft); color: var(--ai);"><%= designs_icon(:branch, 14) %></span>
+        <div class="flex-1 min-w-0">
+          <div class="text-[13px] font-semibold clar-text-text leading-[1.35]"><%= thread.title %></div>
+          <div class="flex items-center gap-1.5 flex-wrap mt-1">
+            <% if thread.task %>
+              <span class="clar-mono text-[10.5px] font-semibold clar-text-primary bg-[var(--primary-soft)] px-1.5 rounded"><%= Designs::ThreadNames.key(thread.task) %></span>
+            <% else %>
+              <span class="text-[9.5px] font-bold tracking-[.3px] clar-text-muted bg-[var(--surface-2)] border border-[color:var(--border)] px-1.5 rounded">NO TASK</span>
+            <% end %>
+            <% if row[:task_changed] %><span class="text-[10.5px] font-bold clar-text-warn">Task changed</span><% end %>
+            <% if row[:master_changed] %><span class="text-[10.5px] font-bold clar-text-warn">Master changed</span><% end %>
+            <span class="text-[11px] clar-text-faint"><%= designs_ago(thread.updated_at) %></span>
+          </div>
         </div>
-      </div>
-      <span class="clar-text-faint flex mt-1.5"><%= designs_icon(:next, 14) %></span>
-    <% end %>
+        <span class="clar-text-faint flex mt-1.5 group-hover:invisible group-focus-within:invisible"><%= designs_icon(:next, 14) %></span>
+      <% end %>
+      <%= button_to workshop_design_thread_path(thread), method: :delete, title: "Delete thread", "aria-label": "Delete #{thread.title}",
+            class: "clar-btn !p-0 w-[26px] h-[26px] justify-center absolute right-1 top-2 clar-text-muted hover:text-[var(--danger)] opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+            form: { class: "contents", data: { turbo_confirm: designs_delete_confirm(thread) } } do %>
+        <%= designs_icon(:trash, 13) %>
+      <% end %>
+    </div>
   <% end %>
   <% if @rows.empty? %>
     <div class="p-2.5 text-[12px] clar-text-faint">No open threads.</div>

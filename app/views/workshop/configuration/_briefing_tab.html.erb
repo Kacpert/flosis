@@ -1,12 +1,45 @@
-<%# Briefing tab — the two admin-maintained inputs layered onto the main
-    briefing (Product Owner) prompt: human-written personas/perspective, and the
-    auto-scanned plain-language feature list. Both are per-project. %>
+<%# Create Tasks tab (key "briefing", kept so old links still land here). Two
+    parts, both per-project:
+      * STEPS — the Briefing step switch. Off: new tasks start straight in
+        Details Gathering; tasks that already had a briefing keep it
+        (Task#workshop_steps).
+      * AI CONTEXT — human-written personas/perspective and the auto-scanned
+        plain-language feature list the chats read.
+    Separate auto-save forms: the controller saves only the keys a form sent. %>
+
+<h2 class="clar-section-label mb-3">STEPS</h2>
+
+<%= form_with url: workshop_configuration_path, method: :patch, class: "mb-7",
+      data: { controller: "auto-save" } do %>
+  <%= hidden_field_tag :tab, "briefing" %>
+
+  <div class="clar-card p-4.5 flex items-start justify-between gap-4" data-controller="clar-toggle">
+    <div>
+      <div class="font-bold text-[14px] clar-text-text mb-1">Briefing step</div>
+      <div class="text-[12.5px] clar-text-muted">A Product Owner AI shapes the why before Details Gathering. Off: new tasks start straight in Details Gathering. Tasks that already have a briefing keep it, history included.</div>
+    </div>
+    <%= hidden_field_tag "project[briefing_enabled]", "0", id: nil %>
+    <%= check_box_tag "project[briefing_enabled]", "1", @briefing_enabled, class: "sr-only",
+          data: { clar_toggle_target: "input" } %>
+    <button type="button" class="clar-toggle flex-none mt-0.5" role="switch" aria-label="Briefing step"
+            aria-checked="<%= @briefing_enabled ? 'true' : 'false' %>"
+            data-clar-toggle-target="button" data-action="clar-toggle#toggle auto-save#save">
+      <span class="knob"></span>
+    </button>
+  </div>
+
+  <noscript>
+    <button type="submit" class="clar-btn clar-btn-primary mt-3">Save</button>
+  </noscript>
+<% end %>
+
+<h2 class="clar-section-label mb-3">AI CONTEXT</h2>
 
 <div class="clar-card p-4.5 mb-4.5">
   <div class="text-[12.5px] clar-text-muted">
-    These two inputs are added on top of the main briefing prompt, so the Product
-    Owner chat understands who the app is for and what it already does. They're
-    per-project and used the next time a briefing chat starts.
+    Who the app is for and what it already does. The Briefing chat reads both;
+    Details Gathering reads them too when a task has no brief. Per-project, used
+    the next time a chat starts.
   </div>
 </div>
 
@@ -16,14 +49,14 @@
 
   <div class="clar-card p-4.5">
     <div class="font-bold text-[14px] clar-text-text mb-1">Who uses the app &amp; our perspective</div>
-    <div class="text-[12.5px] clar-text-muted mb-3">Human context for the briefing chat: the personas that use the app, your product perspective, priorities. Plain language — no code.</div>
+    <div class="text-[12.5px] clar-text-muted mb-3">Human context for the AI: the personas that use the app, your product perspective, priorities. Plain language — no code.</div>
     <textarea name="project[briefing_personas]" rows="6" class="clar-textarea !text-[13px] !leading-[1.6] resize-y"
               placeholder="e.g. Recruiters posting jobs (want speed, hate friction); Admins configuring the account; Candidates applying on mobile. Our perspective: we optimise for the recruiter's time…"
               data-action="change->auto-save#save"><%= @briefing_personas %></textarea>
   </div>
 
   <noscript>
-    <button type="submit" class="clar-btn clar-btn-primary">Save briefing settings</button>
+    <button type="submit" class="clar-btn clar-btn-primary">Save</button>
   </noscript>
 <% end %>
 
@@ -33,7 +66,7 @@
   <div class="flex items-start justify-between gap-3 mb-1">
     <div>
       <div class="font-bold text-[14px] clar-text-text mb-1">What the app already does</div>
-      <div class="text-[12.5px] clar-text-muted">Auto-maintained plain-language feature list, so the briefing AI knows what already exists. Refreshed daily from the latest master, or on demand.</div>
+      <div class="text-[12.5px] clar-text-muted">Auto-maintained plain-language feature list, so the AI knows what already exists. Refreshed daily from the latest master, or on demand.</div>
     </div>
     <%= button_to workshop_refresh_features_configuration_path, method: :post, class: "clar-btn !text-[12px] !py-1.5 !px-3 flex-none whitespace-nowrap" do %>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="inline-block align-[-2px] mr-1"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>

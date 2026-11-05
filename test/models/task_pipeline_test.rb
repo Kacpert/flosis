@@ -32,4 +32,38 @@ class TaskPipelineTest < ActiveSupport::TestCase
     t.name = "A very very very long idea name that goes on and on and on"
     assert_equal "feat/a-very-very-very-long-idea-name", t.suggested_branch
   end
+
+  # Create Tasks → Setup can switch Briefing off for a project. New tasks then
+  # walk Details → Ready; a task that already had a briefing keeps all three.
+  test "a task walks briefing, details and ready while the project has Briefing on" do
+    t = tasks(:local_task)
+    t.update!(in_pipeline: true, workshop_stage: "details")
+
+    assert_equal %w[briefing details ready], t.workshop_steps
+  end
+
+  test "with Briefing off, a task that never had a briefing walks details and ready" do
+    t = tasks(:local_task)
+    t.project.update!(briefing_enabled: false)
+    t.update!(in_pipeline: true, workshop_stage: "details")
+
+    assert_equal %w[details ready], t.workshop_steps
+  end
+
+  test "with Briefing off, a task still sitting in Briefing keeps the step" do
+    t = tasks(:local_task)
+    t.project.update!(briefing_enabled: false)
+    t.update!(in_pipeline: true, workshop_stage: "briefing")
+
+    assert_equal %w[briefing details ready], t.workshop_steps
+  end
+
+  test "with Briefing off, a task that holds a brief keeps the step and its history" do
+    t = tasks(:local_task)
+    t.project.update!(briefing_enabled: false)
+    t.update!(in_pipeline: true, workshop_stage: "ready")
+    t.briefs.create!(workspace: t.project.workspace, version: 1, origin: "ai", status: "briefed", content: "b")
+
+    assert_equal %w[briefing details ready], t.workshop_steps
+  end
 end

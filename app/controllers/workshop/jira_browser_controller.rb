@@ -18,8 +18,13 @@ class Workshop::JiraBrowserController < Workshop::BaseController
     @boards = current_workshop_project ? current_workshop_project.jira_boards.order(:name) : JiraBoard.none
     @selected_board_id = params[:board].presence || @boards.first&.id&.to_s || BACKLOG_BOARD_ID
     # Which pipeline stage an imported ticket lands on. Carried across board
-    # tabs (each is a turbo-frame reload) so the START AT choice sticks.
-    @start_stage = params[:start_stage].to_s.presence_in(%w[briefing details]) || "briefing"
+    # tabs (each is a turbo-frame reload) so the START AT choice sticks. With
+    # the Briefing step switched off there is no choice: Details.
+    @start_stage = if current_workshop_project && !current_workshop_project.briefing_enabled?
+      "details"
+    else
+      params[:start_stage].to_s.presence_in(%w[briefing details]) || "briefing"
+    end
 
     if backlog_selected?
       @backlog_tasks = filtered_backlog_tasks

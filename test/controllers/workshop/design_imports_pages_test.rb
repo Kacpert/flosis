@@ -255,6 +255,27 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "a stopped re-import whose thread was deleted is never retried, and says why" do
+    with_designs do
+      first_import([ [ "Bug Reporting", "done" ] ])
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      stopped = @project.design_setups.create!(kind: "reimport", status: "failed", phase: "feature", step: 4, started_by: users(:one),
+                                               error: "boom", design_thread: thread)
+      Designs::Threads.delete!(thread)
+
+      get workshop_designs_overview_path(tab: "imports", import: stopped.id)
+      assert_includes response.body, "boom"
+      assert_includes response.body, DesignSetup::THREAD_DELETED
+      assert_select "form[action=?]", retry_workshop_design_setup_run_path(import: stopped.id), count: 0
+
+      post retry_workshop_design_setup_run_path, params: { import: stopped.id }
+      assert_equal "failed", stopped.reload.status
+      assert_no_enqueued_jobs only: Designs::SetupRunJob
+      assert_redirected_to workshop_designs_overview_path(tab: "imports", import: stopped.id)
+      assert_equal DesignSetup::THREAD_DELETED, flash[:alert]
+    end
+  end
+
   test "once master has the first import its page is in Designs" do
     with_designs do
       import = first_import([ [ "Bug Reporting", "done" ] ])

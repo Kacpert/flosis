@@ -23,6 +23,7 @@ class DesignSetup < ApplicationRecord
   PHASES = %w[map design_system feature resync].freeze
   STATUSES = %w[active approved failed].freeze
   KINDS = %w[first reimport resync].freeze
+  THREAD_DELETED = "Its thread was deleted, so there is nothing to retry. Start a new import instead.".freeze
   STEPS = %i[read_repos sign_in map_features design_system features commit].freeze
   STEP_MINUTES = [ 10, 2, 20, 30, nil, 3 ].freeze
   FEATURES_STEP = STEPS.index(:features)
@@ -179,6 +180,9 @@ class DesignSetup < ApplicationRecord
   def failed? = status == "failed"
   def done? = status == "approved"
   def running? = status == "active" && finished_at.nil?
+  # A re-import works on a thread of its own: once someone deleted that
+  # thread, there is nothing left to retry it on.
+  def thread_deleted? = reimport? && design_thread_id.nil?
   # Waiting for Claude's session limit to reset (Designs imports).
   def paused? = paused_until&.future? || false
   KINDS.each { |name| define_method("#{name}?") { kind == name } }

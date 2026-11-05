@@ -66,6 +66,7 @@ class ChatSessionsController < ApplicationController
     attachments_section = build_attachments_section(@task)
     comments_section = build_comments_section(@task)
     refine_current_section = build_refine_current_section
+    unbriefed = unbriefed_pipeline_task?
 
     <<~PROMPT
       # Role
@@ -76,28 +77,16 @@ class ChatSessionsController < ApplicationController
 
       **#{ref}: #{title}**
 
-      The briefing stage is ALREADY DONE. Below is the agreed BRIEF — the product
-      owner and a Product Owner AI already worked out the problem, who it's for,
-      what we build, scope, and acceptance. Treat it as DECIDED context, not a
-      blank starting point:
+      #{unbriefed ? unbriefed_framing : briefed_framing}
 
       ```
       #{desc}
       ```
-      #{comments_section}#{attachments_section}#{refine_current_section}
+      #{unbriefed ? project_context_section : ""}#{comments_section}#{attachments_section}#{refine_current_section}
 
       # How you must operate
 
-      ## Step 0 — Read the brief; do NOT re-ask what it already answers
-
-      The brief above already settles the WHY, WHO, WHAT, scope, and acceptance.
-      Do NOT re-litigate those — asking "what's the main reason for this?" when the
-      brief states it is exactly the kind of question that makes this feel like a
-      waste of the user's time. Your job now is to fill the IMPLEMENTATION gaps the
-      brief leaves open (edge cases, exact behaviour, data/permission specifics,
-      ordering, error handling) so a developer can build it — not to re-confirm the
-      premise. If the brief truly leaves the goal ambiguous, you may confirm it in
-      ONE sentence — but never open with a question the brief has already answered.
+      #{unbriefed ? unbriefed_step_zero : briefed_step_zero}
 
       #{chat_codebase? ? investigation_step : no_code_step}
 
@@ -173,6 +162,74 @@ class ChatSessionsController < ApplicationController
 
       Do your upfront investigation silently, then post your first message: a brief 1–2 sentence summary of what you found (mentioning concrete files where useful) followed by your first clarifying question. No multi-question lists.
     PROMPT
+  end
+
+  # Create Tasks → Setup can switch the Briefing step off, which makes this
+  # chat the first AI pass over a pipeline task. With no brief, nobody has
+  # shaped the why yet: the prompt says so and carries the project context the
+  # briefing chat would have read. Tasks on the Jira Tasks board (not in the
+  # pipeline) and briefed tasks keep the briefed framing.
+  def unbriefed_pipeline_task?
+    @task.in_pipeline? && !@task.briefs.exists?
+  end
+
+  def briefed_framing
+    <<~TEXT.chomp
+      The briefing stage is ALREADY DONE. Below is the agreed BRIEF — the product
+      owner and a Product Owner AI already worked out the problem, who it's for,
+      what we build, scope, and acceptance. Treat it as DECIDED context, not a
+      blank starting point:
+    TEXT
+  end
+
+  def unbriefed_framing
+    <<~TEXT.chomp
+      There was no briefing step for this ticket — this chat is the first pass
+      over it. Below is the description as the team wrote it; it may be short or
+      rough:
+    TEXT
+  end
+
+  def briefed_step_zero
+    <<~TEXT.chomp
+      ## Step 0 — Read the brief; do NOT re-ask what it already answers
+
+      The brief above already settles the WHY, WHO, WHAT, scope, and acceptance.
+      Do NOT re-litigate those — asking "what's the main reason for this?" when the
+      brief states it is exactly the kind of question that makes this feel like a
+      waste of the user's time. Your job now is to fill the IMPLEMENTATION gaps the
+      brief leaves open (edge cases, exact behaviour, data/permission specifics,
+      ordering, error handling) so a developer can build it — not to re-confirm the
+      premise. If the brief truly leaves the goal ambiguous, you may confirm it in
+      ONE sentence — but never open with a question the brief has already answered.
+    TEXT
+  end
+
+  def unbriefed_step_zero
+    <<~TEXT.chomp
+      ## Step 0 — Make sure the goal is clear, then move on
+
+      Nobody has shaped the WHY yet. If the description already says who this is
+      for and what problem it solves, do NOT re-ask it. If it doesn't, settle that
+      first in one or two short questions — then fill the IMPLEMENTATION gaps (edge
+      cases, exact behaviour, data/permission specifics, ordering, error handling)
+      so a developer can build it. Use the project context above to know who the
+      users are and what the app already does.
+    TEXT
+  end
+
+  # The same two team-maintained inputs the briefing chat reads
+  # (BriefChatSessionsController#build_initial_prompt). Empty when neither is set.
+  def project_context_section
+    project = @task.project
+    sections = []
+    if (personas = project.briefing_personas.presence)
+      sections << "# Who uses this app & our perspective (set by the team)\n\n#{personas}"
+    end
+    if (features = project.features_summary.presence)
+      sections << "# What the app already does (auto-maintained; read this so you don't propose things that already exist)\n\n#{features}"
+    end
+    sections.empty? ? "" : "\n#{sections.join("\n\n")}\n"
   end
 
   # "Reset chat" (document-panel footer, no confirmation modal) restarts the

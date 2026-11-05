@@ -1,11 +1,14 @@
 <%
-  steps = [["briefing", "Briefing"], ["details", "Details"], ["ready", "Ready"]]
+  # Only the steps this task walks — with Briefing switched off in Create Tasks
+  # → Setup, a task that never had a briefing shows Details and Ready alone.
+  labels = { "briefing" => "Briefing", "details" => "Details", "ready" => "Ready" }
+  steps = idea.workshop_steps.map { |key| [key, labels.fetch(key)] }
   current_idx = steps.index { |key, _| key == stage } || 0
   # A step is reachable if the task has actually progressed to it (or past it),
   # regardless of which stage is currently being VIEWED. Otherwise, viewing an
   # earlier step made later — already-reached — steps un-clickable, so you
   # couldn't jump forward again (e.g. Briefing → back → Details was dead).
-  furthest_stage = idea.stage_new? ? "briefing" : idea.workshop_stage
+  furthest_stage = idea.stage_new? ? steps.first.first : idea.workshop_stage
   furthest_idx = steps.index { |key, _| key == furthest_stage } || 0
 %>
 <div class="flex items-center gap-1">

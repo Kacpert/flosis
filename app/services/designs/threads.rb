@@ -206,6 +206,24 @@ module Designs::Threads
     raise NothingToMerge, NOTHING_TO_MERGE
   end
 
+  # Deletes a thread nobody wants: its branch, its preview and its
+  # conversation. A merged thread is part of master's history and stays.
+  def delete!(thread)
+    raise AlreadyMerged, "#{thread.branch} is already merged" if thread.merged?
+
+    if thread.fresh?
+      refuse_while_turns_run!(thread)
+    else
+      drop_branch!(thread)
+    end
+    DesignThread.transaction do
+      thread.destroy!
+      thread.chat_session&.destroy!
+    end
+  rescue Designs::Repo::Busy
+    raise Busy, BUSY
+  end
+
   def short(sha) = sha.to_s.first(7)
 
   # A task's description version as people know it: its Details draft's,
@@ -277,6 +295,21 @@ module Designs::Threads
     DesignTurn.fail_stale!
     raise Busy, IMPORTING if importing?(thread)
     raise Busy, BUSY if DesignTurn.active.where(chat_session_id: thread.chat_session_id).exists?
+  end
+
+  # On GitHub first, so a branch GitHub keeps keeps the thread whole and
+  # deleting it again finishes the job; then here, and its preview.
+  def drop_branch!(thread)
+    repo = Designs::Repo.new(thread.project)
+    repo.synchronize(wait: false) do
+      refuse_while_turns_run!(thread)
+      repo.ensure_clone!
+      repo.push!(":refs/heads/#{thread.branch}") if repo.remote_head(thread.branch)
+      path = repo.worktree_path(thread.branch)
+      repo.remove_worktree!(path) if path.exist?
+      repo.delete_branch!(thread.branch) if repo.head(thread.branch)
+    end
+    Designs::Publisher.new(thread.project, repo).unpublish!(thread.branch)
   end
 
   # A re-import a deploy cut off is picked up again (Designs::ResumeSetupsJob),

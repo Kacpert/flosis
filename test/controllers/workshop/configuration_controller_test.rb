@@ -257,7 +257,7 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
 
     get workshop_configuration_path
     assert_response :success
-    assert_select ".clar-tab.clar-tab-active", /Briefing/
+    assert_select ".clar-tab.clar-tab-active", /Create Tasks/
     # Users (and Integrations/AI) are SHOWN but locked — visible with a reason
     # beats silently missing. It must not be a link.
     assert_select "a.clar-tab", text: /Users/, count: 0
@@ -352,7 +352,7 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to workshop_configuration_path(tab: "briefing")
     assert_equal "Recruiters posting jobs; Admins configuring.", @project.reload.briefing_personas
-    assert_match(/Briefing settings saved/, flash[:clar_toast])
+    assert_match(/Create Tasks settings saved/, flash[:clar_toast])
   end
 
   # The personas were wiped by a request that never mentioned them, and the
@@ -364,7 +364,7 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :bad_request
     assert_equal "Recruiters and admins.", @project.reload.briefing_personas
-    refute_match(/Briefing settings saved/, flash[:clar_toast].to_s)
+    refute_match(/Create Tasks settings saved/, flash[:clar_toast].to_s)
   end
 
   test "PATCH update to the briefing tab reports a failed save instead of toasting success" do
@@ -383,10 +383,10 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_match(/could not be stored/, flash[:alert])
-    refute_match(/Briefing settings saved/, flash[:clar_toast].to_s)
+    refute_match(/Create Tasks settings saved/, flash[:clar_toast].to_s)
   end
 
-  test "the Briefing tab shows the personas field, the feature-summary card, and a Refresh button" do
+  test "the Create Tasks tab shows the personas field, the feature-summary card, and a Refresh button" do
     @project.update!(briefing_personas: "Recruiters and admins.",
                      features_summary: "Users can post jobs and review candidates.",
                      features_summary_updated_at: 2.hours.ago)
@@ -394,11 +394,45 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     get workshop_configuration_path(tab: "briefing")
 
     assert_response :success
-    assert_select ".clar-tab.clar-tab-active", /Briefing/
+    assert_select ".clar-tab.clar-tab-active", /Create Tasks/
     assert_select "textarea[name='project[briefing_personas]']", /Recruiters and admins\./
     assert_select "body", /what the app already does/i
     assert_select "body", /Users can post jobs and review candidates\./
     assert_select "form[action='#{workshop_refresh_features_configuration_path}']"
+  end
+
+  test "the Create Tasks tab offers the Briefing step switch, on by default" do
+    get workshop_configuration_path(tab: "briefing")
+
+    assert_response :success
+    assert_select "input[type=checkbox][name='project[briefing_enabled]'][checked]"
+  end
+
+  test "the Briefing step switch shows off once the project turned it off" do
+    @project.update!(briefing_enabled: false)
+
+    get workshop_configuration_path(tab: "briefing")
+
+    assert_select "input[type=checkbox][name='project[briefing_enabled]']"
+    assert_select "input[type=checkbox][name='project[briefing_enabled]'][checked]", count: 0
+  end
+
+  test "PATCH update turns the Briefing step off and leaves the personas alone" do
+    @project.update!(briefing_personas: "Recruiters and admins.")
+
+    patch workshop_configuration_path, params: { tab: "briefing", project: { briefing_enabled: "0" } }
+
+    assert_redirected_to workshop_configuration_path(tab: "briefing")
+    assert_not @project.reload.briefing_enabled?
+    assert_equal "Recruiters and admins.", @project.briefing_personas
+  end
+
+  test "PATCH update turns the Briefing step back on" do
+    @project.update!(briefing_enabled: false)
+
+    patch workshop_configuration_path, params: { tab: "briefing", project: { briefing_enabled: "1", briefing_personas: "x" } }
+
+    assert @project.reload.briefing_enabled?
   end
 
   test "the AI tab no longer carries the briefing personas field" do

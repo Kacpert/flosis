@@ -9,7 +9,7 @@
 
 <div class="clar-tabs mb-6">
   <% { "integrations" => "Integrations", "ai" => "AI",
-       "briefing" => "Briefing", "users" => "Users" }.each do |tab, label| %>
+       "briefing" => "Create Tasks", "users" => "Users" }.each do |tab, label| %>
     <% if tab_permitted?(tab) %>
       <%= link_to label, workshop_configuration_path(tab: tab),
             class: "clar-tab #{'clar-tab-active' if @tab == tab}" %>

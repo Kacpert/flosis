@@ -56,6 +56,19 @@ class Workshop::DesignThreadsController < Workshop::BaseController
                 alert: "The merge did not reach GitHub, so master stays as it was: #{e.message.to_s.lines.first.to_s.strip.truncate(200)}"
   end
 
+  # Delete on a thread's row: the thread, its branch and its conversation go,
+  # and the person is back at the threads.
+  def destroy
+    Designs::Threads.delete!(@thread)
+    flash[:clar_toast] = @thread.fresh? ? "Thread deleted" : "Thread deleted · #{@thread.branch}"
+    redirect_to workshop_designs_overview_path, status: :see_other
+  rescue Designs::Threads::Busy, Designs::Threads::AlreadyMerged => e
+    redirect_to workshop_designs_overview_path, alert: e.message, status: :see_other
+  rescue GitRunner::Error => e
+    redirect_to workshop_designs_overview_path, status: :see_other,
+                alert: "The branch could not be deleted on GitHub, so the thread stays: #{e.message.to_s.lines.first.to_s.strip.truncate(200)}"
+  end
+
   def update_description
     Designs::Threads.update_description!(@thread, user: current_user)
     redirect_to workshop_designs_overview_path(thread: @thread.id, mode: "changes")

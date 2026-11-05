@@ -74,6 +74,17 @@ class Task < ApplicationRecord
   scope :pipeline, -> { where(in_pipeline: true).order(pipeline_entered_at: :desc) }
   scope :pipeline_active, -> { pipeline.where.not(workshop_stage: "ready") }
 
+  # The Create Tasks steps this task walks. Create Tasks → Setup can switch the
+  # Briefing step off for a project; a task that already had a briefing — it
+  # sits in Briefing, or holds a brief — keeps all three steps and its history.
+  def workshop_steps
+    briefing_step? ? %w[briefing details ready] : %w[details ready]
+  end
+
+  def briefing_step?
+    project.briefing_enabled? || stage_briefing? || briefs.exists?
+  end
+
   def enter_pipeline!(author:, stage: "new")
     update!(in_pipeline: true, workshop_stage: stage,
             pipeline_entered_at: pipeline_entered_at || Time.current,

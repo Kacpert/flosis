@@ -214,4 +214,33 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "each open thread's row offers Delete, which asks first" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      fresh = Designs::Threads.start!(project: @project, user: users(:one))
+
+      get workshop_designs_overview_path
+      form = css_select("form[action='#{workshop_design_thread_path(thread)}']").sole
+      assert_equal %(Delete "Add a counter" and its branch design/add-a-counter? What it has not merged into master is lost.),
+                   form["data-turbo-confirm"]
+      assert_select form, "input[name=_method][value=delete]"
+      assert_select form, "button[title=?]", "Delete thread"
+      assert_equal %(Delete "New thread"?), css_select("form[action='#{workshop_design_thread_path(fresh)}']").sole["data-turbo-confirm"]
+    end
+  end
+
+  test "the left column has an edge to drag wider or narrower, and a double-click puts it back" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      [ workshop_designs_overview_path, workshop_designs_overview_path(thread: thread.id) ].each do |page|
+        get page
+        grid = css_select("[data-designs-module]").sole
+        assert_includes grid["data-controller"].split, "designs-resize"
+        assert_includes grid["style"], "grid-template-columns: var(--designs-list-width, clamp(280px, 26%, 340px)) minmax(0, 1fr);"
+        edge = css_select("[data-designs-module] > div > [role=separator]").sole
+        assert_equal "pointerdown->designs-resize#start dblclick->designs-resize#reset", edge["data-action"]
+      end
+    end
+  end
+
 end

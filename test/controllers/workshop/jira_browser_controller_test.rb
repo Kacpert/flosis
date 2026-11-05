@@ -26,6 +26,24 @@ class Workshop::JiraBrowserControllerTest < ActionDispatch::IntegrationTest
     assert_select ".clar-key-faint", "ELV-1"
   end
 
+  test "the board offers START AT while the project has Briefing on" do
+    get workshop_jira_browser_path
+
+    assert_select "[data-clar-start-stage-target='segment'][data-stage='briefing']"
+  end
+
+  # Create Tasks → Setup switched Briefing off: there is nothing to choose, and
+  # every ticket imports into Details Gathering.
+  test "with Briefing off, the board offers no START AT choice and imports into Details" do
+    @task.project.update!(briefing_enabled: false)
+
+    get workshop_jira_browser_path
+
+    assert_select "[data-clar-start-stage-target='segment']", count: 0
+    assert_select "input[name='start_stage'][value='details']", minimum: 1
+    assert_select "input[name='start_stage'][value='briefing']", count: 0
+  end
+
   test "backlog tab renders a table of tasks with no sprint" do
     @task.update!(sprint_id: nil)
 
