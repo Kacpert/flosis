@@ -66,10 +66,13 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
 
   # The import shown (else the latest): a stopped run goes on from its step;
   # an import already on master that an older bug marked failed is put back,
-  # and what is queued on it goes on.
+  # and what is queued on it goes on. A re-import whose thread was deleted
+  # stays as it is.
   def retry
     project = current_workshop_project
     setup = params[:import].present? ? project.design_setups.find_by(id: params[:import]) : project.design_setups.order(:id).last
+    return redirect_to(helpers.import_page_path(setup), alert: DesignSetup::THREAD_DELETED) if setup&.thread_deleted?
+
     if setup&.failed? && setup.finished_at.nil?
       setup.update!(status: "active", error: nil, unit_job_id: nil, unit_deadline_at: nil)
       Designs::SetupRunJob.perform_later(setup.id)

@@ -24,8 +24,71 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
       with_remote_url(remote) do
         seed_master(repo, { "designs/candidate/apply.html" => "<title>Application form</title><h1>Apply</h1>" })
         @project.reload.update!(design_repo_status: "ready")
-        yield repo
+        yield repo, remote
       end
+    end
+  end
+
+  # A thread with a commit of its own on its branch, pushed, as a turn leaves it.
+  def thread_with_work(repo, text)
+    thread = Designs::Threads.start!(project: @project, user: users(:one))
+    Designs::Threads.message!(thread, user: users(:one), text: text)
+    thread.reload
+    commit_files(repo, repo.worktree!(thread.branch, from: thread.base_sha), { "designs/candidate/apply.html" => "<title>Application form</title><p>1</p>" })
+    repo.push!(thread.branch)
+    DesignTurn.update_all(status: "succeeded")
+    thread
+  end
+
+  test "Delete takes the thread and its branch, and goes back to the threads" do
+    with_designs do |repo, remote|
+      thread = thread_with_work(repo, "Add a counter")
+
+      assert_difference -> { DesignThread.count }, -1 do
+        delete workshop_design_thread_path(thread)
+      end
+      assert_redirected_to workshop_designs_overview_path
+      assert_equal "Thread deleted · design/add-a-counter", flash[:clar_toast]
+      assert_nil remote_branch_sha(remote, "design/add-a-counter")
+    end
+  end
+
+  test "Delete takes an empty thread at once" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+
+      delete workshop_design_thread_path(thread)
+      assert_redirected_to workshop_designs_overview_path
+      assert_equal "Thread deleted", flash[:clar_toast]
+      assert_not DesignThread.exists?(thread.id)
+    end
+  end
+
+  test "Delete waits while Flosis AI works in the thread" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      Designs::Threads.message!(thread, user: users(:one), text: "Add a counter")
+
+      assert_no_difference -> { DesignThread.count } do
+        delete workshop_design_thread_path(thread)
+      end
+      assert_redirected_to workshop_designs_overview_path
+      assert_equal Designs::Threads::BUSY, flash[:alert]
+    end
+  end
+
+  test "Delete keeps the thread when GitHub refuses to delete its branch, and says so" do
+    with_designs do |repo, remote|
+      thread = thread_with_work(repo, "Add a counter")
+      hook = File.join(remote, "hooks", "pre-receive")
+      File.write(hook, "#!/bin/sh\necho 'protected branch' >&2\nexit 1\n")
+      File.chmod(0o755, hook)
+
+      assert_no_difference -> { DesignThread.count } do
+        delete workshop_design_thread_path(thread)
+      end
+      assert_redirected_to workshop_designs_overview_path
+      assert_match(/\AThe branch could not be deleted on GitHub, so the thread stays: /, flash[:alert])
     end
   end
 

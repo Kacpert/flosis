@@ -27,7 +27,9 @@
     <div class="clar-card px-4.5 py-3.5 mb-4" style="border-color: var(--danger);">
       <div class="text-[12.5px] font-bold clar-text-danger mb-1">The import stopped</div>
       <div class="text-[13px] clar-text-muted leading-[1.5] whitespace-pre-line"><%= setup.error %></div>
-      <% if can?(:configuration) %>
+      <% if setup.thread_deleted? %>
+        <div class="text-[12.5px] clar-text-faint mt-2"><%= DesignSetup::THREAD_DELETED %></div>
+      <% elsif can?(:configuration) %>
         <div class="mt-3"><%= button_to "Retry", retry_workshop_design_setup_run_path(import: setup.id), class: "clar-btn", form: { class: "contents" } %></div>
       <% end %>
     </div>

@@ -276,4 +276,77 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     end
   end
 
+  test "deleting a thread takes its branch, here and on GitHub, its preview and its conversation" do
+    with_threads_remote do |repo, remote|
+      master = seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours on pipeline", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      Designs::Threads.publish(thread)
+      preview = Pathname(@preview_root).join(repo.project.reload.design_preview_token, thread.branch)
+      assert preview.exist?
+      session = thread.chat_session
+
+      Designs::Threads.delete!(thread)
+
+      assert_nil remote_branch_sha(remote, thread.branch)
+      assert_nil repo.head(thread.branch)
+      assert_not repo.worktree_path(thread.branch).exist?
+      assert_not preview.exist?
+      assert_not DesignThread.exists?(thread.id)
+      assert_not ChatSession.exists?(session.id)
+      assert_not DesignTurn.exists?(chat_session_id: session.id)
+      assert_equal master, remote_branch_sha(remote, "master")
+    end
+  end
+
+  test "an empty thread, which has no branch yet, is deleted without the design repo" do
+    thread = Designs::Threads.start!(project: projects(:jira_project), user: @user)
+
+    Designs::Threads.delete!(thread)
+
+    assert_not DesignThread.exists?(thread.id)
+  end
+
+  test "a thread is not deleted while Flosis AI works in it or a re-import runs on it" do
+    with_threads_remote do |repo, remote|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      Designs::Threads.message!(thread, user: @user, text: "And a legend")
+      assert_raises(Designs::Threads::Busy) { Designs::Threads.delete!(thread) }
+
+      DesignTurn.update_all(status: "succeeded")
+      repo.project.design_setups.create!(status: "active", phase: "feature", step: 4, started_by: @user, design_thread: thread)
+      assert_raises(Designs::Threads::Busy) { Designs::Threads.delete!(thread) }
+
+      assert DesignThread.exists?(thread.id)
+      assert remote_branch_sha(remote, thread.branch)
+    end
+  end
+
+  test "a branch GitHub refuses to delete keeps the thread whole" do
+    with_threads_remote do |repo, remote|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      hook = File.join(remote, "hooks", "pre-receive")
+      File.write(hook, "#!/bin/sh\nexit 1\n")
+      File.chmod(0o755, hook)
+
+      assert_raises(GitRunner::Error) { Designs::Threads.delete!(thread) }
+
+      assert DesignThread.exists?(thread.id)
+      assert repo.head(thread.branch)
+      assert repo.worktree_path(thread.branch).exist?
+    end
+  end
+
+  test "a merged thread is never deleted" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      Designs::Threads.merge!(thread, user: @user)
+
+      assert_raises(Designs::Threads::AlreadyMerged) { Designs::Threads.delete!(thread) }
+      assert DesignThread.exists?(thread.id)
+    end
+  end
+
 end

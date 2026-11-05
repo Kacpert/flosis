@@ -17,6 +17,7 @@ module DesignsModuleHelper
     back: '<path d="M15 18l-6-6 6-6"/>',
     next: '<path d="M9 6l6 6-6 6"/>',
     close: '<path d="M18 6L6 18M6 6l12 12"/>',
+    trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
     external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/>',
     attach: '<path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/>',
     send: '<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
@@ -49,5 +50,12 @@ module DesignsModuleHelper
 
     seconds = Time.current - time
     seconds < 60 ? "just now" : "#{time_ago_in_words(time)} ago"
+  end
+
+  # What Delete on a thread's row asks first: what goes with the thread.
+  def designs_delete_confirm(thread)
+    return %(Delete "#{thread.title}"?) if thread.fresh?
+
+    %(Delete "#{thread.title}" and its branch #{thread.branch}? What it has not merged into master is lost.)
   end
 end

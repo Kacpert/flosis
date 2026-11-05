@@ -214,4 +214,19 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "each open thread's row offers Delete, which asks first" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      fresh = Designs::Threads.start!(project: @project, user: users(:one))
+
+      get workshop_designs_overview_path
+      form = css_select("form[action='#{workshop_design_thread_path(thread)}']").sole
+      assert_equal %(Delete "Add a counter" and its branch design/add-a-counter? What it has not merged into master is lost.),
+                   form["data-turbo-confirm"]
+      assert_select form, "input[name=_method][value=delete]"
+      assert_select form, "button[title=?]", "Delete thread"
+      assert_equal %(Delete "New thread"?), css_select("form[action='#{workshop_design_thread_path(fresh)}']").sole["data-turbo-confirm"]
+    end
+  end
+
 end
