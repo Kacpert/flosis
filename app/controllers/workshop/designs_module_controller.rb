@@ -23,6 +23,7 @@ class Workshop::DesignsModuleController < Workshop::BaseController
     @thread = @project.design_threads.live.find_by(id: params[:thread]) if params[:thread].present?
     return render(partial: "messages", locals: { thread: @thread }) if params[:frame] == "messages" && @thread
 
+    @way_back = way_back
     @threads = @project.design_threads.open.includes(:task).order(updated_at: :desc)
     @deleted = @project.design_threads.deleted.order(deleted_at: :desc)
     @merges = @project.design_merges.newest_first.includes(:user, :task)
@@ -115,17 +116,43 @@ class Workshop::DesignsModuleController < Workshop::BaseController
   end
 
   # master's components, each with its preview and how many screens use it.
+  # The components master's screens use, straight or through another
+  # component, each with how many screens use it: a setup can leave
+  # components behind that no screen shows.
   def components_in(master)
     return [] unless master
 
     screens = Dir.glob("designs/*/*.html", base: master.to_s).reject { |path| path.end_with?(".changes.html") }.map { |path| master.join(path).read }
-    Dir.glob("components/*/", base: master.to_s).sort.map do |dir|
-      name = File.basename(dir)
-      preview = %W[components/#{name}/preview.html components/#{name}/#{name}.html].find { |path| master.join(path).file? }
-      { name: name, path: "components/#{name}/#{name}.html",
-        preview: preview && @publisher.grant_url(Designs::Repo::MASTER, preview),
-        used: screens.count { |html| html.include?("components/#{name}/") } }
+    inside = Hash.new do |found, name|
+      found[name] = Set[name]
+      file = master.join("components/#{name}/#{name}.html")
+      found[name] = components_named(file.read).reduce(Set[name]) { |all, more| all | found[more] } if file.file?
+      found[name]
     end
+    uses = screens.map { |html| components_named(html).reduce(Set.new) { |all, name| all | inside[name] } }
+    Dir.glob("components/*/", base: master.to_s).sort.filter_map do |dir|
+      name = File.basename(dir)
+      used = uses.count { |names| names.include?(name) }
+      next if used.zero?
+
+      preview = %W[components/#{name}/preview.html components/#{name}/#{name}.html].find { |path| master.join(path).file? }
+      { name: name, path: "components/#{name}/#{name}.html", preview: preview && @publisher.grant_url(Designs::Repo::MASTER, preview), used: used }
+    end
+  end
+
+  def components_named(html)
+    html.scan(%r{components/([\w-]+)/}).flatten.to_set
+  end
+
+  # Back beside "Designs": the last page outside Designs the person came
+  # from, kept while they move around inside, else the Workshop. With the
+  # menus hidden it is their way out.
+  def way_back
+    from = URI.parse(request.referer.to_s) rescue nil
+    if from.is_a?(URI::HTTP) && from.host == request.host && !from.path.to_s.start_with?("/workshop/designs")
+      session[:designs_way_back] = from.request_uri
+    end
+    session[:designs_way_back] || workshop_path
   end
 
   def published_screens(slot)

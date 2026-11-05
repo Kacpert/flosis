@@ -20,7 +20,7 @@
       <span class="inline-flex items-center gap-1 clar-mono text-[11px] clar-text-ai bg-[var(--ai-soft)] px-1.5 py-0.5 rounded-md max-w-full truncate"><%= designs_icon(:branch, 11) %><%= thread.branch %></span>
     <% end %>
     <% if merged %>
-      <span class="clar-badge-success inline-flex items-center gap-1"><%= designs_icon(:merge, 11) %>Merged · <%= thread.merged_sha.to_s.first(7) %></span>
+      <span class="clar-badge clar-badge-success !py-0.5 !px-2"><%= designs_icon(:merge, 11) %>Merged · <%= thread.merged_sha.to_s.first(7) %></span>
     <% elsif thread.fresh? %>
       <span class="text-[11.5px] clar-text-faint">No changes yet</span>
     <% else %>
