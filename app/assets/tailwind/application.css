@@ -2379,3 +2379,14 @@ span.flatpickr-weekday {
 .clar-app.designs-immersive:not(.designs-peek-nav) .clar-sidebar { display: none; }
 .designs-peek-tab { display: none; }
 .clar-app.designs-immersive .designs-peek-tab { display: flex; }
+
+/* The left column's edge on the Designs module (designs_resize_controller):
+   a line shows on hover, and while it is dragged nothing else takes the
+   pointer, the canvas's iframe included. */
+.designs-list-resizer { position: absolute; top: 0; bottom: 0; right: -4px; width: 8px; z-index: 30;
+  cursor: col-resize; touch-action: none; }
+.designs-list-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px;
+  transition: background .15s; }
+.designs-list-resizer:hover::after, .designs-resizing .designs-list-resizer::after { background: var(--primary); }
+.designs-resizing, .designs-resizing * { cursor: col-resize !important; user-select: none; }
+.designs-resizing iframe { pointer-events: none; }

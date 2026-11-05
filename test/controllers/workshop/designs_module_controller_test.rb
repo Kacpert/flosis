@@ -229,4 +229,18 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "the left column has an edge to drag wider or narrower, and a double-click puts it back" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      [ workshop_designs_overview_path, workshop_designs_overview_path(thread: thread.id) ].each do |page|
+        get page
+        grid = css_select("[data-designs-module]").sole
+        assert_includes grid["data-controller"].split, "designs-resize"
+        assert_includes grid["style"], "grid-template-columns: var(--designs-list-width, clamp(280px, 26%, 340px)) minmax(0, 1fr);"
+        edge = css_select("[data-designs-module] > div > [role=separator]").sole
+        assert_equal "pointerdown->designs-resize#start dblclick->designs-resize#reset", edge["data-action"]
+      end
+    end
+  end
+
 end
