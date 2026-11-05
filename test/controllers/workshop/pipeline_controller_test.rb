@@ -17,11 +17,44 @@ class Workshop::PipelineControllerTest < ActionDispatch::IntegrationTest
     assert_select ".clar-badge", /Briefing/
   end
 
-  test "Create Tasks shows a Briefing setup link to Configuration for admins" do
+  test "Create Tasks shows a Setup link to Configuration for admins" do
     get workshop_pipeline_path
 
     assert_response :success
-    assert_select "a[href=?]", workshop_configuration_path(tab: "briefing"), text: /Briefing setup/
+    assert_select "a[href=?]", workshop_configuration_path(tab: "briefing"), text: /\A\s*Setup\s*\z/
+  end
+
+  test "New idea offers START AT while the project has Briefing on" do
+    get workshop_pipeline_path
+
+    assert_select "[data-clar-start-stage-target='card'][data-stage='briefing']"
+  end
+
+  test "with Briefing off, New idea offers no START AT choice and starts in Details" do
+    @task.project.update!(briefing_enabled: false)
+
+    get workshop_pipeline_path
+
+    assert_select "[data-clar-start-stage-target='card']", count: 0
+    assert_select "input[name='idea[start_stage]'][value='details']"
+  end
+
+  test "with Briefing off and nothing left in it, the Briefing filter chip is gone" do
+    @task.project.update!(briefing_enabled: false)
+    @task.update!(workshop_stage: "details")
+
+    get workshop_pipeline_path
+
+    assert_select ".clar-chip", text: /Briefing/, count: 0
+    assert_select ".clar-chip", text: /Details/
+  end
+
+  test "with Briefing off, the Briefing filter chip stays while tasks still sit in it" do
+    @task.project.update!(briefing_enabled: false)
+
+    get workshop_pipeline_path
+
+    assert_select ".clar-chip", text: /Briefing/
   end
 
   test "stage filter narrows the list" do

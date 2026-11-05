@@ -197,15 +197,24 @@ class Workshop::ConfigurationController < Workshop::BaseController
   end
 
   # require(:project) rather than dig: a request carrying no project key used to
-  # write nil over the stored personas and report success.
+  # write nil over the stored personas and report success. Only the keys sent
+  # are written — the Briefing step switch and the personas are separate forms.
   def save_briefing(project)
-    personas = params.require(:project)[:briefing_personas].to_s.strip.presence
+    attrs = params.require(:project).permit(:briefing_personas, :briefing_enabled).to_h
+    attrs["briefing_personas"] = attrs["briefing_personas"].to_s.strip.presence if attrs.key?("briefing_personas")
 
-    if project.update(briefing_personas: personas)
-      flash[:clar_toast] = "Briefing settings saved"
+    if project.update(attrs)
+      flash[:clar_toast] = briefing_toast(project, attrs)
     else
       flash[:alert] = project.errors.full_messages.to_sentence
     end
+  end
+
+  def briefing_toast(project, attrs)
+    return "Create Tasks settings saved" unless attrs.key?("briefing_enabled")
+
+    project.briefing_enabled? ? "Briefing step on · new tasks start in Briefing" :
+                                "Briefing step off · new tasks start in Details Gathering"
   end
 
   def redirect_with(alert, tab)
@@ -228,9 +237,11 @@ class Workshop::ConfigurationController < Workshop::BaseController
     @poll_minutes = project&.pr_poll_minutes || 7
   end
 
-  # Briefing tab: the two inputs (per-project) that feed the briefing PO chat —
-  # human-written personas + the auto-scanned plain-language feature summary.
+  # Create Tasks tab (key "briefing"): the Briefing step switch, then the two
+  # per-project inputs the chats read — human-written personas + the
+  # auto-scanned plain-language feature summary.
   def load_briefing_tab
+    @briefing_enabled = current_workshop_project ? current_workshop_project.briefing_enabled? : true
     @briefing_personas = current_workshop_project&.briefing_personas
     @features_summary = current_workshop_project&.features_summary
     @features_summary_updated_at = current_workshop_project&.features_summary_updated_at

@@ -1,3 +1,7 @@
+<%
+  briefing = current_workshop_project.briefing_enabled?
+  start_stage = briefing ? "briefing" : "details"
+%>
 <div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-action="click->clar-modal#close">
   <div class="clar-modal p-5.5 max-w-[480px]" data-action="click->clar-modal#stopPropagation">
     <div class="flex items-center justify-between mb-1">
@@ -9,7 +13,7 @@
     <p class="text-[13px] leading-normal clar-text-muted mb-4.5">Give it a title so it&rsquo;s saved to the pipeline &mdash; you can come back to the conversation anytime.</p>
 
     <%= form_with url: workshop_ideas_path, method: :post, class: "space-y-0",
-          data: { controller: "clar-required clar-start-stage", clar_start_stage_selected_value: "briefing", turbo: false } do |f| %>
+          data: { controller: "clar-required clar-start-stage", clar_start_stage_selected_value: start_stage, turbo: false } do |f| %>
       <label class="clar-field-label">TITLE <span class="clar-text-danger">*</span></label>
       <%= f.text_field "idea[title]", value: nil, autofocus: true, placeholder: "e.g. Aggregated CSV export for analysts",
             class: "clar-input !text-[14px] mb-4", data: { clar_required_target: "input", action: "input->clar-required#toggle" } %>
@@ -20,7 +24,10 @@
 
       <%# START AT — Briefing (default), or skip the brief and open straight in
           Details Gathering. Carried on the POST as idea[start_stage]. A design
-          starts in Designs as a thread of its own (Workshop Designs v2). %>
+          starts in Designs as a thread of its own (Workshop Designs v2).
+          With the Briefing step switched off (Create Tasks → Setup) there is
+          nothing to choose: every idea starts in Details. %>
+      <% if briefing %>
       <label class="clar-field-label !mb-[7px]">START AT</label>
       <div class="flex gap-2.5 mb-5">
         <%
@@ -36,12 +43,13 @@
           </button>
         <% end %>
       </div>
-      <%= hidden_field_tag "idea[start_stage]", "briefing", id: nil, data: { clar_start_stage_target: "field" } %>
+      <% end %>
+      <%= hidden_field_tag "idea[start_stage]", start_stage, id: nil, data: { clar_start_stage_target: "field" } %>
 
       <div class="flex gap-2.5 justify-end">
         <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
         <button type="submit" class="clar-btn clar-btn-primary" disabled data-clar-required-target="submit">
-          <span data-clar-start-stage-target="submitLabel">Save &amp; start briefing</span>
+          <span data-clar-start-stage-target="submitLabel"><%= briefing ? "Save & start briefing" : "Save & start details" %></span>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </button>
       </div>

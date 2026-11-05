@@ -5,15 +5,15 @@
     <h1 class="clar-h1">Create Tasks</h1>
     <p class="clar-sub">Turn rough ideas and unclear tickets into implementation-ready Jira tasks. The AI reads the repo first, then helps you shape them.</p>
   </div>
-  <%# The shortcut opens Configuration's Briefing tab, which costs
-      :briefing_config — the one tab a Product Owner holds. Asking for
-      :configuration hid it from exactly the people it is for. %>
+  <%# The shortcut opens Configuration's Create Tasks tab (key "briefing"),
+      which costs :briefing_config — the one tab a Product Owner holds. Asking
+      for :configuration hid it from exactly the people it is for. %>
   <% if can?(:briefing_config) %>
     <%= link_to workshop_configuration_path(tab: "briefing"),
-          title: "Briefing setup — personas & app feature list",
+          title: "Setup — the Briefing step, personas & app feature list",
           class: "clar-btn !text-[12px] !py-1.5 !px-3 flex-none whitespace-nowrap mt-1" do %>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="inline-block align-[-2px] mr-1"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      Briefing setup
+      Setup
     <% end %>
   <% end %>
 </div>
@@ -78,7 +78,11 @@
 </div>
 
 <div class="flex items-center gap-1.5 mb-3.5 flex-wrap">
-  <% [["all", "All"], ["new", "New"], ["briefing", "Briefing"], ["details", "Details"], ["ready", "Ready"]].each do |value, label| %>
+  <%# With the Briefing step switched off, its chip stays only while older
+      tasks still sit in it. %>
+  <% stage_chips = [["all", "All"], ["new", "New"], ["briefing", "Briefing"], ["details", "Details"], ["ready", "Ready"]] %>
+  <% stage_chips.reject! { |value, _| value == "briefing" } unless current_workshop_project.briefing_enabled? || @counts.fetch("briefing", 0).positive? %>
+  <% stage_chips.each do |value, label| %>
     <% active = params[:stage].presence == value || (value == "all" && params[:stage].blank?) %>
     <% count = value == "all" ? @counts.values.sum : @counts.fetch(value, 0) %>
     <%= link_to request.query_parameters.except(:stage).merge(value == "all" ? {} : { stage: value }),

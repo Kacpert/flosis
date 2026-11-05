@@ -13,8 +13,11 @@ class Workshop::IdeasController < Workshop::BaseController
 
   def show
     @idea = current_workshop_project.tasks.pipeline.find(params[:id])
-    @stage = params[:stage].presence_in(%w[briefing details ready]) ||
-             (@idea.stage_new? ? "briefing" : @idea.workshop_stage)
+    # Only the steps this task walks: with Briefing switched off, a task that
+    # never had one opens Details even when asked for its briefing.
+    steps = @idea.workshop_steps
+    @stage = params[:stage].presence_in(steps) ||
+             (@idea.stage_new? ? steps.first : @idea.workshop_stage)
 
     seed_v0_detail_draft if @stage == "details"
     load_ready_summary if @stage == "ready"
@@ -229,7 +232,7 @@ class Workshop::IdeasController < Workshop::BaseController
     if task.save
       task.enter_pipeline!(author: current_user, stage: pipeline_stage(stage))
 
-      if idea_params[:description].present?
+      if idea_params[:description].present? && briefing_enabled?
         task.briefs.create!(workspace: task.project.workspace, version: 0,
                             origin: "user", status: "draft", content: idea_params[:description]).make_current!
       end
@@ -275,7 +278,7 @@ class Workshop::IdeasController < Workshop::BaseController
     # its documents, and [task_id, version] is unique, so re-seeding a v0 would
     # raise rather than start over.
     seed = AdfToMarkdown.call(task.description_adf).presence || task.description
-    if seed.present? && !task.briefs.exists?(version: 0)
+    if seed.present? && briefing_enabled? && !task.briefs.exists?(version: 0)
       task.briefs.create!(workspace: task.project.workspace, version: 0,
                           origin: "jira", status: "draft", content: seed).make_current!
     end
@@ -302,9 +305,19 @@ class Workshop::IdeasController < Workshop::BaseController
   # "details" is the explicit skip-the-brief option (the START AT picker in the
   # new-idea modal and the Jira browser). Anything else falls back to
   # briefing — the stage list is a whitelist, never trusted straight from params.
+  # A project with the Briefing step switched off starts everything in Details.
   def start_stage
+    return "details" unless briefing_enabled?
+
     raw = params[:start_stage].presence || params.dig(:idea, :start_stage).presence
     raw.to_s.presence_in(%w[briefing details]) || "briefing"
+  end
+
+  # Create Tasks → Setup. Off: no START AT choice, and no v0 brief is seeded —
+  # holding a brief is what keeps the Briefing step on a task (Task#workshop_steps);
+  # Details seeds its own v0 from the same description.
+  def briefing_enabled?
+    current_workshop_project.briefing_enabled?
   end
 
   def stage_label(stage)

@@ -33,7 +33,7 @@ module PermissionPreset
     designs: "Open Designs: the project's clickable designs, its threads and merges.",
     reporting: "Open Reporting: delivered work, velocity and time spent.",
     pricing: "See money — hourly rates, cost and revenue wherever they appear.",
-    briefing_config: "Edit the Briefing tab: ticket statuses, Jira fields and the brief template.",
+    briefing_config: "Edit Create Tasks setup: the Briefing step, personas and the app feature list.",
     configuration: "Edit integration keys, AI settings and Designs, and manage who is on this project."
   }.freeze
 

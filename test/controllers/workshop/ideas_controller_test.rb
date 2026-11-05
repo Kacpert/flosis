@@ -844,4 +844,83 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_equal "REC-9", idea.reload.external_reference
     assert_equal "design/task-#{idea.id}-local-idea", thread.reload.branch
   end
+
+  # Create Tasks → Setup can switch the Briefing step off. New tasks then open
+  # straight in Details Gathering whatever START AT says, and seed no brief — a
+  # brief is what keeps the step on an older task.
+  test "with Briefing off, a new idea starts in Details and seeds no brief" do
+    projects(:jira_project).update!(briefing_enabled: false)
+
+    post workshop_ideas_path, params: { idea: { title: "No brief please", description: "Weekly digest", start_stage: "briefing" } }
+
+    task = Task.order(:id).last
+    assert_equal "details", task.workshop_stage
+    assert_empty task.briefs, "a brief would bring the Briefing step back"
+    assert_redirected_to workshop_idea_path(task, stage: "details")
+    assert_match(/Details Gathering/, flash[:clar_toast])
+  end
+
+  test "with Briefing off, an imported Jira ticket starts in Details and seeds no brief" do
+    projects(:jira_project).update!(briefing_enabled: false)
+    task = tasks(:jira_task)
+
+    post workshop_ideas_path, params: { task_id: task.id, start_stage: "briefing" }
+
+    task.reload
+    assert_equal "details", task.workshop_stage
+    assert_empty task.briefs
+    assert_redirected_to workshop_idea_path(task, stage: "details")
+    assert_equal "Imported ELV-1 · Details Gathering", flash[:clar_toast]
+  end
+
+  test "with Briefing off, the stepper of a task without a briefing shows only Details and Ready" do
+    projects(:jira_project).update!(briefing_enabled: false)
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+
+    get workshop_idea_path(idea)
+
+    assert_response :success
+    assert_select "[data-stepper-stage]", count: 2
+    assert_select "[data-stepper-stage='briefing']", count: 0
+    assert_select "[data-stepper-stage='details'][data-stepper-current='true']", text: /1\s*Details/
+  end
+
+  test "with Briefing off, asking for the briefing of a task without one opens Details" do
+    projects(:jira_project).update!(briefing_enabled: false)
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+
+    get workshop_idea_path(idea, stage: "briefing")
+
+    assert_response :success
+    assert_select "[data-stepper-stage='details'][data-stepper-current='true']"
+    assert_select "[data-clar-chat-persona-value='briefing']", count: 0
+  end
+
+  test "with Briefing off, a task already in Briefing keeps all three steps and its briefing chat" do
+    projects(:jira_project).update!(briefing_enabled: false)
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+
+    get workshop_idea_path(idea)
+
+    assert_response :success
+    assert_select "[data-stepper-stage]", count: 3
+    assert_select "[data-stepper-stage='briefing'][data-stepper-current='true']"
+    assert_select "[data-clar-chat-persona-value='briefing']"
+  end
+
+  test "with Briefing off, a briefed task in Details can still open its briefing" do
+    projects(:jira_project).update!(briefing_enabled: false)
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    idea.briefs.create!(workspace: idea.project.workspace, version: 1, origin: "ai", status: "briefed", content: "b").make_current!
+
+    get workshop_idea_path(idea, stage: "briefing")
+
+    assert_response :success
+    assert_select "[data-stepper-stage]", count: 3
+    assert_select "[data-stepper-stage='briefing'][data-stepper-current='true']"
+  end
 end

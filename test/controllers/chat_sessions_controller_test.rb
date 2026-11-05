@@ -244,4 +244,50 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes prompt, "You have no access to this project's code; reason from the brief and ask."
     assert_not_includes prompt, "investigation of the"
   end
+
+  # Create Tasks → Setup can switch the Briefing step off, which makes Details
+  # Gathering the first AI step. A pipeline task with no brief then gets the
+  # personas and feature list the briefing chat would have read, and is not
+  # told that a briefing already settled the why.
+  def details_prompt
+    controller = ChatSessionsController.new
+    controller.instance_variable_set(:@task, @task)
+    def controller.params; {}; end
+    controller.send(:build_initial_prompt)
+  end
+
+  test "a pipeline task with no brief gets the personas and feature list, and no claim the briefing is done" do
+    @task.project.update!(briefing_personas: "Recruiters posting jobs.", features_summary: "Users can post jobs.")
+    @task.update!(in_pipeline: true, workshop_stage: "details")
+
+    prompt = details_prompt
+
+    assert_includes prompt, "Who uses this app & our perspective"
+    assert_includes prompt, "Recruiters posting jobs."
+    assert_includes prompt, "What the app already does"
+    assert_includes prompt, "Users can post jobs."
+    refute_includes prompt, "The briefing stage is ALREADY DONE"
+    assert_includes prompt, "There was no briefing step for this ticket"
+  end
+
+  test "a pipeline task with a brief keeps the briefed framing" do
+    @task.project.update!(briefing_personas: "Recruiters posting jobs.", features_summary: "Users can post jobs.")
+    @task.update!(in_pipeline: true, workshop_stage: "details")
+    @task.briefs.create!(workspace: workspaces(:one), version: 1, content: "The brief.", status: "briefed").make_current!
+
+    prompt = details_prompt
+
+    assert_includes prompt, "The briefing stage is ALREADY DONE"
+    refute_includes prompt, "Who uses this app & our perspective"
+  end
+
+  test "a Jira Tasks board ticket outside the pipeline keeps its prompt" do
+    @task.project.update!(briefing_personas: "Recruiters posting jobs.", features_summary: "Users can post jobs.")
+    @task.update!(in_pipeline: false)
+
+    prompt = details_prompt
+
+    assert_includes prompt, "The briefing stage is ALREADY DONE"
+    refute_includes prompt, "Who uses this app & our perspective"
+  end
 end

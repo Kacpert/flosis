@@ -13,16 +13,20 @@
         card/row's hidden start_stage field (see clar_start_stage_controller). %>
     <div data-controller="clar-board-filter clar-start-stage" data-clar-start-stage-selected-value="<%= @start_stage %>">
       <div class="flex items-center gap-2.5 flex-nowrap mb-3.5">
-        <span class="text-[11.5px] font-bold clar-text-faint whitespace-nowrap">START AT</span>
-        <div class="clar-seg flex-none">
-          <% [["briefing", "Briefing"], ["details", "Details Gathering"]].each do |value, label| %>
-            <button type="button" data-stage="<%= value %>"
-                    data-clar-start-stage-target="segment" data-action="click->clar-start-stage#select"
-                    class="clar-seg-item"><%= label %></button>
-          <% end %>
-        </div>
+        <%# With the Briefing step switched off (Create Tasks → Setup) there is
+            nothing to choose: every ticket imports into Details. %>
+        <% if current_workshop_project&.briefing_enabled? %>
+          <span class="text-[11.5px] font-bold clar-text-faint whitespace-nowrap">START AT</span>
+          <div class="clar-seg flex-none">
+            <% [["briefing", "Briefing"], ["details", "Details Gathering"]].each do |value, label| %>
+              <button type="button" data-stage="<%= value %>"
+                      data-clar-start-stage-target="segment" data-action="click->clar-start-stage#select"
+                      class="clar-seg-item"><%= label %></button>
+            <% end %>
+          </div>
 
-        <span class="w-px h-[22px] bg-[color:var(--border)] flex-none"></span>
+          <span class="w-px h-[22px] bg-[color:var(--border)] flex-none"></span>
+        <% end %>
 
         <div class="clar-tabs flex-none">
           <% @boards.each do |board| %>
