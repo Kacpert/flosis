@@ -8,8 +8,12 @@
 # (base_sha), so it knows which merges landed since, and the task description
 # it last designed from (described_text, described_version), so it knows when
 # the description moved on.
+#
+# A deleted thread waits KEPT under Deleted, its branch in archive/ on GitHub,
+# to be restored, before Designs::PurgeDeletedThreadsJob takes it for good.
 class DesignThread < ApplicationRecord
-  STATUSES = %w[open merged].freeze
+  STATUSES = %w[open merged deleted].freeze
+  KEPT = 20.days
 
   belongs_to :project
   belongs_to :task, optional: true
@@ -24,8 +28,16 @@ class DesignThread < ApplicationRecord
 
   scope :open, -> { where(status: "open") }
   scope :merged, -> { where(status: "merged") }
+  scope :deleted, -> { where(status: "deleted") }
+  scope :live, -> { where.not(status: "deleted") }
 
   def open? = status == "open"
   def merged? = status == "merged"
+  def deleted? = status == "deleted"
   def fresh? = branch.blank?
+
+  # Whole days before a deleted thread goes for good.
+  def days_left
+    [ ((deleted_at + KEPT - Time.current) / 1.day).ceil, 0 ].max if deleted_at
+  end
 end

@@ -182,7 +182,7 @@ class DesignSetup < ApplicationRecord
   def running? = status == "active" && finished_at.nil?
   # A re-import works on a thread of its own: once someone deleted that
   # thread, there is nothing left to retry it on.
-  def thread_deleted? = reimport? && design_thread_id.nil?
+  def thread_deleted? = reimport? && (design_thread.nil? || design_thread.deleted?)
   # Waiting for Claude's session limit to reset (Designs imports).
   def paused? = paused_until&.future? || false
   KINDS.each { |name| define_method("#{name}?") { kind == name } }

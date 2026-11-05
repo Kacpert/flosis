@@ -40,16 +40,43 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
     thread
   end
 
-  test "Delete takes the thread and its branch, and goes back to the threads" do
+  test "Delete puts the thread under Deleted, its branch in the archive, and goes back to the threads" do
     with_designs do |repo, remote|
       thread = thread_with_work(repo, "Add a counter")
 
-      assert_difference -> { DesignThread.count }, -1 do
-        delete workshop_design_thread_path(thread)
-      end
+      delete workshop_design_thread_path(thread)
       assert_redirected_to workshop_designs_overview_path
-      assert_equal "Thread deleted · design/add-a-counter", flash[:clar_toast]
+      assert_equal "Thread deleted · you can restore it for 20 days", flash[:clar_toast]
+      assert thread.reload.deleted?
       assert_nil remote_branch_sha(remote, "design/add-a-counter")
+      assert remote_branch_sha(remote, "archive/design/add-a-counter")
+    end
+  end
+
+  test "Restore brings a deleted thread back and opens it" do
+    with_designs do |repo, remote|
+      thread = thread_with_work(repo, "Add a counter")
+      Designs::Threads.delete!(thread, user: users(:one))
+
+      post restore_workshop_design_thread_path(thread)
+      assert_redirected_to workshop_designs_overview_path(thread: thread.id)
+      assert_equal "Thread restored · design/add-a-counter", flash[:clar_toast]
+      assert thread.reload.open?
+      assert remote_branch_sha(remote, "design/add-a-counter")
+    end
+  end
+
+  test "a deleted thread takes no message and opens as the threads list" do
+    with_designs do |repo|
+      thread = thread_with_work(repo, "Add a counter")
+      Designs::Threads.delete!(thread, user: users(:one))
+
+      post message_workshop_design_thread_path(thread), params: { text: "One more thing" }
+      assert_response :not_found
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_response :success
+      assert_includes response.body, "BRANCHES"
+      assert_select "textarea[name=text]", count: 0
     end
   end
 
@@ -77,18 +104,17 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "Delete keeps the thread when GitHub refuses to delete its branch, and says so" do
+  test "Delete keeps the thread when GitHub refuses to move its branch, and says so" do
     with_designs do |repo, remote|
       thread = thread_with_work(repo, "Add a counter")
       hook = File.join(remote, "hooks", "pre-receive")
       File.write(hook, "#!/bin/sh\necho 'protected branch' >&2\nexit 1\n")
       File.chmod(0o755, hook)
 
-      assert_no_difference -> { DesignThread.count } do
-        delete workshop_design_thread_path(thread)
-      end
+      delete workshop_design_thread_path(thread)
+      assert thread.reload.open?
       assert_redirected_to workshop_designs_overview_path
-      assert_match(/\AThe branch could not be deleted on GitHub, so the thread stays: /, flash[:alert])
+      assert_match(/\AThe branch could not be moved to the archive on GitHub, so the thread stays: /, flash[:alert])
     end
   end
 

@@ -56,17 +56,29 @@ class Workshop::DesignThreadsController < Workshop::BaseController
                 alert: "The merge did not reach GitHub, so master stays as it was: #{e.message.to_s.lines.first.to_s.strip.truncate(200)}"
   end
 
-  # Delete on a thread's row: the thread, its branch and its conversation go,
-  # and the person is back at the threads.
+  # Delete on a thread's row: the thread waits under Deleted, its branch in
+  # the archive, and the person is back at the threads.
   def destroy
-    Designs::Threads.delete!(@thread)
-    flash[:clar_toast] = @thread.fresh? ? "Thread deleted" : "Thread deleted · #{@thread.branch}"
+    Designs::Threads.delete!(@thread, user: current_user)
+    flash[:clar_toast] = @thread.deleted? ? "Thread deleted · you can restore it for #{DesignThread::KEPT.in_days.to_i} days" : "Thread deleted"
     redirect_to workshop_designs_overview_path, status: :see_other
   rescue Designs::Threads::Busy, Designs::Threads::AlreadyMerged => e
     redirect_to workshop_designs_overview_path, alert: e.message, status: :see_other
   rescue GitRunner::Error => e
     redirect_to workshop_designs_overview_path, status: :see_other,
-                alert: "The branch could not be deleted on GitHub, so the thread stays: #{e.message.to_s.lines.first.to_s.strip.truncate(200)}"
+                alert: "The branch could not be moved to the archive on GitHub, so the thread stays: #{e.message.to_s.lines.first.to_s.strip.truncate(200)}"
+  end
+
+  # Restore under Deleted: the thread is open again, as it was.
+  def restore
+    Designs::Threads.restore!(@thread, user: current_user)
+    flash[:clar_toast] = "Thread restored · #{@thread.branch}"
+    redirect_to workshop_designs_overview_path(thread: @thread.id)
+  rescue Designs::Threads::Busy, Designs::Threads::Gone => e
+    redirect_to workshop_designs_overview_path, alert: e.message
+  rescue GitRunner::Error => e
+    redirect_to workshop_designs_overview_path,
+                alert: "The branch could not come back on GitHub, so the thread stays deleted: #{e.message.to_s.lines.first.to_s.strip.truncate(200)}"
   end
 
   def update_description
@@ -101,7 +113,9 @@ class Workshop::DesignThreadsController < Workshop::BaseController
 
   private
 
+  # A deleted thread only comes back; nothing else reaches it.
   def set_thread
-    @thread = current_workshop_project.design_threads.find(params[:id])
+    threads = current_workshop_project.design_threads
+    @thread = (action_name == "restore" ? threads.deleted : threads.live).find(params[:id])
   end
 end

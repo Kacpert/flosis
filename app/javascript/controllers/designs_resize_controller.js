@@ -7,8 +7,13 @@ import { Controller } from "@hotwired/stimulus"
 // The width lives in --designs-list-width on the module's grid and is
 // remembered in this browser. The pointer is captured while dragging, so
 // passing over the canvas's iframe never drops the drag.
+//
+// Narrower than the standard column's narrowest, the grid is designs-narrow:
+// each line of the list and of a thread's header is cut to one line, and the
+// conversation wraps.
 const STORAGE_KEY = "designs.listWidth"
-const MIN_WIDTH = 280
+const MIN_WIDTH = 140
+const NARROW = 280
 // Always leave the canvas a usable column, however far the edge goes.
 const MIN_CANVAS_WIDTH = 480
 // A click that wobbles a pixel or two is not a drag.
@@ -71,6 +76,7 @@ export default class extends Controller {
     } else {
       this.element.style.removeProperty("--designs-list-width")
     }
+    this.element.classList.toggle("designs-narrow", Boolean(this.width) && this.width < NARROW)
   }
 
   clamp(width) {

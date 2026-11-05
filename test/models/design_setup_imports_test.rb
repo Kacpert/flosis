@@ -104,4 +104,16 @@ class DesignSetupImportsTest < ActiveSupport::TestCase
   test "an import's merge says so" do
     assert_equal "Flosis AI · import", DesignMerge.new(how: "import").how_label
   end
+
+  test "a re-import whose thread is deleted, or gone for good, has nothing to retry" do
+    thread = @project.design_threads.create!(author: users(:one), title: "Re-import from staging", branch: "design/re-import-from-staging")
+    setup = DesignSetup.create!(project: @project, kind: "reimport", status: "failed", started_by: users(:one), design_thread: thread)
+    assert_not setup.thread_deleted?
+
+    thread.update!(status: "deleted", deleted_at: Time.current)
+    assert setup.reload.thread_deleted?
+
+    thread.destroy!
+    assert setup.reload.thread_deleted?
+  end
 end

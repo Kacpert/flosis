@@ -221,11 +221,27 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
 
       get workshop_designs_overview_path
       form = css_select("form[action='#{workshop_design_thread_path(thread)}']").sole
-      assert_equal %(Delete "Add a counter" and its branch design/add-a-counter? What it has not merged into master is lost.),
+      assert_equal %(Delete "Add a counter"? Its branch design/add-a-counter moves to archive/ on GitHub, and you can restore the thread for 20 days.),
                    form["data-turbo-confirm"]
       assert_select form, "input[name=_method][value=delete]"
       assert_select form, "button[title=?]", "Delete thread"
       assert_equal %(Delete "New thread"?), css_select("form[action='#{workshop_design_thread_path(fresh)}']").sole["data-turbo-confirm"]
+    end
+  end
+
+  test "deleted threads wait under Deleted with Restore and the days they have left" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      travel_to(3.days.ago) { Designs::Threads.delete!(thread, user: users(:one)) }
+
+      get workshop_designs_overview_path
+      assert_includes response.body, "BRANCHES · 1"
+      deleted = css_select("details[data-designs-deleted]").sole
+      assert_select deleted, "summary", text: /Deleted · 1/
+      assert_select deleted, "*", text: "Add a counter"
+      assert_select deleted, "*", text: "Deleted 3 days ago · 17 days left"
+      assert_select deleted, "form[action=?] button", restore_workshop_design_thread_path(thread), text: "Restore"
+      assert_select "a[href=?]", workshop_designs_overview_path(thread: thread.id), count: 0
     end
   end
 

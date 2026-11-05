@@ -2,7 +2,7 @@
     scaled to fit, with View as, the thread's modes and its changed screens. %>
 <% live = @thread&.open? && !@thread.fresh? %>
 <% params_for = ->(extra = {}) { { thread: @thread&.id, ctx: @context, screen: @screen, mode: (@mode unless @mode == "master" || !live) }.merge(extra).compact } %>
-<div class="flex items-center gap-2.5 px-4 pt-3 pb-2.5 border-b border-[color:var(--border)] bg-[var(--surface)] flex-wrap relative z-[5]">
+<div class="flex items-center gap-2.5 px-3 py-2 border-b border-[color:var(--border)] bg-[var(--surface)] flex-wrap relative z-[5]">
   <span class="text-[12px] clar-text-faint">View as</span>
   <div class="clar-seg">
     <% @contexts.each do |context| %>
@@ -34,7 +34,7 @@
 </div>
 
 <% if live && @mode == "changes" %>
-  <div class="flex items-center gap-2 flex-wrap px-4 py-2 border-b border-[color:var(--border)] bg-[var(--ai-soft)] text-[12px] clar-text-text">
+  <div class="flex items-center gap-2 flex-wrap px-3 py-1.5 border-b border-[color:var(--border)] bg-[var(--ai-soft)] text-[12px] clar-text-text">
     <span class="font-bold clar-text-ai">Changed in this thread</span>
     <% @changed.each do |context, screen| %>
       <%= link_to "#{designs_context_name(@contexts, context)} › #{designs_screen_name(@screens, context, screen)}",
@@ -45,7 +45,7 @@
   </div>
 <% end %>
 
-<div class="flex-1 overflow-auto p-5 bg-[var(--surface-2)]">
+<div class="flex-1 overflow-auto p-2 bg-[var(--surface-2)]">
   <div class="max-w-[1162px] mx-auto border border-[color:var(--border)] rounded-xl overflow-hidden shadow-sm bg-white">
     <div class="flex items-center gap-2.5 px-3 py-2 bg-[var(--surface)] border-b border-[color:var(--border)]">
       <span class="flex gap-[5px]"><% 3.times do %><span class="w-[9px] h-[9px] rounded-full bg-[var(--border)]"></span><% end %></span>

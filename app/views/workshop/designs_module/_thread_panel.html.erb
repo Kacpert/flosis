@@ -5,11 +5,11 @@
 <% key = thread.task && Designs::ThreadNames.key(thread.task) %>
 <% jira_done = thread.task&.external_type == "jira" %>
 <div class="px-3.5 py-3 border-b border-[color:var(--border)]">
-  <div class="flex items-center justify-between gap-2.5 mb-2">
-    <%= link_to workshop_designs_overview_path, class: "inline-flex items-center gap-2 text-[12.5px] font-semibold clar-text-muted no-underline rounded-lg py-1 pr-2" do %>
-      <span class="w-6 h-6 rounded-[7px] border border-[color:var(--border)] bg-[var(--surface)] flex items-center justify-center clar-text-text"><%= designs_icon(:back, 14) %></span>Threads
+  <div class="flex items-center justify-between gap-x-2.5 gap-y-1.5 flex-wrap mb-2">
+    <%= link_to workshop_designs_overview_path, class: "inline-flex items-center gap-2 text-[12.5px] font-semibold clar-text-muted no-underline rounded-lg py-1 pr-2 min-w-0" do %>
+      <span class="w-6 h-6 rounded-[7px] border border-[color:var(--border)] bg-[var(--surface)] flex items-center justify-center clar-text-text flex-none"><%= designs_icon(:back, 14) %></span><span class="designs-cut">Threads</span>
     <% end %>
-    <div class="flex items-center gap-2.5">
+    <div class="flex items-center gap-2.5 min-w-0">
       <%= render "menus_switch" %>
       <button type="button" class="clar-btn !p-0 w-7 h-7 justify-center" title="Show menu" data-action="designs-immersive#peekNav"><%= designs_icon(:panel, 15) %></button>
     </div>
@@ -29,11 +29,11 @@
   </div>
   <div class="flex gap-1.5 flex-wrap mt-2.5">
     <% if thread.task %>
-      <%= link_to workshop_idea_path(thread.task), class: "clar-btn !py-1.5 !px-2.5 !text-[12px] no-underline", title: "Open task" do %>
+      <%= link_to workshop_idea_path(thread.task), class: "clar-btn !py-1.5 !px-2.5 !text-[12px] no-underline max-w-full designs-cut", title: "Open task" do %>
         <%= designs_icon(:task, 13) %><span class="clar-mono text-[11px] clar-text-primary"><%= key %></span><span class="clar-text-faint font-medium">· <%= { "new" => "New", "briefing" => "Briefing", "details" => "Details", "ready" => "Ready" }[thread.task.workshop_stage] %></span>
       <% end %>
     <% elsif !merged && !thread.fresh? %>
-      <button type="button" class="clar-btn !py-1.5 !px-2.5 !text-[12px] clar-text-ai" data-action="clar-modal#open" data-clar-modal-id-param="generate-task">
+      <button type="button" class="clar-btn !py-1.5 !px-2.5 !text-[12px] clar-text-ai max-w-full designs-cut" data-action="clar-modal#open" data-clar-modal-id-param="generate-task">
         <%= designs_icon(:ai, 13) %>Generate task
       </button>
     <% end %>
@@ -53,7 +53,7 @@
 
 <% if @description_change && !merged %>
   <div class="mx-3 mt-3 px-3 py-2.5 rounded-[10px] bg-[var(--warn-soft)] border border-[color:var(--border)] flex items-center gap-2.5 flex-wrap">
-    <div class="flex-1 min-w-[150px] text-[12.5px] clar-text-text leading-[1.45]"><b class="clar-text-warn"><%= key %> changed</b> since the last design update (<%= @description_change[:from] %> → <%= @description_change[:to] %>).</div>
+    <div class="flex-1 min-w-[min(150px,100%)] text-[12.5px] clar-text-text leading-[1.45]"><b class="clar-text-warn"><%= key %> changed</b> since the last design update (<%= @description_change[:from] %> → <%= @description_change[:to] %>).</div>
     <%= button_to "Update designs", update_description_workshop_design_thread_path(thread), class: "clar-btn clar-btn-primary !py-1.5 !px-2.5 !text-[12px]", form: { class: "contents" } %>
   </div>
 <% end %>
@@ -61,7 +61,7 @@
 <% if @behind.any? && !merged %>
   <div class="mx-3 mt-3 px-3 py-2.5 rounded-[10px] bg-[var(--warn-soft)] border border-[color:var(--border)]">
     <div class="flex items-center gap-2.5 flex-wrap">
-      <div class="flex-1 min-w-[150px] text-[12.5px] clar-text-text leading-[1.45]"><b class="clar-text-warn">master changed</b> since this thread branched (<%= thread.base_sha.to_s.first(7) %> → <%= @behind.first.short_sha %>).</div>
+      <div class="flex-1 min-w-[min(150px,100%)] text-[12.5px] clar-text-text leading-[1.45]"><b class="clar-text-warn">master changed</b> since this thread branched (<%= thread.base_sha.to_s.first(7) %> → <%= @behind.first.short_sha %>).</div>
       <%= button_to "Update from master", update_master_workshop_design_thread_path(thread), class: "clar-btn clar-btn-primary !py-1.5 !px-2.5 !text-[12px]", form: { class: "contents" } %>
     </div>
     <div class="flex flex-col gap-1.5 mt-2">

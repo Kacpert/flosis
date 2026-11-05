@@ -52,10 +52,12 @@ module DesignsModuleHelper
     seconds < 60 ? "just now" : "#{time_ago_in_words(time)} ago"
   end
 
-  # What Delete on a thread's row asks first: what goes with the thread.
+  # What Delete on a thread's row asks first: where its branch goes, and for
+  # how long it can come back.
   def designs_delete_confirm(thread)
     return %(Delete "#{thread.title}"?) if thread.fresh?
 
-    %(Delete "#{thread.title}" and its branch #{thread.branch}? What it has not merged into master is lost.)
+    %(Delete "#{thread.title}"? Its branch #{thread.branch} moves to #{Designs::Threads::ARCHIVE} on GitHub, ) +
+      "and you can restore the thread for #{DesignThread::KEPT.in_days.to_i} days."
   end
 end
