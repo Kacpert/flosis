@@ -274,6 +274,20 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "p", text: /nothing is sent to Jira/, count: 0
   end
 
+  # A long message should not scroll inside a one-line box: the input grows
+  # as it is typed, and its top edge drags it taller.
+  test "the chat's input grows as you type, and its top edge makes it taller" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "d").make_current!
+
+    get workshop_idea_path(idea, stage: "details")
+
+    composer = css_select("[data-controller~=clar-composer]").sole
+    assert_select composer, "textarea[data-clar-composer-target=input][data-action~='input->clar-composer#fit']"
+    assert_select composer, "[role=separator][data-action~='pointerdown->clar-composer#start'][data-action~='dblclick->clar-composer#reset']"
+  end
+
   # The chat keeps the height: one reset (Reset session, in the chat's
   # banner) and no designer request in the document footer.
   test "details offers Reset session only, and no Request from designer" do

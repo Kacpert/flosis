@@ -227,6 +227,8 @@ export default class extends Controller {
     const content = input.value.trim()
     if (!content) return
     input.value = ""
+    // The box sizes itself again for the next message (clar-composer).
+    input.dispatchEvent(new Event("input"))
     input.disabled = true
     this.appendMessage("user", content, this.currentUserNameValue || null)
     const assistantBubble = this.appendMessage("ai", "")
