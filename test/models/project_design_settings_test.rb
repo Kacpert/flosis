@@ -29,7 +29,7 @@ class ProjectDesignSettingsTest < ActiveSupport::TestCase
   # In the app this is shown as an alert on the Designs tab, so it has to say
   # what to type, not just that something is wrong.
   test "a repository that is not owner/name says how it should look" do
-    @project.design_repo = "git@github.com:acme/designs.git"
+    @project.design_repo = "acme designs"
     assert_not @project.valid?
     assert_equal [ "must look like owner/name" ], @project.errors[:design_repo]
     assert_equal [ "Design repo must look like owner/name" ], @project.errors.full_messages_for(:design_repo)
@@ -91,6 +91,13 @@ class ProjectDesignSettingsTest < ActiveSupport::TestCase
       "  acme/designs.git  " => "acme/designs",
       "acme/designs/" => "acme/designs",
       "HTTPS://GitHub.com/acme/designs" => "acme/designs",
+      "http://github.com/acme/designs" => "acme/designs",
+      "https://www.github.com/acme/designs" => "acme/designs",
+      "github.com/acme/designs" => "acme/designs",
+      "git@github.com:acme/designs.git" => "acme/designs",
+      "ssh://git@github.com/acme/designs.git" => "acme/designs",
+      "https://x-access-token:secret@github.com/acme/designs.git" => "acme/designs",
+      "https://github.com/acme/designs/tree/main/designs" => "acme/designs",
       "acme/designs" => "acme/designs",
       # Only a trailing .git is dropped; dots inside a name are the name.
       "acme/designs.github.io" => "acme/designs.github.io",
@@ -109,8 +116,8 @@ class ProjectDesignSettingsTest < ActiveSupport::TestCase
 
   test "an address that is not a GitHub repository is left for the format to refuse" do
     [
-      "https://gitlab.com/acme/designs", "http://github.com/acme/designs", "git@github.com:acme/designs.git",
-      "https://github.com/acme", "https://github.com/acme/designs/tree/main", "acme", "acme/designs extra"
+      "https://gitlab.com/acme/designs", "git@gitlab.com:acme/designs.git", "https://github.com/acme", "acme",
+      "acme/designs extra"
     ].each do |address|
       @project.design_repo = address
       assert_not @project.valid?, "#{address} should be refused"

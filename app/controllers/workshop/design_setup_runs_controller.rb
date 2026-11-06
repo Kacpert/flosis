@@ -136,10 +136,11 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
                   repos: %i[role url], contexts: %i[id name url login password])
   end
 
-  # "github.com/acme/designs", "https://github.com/acme/designs" and
-  # "acme/designs" all name acme/designs.
+  # Any GitHub address names its repository, as on the project: "github.com/
+  # acme/designs", "git@github.com:acme/designs.git" and "acme/designs" all
+  # name acme/designs, and "acme/app@production" keeps its branch.
   def repo_name(value)
-    value.to_s.strip.sub(%r{\Ahttps?://}, "").sub(%r{\Agithub\.com/}, "").delete_suffix(".git").delete_suffix("/").presence
+    Project.normalize_value_for(:github_repo, value.to_s).presence
   end
 
   def rows(value)

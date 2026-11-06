@@ -34,14 +34,18 @@ class Project < ApplicationRecord
   DESIGN_BASE_KITS = %w[tailwind4 plain].freeze
 
   # The repository is pasted from the browser's address bar as often as it is
-  # typed, so a GitHub address is forgiven: surrounding whitespace, a leading
-  # https://github.com/ and a trailing .git or slash are dropped, and
-  # "https://github.com/acme/designs.git" is "acme/designs". Anything else is
-  # left as it came, for the format below to refuse. The project's own
-  # repository is forgiven the same way, wherever it is typed (the New project
-  # dialog, Configuration › GitHub).
+  # typed, so any GitHub address is forgiven: http or https, www, no scheme at
+  # all, an SSH address (git@github.com:acme/designs.git), credentials in it,
+  # and a page deeper in the repository (…/tree/main/…) all come down to
+  # owner/name, and a trailing .git or slash is dropped. Anything else is left
+  # as it came, for the format below to refuse. The project's own repository
+  # is forgiven the same way, wherever it is typed (the New project dialog,
+  # Configuration › GitHub).
+  GITHUB_ADDRESS = %r{\A(?:(?:https?|ssh|git)://)?(?:[^@/\s]+@)?(?:www\.)?github\.com[:/]}i
   normalizes :design_repo, :github_repo, with: ->(repo) {
-    repo.strip.sub(%r{\Ahttps://github\.com/}i, "").sub(%r{(?:\.git|/)+\z}i, "")
+    repo = repo.strip
+    repo = repo.sub(GITHUB_ADDRESS, "").split("/").first(2).join("/") if repo.match?(GITHUB_ADDRESS)
+    repo.sub(%r{(?:\.git|/)+\z}i, "")
   }
 
   # The branch the checkout follows; nil for the repository's default. It goes
