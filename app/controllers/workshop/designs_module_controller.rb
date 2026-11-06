@@ -61,6 +61,10 @@ class Workshop::DesignsModuleController < Workshop::BaseController
     @ahead = live && @repo.head(@thread.branch, lock: false) ? @repo.commits_ahead(@thread.branch, lock: false) : 0
     @mode = live ? (params[:mode].presence_in(MODES) || "branch") : "master"
     @slot = @mode == "master" ? Designs::Repo::MASTER : @thread.branch
+    # A branch is published once a turn commits to it. Until then it is master
+    # as it was, so its canvas shows master's screens.
+    @master_for_branch = @slot != Designs::Repo::MASTER && @ahead.zero? && !@publisher.published?(@slot)
+    @slot = Designs::Repo::MASTER if @master_for_branch
     screens = published_screens(@slot)
     @contexts = screens[:contexts]
     @screens = screens[:screens]
