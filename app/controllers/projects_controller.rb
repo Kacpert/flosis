@@ -13,7 +13,7 @@ class ProjectsController < ApplicationController
 
   def show
     @tab = params[:tab] || "settings"
-    @tasks = @project.tasks.order(:name)
+    @tasks = @project.tasks.kept.order(:name)
     @time_entries = @project.time_entries.completed.includes(:user, :task, :tags).order(started_at: :desc).limit(20)
     @total_seconds = @project.time_entries.completed.sum(:duration_seconds)
     @task_time_recap = @project.time_entries.completed

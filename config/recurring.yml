@@ -21,6 +21,11 @@ production:
   purge_deleted_design_threads:
     class: Designs::PurgeDeletedThreadsJob
     schedule: "30 4 * * *"
+  # Warsaw time, 04:45: a task soft-removed because its Jira issue was deleted
+  # (JiraSyncService#sync_deleted_issues) goes for good after 30 days.
+  purge_jira_deleted_tasks:
+    class: PurgeJiraDeletedTasksJob
+    schedule: "45 4 * * *"
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12

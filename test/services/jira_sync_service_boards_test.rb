@@ -25,6 +25,9 @@ class JiraSyncServiceBoardsTest < ActiveSupport::TestCase
         sprints_data[board_id] || []
       end
 
+      # nil = the deletion pass can't see Jira's keys and changes nothing; it
+      # has its own tests (JiraSyncDeletedIssuesTest).
+      define_method(:fetch_issue_keys) { |_key| nil }
       define_method(:fetch_issues) { |_key, story_points_field_id: nil| issues_data }
 
       define_method(:fetch_statuses) { statuses_data }

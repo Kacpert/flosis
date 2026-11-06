@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_06_002000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_06_020000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -863,6 +863,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_06_002000) do
     t.string "assignee_name"
     t.datetime "brief_saved_locally_at"
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
     t.text "description"
     t.text "description_adf"
     t.string "designs_described_sha"
@@ -890,6 +891,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_06_002000) do
     t.integer "time_estimate_seconds"
     t.datetime "updated_at", null: false
     t.string "workshop_stage", default: "new", null: false
+    t.index ["deleted_at"], name: "index_tasks_on_deleted_at"
     t.index ["pipeline_author_id"], name: "index_tasks_on_pipeline_author_id"
     t.index ["project_id", "external_type", "external_reference"], name: "index_tasks_on_project_external_ref", unique: true, where: "(external_type IS NOT NULL)"
     t.index ["project_id", "in_pipeline", "workshop_stage"], name: "index_tasks_on_project_id_and_in_pipeline_and_workshop_stage"

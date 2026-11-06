@@ -20,7 +20,9 @@
 
     <div class="space-y-1">
       <label class="text-sm font-medium" style="color: var(--color-on-surface-variant)">Task</label>
-      <% tasks = time_entry.project ? time_entry.project.tasks.active : [] %>
+      <%# Soft-removed tasks (issue deleted in Jira) are left out, except the
+          one this entry already has — saving must not drop it. %>
+      <% tasks = time_entry.project ? time_entry.project.tasks.active.kept.or(Task.where(id: time_entry.task_id)) : [] %>
       <%= f.collection_select :task_id, tasks, :id, :name,
           { include_blank: "No task" },
           class: "m3-text-field w-full" %>

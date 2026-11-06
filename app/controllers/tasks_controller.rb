@@ -29,7 +29,7 @@ class TasksController < ApplicationController
 
   def list
     @project = current_workspace.projects.find(params[:project_id])
-    @tasks = @project.tasks.active.order(:name)
+    @tasks = @project.tasks.kept.active.order(:name)
     render partial: "tasks/options", locals: { tasks: @tasks }
   end
 
