@@ -9,6 +9,20 @@ class Workshop::PipelineControllerTest < ActionDispatch::IntegrationTest
     @task.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
   end
 
+  # The Claude card in the sidebar says when the AI last read this project's
+  # code (the nightly ProjectFeaturesScanJob), or plainly that it never has.
+  test "the sidebar says when the project's code was last scanned, or that it never was" do
+    project = projects(:jira_project)
+    post switch_workshop_project_path, params: { project_id: project.id }
+    project.update_columns(features_summary_updated_at: nil)
+    get workshop_pipeline_path
+    assert_select ".clar-status-card", text: /code not scanned yet/
+
+    project.update_columns(features_summary_updated_at: 3.hours.ago)
+    get workshop_pipeline_path
+    assert_select ".clar-status-card", text: /code scanned 3h ago/
+  end
+
   test "lists pipeline ideas with stage badge" do
     get workshop_pipeline_path
     assert_response :success

@@ -19,8 +19,23 @@ class ProjectFeaturesScanJobTest < ActiveJob::TestCase
 
   def job_without_pull
     job = ProjectFeaturesScanJob.new
-    def job.pull_latest!(_codebase); true; end
+    def job.pull_latest!(*, **); true; end
     job
+  end
+
+  # Captures what GitRunner is asked to run, or raises what GitHub would.
+  def with_git(error: nil)
+    calls = []
+    original = GitRunner.method(:run!)
+    GitRunner.define_singleton_method(:run!) do |*args, chdir:, token: nil|
+      calls << [ args, chdir.to_s, token ]
+      raise GitRunner::Error, error if error
+
+      ""
+    end
+    yield calls
+  ensure
+    GitRunner.define_singleton_method(:run!, original)
   end
 
   test "a good scan stores the summary" do
@@ -42,7 +57,7 @@ class ProjectFeaturesScanJobTest < ActiveJob::TestCase
   test "a failed git pull skips scanning entirely" do
     @project.update!(features_summary: "PREVIOUS")
     job = ProjectFeaturesScanJob.new
-    def job.pull_latest!(_codebase); false; end
+    def job.pull_latest!(*, **); false; end
     with_ai("new summary that is long enough to pass the length gate easily here") do
       job.perform
     end
@@ -66,5 +81,30 @@ class ProjectFeaturesScanJobTest < ActiveJob::TestCase
 
     assert_match "feature list", @project.reload.features_summary
     assert_nil other.reload.features_summary, "must not scan other projects in single-project mode"
+  end
+
+  # The checkout's remote is the plain https://github.com/<repo>.git, never
+  # with a token in it (ProjectRepoCheckoutJob): a pull that does not hand
+  # the project's token over fails on a private repository, every night.
+  test "the pull reaches GitHub with the project's own token" do
+    @project.update!(github_repo: "https://github.com/acme/app.git", github_token: "ght")
+    checkout!(@project)
+    with_git do |calls|
+      with_ai("This app does X, Y, Z. Architecture: Rails monolith with Solid Queue and Turbo.") do
+        ProjectFeaturesScanJob.new.perform
+      end
+      assert_equal [ [ %w[pull --ff-only], @project.ai_codebase_path, "ght" ] ], calls
+    end
+    assert_match "Architecture", @project.reload.features_summary
+  end
+
+  test "a pull GitHub refuses keeps the previous summary" do
+    @project.update!(github_token: "ght", features_summary: "PREVIOUS")
+    with_git(error: "git pull failed: fatal: could not read Username for 'https://github.com'") do
+      with_ai("new summary that is long enough to pass the length gate easily here") do
+        ProjectFeaturesScanJob.new.perform
+      end
+    end
+    assert_equal "PREVIOUS", @project.reload.features_summary
   end
 end

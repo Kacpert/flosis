@@ -71,6 +71,15 @@ class Workshop::DesignSetupRunsControllerTest < ActionDispatch::IntegrationTest
     assert_no_enqueued_jobs only: Designs::SetupRunJob
   end
 
+  # Whatever GitHub address is pasted, the form keeps the repository's name.
+  test "any GitHub address in the form names its repository" do
+    post workshop_design_setup_run_path, params: FORM.merge(repo: "git@github.com:acme/app-designs.git",
+                                                            repos: { "0" => { role: "Frontend", url: "https://www.github.com/acme/app/tree/main" } })
+
+    assert_equal "acme/app-designs", @project.reload.design_repo
+    assert_equal [ { "role" => "Frontend", "repo" => "acme/app" } ], @project.design_app_repos
+  end
+
   test "Build designs saves the setup and starts the import in the background" do
     post workshop_design_setup_run_path, params: FORM
 
