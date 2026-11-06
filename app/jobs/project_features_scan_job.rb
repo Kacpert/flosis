@@ -1,5 +1,3 @@
-require "shellwords"
-
 # Daily: for each Jira-connected project in a Workshop workspace, pull the
 # latest master of THAT project's checkout and ask the claude CLI to summarise
 # its features. The summary feeds the brief conversation, so it has to describe
@@ -37,7 +35,7 @@ class ProjectFeaturesScanJob < ApplicationJob
   def scan_and_store(project)
     codebase = ai_codebase_path(project)
     return false if codebase.nil?
-    return false unless pull_latest!(codebase)
+    return false unless pull_latest!(codebase, token: ProjectCredentials.new(project).github_token)
 
     summary = scan_summary(project, codebase)
     return false if summary.blank? # preserve prior on failure
@@ -45,15 +43,14 @@ class ProjectFeaturesScanJob < ApplicationJob
     true
   end
 
-  def pull_latest!(codebase)
-    out = `cd #{codebase.shellescape} && git pull --ff-only 2>&1`
-    unless $?.success?
-      Rails.logger.warn("[FeaturesScan] git pull failed in #{codebase}: #{out}")
-      return false
-    end
+  # The checkout's remote is the plain https://github.com/<repo>.git
+  # (ProjectRepoCheckoutJob): the project's token reaches GitHub through
+  # GitRunner, as it did for the clone, and never sits in the remote.
+  def pull_latest!(codebase, token:)
+    GitRunner.run!("pull", "--ff-only", chdir: codebase, token: token)
     true
   rescue StandardError => e
-    Rails.logger.warn("[FeaturesScan] git pull error in #{codebase}: #{e.message}")
+    Rails.logger.warn("[FeaturesScan] git pull failed in #{codebase}: #{e.message}")
     false
   end
 
