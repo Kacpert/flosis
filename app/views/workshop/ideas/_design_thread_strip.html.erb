@@ -1,11 +1,12 @@
-<%# The Designs strip under the stepper (Workshop Designs v2), on every stage:
-    the task's design thread, what changed under it, and the way into Designs. %>
+<%# The Designs strip in the task header's top row (Workshop Designs v2), on
+    every stage: the task's design thread, what changed under it, and the way
+    into Designs. Compact, so the chat keeps its height. %>
 <% thread = idea.design_thread %>
 <% open = thread&.open? && !thread.fresh? %>
 <% described = open && Designs::Threads.description_change(thread) %>
 <% behind = open ? Designs::Threads.behind(thread) : [] %>
-<div class="mt-2.5 inline-flex items-center gap-2.5 flex-wrap py-[5px] pr-[5px] pl-[11px] bg-[var(--bg)] border border-[color:var(--border)] rounded-[10px] w-fit max-w-full">
-  <span class="inline-flex items-center gap-1.5 text-[12.5px] font-bold clar-text-text"><%= designs_icon(:pen, 15) %>Designs</span>
+<div class="inline-flex items-center justify-end gap-2 flex-wrap max-w-full">
+  <span class="inline-flex items-center gap-1.5 text-[12px] font-semibold clar-text-muted"><%= designs_icon(:pen, 13) %>Designs</span>
   <% if open %>
     <span class="inline-flex items-center gap-2 text-[12px] clar-text-muted flex-wrap"><span class="clar-mono text-[11.5px] clar-text-ai bg-[var(--ai-soft)] px-1.5 py-0.5 rounded-[5px]"><%= thread.branch %></span><%= "merges on Done" if idea.external_type == "jira" %></span>
   <% elsif thread&.merged? %>
@@ -17,16 +18,15 @@
   <% if behind.any? %>
     <span class="inline-flex items-center gap-1.5 text-[12px] font-semibold clar-text-warn"><span class="w-1.5 h-1.5 rounded-full bg-current"></span>Master changed since the thread branched</span>
   <% end %>
-  <div class="flex-1"></div>
   <% if described %>
-    <%= button_to "Update designs from diff", update_description_workshop_design_thread_path(thread), class: "clar-btn clar-btn-primary !text-[12.5px] !py-[7px] !px-[13px]", form: { class: "contents" } %>
+    <%= button_to "Update designs from diff", update_description_workshop_design_thread_path(thread), class: "clar-btn clar-btn-primary !text-[12px] !py-1 !px-2.5", form: { class: "contents" } %>
   <% end %>
   <% if behind.any? %>
-    <%= button_to "Update from master", update_master_workshop_design_thread_path(thread), class: "clar-btn clar-btn-primary !text-[12.5px] !py-[7px] !px-[13px]", form: { class: "contents" } %>
+    <%= button_to "Update from master", update_master_workshop_design_thread_path(thread), class: "clar-btn clar-btn-primary !text-[12px] !py-1 !px-2.5", form: { class: "contents" } %>
   <% end %>
   <% if thread %>
-    <%= link_to "Open in Designs", workshop_designs_overview_path(thread: thread.id, back: idea.id), class: "clar-btn !text-[12.5px] !py-[7px] !px-3 no-underline" %>
+    <%= link_to "Open in Designs", workshop_designs_overview_path(thread: thread.id, back: idea.id), class: "clar-btn !text-[12px] !py-1 !px-2.5 no-underline" %>
   <% else %>
-    <%= button_to workshop_start_idea_design_thread_path(idea), class: "clar-btn clar-btn-primary !text-[12.5px] !py-[7px] !px-[13px]", form: { class: "contents" } do %><%= designs_icon(:ai, 13) %>Design with AI<% end %>
+    <%= button_to workshop_start_idea_design_thread_path(idea), class: "clar-btn clar-btn-primary !text-[12px] !py-1 !px-2.5", form: { class: "contents" } do %><%= designs_icon(:ai, 13) %>Design with AI<% end %>
   <% end %>
 </div>

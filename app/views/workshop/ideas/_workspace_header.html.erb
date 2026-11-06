@@ -1,10 +1,20 @@
-<div class="px-7 py-4 border-b clar-divider bg-[var(--surface)]" data-controller="clar-rename"
+<% designs_on = can?(:designs) && (idea.project&.designs_enabled? || current_user&.flosis_staff?) %>
+<div class="px-7 py-3 border-b clar-divider bg-[var(--surface)]" data-controller="clar-rename"
      data-clar-rename-url-value="<%= workshop_idea_path(idea) %>"
      data-clar-rename-name-value="<%= idea.name %>">
-  <%= link_to workshop_pipeline_path, class: "inline-flex items-center gap-1.5 clar-text-muted text-[12.5px] mb-2.5 no-underline" do %>
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
-    All tasks
-  <% end %>
+  <%# All tasks on the left; where Designs is on for the project (Workshop
+      Designs v2) its strip shares the row on the right, so the chat below keeps
+      the height a row of its own would take. %>
+  <div class="flex items-center gap-3 flex-wrap mb-2" data-task-header-top>
+    <%= link_to workshop_pipeline_path, class: "inline-flex items-center gap-1.5 clar-text-muted text-[12.5px] no-underline" do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+      All tasks
+    <% end %>
+    <% if designs_on %>
+      <div class="flex-1"></div>
+      <%= render "workshop/ideas/design_thread_strip", idea: idea %>
+    <% end %>
+  </div>
 
   <%# One row: key + title + rename on the left, stepper pinned right. The
       "local copy only" caveat lives in the pencil's tooltip rather than as
@@ -37,14 +47,9 @@
     </div>
   </div>
 
-  <%# The designs strip (status + delivered links) shows in the header only once a
-      request exists — in the empty state the "Request from designer" action lives
-      in the document-panel footer instead of a banner on top of the panels. %>
-  <%# Workshop Designs v2: where Designs is on for the project, its strip takes
-      the designer's place, on every stage. %>
-  <% if can?(:designs) && (idea.project&.designs_enabled? || current_user&.flosis_staff?) %>
-    <%= render "workshop/ideas/design_thread_strip", idea: idea %>
-  <% elsif %w[details ready].include?(stage) && idea.design_request.present? %>
+  <%# The designer's strip (status + delivered links), where Designs is off,
+      shows only once a request exists. %>
+  <% if !designs_on && %w[details ready].include?(stage) && idea.design_request.present? %>
     <%= render "workshop/ideas/designs_strip", idea: idea %>
   <% end %>
 </div>
