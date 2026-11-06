@@ -955,4 +955,114 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-stepper-stage]", count: 3
     assert_select "[data-stepper-stage='briefing'][data-stepper-current='true']"
   end
+
+  # New task from a chat: a part of the conversation belongs to another piece
+  # of work. The new task keeps the conversation it came from, and its first
+  # chat hands over what that conversation said about it (TaskHandoff).
+  def task_in_details
+    tasks(:jira_task).tap { |task| task.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago) }
+  end
+
+  test "New task from the details chat starts a task that keeps the conversation it came from" do
+    source = task_in_details
+
+    assert_difference -> { Task.count }, 1 do
+      post spin_off_workshop_idea_path(source), params: { persona: "details",
+        idea: { title: "Billing", description: "Charge plans for the tokens they use.", start_stage: "details" } }
+    end
+
+    task = Task.order(:id).last
+    assert_equal "Billing", task.name
+    assert_equal "Charge plans for the tokens they use.", task.description
+    assert task.in_pipeline?
+    assert_equal "details", task.workshop_stage
+    assert_equal users(:one), task.pipeline_author
+    assert_equal source, task.spun_off_from
+    assert_equal chat_sessions(:one), task.handoff_chat_session
+    assert task.handoff_pending?
+    assert_redirected_to workshop_idea_path(task, stage: "details")
+    assert_match(/bringing over what .ELV-1 Existing task. said about it/, flash[:clar_toast])
+  end
+
+  test "New task from the briefing chat keeps the briefing conversation and starts where a new idea starts" do
+    source = tasks(:jira_task)
+    source.update!(in_pipeline: true, workshop_stage: "briefing", pipeline_entered_at: 1.hour.ago)
+    briefing = ChatSession.create!(task: source, workspace: workspaces(:one), user: users(:one), purpose: "brief",
+                                   claude_session_id: "brief-session", codebase_path: "/tmp")
+
+    post spin_off_workshop_idea_path(source), params: { persona: "briefing",
+      idea: { title: "Billing", description: "Charge plans for the tokens they use." } }
+
+    task = Task.order(:id).last
+    assert_equal briefing, task.handoff_chat_session
+    assert_equal "briefing", task.workshop_stage
+    assert_equal "Charge plans for the tokens they use.", task.current_brief.content
+    assert_redirected_to workshop_idea_path(task)
+  end
+
+  test "New task from a chat with no conversation yet has nothing to hand over" do
+    source = task_in_details
+    chat_sessions(:one).update!(status: "closed")
+
+    post spin_off_workshop_idea_path(source), params: { persona: "details", idea: { title: "Billing", start_stage: "details" } }
+
+    task = Task.order(:id).last
+    assert_equal source, task.spun_off_from
+    assert_nil task.handoff_chat_session
+    assert_not task.handoff_pending?
+    assert_no_match(/bringing over/, flash[:clar_toast])
+  end
+
+  test "New task with a title already taken stays on the task and says why" do
+    source = task_in_details
+
+    assert_no_difference -> { Task.count } do
+      post spin_off_workshop_idea_path(source), params: { persona: "details", idea: { title: source.name } }
+    end
+
+    assert_redirected_to workshop_idea_path(source, stage: "details")
+    assert_match(/taken/, flash[:alert])
+  end
+
+  test "the chat offers New task, whose dialog posts the conversation's stage along" do
+    source = task_in_details
+
+    get workshop_idea_path(source, stage: "details")
+
+    assert_select "[data-controller~=clar-chat] button[data-action~='click->clar-modal#open'][data-clar-modal-id-param='new-task']", text: /New task/
+    assert_select "[data-clar-modal-panel-id-value='new-task']" do
+      assert_select "h2", text: /New task from this conversation/
+      assert_select "form[action='#{spin_off_workshop_idea_path(source)}']" do
+        assert_select "input[name=persona][value=details]"
+        assert_select "input[name='idea[title]']"
+        assert_select "textarea[name='idea[description]']"
+      end
+    end
+  end
+
+  test "a task started from another task's chat links back to it" do
+    source = task_in_details
+    task = source.project.tasks.create!(name: "Billing", spun_off_from: source)
+    task.enter_pipeline!(author: users(:one), stage: "details")
+
+    get workshop_idea_path(task, stage: "details")
+
+    assert_select "a[href='#{workshop_idea_path(source)}']", text: /ELV-1 Existing task/
+  end
+
+  test "deleting the task a task was started from keeps the new task and its handoff" do
+    source = tasks(:local_task)
+    source.enter_pipeline!(author: users(:one), stage: "details")
+    conversation = ChatSession.create!(task: source, workspace: workspaces(:one), user: users(:one), purpose: "refine",
+                                       claude_session_id: "old-session", codebase_path: "/tmp")
+    task = source.project.tasks.create!(name: "Billing", spun_off_from: source, handoff_chat_session: conversation,
+                                        handoff: "- Billed monthly")
+
+    delete workshop_idea_path(source)
+
+    task.reload
+    assert_nil task.spun_off_from
+    assert_nil task.handoff_chat_session
+    assert_equal "- Billed monthly", task.handoff
+  end
 end

@@ -290,4 +290,75 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes prompt, "The briefing stage is ALREADY DONE"
     refute_includes prompt, "Who uses this app & our perspective"
   end
+
+  # A task started from another task's chat (Create Tasks → New task): its
+  # first chat has the AI read that conversation and hand over what it said
+  # about this task, then reads the handoff, and opens by saying what it got.
+  def spun_off_task(handoff: nil)
+    source = flosis_task("Add token calculations")
+    conversation = ChatSession.create!(task: source, workspace: source.project.workspace, user: users(:one),
+                                       purpose: "refine", claude_session_id: "old-session", codebase_path: "/tmp")
+    conversation.chat_messages.create!(role: "user", user: users(:one), content: "Billed monthly, prorated on joining.")
+    source.project.tasks.create!(name: "Billing", spun_off_from: source, handoff_chat_session: conversation,
+                                 handoff: handoff)
+  end
+
+  test "a task started from another task's chat hands over first, then its chat reads the handoff" do
+    task = spun_off_task
+
+    with_scripted_cli("<handoff>- Billed monthly, prorated on joining</handoff>",
+                      "From «Add token calculations» I brought over: monthly billing.") do |runs|
+      post jira_task_chat_session_path(task)
+
+      handing_over, chat = runs.sort_by { |run| run[:turn] }
+      assert_includes handing_over[:prompt], "**Kacper:** Billed monthly, prorated on joining."
+      assert_includes chat[:prompt], "- Billed monthly, prorated on joining"
+    end
+
+    assert_response :success
+    assert_equal "- Billed monthly, prorated on joining", task.reload.handoff
+    assert_includes response.body, "Bringing over what «Add token calculations» said about this task"
+    opened = ChatSession.find_active_for(task, purpose: "refine")
+    assert_equal "From «Add token calculations» I brought over: monthly billing.", opened.chat_messages.sole.content
+  end
+
+  test "a handoff already written is not written again" do
+    task = spun_off_task(handoff: "- Billed monthly")
+
+    with_scripted_cli("The chat's first message.") do |runs|
+      post jira_task_chat_session_path(task)
+
+      assert_equal 1, runs.size
+      assert_includes runs.first[:prompt], "- Billed monthly"
+    end
+    assert_not_includes response.body, "Bringing over"
+  end
+
+  test "the prompt carries the handoff and opens with what was handed over" do
+    task = spun_off_task(handoff: "- Billed monthly, prorated on joining")
+
+    prompt = chat_controller(ChatSessionsController, task).send(:build_initial_prompt)
+
+    assert_includes prompt, "# Carried over from «Add token calculations»"
+    assert_includes prompt, "- Billed monthly, prorated on joining"
+    assert_includes prompt, "Where the description says otherwise, the description wins."
+    assert_includes prompt, "From «Add token calculations» I brought over:"
+  end
+
+  test "a handoff with nothing in it is said in one line" do
+    task = spun_off_task(handoff: "")
+
+    prompt = chat_controller(ChatSessionsController, task).send(:build_initial_prompt)
+
+    assert_includes prompt, "Nothing in that conversation concerned this task."
+    assert_includes prompt, "say in one line that nothing from «Add token calculations» concerned this task"
+    assert_not_includes prompt, "I brought over:"
+  end
+
+  test "a task not started from a chat has no handoff in its prompt" do
+    prompt = chat_controller(ChatSessionsController, flosis_task).send(:build_initial_prompt)
+
+    assert_not_includes prompt, "Carried over from"
+    assert_not_includes prompt, "brought over"
+  end
 end

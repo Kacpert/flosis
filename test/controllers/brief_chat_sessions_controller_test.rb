@@ -287,4 +287,15 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes prompt, "You have no access to this project's code; reason from the brief and ask."
     assert_not_includes prompt, "Investigate the codebase first"
   end
+
+  test "a task started from another task's chat carries the handoff into its briefing too" do
+    source = flosis_task("Add token calculations")
+    task = source.project.tasks.create!(name: "Billing", spun_off_from: source, handoff: "- Billed monthly")
+
+    prompt = chat_controller(BriefChatSessionsController, task).send(:build_initial_prompt)
+
+    assert_includes prompt, "# Carried over from «Add token calculations»"
+    assert_includes prompt, "- Billed monthly"
+    assert_includes prompt, "From «Add token calculations» I brought over:"
+  end
 end

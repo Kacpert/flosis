@@ -13,6 +13,17 @@ class Task < ApplicationRecord
   # Each time this task's designs were approved into master (Workshop Designs).
   has_one :design_thread, dependent: :nullify
   has_many_attached :attachments
+  # A task started from another task's conversation (the chat's "New task"):
+  # where it came from, and the conversation its handoff is read from.
+  belongs_to :spun_off_from, class_name: "Task", optional: true
+  belongs_to :handoff_chat_session, class_name: "ChatSession", optional: true
+
+  # What the AI handed over from that conversation for this task (TaskHandoff)
+  # is written by the task's first chat; empty when the conversation held
+  # nothing for it.
+  def handoff_pending?
+    handoff.nil? && handoff_chat_session_id.present?
+  end
 
   # The most recent AI-refined ticket description. Scoped to the "ai" source
   # so the refinement modal never receives breakdown JSON.

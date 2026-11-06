@@ -1,25 +1,34 @@
+<%# The New idea dialog. A chat's "New task" opens it too (workshop/ideas/show),
+    with its own heading, intro and url, a panel id, and the chat's stage as
+    persona. %>
 <%
+  url ||= workshop_ideas_path
+  heading ||= "New idea"
+  intro ||= "Give it a title so it&rsquo;s saved to the pipeline &mdash; you can come back to the conversation anytime.".html_safe
+  description_placeholder ||= "A sentence or two on what you're thinking…"
+  panel_id ||= nil
+  persona ||= nil
   briefing = current_workshop_project.briefing_enabled?
   start_stage = briefing ? "briefing" : "details"
 %>
-<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-action="click->clar-modal#close">
+<div class="hidden clar-modal-overlay" data-clar-modal-target="panel" <% if panel_id %>data-clar-modal-panel-id-value="<%= panel_id %>"<% end %> data-action="click->clar-modal#close">
   <div class="clar-modal p-5.5 max-w-[480px]" data-action="click->clar-modal#stopPropagation">
     <div class="flex items-center justify-between mb-1">
-      <h2 class="text-lg font-bold clar-text-text m-0">New idea</h2>
+      <h2 class="text-lg font-bold clar-text-text m-0"><%= heading %></h2>
       <button type="button" class="clar-text-faint flex p-1" data-action="clar-modal#close" aria-label="Close">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
     </div>
-    <p class="text-[13px] leading-normal clar-text-muted mb-4.5">Give it a title so it&rsquo;s saved to the pipeline &mdash; you can come back to the conversation anytime.</p>
+    <p class="text-[13px] leading-normal clar-text-muted mb-4.5"><%= intro %></p>
 
-    <%= form_with url: workshop_ideas_path, method: :post, class: "space-y-0",
+    <%= form_with url: url, method: :post, class: "space-y-0",
           data: { controller: "clar-required clar-start-stage", clar_start_stage_selected_value: start_stage, turbo: false } do |f| %>
       <label class="clar-field-label">TITLE <span class="clar-text-danger">*</span></label>
       <%= f.text_field "idea[title]", value: nil, autofocus: true, placeholder: "e.g. Aggregated CSV export for analysts",
             class: "clar-input !text-[14px] mb-4", data: { clar_required_target: "input", action: "input->clar-required#toggle" } %>
 
       <label class="clar-field-label">DESCRIPTION <span class="font-medium">(optional)</span></label>
-      <%= f.text_area "idea[description]", value: nil, rows: 3, placeholder: "A sentence or two on what you're thinking…",
+      <%= f.text_area "idea[description]", value: nil, rows: 3, placeholder: description_placeholder,
             class: "clar-textarea mb-5" %>
 
       <%# START AT — Briefing (default), or skip the brief and open straight in
@@ -45,6 +54,7 @@
       </div>
       <% end %>
       <%= hidden_field_tag "idea[start_stage]", start_stage, id: nil, data: { clar_start_stage_target: "field" } %>
+      <%= hidden_field_tag "persona", persona, id: nil if persona %>
 
       <div class="flex gap-2.5 justify-end">
         <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>

@@ -13,6 +13,36 @@ module FakeChatCliTestHelper
     ClaudeCliService.define_singleton_method(:new, original)
   end
 
+  # Like with_fake_cli, but each run answers: a String is its final text, a
+  # Hash is its result event, an exception is raised instead. Each run keeps
+  # the keywords its service was built with, the prompt it was given, and
+  # when (:turn, from 1) among the runs that were given one.
+  def with_scripted_cli(*answers)
+    runs = []
+    turns = 0
+    original = ClaudeCliService.method(:new)
+    ClaudeCliService.define_singleton_method(:new) do |**keywords|
+      run = { keywords: keywords }
+      runs << run
+      Object.new.tap do |fake|
+        fake.define_singleton_method(:send_initial_streaming) do |prompt:, &block|
+          run[:prompt] = prompt
+          run[:turn] = turns += 1
+          answer = answers.shift
+          raise answer if answer.is_a?(Exception)
+
+          block&.call(:keepalive)
+          event = { "type" => "result", "session_id" => "session-#{runs.size}" }
+          event.merge!(answer.is_a?(Hash) ? answer : { "result" => answer })
+          block&.call(event.to_json)
+        end
+      end
+    end
+    yield runs
+  ensure
+    ClaudeCliService.define_singleton_method(:new, original)
+  end
+
   # A chat controller as a request would have it (its prompt reads params),
   # holding the task, to build its prompt.
   def chat_controller(klass, task)

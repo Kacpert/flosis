@@ -82,7 +82,7 @@ class ChatSessionsController < ApplicationController
       ```
       #{desc}
       ```
-      #{unbriefed ? project_context_section : ""}#{comments_section}#{attachments_section}#{refine_current_section}
+      #{unbriefed ? project_context_section : ""}#{comments_section}#{attachments_section}#{refine_current_section}#{handoff_section}
 
       # How you must operate
 
@@ -160,7 +160,7 @@ class ChatSessionsController < ApplicationController
 
       # Start now
 
-      Do your upfront investigation silently, then post your first message: a brief 1–2 sentence summary of what you found (mentioning concrete files where useful) followed by your first clarifying question. No multi-question lists.
+      Do your upfront investigation silently, then post your first message: a brief 1–2 sentence summary of what you found (mentioning concrete files where useful) followed by your first clarifying question. No multi-question lists.#{handoff_opening}
     PROMPT
   end
 
