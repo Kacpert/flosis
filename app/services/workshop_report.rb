@@ -215,7 +215,7 @@ class WorkshopReport
   end
 
   def open_bugs_scope
-    @project.tasks.where(issue_type: BUG)
+    @project.tasks.kept.where(issue_type: BUG)
   end
 
   # ---------------------------------------------------------------------

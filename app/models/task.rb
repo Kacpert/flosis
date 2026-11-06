@@ -63,8 +63,34 @@ class Task < ApplicationRecord
     File.join(base, external_reference)
   end
 
-  scope :jira_synced, -> { where(external_type: "jira") }
+  # Jira-mirrored tasks. One whose issue was deleted in Jira is soft-removed
+  # (deleted_at) and no longer counts: every Jira list in the app is built on
+  # this scope, so it disappears from them all at once.
+  scope :jira_synced, -> { where(external_type: "jira", deleted_at: nil) }
+  scope :jira_removed, -> { where(external_type: "jira").where.not(deleted_at: nil) }
+  scope :kept, -> { where(deleted_at: nil) }
   scope :local_only, -> { where(external_type: [nil, ""]) }
+
+  # How long a soft-removed task waits before PurgeJiraDeletedTasksJob deletes it.
+  KEPT_AFTER_JIRA_DELETION = 30.days
+
+  # Brings soft-removed tasks back — their issues are in Jira again.
+  def self.restore_all
+    update_all(deleted_at: nil)
+  end
+
+  # Jira says this task's issue is gone (deleted, or moved to another project).
+  # A task in Create Tasks keeps its work and becomes a local idea: the Jira
+  # link goes, the description stays, the key leaves the title (unless the bare
+  # title is taken). Any other task is soft-removed.
+  def remove_deleted_jira_issue!
+    return update!(deleted_at: Time.current) unless in_pipeline?
+
+    bare = name.delete_prefix("#{external_reference} ").strip
+    taken = bare.blank? || project.tasks.where.not(id: id).exists?(name: bare)
+    update!(name: taken ? name : bare, external_type: nil, external_reference: nil, external_url: nil,
+            sprint_id: nil, sprint_name: nil)
+  end
 
   validates :name, presence: true, uniqueness: { scope: :project_id }
 

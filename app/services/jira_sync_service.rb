@@ -12,8 +12,39 @@ class JiraSyncService
 
     sync_boards
     sync_issues
+    sync_deleted_issues
     sync_sprint_assignments
     sync_delivered_issues
+  end
+
+  # Issues deleted in Jira (or moved to another project) since the last run.
+  # sync_issues sees open issues only, so a task missing there proves nothing:
+  # this asks for every key in the project, closed ones too, and has Jira
+  # confirm each missing one before acting (Task#remove_deleted_jira_issue!):
+  # a task in Create Tasks keeps its work as a local idea, any other is
+  # soft-removed and purged after 30 days (PurgeJiraDeletedTasksJob). A task
+  # whose key is listed again comes back.
+  #
+  # A failed fetch, or a login that can no longer browse the project, changes
+  # nothing — Jira answers a hidden issue with the same 404 as a deleted one.
+  def sync_deleted_issues
+    project_key = @project.external_reference
+    keys = @client.fetch_issue_keys(project_key)
+    return if keys.nil?
+
+    @project.tasks.jira_removed.where(external_reference: keys).restore_all
+
+    missing = @project.tasks.jira_synced.where.not(external_reference: keys).to_a
+    return if missing.empty?
+    return unless @client.can_browse_project?(project_key)
+
+    missing.each do |task|
+      task.remove_deleted_jira_issue! if @client.issue_gone?(task.external_reference, project_key)
+    rescue ActiveRecord::ActiveRecordError => e
+      # One task that cannot be saved must not keep the others, nor the rest of
+      # this sync (sprints, delivered issues) — it is tried again next run.
+      Rails.logger.warn("[JiraSync] #{task.external_reference} not removed: #{e.class}: #{e.message}")
+    end
   end
 
   # Populates the `delivered_issues` reporting mirror from a lightweight

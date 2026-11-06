@@ -45,7 +45,7 @@ class Workshop::BugsController < Workshop::BaseController
 
     attributions = current_workshop_project.bug_attributions.index_by(&:jira_key)
 
-    open_rows = current_workshop_project.tasks.where(issue_type: BUG).map do |task|
+    open_rows = current_workshop_project.tasks.kept.where(issue_type: BUG).map do |task|
       {
         key: task.external_reference,
         title: task.name,

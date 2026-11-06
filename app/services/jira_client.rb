@@ -91,6 +91,51 @@ class JiraClient
     results
   end
 
+  # Every issue key in the project, closed issues included — what
+  # JiraSyncService#sync_deleted_issues compares the project's tasks against.
+  # Keys only, so Jira hands back up to 5000 a page. nil (never a partial or
+  # empty list) when any page fails: an empty answer must mean "no issues".
+  def fetch_issue_keys(project_key)
+    return nil unless project_key.to_s.match?(PROJECT_KEY_FORMAT)
+
+    keys = []
+    next_page_token = nil
+    loop do
+      body = { jql: "project = #{project_key}", fields: [ "key" ], maxResults: 5000 }
+      body[:nextPageToken] = next_page_token if next_page_token
+
+      data = post("/rest/api/3/search/jql", body)
+      return nil unless data
+
+      keys.concat((data["issues"] || []).map { |i| i["key"] })
+      next_page_token = data["nextPageToken"]
+      break if next_page_token.nil?
+    end
+    keys
+  end
+
+  # Whether this login may still browse the project. Jira answers a hidden
+  # issue and a deleted one with the same 404, so this is asked before any
+  # missing issue is taken as deleted. False on anything but a clear yes.
+  def can_browse_project?(project_key)
+    data = get("/rest/api/3/mypermissions", projectKey: project_key, permissions: "BROWSE_PROJECTS")
+    data&.dig("permissions", "BROWSE_PROJECTS", "havePermission") == true
+  end
+
+  # True only when Jira clearly says the issue is not in this project any
+  # more: a 404, or the issue now answering from another project (moved).
+  # Errors, timeouts and auth failures are "don't know" — false.
+  def issue_gone?(issue_key, project_key)
+    response = get_response("/rest/api/3/issue/#{issue_key}", fields: "project")
+    return false unless response
+    return true if response.is_a?(Net::HTTPNotFound)
+    return false unless response.is_a?(Net::HTTPSuccess)
+
+    JSON.parse(response.body).dig("fields", "project", "key") != project_key
+  rescue JSON::ParserError
+    false
+  end
+
   # A second, lightweight pass for recently-DONE issues, used to populate the
   # `delivered_issues` reporting mirror (never `tasks` — see DeliveredIssue).
   # Deliberately excludes comments/attachments fields to keep the payload small
@@ -638,6 +683,24 @@ class JiraClient
     else
       Rails.logger.warn("[JiraClient] API error: #{response.code} #{response.message} for #{path}")
       nil
+    end
+  rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED => e
+    Rails.logger.warn("[JiraClient] Connection error: #{e.message}")
+    nil
+  end
+
+  # The raw response, for callers that must tell a 404 from other failures.
+  # nil on a connection error.
+  def get_response(path, params = {})
+    uri = URI("https://#{@domain}#{path}")
+    uri.query = URI.encode_www_form(params) unless params.empty?
+
+    request = Net::HTTP::Get.new(uri)
+    request["Authorization"] = "Basic #{Base64.strict_encode64("#{@email}:#{@api_token}")}"
+    request["Accept"] = "application/json"
+
+    Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: TIMEOUT, read_timeout: TIMEOUT) do |http|
+      http.request(request)
     end
   rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED => e
     Rails.logger.warn("[JiraClient] Connection error: #{e.message}")

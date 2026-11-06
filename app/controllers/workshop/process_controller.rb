@@ -36,7 +36,7 @@ class Workshop::ProcessController < Workshop::BaseController
     @estimation_trigger_label = current_workshop_project&.estimation_trigger_label
     @estimation_field_names = current_workshop_project&.estimation_field_names ||
                               [ EstimationSettings::DEFAULT_ESTIMATION_FIELD_NAME ]
-    @estimated_tasks = current_workshop_project ? current_workshop_project.tasks
+    @estimated_tasks = current_workshop_project ? current_workshop_project.tasks.kept
       .where.not(ai_estimated_at: nil)
       .order(ai_estimated_at: :desc)
       .limit(20) : Task.none
