@@ -50,7 +50,10 @@
     <div class="flex items-center gap-2.5 px-3 py-2 bg-[var(--surface)] border-b border-[color:var(--border)]">
       <span class="flex gap-[5px]"><% 3.times do %><span class="w-[9px] h-[9px] rounded-full bg-[var(--border)]"></span><% end %></span>
       <span class="clar-mono text-[11.5px] clar-text-muted flex-1 min-w-0 truncate" data-designs-canvas-target="path"><%= @current ? @current[:path] : "designs/" %></span>
-      <% if @mode == "master" || !live %>
+      <% if @master_for_branch %>
+        <span class="text-[11.5px] clar-text-faint flex-none">Nothing on this branch yet · showing master</span>
+      <% end %>
+      <% if @mode == "master" || !live || @master_for_branch %>
         <span class="clar-badge clar-badge-success !py-0.5 !px-2"><%= designs_icon(:lock, 11) %>master</span>
       <% else %>
         <span class="clar-badge clar-badge-ai !py-0.5 !px-2 max-w-[50%] truncate"><%= designs_icon(:branch, 11) %><%= @thread.branch %></span>

@@ -96,6 +96,60 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # A thread's branch is published once a turn commits to it. Until then the
+  # branch is master as it was, so the canvas shows master's screens, not an
+  # empty "No screens here yet" for as long as the first turn takes.
+  def canvas_slot
+    src = css_select("iframe[data-designs-canvas-target=frame]").sole["src"]
+    Designs::PreviewGrant.read(src[Designs::PreviewGrant::FORMAT])&.last
+  end
+
+  test "a task's new thread shows master's screens until its branch has work of its own" do
+    with_designs do
+      thread = Designs::Threads.start_from_task!(tasks(:jira_task), user: users(:one))
+
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_response :success
+      assert_equal "master", canvas_slot
+      assert_includes response.body, "Nothing on this branch yet · showing master"
+      assert_not_includes response.body, "No screens here yet"
+    end
+  end
+
+  test "a thread's first message shows master's screens until its turn commits" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      Designs::Threads.message!(thread, user: users(:one), text: "Add a counter")
+
+      get workshop_designs_overview_path(thread: thread.id, mode: "changes")
+
+      assert_equal "master", canvas_slot
+      assert_includes response.body, "Nothing yet."
+    end
+  end
+
+  test "a branch with work of its own is never passed off as master" do
+    with_designs do |repo|
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      Designs::Threads.message!(thread, user: users(:one), text: "Add a counter")
+      thread.reload
+      commit_files(repo, repo.worktree!(thread.branch, from: thread.base_sha),
+                   { "designs/candidate/apply.html" => SCREEN.("Application form", "<p>121 / 500</p>") })
+      DesignTurn.update_all(status: "succeeded")
+
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_select "iframe[data-designs-canvas-target=frame]", count: 0
+      assert_not_includes response.body, "showing master"
+
+      Designs::Publisher.new(@project, repo).publish!(thread.branch, thread.branch, base: thread.base_sha)
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_equal thread.branch, canvas_slot
+    end
+  end
+
   test "an empty thread says it has no changes yet and asks what should change" do
     with_designs do
       thread = Designs::Threads.start!(project: @project, user: users(:one))
