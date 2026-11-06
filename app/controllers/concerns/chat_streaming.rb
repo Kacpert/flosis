@@ -92,6 +92,7 @@ module ChatStreaming
     cli_error = nil
     begin
       begin
+        bring_over_handoff { |chunk| full_response += chunk }
         service.send_initial_streaming(prompt: build_initial_prompt) do |line|
           handle_stream_line(line) { |chunk| full_response += chunk }
         end
@@ -192,6 +193,68 @@ module ChatStreaming
     write_sse(payload)
   rescue ActionController::Live::ClientDisconnected, IOError, Errno::EPIPE
     nil
+  end
+
+  def keepalive_safe
+    response.stream.write(": keepalive\n\n")
+  rescue ActionController::Live::ClientDisconnected, IOError, Errno::EPIPE
+    nil
+  end
+
+  # ---- a task started from another task's chat --------------------------
+
+  # Before the first chat on such a task reads its handoff, the AI writes it
+  # from the conversation the task came from (TaskHandoff). The wait streams
+  # one line of thinking and keepalives; a reader who leaves does not stop it.
+  def bring_over_handoff
+    return unless @task.handoff_pending?
+
+    note = "_Bringing over what «#{handoff_source}» said about this task…_"
+    @streamed_any_assistant = true
+    yield note if block_given?
+    write_sse_safe(note)
+    TaskHandoff.new(@task).write! { keepalive_safe }
+  end
+
+  # What was handed over, for every chat on the task to read: "" when the
+  # conversation held nothing for it, nil when the task was not started from
+  # a chat.
+  def handoff_section
+    return "" if @task.handoff.nil?
+
+    <<~SECTION
+
+      # Carried over from «#{handoff_source}»
+
+      This task was started from the conversation on another task, «#{handoff_source}». The AI there wrote down what that conversation settled about THIS task:
+
+      #{@task.handoff.presence || "Nothing in that conversation concerned this task."}
+
+      Treat it as the person's own input, like the description: don't ask again what it already answers. Where the description says otherwise, the description wins.
+    SECTION
+  end
+
+  # A new conversation on such a task opens by saying what it was handed, so
+  # the person sees it and can correct it.
+  def handoff_opening
+    return "" if @task.handoff.nil?
+
+    said = if @task.handoff.present?
+      %(start with "From «#{handoff_source}» I brought over:" and 2–5 short bullets in plain words: the decisions, numbers and open points you were handed)
+    else
+      "say in one line that nothing from «#{handoff_source}» concerned this task"
+    end
+
+    <<~TEXT
+
+      # Your first message opens with what was carried over
+
+      Before anything else in your first message, even the opening asked for above, #{said}, so the person can see it and correct anything. Then carry on as described above.
+    TEXT
+  end
+
+  def handoff_source
+    @task.spun_off_from&.name || "another task"
   end
 
   def close_stream_safe

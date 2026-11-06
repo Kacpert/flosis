@@ -33,6 +33,28 @@ class Workshop::IdeasController < Workshop::BaseController
     end
   end
 
+  # New task from a chat (its toolbar's "New task"): part of the conversation
+  # belongs to another piece of work. The new task starts as a new idea does
+  # and keeps the conversation it came from; its first chat hands over what
+  # that conversation said about it (TaskHandoff, ChatStreaming#create).
+  def spin_off
+    @idea = current_workshop_project.tasks.pipeline.find(params[:id])
+    persona = params[:persona] == "briefing" ? "briefing" : "details"
+    conversation = ChatSession.find_active_for(@idea, current_user, purpose: persona == "briefing" ? "brief" : "refine")
+    task = current_workshop_project.tasks.new(name: idea_params[:title], description: idea_params[:description],
+                                              spun_off_from: @idea, handoff_chat_session: conversation)
+    stage = start_stage
+
+    if task.save
+      start_in_pipeline!(task, stage)
+      handing_over = conversation ? %( · bringing over what "#{@idea.name}" said about it) : ""
+      flash[:clar_toast] = %(New task "#{task.name}"#{handing_over})
+      redirect_to landing_path(task, stage)
+    else
+      redirect_to workshop_idea_path(@idea, stage: persona), alert: task.errors.full_messages.to_sentence
+    end
+  end
+
   # Rename: local tasks rename freely; Jira-linked tasks rename the local
   # mirror only (the `name` column) — never pushed back to Jira from here.
   # The header pencil (clar_rename_controller.js) issues a fetch PATCH and
@@ -230,13 +252,7 @@ class Workshop::IdeasController < Workshop::BaseController
     stage = start_stage
 
     if task.save
-      task.enter_pipeline!(author: current_user, stage: pipeline_stage(stage))
-
-      if idea_params[:description].present? && briefing_enabled?
-        task.briefs.create!(workspace: task.project.workspace, version: 0,
-                            origin: "user", status: "draft", content: idea_params[:description]).make_current!
-      end
-
+      start_in_pipeline!(task, stage)
       flash[:clar_toast] = %(Idea saved · "#{idea_params[:title]}" · #{stage_label(stage)})
       redirect_to landing_path(task, stage)
     else
@@ -244,6 +260,16 @@ class Workshop::IdeasController < Workshop::BaseController
       load_pipeline
       render "workshop/pipeline/index", status: :unprocessable_entity
     end
+  end
+
+  # A new task (a new idea, or one started from a chat) joins the pipeline at
+  # its stage; where the Briefing step is on, its description is the v0 brief.
+  def start_in_pipeline!(task, stage)
+    task.enter_pipeline!(author: current_user, stage: pipeline_stage(stage))
+    return unless task.description.present? && briefing_enabled?
+
+    task.briefs.create!(workspace: task.project.workspace, version: 0,
+                        origin: "user", status: "draft", content: task.description).make_current!
   end
 
   # Workshop Designs v2 never renames a design thread's branch: a task that

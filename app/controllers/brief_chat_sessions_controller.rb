@@ -98,7 +98,7 @@ class BriefChatSessionsController < ApplicationController
       # The idea to brief
 
       #{ticket_section}
-      #{comments_section}#{attachments_section}#{refine_current_section}
+      #{comments_section}#{attachments_section}#{refine_current_section}#{handoff_section}
 
       #{chat_codebase? ? investigation_step : "# There is no code to read\n\n#{NO_CODE}"}
 
@@ -238,7 +238,7 @@ class BriefChatSessionsController < ApplicationController
       Investigate quietly, then open with your short, honest take — is this worth
       building and why (or why you're not sure) — plus your recommendation and your
       first question or two. Only draft a first `<brief>` if you're actually convinced
-      it's worth building and it's already clear.
+      it's worth building and it's already clear.#{handoff_opening}
     PROMPT
   end
 

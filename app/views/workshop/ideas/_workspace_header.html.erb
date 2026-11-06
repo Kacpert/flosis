@@ -10,6 +10,14 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
       All tasks
     <% end %>
+    <%# A task started from another task's chat links back to it. %>
+    <% if (origin = idea.spun_off_from)&.in_pipeline? %>
+      <%= link_to workshop_idea_path(origin), title: "Started from this task's conversation",
+            class: "inline-flex items-center gap-1.5 clar-text-faint text-[12.5px] no-underline min-w-0" do %>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="flex-none"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+        <span class="truncate">from <%= origin.name %></span>
+      <% end %>
+    <% end %>
     <% if designs_on %>
       <div class="flex-1"></div>
       <%= render "workshop/ideas/design_thread_strip", idea: idea %>

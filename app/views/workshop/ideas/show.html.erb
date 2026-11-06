@@ -51,6 +51,17 @@
       "Reset session" trigger in the chat panel's persona banner. %>
   <%= render "workshop/ideas/reset_modal", idea: @idea, stage: @stage %>
 
+  <%# New task from this chat (the chat toolbar's "New task"): the New idea
+      dialog, posting to spin_off with the chat's stage, so the new task keeps
+      this conversation and its first chat hands over what it said about it. %>
+  <% if %w[briefing details].include?(@stage) %>
+    <%= render "workshop/pipeline/new_idea_modal",
+          url: spin_off_workshop_idea_path(@idea), panel_id: "new-task", persona: @stage,
+          heading: "New task from this conversation",
+          intro: "The AI reads this conversation and hands the new task what it says about it. The new task's AI opens with a short summary of that, so you can correct anything.",
+          description_placeholder: "What the new task is about — the AI uses it to pick what to bring over…" %>
+  <% end %>
+
   <%# "Request from designer" modal for the empty state: the footer button (in the
       document panel) opens it. When a request exists the designs strip renders it
       instead. Only needed on details/ready, where designs are relevant. %>
