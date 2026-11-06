@@ -72,6 +72,12 @@ class JiraTasksControllerTest < ActionDispatch::IntegrationTest
       .to_return(status: 200, body: [].to_json, headers: { "Content-Type" => "application/json" })
     stub_request(:post, /rest\/api\/3\/search\/jql/)
       .to_return(status: 200, body: { issues: [] }.to_json, headers: { "Content-Type" => "application/json" })
+    # Jira listing no issues makes the sync ask whether it may browse the
+    # project before removing anything; "no" keeps every task (deletion has
+    # its own tests: JiraSyncDeletedIssuesTest).
+    stub_request(:get, %r{\Ahttps://test\.atlassian\.net/rest/api/3/mypermissions})
+      .to_return(status: 200, body: { permissions: { BROWSE_PROJECTS: { havePermission: false } } }.to_json,
+                 headers: { "Content-Type" => "application/json" })
 
     post refresh_jira_tasks_path(project_id: @project.id)
     assert_response :redirect
