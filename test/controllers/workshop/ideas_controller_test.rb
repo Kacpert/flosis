@@ -257,9 +257,9 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "a", text: /Continue to Details/, count: 0
   end
 
-  # The button's name sounds like it might publish something; the note under it
-  # is what tells the user it doesn't.
-  test "details spells out that finishing sends nothing to Jira" do
+  # The button's name sounds like it might publish something; the (i) on it
+  # tells the user it doesn't, without a line of text under the button.
+  test "details' Finish says in its (i) that finishing sends nothing to Jira" do
     idea = tasks(:jira_task)
     idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
     idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "d").make_current!
@@ -267,8 +267,26 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     get workshop_idea_path(idea, stage: "details")
 
     assert_response :success
-    assert_select "body", /Safe &mdash; nothing is sent to Jira|Safe — nothing is sent to Jira/
-    assert_select "body", /marks the ticket finished here/
+    note = "Safe — nothing is sent to Jira. This only marks the ticket finished here; the Jira ticket stays as it is."
+    assert_select "form[action*='save_locally'] button[title=?]", note do
+      assert_select "[data-finish-info][title=?]", note
+    end
+    assert_select "p", text: /nothing is sent to Jira/, count: 0
+  end
+
+  # The chat keeps the height: one reset (Reset session, in the chat's
+  # banner) and no designer request in the document footer.
+  test "details offers Reset session only, and no Request from designer" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "d").make_current!
+
+    get workshop_idea_path(idea, stage: "details")
+
+    assert_response :success
+    assert_select "button", text: /Reset session/
+    assert_select "button", text: /Reset chat/, count: 0
+    assert_select "button", text: /Request from designer/, count: 0
   end
 
   test "details 'Finish · go to Ready' is a LOCAL save_locally action (no Jira); briefing has none" do

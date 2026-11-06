@@ -39,6 +39,8 @@ class Workshop::DesignTaskStripTest < ActionDispatch::IntegrationTest
     with_designs do
       get workshop_idea_path(@task)
       assert_select "button", text: /Design with AI/
+      assert_select "[data-task-header-top] a", text: /All tasks/
+      assert_select "[data-task-header-top] button", text: /Design with AI/
 
       post workshop_start_idea_design_thread_path(@task)
       thread = @task.reload.design_thread

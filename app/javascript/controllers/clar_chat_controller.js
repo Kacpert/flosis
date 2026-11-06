@@ -34,8 +34,6 @@ export default class extends Controller {
     // available behind the per-message "Show thinking" toggle. Preference persists.
     this.liveThinking = localStorage.getItem("clarLiveThinking") === "on"
     this.syncLiveThinkingButton()
-    this.boundResetConversation = this.resetConversation.bind(this)
-    window.addEventListener("clar:reset-conversation", this.boundResetConversation)
     this.loadOrStart()
   }
 
@@ -58,7 +56,6 @@ export default class extends Controller {
 
   disconnect() {
     this.abortIfStreaming()
-    window.removeEventListener("clar:reset-conversation", this.boundResetConversation)
   }
 
   async loadOrStart() {
@@ -317,23 +314,14 @@ export default class extends Controller {
     messages.forEach(msg => this.appendMessage(msg.role === "assistant" ? "ai" : msg.role, msg.content, msg.author, msg.thinking))
   }
 
-  // Tier 1 — "Reset session" (persona-banner button, behind the "Reset AI
-  // session" confirmation modal, _reset_modal.html.erb). Full restart: no
-  // mode param, so build_initial_prompt behaves exactly as it does for a
-  // brand-new session. All saved brief versions and the description are
-  // untouched (destroy only soft-closes the ChatSession; briefs belong to
-  // the task, not the session).
+  // "Reset session" (persona-banner button, behind the "Reset AI session"
+  // confirmation modal, _reset_modal.html.erb). Full restart: no mode param,
+  // so build_initial_prompt behaves exactly as it does for a brand-new
+  // session. All saved brief versions and the description are untouched
+  // (destroy only soft-closes the ChatSession; briefs belong to the task,
+  // not the session).
   async resetSession() {
     await this.performReset(null, "Chat reset · all versions kept")
-  }
-
-  // Tier 2 — "Reset chat" (document-panel footer, no modal; dispatched here
-  // via the clar:reset-conversation window event from
-  // clar_reset_chat_controller.js). Passes mode=refine_current so
-  // build_initial_prompt nudges the AI to revise the current brief instead
-  // of starting from zero.
-  async resetConversation() {
-    await this.performReset("refine_current", "Conversation reset — current version kept")
   }
 
   async performReset(mode, toastMessage) {
