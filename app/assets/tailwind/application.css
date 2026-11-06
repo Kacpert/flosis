@@ -2334,6 +2334,13 @@ span.flatpickr-weekday {
     transition:background .15s; }
   .clar-col-resizer:hover, .clar-col-resizer:active { background:var(--primary); }
   .clar-col-resizer::after { content:""; position:absolute; top:0; bottom:0; left:-4px; right:-4px; }
+  /* The top edge of a chat's input (clar_composer_controller): dragged up, the
+     box gets taller; a line shows on hover and while dragging. */
+  .clar-composer-grip { position:absolute; left:0; right:0; top:-4px; height:8px; z-index:5; cursor:ns-resize;
+    touch-action:none; }
+  .clar-composer-grip::after { content:""; position:absolute; left:0; right:0; top:3px; height:2px; transition:background .15s; }
+  .clar-composer-grip:hover::after, .clar-composer-resizing .clar-composer-grip::after { background:var(--primary); }
+  .clar-composer-resizing, .clar-composer-resizing * { cursor:ns-resize !important; user-select:none; }
   .clar-editor { outline:none; min-height:240px; padding:12px 14px; background:var(--bg);
     border:1px solid var(--border); border-radius:10px; }
   .clar-editor:focus { border-color:var(--primary); }
