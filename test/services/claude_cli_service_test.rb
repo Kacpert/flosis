@@ -700,4 +700,16 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
 
     service
   end
+
+  # A CLI that fails at once (a session it cannot resume) may quit before it
+  # reads a long prompt: that is a run with no answer, which a turn can start
+  # afresh, not a broken pipe.
+  test "a CLI that quits before reading the prompt streams nothing, and the write does not fail" do
+    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 30)
+    seen = []
+
+    service.send(:stream_claude, [ "sh", "-c", "exit 0" ], "x" * 1_000_000) { |event| seen << event }
+
+    assert_equal [], seen.reject { |event| event == :tick }
+  end
 end

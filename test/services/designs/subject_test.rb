@@ -229,4 +229,19 @@ class Designs::SubjectTest < ActiveSupport::TestCase
       assert_not_includes message, "has open"
     end
   end
+
+  test "a map that cannot be made is left out, and the turn goes on without it" do
+    original = Designs::RepoMap.method(:text)
+    Designs::RepoMap.define_singleton_method(:text) { |*, **| raise IOError, "unreadable" }
+    Dir.mktmpdir("worktree") do |worktree|
+      thread, turn = thread_with_turn
+
+      message = Designs::Subject.for(thread.chat_session).turn_message("Add usage", turn: turn, worktree: worktree)
+
+      assert_not_includes message, "## The design repo now"
+      assert message.rstrip.end_with?("Add usage")
+    end
+  ensure
+    Designs::RepoMap.define_singleton_method(:text, original)
+  end
 end

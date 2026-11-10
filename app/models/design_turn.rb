@@ -22,6 +22,16 @@ class DesignTurn < ApplicationRecord
   # What a turn that was cut off is failed with (see .fail_stale!).
   INTERRUPTED = "Interrupted before it finished — retry it.".freeze
 
+  # How long a running turn asked to stop may take to stop. Its job looks
+  # every few seconds (Designs::TurnJob#follow); one that has not stopped by
+  # then has no job left to stop it, and is failed by .fail_stale!.
+  STOP_GRACE = 2.minutes
+
+  # What a turn someone stopped is failed with.
+  def self.stopped_by(name)
+    "Stopped by #{name.presence || 'someone'}. Nothing it changed was kept."
+  end
+
   # The most characters of an error that are kept. MySQL refuses a TEXT past
   # 65,535 bytes, which is 16,383 characters at four bytes each; 10,000 is well
   # inside that and far more than anyone reads in a chat.
@@ -131,11 +141,29 @@ class DesignTurn < ApplicationRecord
   # UPDATE, not a load and a save per turn: the screen calls this on every
   # poll, and a job that took a turn over in the meantime (start! sets a fresh
   # started_at) is no longer matched by the time the UPDATE runs.
+  #
+  # A turn asked to stop longer than STOP_GRACE ago is failed too, and the
+  # chat says who stopped it: its job is gone. The next turn starts from the
+  # branch's last commit, so nothing it changed is kept. There are few of
+  # these, so each is loaded and locked against a job that just finished it.
   def self.fail_stale!
     now = Time.current
     failed = { status: "failed", error: INTERRUPTED, finished_at: now, updated_at: now }
-    where(status: "running", started_at: ...(now - stale_after)).where.not(kind: "setup").update_all(failed) +
-      where(status: "running", kind: "setup", started_at: ...(now - setup_stale_after)).update_all(failed)
+    stale = where(status: "running", started_at: ...(now - stale_after)).where.not(kind: "setup").update_all(failed) +
+            where(status: "running", kind: "setup", started_at: ...(now - setup_stale_after)).update_all(failed)
+    stale + where(status: "running", stop_requested_at: ...(now - STOP_GRACE)).count { |turn| turn.fail_stopped! }
+  end
+
+  # A running turn whose stop no job carried out; false if it has finished
+  # meanwhile.
+  def fail_stopped!
+    with_lock do
+      next false unless running?
+
+      fail!(self.class.stopped_by(stop_requested_by))
+      chat_session.chat_messages.create!(role: "assistant", kind: "error", content: error)
+      true
+    end
   end
 
   # Running for longer than stale_after (setup_stale_after, for a setup turn).

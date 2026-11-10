@@ -67,8 +67,17 @@ module Designs::Subject
     # screens only; components come in a turn of their own, before merging.
     def turn_message(request, turn: nil, worktree: nil)
       first = turn && turn.chat_session.design_turns.where.not(id: turn.id).where.not(started_at: nil).none?
-      map = worktree && Designs::RepoMap.text(worktree, focus: focus_path, full: first)
-      Designs::Prompt.thread_message(thread: @thread, request: request, repo_map: map, screens_only: turn&.kind == "design")
+      Designs::Prompt.thread_message(thread: @thread, request: request, repo_map: (repo_map(worktree, first) if worktree),
+                                     screens_only: turn&.kind == "design")
+    end
+
+    # Only a help to Claude: a map that cannot be made is left out, and the
+    # turn goes on without it.
+    def repo_map(worktree, full)
+      Designs::RepoMap.text(worktree, focus: focus_path, full: full)
+    rescue StandardError => e
+      Rails.logger.warn("[Designs::Subject] no map of the design repo for #{@thread.branch}: #{e.class}: #{e.message}")
+      nil
     end
 
     # The screen the person has open, as a path in the repo; nil unless both

@@ -162,19 +162,37 @@ class Designs::TurnJob < ApplicationJob
 
   # A components turn that Merge queued (Designs::Threads.merge_or_prepare!)
   # merges its thread once it has succeeded, as Merge would have. What stops
-  # the merge is said in the chat; the turn has succeeded all the same.
+  # the merge is said in the chat, and the turn has succeeded all the same. An
+  # auto merge that finds the repo busy has nobody to read that: it is tried
+  # again later, as AutoMergeJob tries a busy thread again.
   def merge_after(turn)
     thread = turn.chat_session.design_thread or return
     Designs::Threads.merge!(thread, user: turn.chat_message.user, how: turn.then_merge)
   rescue Designs::Threads::AlreadyMerged
     nil
+  rescue Designs::Threads::Busy => e
+    turn.then_merge == "auto" ? merge_later(turn, thread) : not_merged(turn, thread, e.message)
   rescue Designs::Repo::Conflict
-    Designs::Threads.note(thread, "Not merged: master changed the same lines. Update from master, then merge.")
-  rescue Designs::Threads::Busy, Designs::Threads::NothingToMerge, Designs::Repo::Diverged => e
-    Designs::Threads.note(thread, "Not merged: #{e.message}")
+    not_merged(turn, thread, "master changed the same lines. Update from master, then merge.")
+  rescue Designs::Threads::NothingToMerge, Designs::Repo::Diverged => e
+    not_merged(turn, thread, e.message)
   rescue StandardError => e
     log(turn, e, "the thread is not merged")
-    Designs::Threads.note(thread, "Not merged: #{reason(e).truncate(200)}. Merge it again.")
+    not_merged(turn, thread, "#{reason(e).truncate(200)}. Merge it again.")
+  end
+
+  def merge_later(turn, thread)
+    Designs::AutoMergeJob.set(wait: 2.minutes).perform_later(thread.id)
+  rescue StandardError => e
+    log(turn, e, "the auto merge is not tried again")
+  end
+
+  # Said in the chat; a note that cannot be posted is logged, never raised:
+  # the turn has succeeded.
+  def not_merged(turn, thread, why)
+    Designs::Threads.note(thread, "Not merged: #{why}")
+  rescue StandardError => e
+    log(turn, e, "the chat was not told the thread is not merged")
   end
 
   # Solid Queue stops a worker with exit!, which runs no ensure: a turn a
@@ -310,15 +328,17 @@ class Designs::TurnJob < ApplicationJob
   # Each event the CLI streams becomes a step for the chat. Every
   # STOP_CHECK_EVERY seconds, and whenever the CLI has been quiet for a while
   # (:tick), the turn looks whether someone asked to stop it: raising stops
-  # the CLI, and fails the turn.
+  # the CLI, and fails the turn. The look goes to the database past the query
+  # cache, which Solid Queue runs every job with: nothing is written while
+  # the CLI is quiet, so the cache would answer every tick as it did the first.
   def follow(turn, activity, event)
     activity.record(event) unless event == :tick
     now = self.class.clock.call
     return unless event == :tick || @stop_checked_at.nil? || now - @stop_checked_at >= STOP_CHECK_EVERY
 
     @stop_checked_at = now
-    asked, by = DesignTurn.where(id: turn.id).pick(:stop_requested_at, :stop_requested_by)
-    raise Stopped, "Stopped by #{by.presence || 'someone'}. Nothing it changed was kept." if asked
+    asked, by = DesignTurn.uncached { DesignTurn.where(id: turn.id).pick(:stop_requested_at, :stop_requested_by) }
+    raise Stopped, DesignTurn.stopped_by(by) if asked
   end
 
   # The app's checkout, copied for the turn, when the subject reads the app

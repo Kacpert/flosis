@@ -30,13 +30,14 @@ module Designs::RepoMap
 
   def kit(root)
     path = root.join("runtime/config.json")
-    (inside?(root, path) && JSON.parse(path.read)["kit"].presence) || "unknown"
-  rescue JSON::ParserError
+    config = path.file? && inside?(root, path) && JSON.parse(path.read)
+    (config.is_a?(Hash) && config["kit"].presence) || "unknown"
+  rescue JSON::ParserError, SystemCallError
     "unknown"
   end
 
   def screens(root)
-    root.glob("designs/*/*.html").select { |path| inside?(root, path) }.sort.map do |path|
+    root.glob("designs/*/*.html").select { |path| path.file? && inside?(root, path) }.sort.map do |path|
       head = File.read(path, HEAD_BYTES).to_s.force_encoding(Encoding::UTF_8).scrub
       title = Nokogiri::HTML5(head).at("title")&.text.to_s.squish
       "- #{path.relative_path_from(root)} — #{title.presence || path.basename(".html").to_s.humanize}"
@@ -52,17 +53,17 @@ module Designs::RepoMap
 
   # The first line of a component's README that is not a heading.
   def guideline(root, readme)
-    return unless inside?(root, readme)
+    return unless readme.file? && inside?(root, readme)
 
-    File.foreach(readme).lazy.map(&:strip).reject { |line| line.empty? || line.start_with?("#") }.first.to_s.truncate(140)
+    File.foreach(readme).lazy.map { |line| line.scrub.strip }.reject { |line| line.empty? || line.start_with?("#") }.first.to_s.truncate(140)
   end
 
   def whole(root, relative, fence, limit, heading: relative)
     path = root.join(relative.to_s)
-    return unless inside?(root, path)
+    return unless path.file? && inside?(root, path)
     return "### #{heading}\n(too big to give here: read it yourself)" if path.size > limit
 
-    "### #{heading}\n```#{fence}\n#{path.read.chomp}\n```"
+    "### #{heading}\n```#{fence}\n#{path.read.scrub.chomp}\n```"
   end
 
   # A file, or a folder, in the worktree itself: not a link, and not under a

@@ -77,6 +77,7 @@ module Designs::Threads
   # Claude resumes the session the failed run is in, and is told that none of
   # its edits were kept (Designs::TurnJob#earlier_failure).
   def retry!(thread, user:)
+    raise ArgumentError, "#{thread.branch} is already merged." unless thread.open?
     raise Busy, IMPORTING if importing?(thread)
 
     DesignTurn.fail_stale!
@@ -286,12 +287,12 @@ module Designs::Threads
   end
 
   # A design turn committed since the thread's last components turn, or the
-  # thread has had none.
+  # thread has had none. A components turn that failed counts: the chat says
+  # why, with Try again, and Merge again is the way past it.
   def components_due?(thread)
-    done = DesignTurn.where(chat_session_id: thread.chat_session_id, status: "succeeded")
-    since = done.where(kind: "components").maximum(:id)
-    work = done.where(kind: "design").where.not(commit_sha: nil)
-    (since ? work.where("id > ?", since) : work).exists?
+    turns = DesignTurn.where(chat_session_id: thread.chat_session_id)
+    work = turns.where(kind: "design", status: "succeeded").where.not(commit_sha: nil).maximum(:id) or return false
+    turns.where(kind: "components", status: %w[succeeded failed]).where("id > ?", work).none?
   end
 
   def components_request(screens)

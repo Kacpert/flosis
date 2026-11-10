@@ -547,4 +547,28 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
       assert_equal [ "components", "manual" ], [ turn.kind, turn.then_merge ]
     end
   end
+
+  # Its failure is in the chat, with Try again: Merge again is the way past it.
+  test "a components turn that did not finish lets Merge go straight to master" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = with_committed_turns(thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" }))
+      Designs::Threads.merge_or_prepare!(thread, user: @user).update!(status: "failed", error: "Claude returned no answer", started_at: 1.minute.ago)
+
+      assert_not Designs::Threads.components_due?(thread)
+      assert_kind_of DesignMerge, Designs::Threads.merge_or_prepare!(thread.reload, user: @user)
+    end
+  end
+
+  test "Try again never runs on a merged thread" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      DesignTurn.where(chat_session: thread.chat_session).update_all(status: "failed", error: "Claude returned no answer")
+      Designs::Threads.merge!(thread, user: @user)
+
+      assert_raises(ArgumentError) { Designs::Threads.retry!(thread.reload, user: @user) }
+      assert_empty DesignTurn.where(chat_session: thread.chat_session).active
+    end
+  end
 end

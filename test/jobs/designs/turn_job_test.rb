@@ -45,7 +45,8 @@ class Designs::TurnJobTest < ActiveJob::TestCase
 
   # A stand-in for Claude that streams: it edits the worktree, hands each of
   # the events (made from the CLI's options, for their paths) to the turn's
-  # block, then gives `answer`. A block that raises stops it there, as the CLI
+  # block, then gives `answer`. A Proc among the events is run instead, so a
+  # test can act between two events. A block that raises stops it there, as the CLI
   # is stopped then. The calls are kept in @calls, as scripted_claude keeps them.
   def streaming_claude(events: ->(_opts) { [] }, files: {}, answer: {})
     calls = @calls = []
@@ -55,7 +56,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
           cli.define_singleton_method(call) do |**keywords, &on_event|
             calls << [ call, keywords ]
             files.each { |p, b| FileUtils.mkdir_p(File.dirname(File.join(opts[:codebase_path], p))); File.write(File.join(opts[:codebase_path], p), b) }
-            events.call(opts).each { |event| on_event&.call(event) }
+            events.call(opts).each { |event| event.is_a?(Proc) ? event.call : on_event&.call(event) }
             { session_id: "s", response: "<summary>Did it.</summary>", is_error: false, subtype: "success",
               final_text: "<summary>Did it.</summary>", final_tool_use: false }.merge(answer)
           end
@@ -1379,6 +1380,45 @@ class Designs::TurnJobTest < ActiveJob::TestCase
 
       assert thread.reload.open?
       assert_equal "Not merged: #{Designs::Threads::BUSY}", thread.chat_session.chat_messages.where(kind: "system").order(:id).last.content
+    end
+  end
+
+  # Solid Queue runs a job with Active Record's query cache on, and nothing is
+  # written while the CLI is quiet: the same question asked again must still
+  # reach the database. The stop is written beside Active Record here, as the
+  # web process writes it, so the job's cache knows nothing of it.
+  test "a stop asked for while the CLI is quiet is seen, though the job's queries are cached" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      turn = new_turn(task)
+      ask = -> { DesignTurn.connection.raw_connection.exec("UPDATE design_turns SET stop_requested_at = NOW(), stop_requested_by = 'Kacper' WHERE id = #{turn.id}") }
+      streaming_claude(files: { "designs/a.html" => "a" }, events: ->(_opts) { [ :tick, ask, :tick, said("Never kept") ] })
+
+      turn = ActiveRecord::Base.cache { run_turn(turn, remote) }
+
+      assert turn.failed?, "the stop was missed"
+      assert_equal "Stopped by Kacper. Nothing it changed was kept.", turn.error
+    end
+  end
+
+  # An auto merge has nobody to read a note: it is tried again later, as
+  # AutoMergeJob tries a busy thread again.
+  test "a components turn whose auto merge finds the repo busy has the merge tried again later" do
+    with_design_remote do |repo, remote|
+      base = seed_master(repo, { "designs/candidate/apply.html" => "<title>Application form</title>" })
+      repo.project.update!(anthropic_api_key: "sk-ant")
+      fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p>121</p>" })
+      assert run_turn(thread_turn(repo, base), remote).succeeded?
+      thread = DesignThread.find_by!(branch: "design/add-a-counter-under")
+      components = with_remote_url(remote) { Designs::Threads.merge_or_prepare!(thread, how: "auto") }
+      waiting = thread.chat_session.chat_messages.create!(role: "user", content: "One more thing", user: users(:one))
+      DesignTurn.create!(chat_session: thread.chat_session, chat_message: waiting)
+
+      assert run_turn(components, remote).succeeded?
+
+      assert thread.reload.open?
+      assert_enqueued_with(job: Designs::AutoMergeJob, args: [ thread.id ])
+      assert_empty thread.chat_session.chat_messages.where(kind: "system").where("content LIKE ?", "Not merged%")
     end
   end
 end

@@ -13,7 +13,7 @@ class Designs::RepoMapTest < ActiveSupport::TestCase
     dir = Pathname(Dir.mktmpdir("map")).tap { |made| @dirs << made }
     files.each do |path, body|
       dir.join(path).dirname.mkpath
-      dir.join(path).write(body)
+      dir.join(path).binwrite(body)
     end
     dir
   end
@@ -76,5 +76,22 @@ class Designs::RepoMapTest < ActiveSupport::TestCase
 
     assert_includes text, "- designs/admin/real.html — Real"
     assert_no_match(/Secret|SECRET|link\.html|elsewhere/, text)
+  end
+
+  # The map comes before every turn of every thread: a file it cannot read as
+  # it expects must not fail them all.
+  test "a file that is not text it can read, or not a file at all, never stops the map" do
+    root = repo("runtime/config.json" => "[1, 2]",
+                "designs/admin/real.html" => "<title>Real</title>",
+                "components/latin/README.md" => "# Tile\n\nZa\xB3\xF3\xBF g\xEAsi\xB1 ja\xBC\xF1\n".b,
+                "components/latin/latin.html" => "<div></div>")
+    root.join("designs/admin/folder.html").mkpath
+
+    text = Designs::RepoMap.text(root)
+
+    assert_includes text, "Kit: unknown"
+    assert_includes text, "- designs/admin/real.html — Real"
+    assert_includes text, "- components/latin/"
+    assert_not_includes text, "folder.html"
   end
 end

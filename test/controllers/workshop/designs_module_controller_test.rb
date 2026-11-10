@@ -511,4 +511,27 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       assert_select "[data-turn-id=?]", turn.id.to_s, text: /Making components before merging · 1 min/
     end
   end
+
+  # The second message waits while the first turn runs: its turn comes after
+  # the first turn's reply, where it starts.
+  test "a turn sits in the chat where it started, after the reply of the turn before it" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      first = Designs::Threads.message!(thread, user: users(:one), text: "Add a counter")
+      first.update!(status: "running", started_at: Time.current)
+      travel 1.minute
+      second = Designs::Threads.message!(thread, user: users(:one), text: "And a search box")
+      travel 1.minute
+      first.update!(status: "succeeded", finished_at: Time.current, activity: steps("Reading designs/a.html"))
+      thread.chat_session.chat_messages.create!(role: "assistant", kind: "summary", content: "Added a counter.")
+      travel 10.seconds
+      second.update!(status: "running", started_at: Time.current, activity: steps("Reading designs/b.html"))
+
+      body = chat(thread)
+
+      at = ->(text) { body.index(text) or flunk("#{text} is not in the chat") }
+      assert_equal [ "Add a counter", "data-turn-id=\"#{first.id}\"", "And a search box", "Added a counter.", "data-turn-id=\"#{second.id}\"" ],
+                   [ "Add a counter", "data-turn-id=\"#{first.id}\"", "And a search box", "Added a counter.", "data-turn-id=\"#{second.id}\"" ].sort_by(&at)
+    end
+  end
 end

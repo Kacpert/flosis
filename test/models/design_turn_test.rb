@@ -206,4 +206,20 @@ class DesignTurnTest < ActiveSupport::TestCase
       @session.destroy!
     end
   end
+
+  # Its job stops a turn within seconds. One still running long after has no
+  # job left to stop it (a worker that died), and would say "Stopping…" until
+  # it went stale.
+  test "a turn asked to stop that is still running after the grace is failed, and the chat says who stopped it" do
+    gone = turn(status: "running", started_at: 5.minutes.ago, stop_requested_at: (DesignTurn::STOP_GRACE + 10.seconds).ago,
+                stop_requested_by: "Kacper")
+    stopping = turn(status: "running", started_at: 1.minute.ago, stop_requested_at: 10.seconds.ago, stop_requested_by: "Kacper")
+
+    assert_equal 1, DesignTurn.fail_stale!
+
+    assert gone.reload.failed?
+    assert_equal "Stopped by Kacper. Nothing it changed was kept.", gone.error
+    assert_equal [ "error", gone.error ], @session.chat_messages.order(:id).pluck(:kind, :content).last
+    assert stopping.reload.running?
+  end
 end

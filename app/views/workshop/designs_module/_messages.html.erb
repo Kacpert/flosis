@@ -1,13 +1,15 @@
 <%# The conversation, polled while a turn is queued or running
     (designs_poll_controller): the messages, and each turn between its request
-    and its reply, as they came. A request Flosis made on the person's behalf
-    is not shown; its turn is. When the last turn failed, Try again ends it. %>
+    and its reply, as they came: a turn where it started (never before its
+    request), so one queued behind another comes after that one's reply. A
+    request Flosis made on the person's behalf is not shown; its turn is.
+    When the last turn failed, Try again ends it. %>
 <% session = thread.chat_session %>
 <% messages = session ? session.chat_messages.ordered.where("kind IS NULL OR kind <> ?", "request").to_a : [] %>
 <% turns = session ? session.design_turns.order(:id).to_a : [] %>
 <% active = turns.any? { |turn| turn.queued? || turn.running? } %>
 <% timeline = (messages.map { |message| [ message.created_at, 0, message.id, message ] } +
-               turns.map { |turn| [ turn.created_at, 1, turn.id, turn ] }).sort_by { |at, order, id, _| [ at, order, id ] } %>
+               turns.map { |turn| [ [ turn.created_at, turn.started_at ].compact.max, 1, turn.id, turn ] }).sort_by { |at, order, id, _| [ at, order, id ] } %>
 <%= turbo_frame_tag "design_thread_messages", class: "flex-1 min-h-0 flex flex-col" do %>
   <div class="flex-1 overflow-y-auto px-3.5 pt-4 pb-2.5 flex flex-col gap-3.5 [overflow-wrap:anywhere]"
        data-controller="designs-poll"

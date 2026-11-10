@@ -332,9 +332,14 @@ class ClaudeCliService
     raise ClaudeCliError, "Claude CLI not found. Install it with: npm install -g @anthropic-ai/claude-code"
   end
 
+  # A CLI that fails at once (a session it cannot resume) may quit before it
+  # reads a long prompt. That run has no answer, which the caller can act on
+  # (a turn starts a new session); a broken pipe would hide it.
   def hand_over(io, message)
     io.write(message)
     io.close_write
+  rescue Errno::EPIPE
+    nil
   end
 
   # The lines are put together as bytes and read as UTF-8 once whole, so a
