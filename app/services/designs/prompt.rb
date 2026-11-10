@@ -119,6 +119,19 @@ module Designs::Prompt
       owner can answer without seeing a file. Leave it out when nothing is open.
   PROMPT
 
+  # What a thread's turn is told above the design repo it is given
+  # (Designs::RepoMap).
+  REPO_MAP_INTRO = "This is the design repo as this turn starts: there is no need to list it again, nor to read what is " \
+                   "given whole below. Read the other files you need, several at a time.".freeze
+
+  # A thread's design turn builds the screens only (2026-11-10): components
+  # are made in a turn of their own before the thread is merged (Designs::
+  # Threads.merge_or_prepare!), so the turn a person waits on is shorter.
+  SCREENS_ONLY = "Build the screens only. Include the components that exist, but make no new component in this turn: " \
+                 "write new UI into the screen itself, even where it repeats. Before the thread is merged, Flosis makes " \
+                 "components from repeated UI in a turn of its own. For this turn, this replaces what the base prompt " \
+                 "says about adding components.".freeze
+
   module_function
 
   # BASE, then the project: its name and the context the team wrote for it.
@@ -133,8 +146,10 @@ module Designs::Prompt
 
   # The user's message of a design thread's turn (Workshop Designs v2): the
   # thread, the screen the person has open, the task and its current
-  # description when the thread has one, then the request, last.
-  def thread_message(thread:, request:)
+  # description when the thread has one, the design repo as the turn starts
+  # and the rule to build screens only when the turn is given them, then the
+  # request, last.
+  def thread_message(thread:, request:, repo_map: nil, screens_only: false)
     sections = [ "## Thread\n#{thread.title}\nBranch: #{thread.branch}" ]
     if thread.focus_context.present? && thread.focus_screen.present?
       sections << "## The person is looking at\n#{thread.focus_context.humanize} › #{thread.focus_screen.humanize} " \
@@ -144,6 +159,8 @@ module Designs::Prompt
       sections << "## Task\n#{Designs::ThreadNames.key(task)} — #{task.name}"
       sections << "## Current description\n#{Designs::CurrentDescription.for(task)&.strip || "(none yet)"}"
     end
+    sections << "## The design repo now\n#{REPO_MAP_INTRO}\n\n#{repo_map}" if repo_map
+    sections << "## This turn\n#{SCREENS_ONLY}" if screens_only
     sections << "## Request\n#{request.to_s.strip}"
     "#{sections.join("\n\n")}\n"
   end

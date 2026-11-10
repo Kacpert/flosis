@@ -25,12 +25,20 @@ module DesignsModuleHelper
     up: '<path d="M18 15l-6-6-6 6"/>',
     palette: '<circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2a10 10 0 1 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.3A5.6 5.6 0 0 0 22 9.8C22 5.5 17.5 2 12 2z"/>',
     grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
-    reload: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/>'
+    reload: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/>',
+    stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>'
   }.freeze
 
   def designs_icon(name, size = 16)
     tag.svg(DESIGNS_ICONS.fetch(name).html_safe, width: size, height: size, viewBox: "0 0 24 24", fill: "none",
             stroke: "currentColor", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": true)
+  end
+
+  # How long a turn has taken, as the chat says it: seconds under a minute,
+  # whole minutes after.
+  def designs_duration(seconds)
+    seconds = [ seconds.to_i, 0 ].max
+    seconds < 60 ? "#{seconds} s" : "#{seconds / 60} min"
   end
 
   def designs_context_name(contexts, id)

@@ -2,7 +2,8 @@
 # (Workshop Designs v2: "Merges automatically when <KEY> moves to Done"). Jira
 # sync queues it (JiraSyncService#queue_design_merge). A thread whose branch
 # collides with master is left open, and says why; one busy with a turn is
-# tried again later.
+# tried again later. One whose screens need components first gets the turn
+# that makes them, which merges it (Designs::Threads.merge_or_prepare!).
 class Designs::AutoMergeJob < ApplicationJob
   queue_as :designs
 
@@ -19,7 +20,7 @@ class Designs::AutoMergeJob < ApplicationJob
     thread = DesignThread.find_by(id: thread_id)
     return unless thread&.open? && !thread.fresh?
 
-    Designs::Threads.merge!(thread, how: "auto")
+    Designs::Threads.merge_or_prepare!(thread, how: "auto")
   rescue Designs::Repo::Conflict
     Designs::Threads.note(thread, CONFLICT)
   rescue GitRunner::Error => e

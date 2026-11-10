@@ -1,6 +1,7 @@
 # A design thread's life (Workshop Designs v2): started empty or from a task,
 # named by its first message, kept up with its task's description and with
-# master, and merged into master by a person or when its task is Done.
+# master, its turns stopped or tried again, and merged into master by a
+# person or when its task is Done.
 #
 # Git work runs here, under the project's repo lock, and never while a turn of
 # the thread is queued or running: a turn edits the branch's worktree. Claude's
@@ -19,6 +20,16 @@ module Designs::Threads
   IMPORTING = "Re-import from staging is still running on this thread. You can talk here and merge it once it finishes.".freeze
   NOT_AN_INSPIRATION = "Inspirations are images, PDFs or notes (.png, .jpg, .gif, .webp, .svg, .pdf, .txt, .md), up to 10 MB each.".freeze
   NO_BRANCH_YET = "Describe the change first: the thread gets its branch, and its inspirations/, with its first message.".freeze
+  NOTHING_TO_RETRY = "There is nothing to try again: the thread's last turn did not fail.".freeze
+  # A thread's design turns build screens only (Designs::Prompt::SCREENS_ONLY,
+  # 2026-11-10): before it is merged, one turn makes components from them.
+  COMPONENTS_REQUEST = <<~REQUEST.squish.freeze
+    This thread is about to be merged into master. First make components from its screens: where a piece of UI this
+    thread added appears more than once, or is what an existing component is for, put it in a component under
+    components/<name>/ (its .html, README.md with its guidelines, preview.html with each of its states), or use the
+    existing one, and include it in place of every copy. Keep every screen looking and working exactly as it does now,
+    and change nothing else. If nothing needs a component, change nothing and say so.
+  REQUEST
   # Where a deleted thread's branch waits on GitHub (archive/design/…).
   ARCHIVE = "archive/".freeze
   GONE = "This thread's archive is no longer on GitHub, so it can't come back.".freeze
@@ -59,6 +70,48 @@ module Designs::Threads
     name!(thread, text) if thread.fresh?
     thread.update!(focus_context: context, focus_screen: screen) if context.present? && screen.present?
     queue_turn(thread, user, text)
+  end
+
+  # Try again, under the thread's last turn when it failed: its request runs
+  # once more, as a new turn of its kind, so the failed one keeps what it did.
+  # Claude resumes the session the failed run is in, and is told that none of
+  # its edits were kept (Designs::TurnJob#earlier_failure).
+  def retry!(thread, user:)
+    raise ArgumentError, "#{thread.branch} is already merged." unless thread.open?
+    raise Busy, IMPORTING if importing?(thread)
+
+    DesignTurn.fail_stale!
+    turns = DesignTurn.where(chat_session_id: thread.chat_session_id)
+    raise Busy, BUSY if turns.active.exists?
+
+    last = turns.order(:id).last
+    raise ArgumentError, NOTHING_TO_RETRY unless last&.failed?
+
+    note(thread, "Tried again by #{user&.name || 'someone'}")
+    turn = DesignTurn.create!(chat_session: thread.chat_session, chat_message: last.chat_message, kind: last.kind,
+                              then_merge: last.then_merge)
+    thread.touch
+    Designs::TurnJob.perform_later(turn.id)
+    turn
+  end
+
+  # Stop, on a turn of the thread that waits or runs. One that waits is failed
+  # at once, and never starts. One that runs is asked to stop: its job looks
+  # every few seconds (Designs::TurnJob#follow), stops Claude and puts the
+  # worktree back. The row lock settles a stop and the job's claim of a turn
+  # that waits, whichever comes first.
+  def stop!(thread, turn_id:, user:)
+    turn = DesignTurn.where(chat_session_id: thread.chat_session_id).find(turn_id)
+    by = user&.name.presence || "someone"
+    turn.with_lock do
+      if turn.queued?
+        turn.fail!("Stopped by #{by} before it started.")
+        thread.chat_session.chat_messages.create!(role: "assistant", kind: "error", content: turn.error)
+      elsif turn.running? && turn.stop_requested_at.nil?
+        turn.update!(stop_requested_at: Time.current, stop_requested_by: by)
+      end
+    end
+    turn
   end
 
   # Files a person adds for the AI to borrow from (Workshop Designs v2's
@@ -210,6 +263,43 @@ module Designs::Threads
     raise NothingToMerge, NOTHING_TO_MERGE
   end
 
+  # Merge to master, by a person or when the task is Done. A thread whose
+  # screens were not made into components since its design turns committed
+  # (components_due?) gets a components turn first, which merges it once it
+  # succeeds (Designs::TurnJob#merge_after): the turn is returned then, and
+  # the merge otherwise.
+  def merge_or_prepare!(thread, user: nil, how: "manual")
+    return merge!(thread, user: user, how: how) unless components_due?(thread)
+    raise AlreadyMerged, "#{thread.branch} is already merged" if thread.merged?
+
+    repo = Designs::Repo.new(thread.project)
+    screens = repo.synchronize(wait: false) do
+      refuse_while_turns_run!(thread)
+      repo.ensure_clone!
+      repo.worktree!(thread.branch, from: thread.base_sha.presence || Designs::Repo::MASTER)
+      repo.follow_origin!(thread.branch)
+      changed_screens(repo, thread)
+    end
+    note(thread, "Making components from this thread's screens before it merges · #{user&.name || 'automatically'}")
+    queue_turn(thread, user, components_request(screens), kind: "components", visible: false, then_merge: how)
+  rescue Designs::Repo::Busy
+    raise Busy, BUSY
+  end
+
+  # A design turn committed since the thread's last components turn, or the
+  # thread has had none. A components turn that failed counts: the chat says
+  # why, with Try again, and Merge again is the way past it.
+  def components_due?(thread)
+    turns = DesignTurn.where(chat_session_id: thread.chat_session_id)
+    work = turns.where(kind: "design", status: "succeeded").where.not(commit_sha: nil).maximum(:id) or return false
+    turns.where(kind: "components", status: %w[succeeded failed]).where("id > ?", work).none?
+  end
+
+  def components_request(screens)
+    list = screens.map { |screen| "- designs/#{screen}.html" }.join("\n")
+    "#{COMPONENTS_REQUEST}\n\nThe screens this thread changed:\n#{list.presence || '- (none)'}"
+  end
+
   # Deletes a thread nobody wants. Its branch moves to archive/ on GitHub, and
   # the thread waits under Deleted for DesignThread::KEPT, to be restored; a
   # thread nothing was ever committed on goes at once. A merged thread is part
@@ -301,10 +391,10 @@ module Designs::Threads
     note(thread, "Branch #{thread.branch} created from master #{short(base)}")
   end
 
-  def queue_turn(thread, user, text, kind: "design", visible: true)
+  def queue_turn(thread, user, text, kind: "design", visible: true, then_merge: nil)
     turn = DesignTurn.transaction do
       message = thread.chat_session.chat_messages.create!(role: "user", user: user, content: text, kind: (visible ? nil : "request"))
-      DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: kind)
+      DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: kind, then_merge: then_merge)
     end
     thread.touch
     Designs::TurnJob.perform_later(turn.id)

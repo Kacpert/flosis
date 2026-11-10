@@ -78,4 +78,19 @@ class Designs::AutoMergeJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "a Done thread whose turns made screens since makes components first, and merges after them" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "SP-1040")
+      thread = thread_with_work(repo, { "designs/admin/pipeline.html" => "<title>Pipeline</title>" }, task: task)
+      DesignTurn.where(chat_session: thread.chat_session).update_all(commit_sha: "abc1234")
+
+      Designs::AutoMergeJob.perform_now(thread.id)
+
+      turn = DesignTurn.order(:id).last
+      assert_equal [ "components", "auto" ], [ turn.kind, turn.then_merge ]
+      assert_not thread.reload.merged?
+    end
+  end
 end

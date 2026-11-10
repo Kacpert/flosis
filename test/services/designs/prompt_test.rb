@@ -149,4 +149,13 @@ class Designs::PromptTest < ActiveSupport::TestCase
     assert_equal [ "## Thread", "## Request" ], Designs::Prompt.thread_message(thread: thread, request: "Do it").scan(/^## .+$/)
   end
 
+  test "a thread's turn can carry the design repo and the rule to build screens only, both before the request" do
+    thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x")
+    message = Designs::Prompt.thread_message(thread: thread, request: "Do it", repo_map: "Kit: plain\n\n### Screens\n(none yet)", screens_only: true)
+
+    assert_equal [ "## Thread", "## The design repo now", "## This turn", "## Request" ], message.scan(/^## .+$/)
+    assert_includes message, "Kit: plain"
+    assert_includes message, Designs::Prompt::SCREENS_ONLY
+    assert message.rstrip.end_with?("Do it")
+  end
 end

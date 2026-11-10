@@ -123,7 +123,7 @@ Rails.application.routes.draw do
       end
     end
     resources :design_threads, only: %i[create destroy], path: "designs/threads" do
-      member { post :message; post :merge; post :update_description; post :update_master; post :create_task; post :attach; post :restore }
+      member { post :message; post :merge; post :update_description; post :update_master; post :create_task; post :attach; post :restore; post :retry; post :stop }
     end
     get "jira_browser", to: "jira_browser#show", as: :jira_browser
     resources :ideas, only: [ :create, :show, :update, :destroy ] do

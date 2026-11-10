@@ -12,14 +12,25 @@ class DesignTurn < ApplicationRecord
   # "design" answers a person's message. "resolve_conflicts" is the turn that
   # "Update from master" starts when master changed the same files. "setup" is
   # a setup run's (the map, the design system or one feature): it runs on a
-  # setup turn's bounds.
-  KINDS = %w[design resolve_conflicts setup].freeze
+  # setup turn's bounds. "components" makes components from a thread's
+  # screens before it is merged (Designs::Threads.merge_or_prepare!).
+  KINDS = %w[design resolve_conflicts setup components].freeze
   # Not finished yet: while a chat has one, the screen keeps polling and the
   # work cannot be approved.
   ACTIVE = %w[queued running].freeze
 
   # What a turn that was cut off is failed with (see .fail_stale!).
   INTERRUPTED = "Interrupted before it finished — retry it.".freeze
+
+  # How long a running turn asked to stop may take to stop. Its job looks
+  # every few seconds (Designs::TurnJob#follow); one that has not stopped by
+  # then has no job left to stop it, and is failed by .fail_stale!.
+  STOP_GRACE = 2.minutes
+
+  # What a turn someone stopped is failed with.
+  def self.stopped_by(name)
+    "Stopped by #{name.presence || 'someone'}. Nothing it changed was kept."
+  end
 
   # The most characters of an error that are kept. MySQL refuses a TEXT past
   # 65,535 bytes, which is 16,383 characters at four bytes each; 10,000 is well
@@ -30,6 +41,9 @@ class DesignTurn < ApplicationRecord
   # kept here and never in the design repo: [] until it runs Claude. Typed
   # as JSON, with its default here, for MySQL (see DesignRequest#links).
   attribute :library_version_ids, :json, default: []
+  # What the turn did, step by step, as Designs::TurnActivity keeps it for the
+  # chat: [] until it runs Claude. JSON, with its default here, as above.
+  attribute :activity, :json, default: []
 
   validates :status, inclusion: { in: STATUSES }
   validates :kind, inclusion: { in: KINDS }
@@ -72,15 +86,17 @@ class DesignTurn < ApplicationRecord
     update!(status: "failed", error: message.to_s.truncate(ERROR_LIMIT), finished_at: Time.current)
   end
 
-  DEFAULT_TIMEOUT_SECONDS = 900
-  DEFAULT_BUDGET_USD = 5
+  # Kacper's bounds for a thread's turn (2026-11-10): a task designed from
+  # scratch reads the repo and the app and writes several screens.
+  DEFAULT_TIMEOUT_SECONDS = 2_400
+  DEFAULT_BUDGET_USD = 40
   # A setup turn builds a whole feature, browser and all. Its bounds stop a
   # turn that runs away; they are not there to save money.
   DEFAULT_SETUP_TIMEOUT_SECONDS = 7_200
   DEFAULT_SETUP_BUDGET_USD = 60
 
   # How long the CLI may run one turn, in seconds: DESIGNS_TURN_TIMEOUT_SECONDS
-  # when it is a positive whole number, else fifteen minutes. stale_after
+  # when it is a positive whole number, else forty minutes. stale_after
   # counts from it too, so the two cannot drift apart.
   def self.turn_timeout
     seconds = Integer(ENV["DESIGNS_TURN_TIMEOUT_SECONDS"].to_s, 10, exception: false)
@@ -88,7 +104,7 @@ class DesignTurn < ApplicationRecord
   end
 
   # What one turn may cost, in dollars (the CLI's --max-budget-usd):
-  # DESIGNS_TURN_BUDGET_USD when it is a positive number, else five. A value
+  # DESIGNS_TURN_BUDGET_USD when it is a positive number, else forty. A value
   # that is not one gets the default, never no cap at all.
   def self.turn_budget_usd
     budget = Float(ENV["DESIGNS_TURN_BUDGET_USD"].to_s, exception: false)
@@ -125,11 +141,29 @@ class DesignTurn < ApplicationRecord
   # UPDATE, not a load and a save per turn: the screen calls this on every
   # poll, and a job that took a turn over in the meantime (start! sets a fresh
   # started_at) is no longer matched by the time the UPDATE runs.
+  #
+  # A turn asked to stop longer than STOP_GRACE ago is failed too, and the
+  # chat says who stopped it: its job is gone. The next turn starts from the
+  # branch's last commit, so nothing it changed is kept. There are few of
+  # these, so each is loaded and locked against a job that just finished it.
   def self.fail_stale!
     now = Time.current
     failed = { status: "failed", error: INTERRUPTED, finished_at: now, updated_at: now }
-    where(status: "running", started_at: ...(now - stale_after)).where.not(kind: "setup").update_all(failed) +
-      where(status: "running", kind: "setup", started_at: ...(now - setup_stale_after)).update_all(failed)
+    stale = where(status: "running", started_at: ...(now - stale_after)).where.not(kind: "setup").update_all(failed) +
+            where(status: "running", kind: "setup", started_at: ...(now - setup_stale_after)).update_all(failed)
+    stale + where(status: "running", stop_requested_at: ...(now - STOP_GRACE)).count { |turn| turn.fail_stopped! }
+  end
+
+  # A running turn whose stop no job carried out; false if it has finished
+  # meanwhile.
+  def fail_stopped!
+    with_lock do
+      next false unless running?
+
+      fail!(self.class.stopped_by(stop_requested_by))
+      chat_session.chat_messages.create!(role: "assistant", kind: "error", content: error)
+      true
+    end
   end
 
   # Running for longer than stale_after (setup_stale_after, for a setup turn).

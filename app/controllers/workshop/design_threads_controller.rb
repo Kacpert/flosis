@@ -1,7 +1,8 @@
 # What a person does to a design thread (Workshop Designs v2): start one, talk
-# in it, bring its task's description or master into it, merge it, and turn a
-# thread with no task into one (Generate task). Each sends them back to the
-# Designs module, where the thread shows what happened.
+# in it, stop a turn or try a failed one again, bring its task's description
+# or master into it, merge it, and turn a thread with no task into one
+# (Generate task). Each sends them back to the Designs module, where the
+# thread shows what happened.
 class Workshop::DesignThreadsController < Workshop::BaseController
   before_action { require_permission!(:designs) }
   include DesignsVisibility
@@ -41,10 +42,17 @@ class Workshop::DesignThreadsController < Workshop::BaseController
     redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
   end
 
+  # Merge, after a components turn when the thread's screens need one
+  # (Designs::Threads.merge_or_prepare!): that turn merges when it is done.
   def merge
-    merge = Designs::Threads.merge!(@thread, user: current_user)
-    flash[:clar_toast] = "Merged into master · #{merge.short_sha}"
-    redirect_to workshop_designs_overview_path(tab: "history", merge: merge.id)
+    result = Designs::Threads.merge_or_prepare!(@thread, user: current_user)
+    if result.is_a?(DesignTurn)
+      flash[:clar_toast] = "Making components first · it merges when they're done"
+      return redirect_to(workshop_designs_overview_path(thread: @thread.id))
+    end
+
+    flash[:clar_toast] = "Merged into master · #{result.short_sha}"
+    redirect_to workshop_designs_overview_path(tab: "history", merge: result.id)
   rescue Designs::Threads::Busy, Designs::Threads::AlreadyMerged, Designs::Threads::NothingToMerge => e
     redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
   rescue Designs::Repo::Conflict
@@ -79,6 +87,20 @@ class Workshop::DesignThreadsController < Workshop::BaseController
   rescue GitRunner::Error => e
     redirect_to workshop_designs_overview_path,
                 alert: "The branch could not come back on GitHub, so the thread stays deleted: #{e.message.to_s.lines.first.to_s.strip.truncate(200)}"
+  end
+
+  # Try again, under a turn that failed: its request runs once more.
+  def retry
+    Designs::Threads.retry!(@thread, user: current_user)
+    redirect_to workshop_designs_overview_path(thread: @thread.id)
+  rescue Designs::Threads::Busy, ArgumentError => e
+    redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
+  end
+
+  # Stop, on a turn that runs or waits.
+  def stop
+    Designs::Threads.stop!(@thread, turn_id: params[:turn], user: current_user)
+    redirect_to workshop_designs_overview_path(thread: @thread.id)
   end
 
   def update_description
