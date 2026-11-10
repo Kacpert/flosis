@@ -12,9 +12,10 @@
   <div class="flex-none" data-turn-id="<%= turn.id %>">
     <% if active %>
       <% thinking = turn.running? && !turn.stop_requested_at && Time.current - (started + steps.last&.dig("at").to_i) > 20 %>
+      <% doing = turn.kind == "components" ? "Making components#{' before merging' if turn.then_merge.present?}" : "Working" %>
       <div class="flex items-center gap-1.5 text-[12px] font-bold clar-text-text">
         <span class="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-none" style="background: var(--ai-soft); color: var(--ai);"><%= designs_icon(:ai, 10) %></span>
-        <span class="min-w-0 truncate"><%= turn.queued? ? "Waiting to start" : turn.stop_requested_at ? "Stopping…" : "Working · #{took}" %></span>
+        <span class="min-w-0 truncate"><%= turn.queued? ? "Waiting to start" : turn.stop_requested_at ? "Stopping…" : "#{doing} · #{took}" %></span>
         <span class="flex gap-1 flex-none" aria-hidden="true"><% 3.times do |i| %><span class="clar-blink" style="animation-delay: <%= i * 0.2 %>s;"></span><% end %></span>
         <span class="flex-1"></span>
         <% unless turn.stop_requested_at %>

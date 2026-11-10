@@ -155,8 +155,26 @@ class Designs::TurnJob < ApplicationJob
     notes.unshift(CAPPED) if capped
     subject.after_turn(repo)
     finish(turn, output, sha, notes, subject.chips(repo, start, sha))
+    merge_after(turn) if turn.then_merge.present?
   rescue StandardError => e
     fail_turn(turn, e, repo, worktree)
+  end
+
+  # A components turn that Merge queued (Designs::Threads.merge_or_prepare!)
+  # merges its thread once it has succeeded, as Merge would have. What stops
+  # the merge is said in the chat; the turn has succeeded all the same.
+  def merge_after(turn)
+    thread = turn.chat_session.design_thread or return
+    Designs::Threads.merge!(thread, user: turn.chat_message.user, how: turn.then_merge)
+  rescue Designs::Threads::AlreadyMerged
+    nil
+  rescue Designs::Repo::Conflict
+    Designs::Threads.note(thread, "Not merged: master changed the same lines. Update from master, then merge.")
+  rescue Designs::Threads::Busy, Designs::Threads::NothingToMerge, Designs::Repo::Diverged => e
+    Designs::Threads.note(thread, "Not merged: #{e.message}")
+  rescue StandardError => e
+    log(turn, e, "the thread is not merged")
+    Designs::Threads.note(thread, "Not merged: #{reason(e).truncate(200)}. Merge it again.")
   end
 
   # Solid Queue stops a worker with exit!, which runs no ensure: a turn a
@@ -256,7 +274,7 @@ class Designs::TurnJob < ApplicationJob
     # A resolving turn asks about the files that collide now: master may have
     # moved since "Update from master" named them.
     request = @conflicts ? DesignTurn.resolve_request(@conflicts) : turn.chat_message.content
-    prompt = [ earlier_failure(turn), subject.turn_message(request) ].compact.join("\n\n")
+    prompt = [ earlier_failure(turn), subject.turn_message(request, turn: turn, worktree: worktree) ].compact.join("\n\n")
     with_system_prompt(subject) do |system_prompt|
       with_app(subject) do |app|
         subject.with_mcp(worktree) do |mcp_config|

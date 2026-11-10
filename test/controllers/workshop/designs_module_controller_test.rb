@@ -486,4 +486,29 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       assert_select "[data-turn-id=?]", turn.id.to_s, count: 0
     end
   end
+
+  test "the merge dialog says components come first when the thread's turns made screens since" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_not_includes response.body, "Flosis first makes components"
+
+      DesignTurn.where(chat_session: thread.chat_session).update_all(commit_sha: "abc1234")
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_includes response.body, "Flosis first makes components"
+    end
+  end
+
+  test "a components turn before a merge says so while it runs" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      message = thread.chat_session.chat_messages.create!(role: "user", kind: "request", content: "Make components", user: users(:one))
+      turn = DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: "components", then_merge: "manual",
+                                status: "running", started_at: 1.minute.ago)
+
+      chat(thread)
+
+      assert_select "[data-turn-id=?]", turn.id.to_s, text: /Making components before merging · 1 min/
+    end
+  end
 end

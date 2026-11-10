@@ -56,11 +56,28 @@ module Designs::Subject
     def system_text = Designs::Prompt.system_text(project: project, composition: composition)
     def forbidden_texts = composition.texts
     def library_version_ids = composition.version_ids
-    def turn_message(request) = Designs::Prompt.thread_message(thread: @thread, request: request)
     def api_key = ProjectCredentials.new(project).designs_api_key
     def add_dirs = []
     def secrets = ProjectCredentials.new(project).all_secrets
     def prepare! = nil
+
+    # The turn is given the design repo as it starts (Designs::RepoMap): the
+    # theme and the screen in view whole on its session's first turn, when
+    # nothing of the repo is in the conversation yet. A design turn builds
+    # screens only; components come in a turn of their own, before merging.
+    def turn_message(request, turn: nil, worktree: nil)
+      first = turn && turn.chat_session.design_turns.where.not(id: turn.id).where.not(started_at: nil).none?
+      map = worktree && Designs::RepoMap.text(worktree, focus: focus_path, full: first)
+      Designs::Prompt.thread_message(thread: @thread, request: request, repo_map: map, screens_only: turn&.kind == "design")
+    end
+
+    # The screen the person has open, as a path in the repo; nil unless both
+    # its parts are names a screen can have (they come from the request).
+    def focus_path
+      parts = [ @thread.focus_context, @thread.focus_screen ]
+      "designs/#{parts.join("/")}.html" if parts.all? { |part| Designs::Screens::ID.match?(part.to_s) }
+    end
+
     # File tools, the app's checkout copied for the turn, no browser and a
     # thread turn's bounds. The file tools are all it has (tool_set): no
     # subagent, which spent minutes mapping a repo Claude then read itself.
@@ -136,7 +153,7 @@ module Designs::Subject
     def system_text = Designs::Prompt.system_text(project: project, composition: composition)
     def forbidden_texts = composition.texts
     def library_version_ids = composition.version_ids
-    def turn_message(request) = Designs::Prompt.turn_message(task: @task, request: request)
+    def turn_message(request, **) = Designs::Prompt.turn_message(task: @task, request: request)
     def api_key = ProjectCredentials.new(project).designs_api_key
 
     # Ruling P5-R1: no folder beyond the per-turn copy of the app.
@@ -235,7 +252,7 @@ module Designs::Subject
 
     # The stack, the app's repositories and the contexts, by the slugs the
     # browser knows them by, come with every setup turn; the request is last.
-    def turn_message(request)
+    def turn_message(request, **)
       ui = Workshop::DesignsModuleController::UI_SYSTEMS.fetch(project.designs_ui_system, project.designs_ui_system.to_s.humanize)
       framework = Workshop::DesignsModuleController::FRAMEWORKS.fetch(project.designs_framework, project.designs_framework.to_s.humanize)
       repos = Array(project.design_app_repos).filter_map { |row| "#{row['role']}: #{row['repo']}" if row.is_a?(Hash) }

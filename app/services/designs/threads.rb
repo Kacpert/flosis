@@ -21,6 +21,15 @@ module Designs::Threads
   NOT_AN_INSPIRATION = "Inspirations are images, PDFs or notes (.png, .jpg, .gif, .webp, .svg, .pdf, .txt, .md), up to 10 MB each.".freeze
   NO_BRANCH_YET = "Describe the change first: the thread gets its branch, and its inspirations/, with its first message.".freeze
   NOTHING_TO_RETRY = "There is nothing to try again: the thread's last turn did not fail.".freeze
+  # A thread's design turns build screens only (Designs::Prompt::SCREENS_ONLY,
+  # 2026-11-10): before it is merged, one turn makes components from them.
+  COMPONENTS_REQUEST = <<~REQUEST.squish.freeze
+    This thread is about to be merged into master. First make components from its screens: where a piece of UI this
+    thread added appears more than once, or is what an existing component is for, put it in a component under
+    components/<name>/ (its .html, README.md with its guidelines, preview.html with each of its states), or use the
+    existing one, and include it in place of every copy. Keep every screen looking and working exactly as it does now,
+    and change nothing else. If nothing needs a component, change nothing and say so.
+  REQUEST
   # Where a deleted thread's branch waits on GitHub (archive/design/…).
   ARCHIVE = "archive/".freeze
   GONE = "This thread's archive is no longer on GitHub, so it can't come back.".freeze
@@ -78,7 +87,8 @@ module Designs::Threads
     raise ArgumentError, NOTHING_TO_RETRY unless last&.failed?
 
     note(thread, "Tried again by #{user&.name || 'someone'}")
-    turn = DesignTurn.create!(chat_session: thread.chat_session, chat_message: last.chat_message, kind: last.kind)
+    turn = DesignTurn.create!(chat_session: thread.chat_session, chat_message: last.chat_message, kind: last.kind,
+                              then_merge: last.then_merge)
     thread.touch
     Designs::TurnJob.perform_later(turn.id)
     turn
@@ -252,6 +262,43 @@ module Designs::Threads
     raise NothingToMerge, NOTHING_TO_MERGE
   end
 
+  # Merge to master, by a person or when the task is Done. A thread whose
+  # screens were not made into components since its design turns committed
+  # (components_due?) gets a components turn first, which merges it once it
+  # succeeds (Designs::TurnJob#merge_after): the turn is returned then, and
+  # the merge otherwise.
+  def merge_or_prepare!(thread, user: nil, how: "manual")
+    return merge!(thread, user: user, how: how) unless components_due?(thread)
+    raise AlreadyMerged, "#{thread.branch} is already merged" if thread.merged?
+
+    repo = Designs::Repo.new(thread.project)
+    screens = repo.synchronize(wait: false) do
+      refuse_while_turns_run!(thread)
+      repo.ensure_clone!
+      repo.worktree!(thread.branch, from: thread.base_sha.presence || Designs::Repo::MASTER)
+      repo.follow_origin!(thread.branch)
+      changed_screens(repo, thread)
+    end
+    note(thread, "Making components from this thread's screens before it merges · #{user&.name || 'automatically'}")
+    queue_turn(thread, user, components_request(screens), kind: "components", visible: false, then_merge: how)
+  rescue Designs::Repo::Busy
+    raise Busy, BUSY
+  end
+
+  # A design turn committed since the thread's last components turn, or the
+  # thread has had none.
+  def components_due?(thread)
+    done = DesignTurn.where(chat_session_id: thread.chat_session_id, status: "succeeded")
+    since = done.where(kind: "components").maximum(:id)
+    work = done.where(kind: "design").where.not(commit_sha: nil)
+    (since ? work.where("id > ?", since) : work).exists?
+  end
+
+  def components_request(screens)
+    list = screens.map { |screen| "- designs/#{screen}.html" }.join("\n")
+    "#{COMPONENTS_REQUEST}\n\nThe screens this thread changed:\n#{list.presence || '- (none)'}"
+  end
+
   # Deletes a thread nobody wants. Its branch moves to archive/ on GitHub, and
   # the thread waits under Deleted for DesignThread::KEPT, to be restored; a
   # thread nothing was ever committed on goes at once. A merged thread is part
@@ -343,10 +390,10 @@ module Designs::Threads
     note(thread, "Branch #{thread.branch} created from master #{short(base)}")
   end
 
-  def queue_turn(thread, user, text, kind: "design", visible: true)
+  def queue_turn(thread, user, text, kind: "design", visible: true, then_merge: nil)
     turn = DesignTurn.transaction do
       message = thread.chat_session.chat_messages.create!(role: "user", user: user, content: text, kind: (visible ? nil : "request"))
-      DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: kind)
+      DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: kind, then_merge: then_merge)
     end
     thread.touch
     Designs::TurnJob.perform_later(turn.id)

@@ -12,8 +12,9 @@ class DesignTurn < ApplicationRecord
   # "design" answers a person's message. "resolve_conflicts" is the turn that
   # "Update from master" starts when master changed the same files. "setup" is
   # a setup run's (the map, the design system or one feature): it runs on a
-  # setup turn's bounds.
-  KINDS = %w[design resolve_conflicts setup].freeze
+  # setup turn's bounds. "components" makes components from a thread's
+  # screens before it is merged (Designs::Threads.merge_or_prepare!).
+  KINDS = %w[design resolve_conflicts setup components].freeze
   # Not finished yet: while a chat has one, the screen keeps polling and the
   # work cannot be approved.
   ACTIVE = %w[queued running].freeze

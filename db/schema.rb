@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_10_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_10_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -390,6 +390,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_120000) do
     t.string "status", default: "queued", null: false
     t.datetime "stop_requested_at"
     t.string "stop_requested_by"
+    t.string "then_merge"
     t.datetime "updated_at", null: false
     t.index ["chat_message_id"], name: "index_design_turns_on_chat_message_id"
     t.index ["chat_session_id", "status"], name: "index_design_turns_on_chat_session_id_and_status"

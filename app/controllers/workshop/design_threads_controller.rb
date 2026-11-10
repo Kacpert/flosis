@@ -42,10 +42,17 @@ class Workshop::DesignThreadsController < Workshop::BaseController
     redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
   end
 
+  # Merge, after a components turn when the thread's screens need one
+  # (Designs::Threads.merge_or_prepare!): that turn merges when it is done.
   def merge
-    merge = Designs::Threads.merge!(@thread, user: current_user)
-    flash[:clar_toast] = "Merged into master · #{merge.short_sha}"
-    redirect_to workshop_designs_overview_path(tab: "history", merge: merge.id)
+    result = Designs::Threads.merge_or_prepare!(@thread, user: current_user)
+    if result.is_a?(DesignTurn)
+      flash[:clar_toast] = "Making components first · it merges when they're done"
+      return redirect_to(workshop_designs_overview_path(thread: @thread.id))
+    end
+
+    flash[:clar_toast] = "Merged into master · #{result.short_sha}"
+    redirect_to workshop_designs_overview_path(tab: "history", merge: result.id)
   rescue Designs::Threads::Busy, Designs::Threads::AlreadyMerged, Designs::Threads::NothingToMerge => e
     redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
   rescue Designs::Repo::Conflict

@@ -182,4 +182,51 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     @session.update!(design_setup: reimport)
     assert_not_includes Designs::Subject.for(@session.reload).system_text, "<blocked>"
   end
+
+  def thread_with_turn(focus_context: "admin", focus_screen: "reporting", kind: "design")
+    thread = @project.design_threads.create!(author: users(:one), title: "T", branch: "design/t", focus_context: focus_context,
+                                             focus_screen: focus_screen, chat_session: Designs::Threads.new_session(@project, users(:one)))
+    message = thread.chat_session.chat_messages.create!(role: "user", content: "Add usage", user: users(:one))
+    [ thread, DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: kind) ]
+  end
+
+  test "a thread's turn is given the design repo, the theme and open screen whole on its session's first turn, and builds screens only" do
+    Dir.mktmpdir("worktree") do |worktree|
+      { "designs/admin/reporting.html" => "<title>Reporting</title>", "design-system/theme.css" => "@theme { --radius: 4px; }" }.each do |path, body|
+        FileUtils.mkdir_p(File.dirname(File.join(worktree, path)))
+        File.write(File.join(worktree, path), body)
+      end
+      thread, first = thread_with_turn
+      subject = Designs::Subject.for(thread.chat_session)
+
+      message = subject.turn_message("Add usage", turn: first, worktree: worktree)
+
+      assert_includes message, "## The design repo now"
+      assert_includes message, "- designs/admin/reporting.html — Reporting"
+      assert_includes message, "@theme { --radius: 4px; }"
+      assert_includes message, "The screen the person has open: designs/admin/reporting.html"
+      assert_includes message, Designs::Prompt::SCREENS_ONLY
+
+      first.update!(status: "succeeded", started_at: 1.minute.ago)
+      later = DesignTurn.create!(chat_session: thread.chat_session, chat_message: first.chat_message, kind: "components")
+      message = subject.turn_message("Make components", turn: later, worktree: worktree)
+
+      assert_includes message, "- designs/admin/reporting.html — Reporting"
+      assert_not_includes message, "@theme", "the session has them already"
+      assert_not_includes message, Designs::Prompt::SCREENS_ONLY, "a components turn makes components"
+    end
+  end
+
+  # The screen in view comes from the person's request, and is read into the prompt.
+  test "a screen in view that is not a screen's name is not read" do
+    Dir.mktmpdir("worktree") do |worktree|
+      FileUtils.mkdir_p(File.join(worktree, "designs/admin"))
+      File.write(File.join(worktree, "designs/admin/reporting.html"), "<title>Reporting</title>")
+      thread, turn = thread_with_turn(focus_context: "..", focus_screen: "designs/admin/reporting")
+
+      message = Designs::Subject.for(thread.chat_session).turn_message("Add usage", turn: turn, worktree: worktree)
+
+      assert_not_includes message, "has open"
+    end
+  end
 end

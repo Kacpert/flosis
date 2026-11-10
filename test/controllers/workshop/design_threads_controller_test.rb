@@ -285,4 +285,19 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
       assert_equal users(:one).name, turn.reload.stop_requested_by
     end
   end
+
+  test "Merge makes components first when the thread's turns made screens since, and says it merges after" do
+    with_designs do |repo, _|
+      thread = thread_with_work(repo, "Add a counter")
+      DesignTurn.where(chat_session: thread.chat_session).update_all(commit_sha: "abc1234")
+
+      post merge_workshop_design_thread_path(thread)
+
+      assert_redirected_to workshop_designs_overview_path(thread: thread.id)
+      assert_equal "Making components first · it merges when they're done", flash[:clar_toast]
+      turn = DesignTurn.order(:id).last
+      assert_equal [ "components", "manual" ], [ turn.kind, turn.then_merge ]
+      assert_not thread.reload.merged?
+    end
+  end
 end

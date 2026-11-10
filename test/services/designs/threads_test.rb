@@ -496,4 +496,55 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
       assert elsewhere.reload.queued?
     end
   end
+
+  # -- components before a merge (2026-11-10: a design turn builds screens only) --
+
+  def with_committed_turns(thread)
+    DesignTurn.where(chat_session: thread.chat_session).update_all(commit_sha: "abc1234")
+    thread
+  end
+
+  test "Merge makes components first when design turns committed since: a components turn, which merges once it is done" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = with_committed_turns(thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" }))
+      clear_enqueued_jobs
+
+      turn = Designs::Threads.merge_or_prepare!(thread, user: @user)
+
+      assert_equal [ "components", "manual", "queued" ], [ turn.kind, turn.then_merge, turn.status ]
+      assert_equal "request", turn.chat_message.kind
+      assert_includes turn.chat_message.content, Designs::Threads::COMPONENTS_REQUEST
+      assert_includes turn.chat_message.content, "The screens this thread changed:\n- designs/admin/pipeline.html"
+      assert_enqueued_with(job: Designs::TurnJob, args: [ turn.id ])
+      assert_equal "Making components from this thread's screens before it merges · #{@user.name}", system_lines(thread).last
+      assert_not thread.reload.merged?
+    end
+  end
+
+  test "Merge goes straight to master when no design turn committed since the components turn, or none ever did" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      assert_kind_of DesignMerge, Designs::Threads.merge_or_prepare!(thread, user: @user), "no turn of it committed"
+
+      other = with_committed_turns(thread_with_work(repo, "Closing dates", { "designs/candidate/apps.html" => "<title>Apps</title>" }))
+      DesignTurn.create!(chat_session: other.chat_session, chat_message: other.chat_session.chat_messages.first, kind: "components",
+                         status: "succeeded")
+      assert_not Designs::Threads.components_due?(other)
+      assert_kind_of DesignMerge, Designs::Threads.merge_or_prepare!(other.reload, user: @user)
+    end
+  end
+
+  test "Try again on a components turn that failed merges when it succeeds, as the first one would have" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = with_committed_turns(thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" }))
+      Designs::Threads.merge_or_prepare!(thread, user: @user).update!(status: "failed", error: "Claude returned no answer", started_at: 1.minute.ago)
+
+      turn = Designs::Threads.retry!(thread.reload, user: @user)
+
+      assert_equal [ "components", "manual" ], [ turn.kind, turn.then_merge ]
+    end
+  end
 end

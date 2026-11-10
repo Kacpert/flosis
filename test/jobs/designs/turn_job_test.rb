@@ -1342,4 +1342,43 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       ENV.delete("FLOSIS_DESIGNS_SETUP_API_KEY")
     end
   end
+
+  test "a components turn that Merge queued merges its thread once it succeeds" do
+    with_design_remote do |repo, remote|
+      base = seed_master(repo, { "designs/candidate/apply.html" => "<title>Application form</title>" })
+      repo.project.update!(anthropic_api_key: "sk-ant")
+      fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p>121</p>" }, reply: "<summary>Added a counter.</summary>")
+      assert run_turn(thread_turn(repo, base), remote).succeeded?
+      thread = DesignThread.find_by!(branch: "design/add-a-counter-under")
+      components = with_remote_url(remote) { Designs::Threads.merge_or_prepare!(thread, user: users(:one)) }
+      fake_claude(files: { "components/counter/counter.html" => "<span>{{n}}</span>" }, reply: "<summary>Made the counter a component.</summary>")
+
+      components = run_turn(components, remote)
+
+      assert components.succeeded?, components.error
+      assert_not_includes @calls.dig(0, 1, :prompt), Designs::Prompt::SCREENS_ONLY
+      assert thread.reload.merged?
+      merge = DesignMerge.last
+      assert_equal [ "manual", users(:one) ], [ merge.how, merge.user ]
+      assert_equal merge.sha, remote_branch_sha(remote, "master")
+    end
+  end
+
+  test "a components turn whose merge cannot go through says why in the chat, and leaves the thread open" do
+    with_design_remote do |repo, remote|
+      base = seed_master(repo, { "designs/candidate/apply.html" => "<title>Application form</title>" })
+      repo.project.update!(anthropic_api_key: "sk-ant")
+      fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p>121</p>" })
+      assert run_turn(thread_turn(repo, base), remote).succeeded?
+      thread = DesignThread.find_by!(branch: "design/add-a-counter-under")
+      components = with_remote_url(remote) { Designs::Threads.merge_or_prepare!(thread, user: users(:one)) }
+      waiting = thread.chat_session.chat_messages.create!(role: "user", content: "One more thing", user: users(:one))
+      DesignTurn.create!(chat_session: thread.chat_session, chat_message: waiting)
+
+      assert run_turn(components, remote).succeeded?
+
+      assert thread.reload.open?
+      assert_equal "Not merged: #{Designs::Threads::BUSY}", thread.chat_session.chat_messages.where(kind: "system").order(:id).last.content
+    end
+  end
 end
