@@ -1,6 +1,7 @@
 # A design thread's life (Workshop Designs v2): started empty or from a task,
 # named by its first message, kept up with its task's description and with
-# master, and merged into master by a person or when its task is Done.
+# master, its turns stopped or tried again, and merged into master by a
+# person or when its task is Done.
 #
 # Git work runs here, under the project's repo lock, and never while a turn of
 # the thread is queued or running: a turn edits the branch's worktree. Claude's
@@ -19,6 +20,7 @@ module Designs::Threads
   IMPORTING = "Re-import from staging is still running on this thread. You can talk here and merge it once it finishes.".freeze
   NOT_AN_INSPIRATION = "Inspirations are images, PDFs or notes (.png, .jpg, .gif, .webp, .svg, .pdf, .txt, .md), up to 10 MB each.".freeze
   NO_BRANCH_YET = "Describe the change first: the thread gets its branch, and its inspirations/, with its first message.".freeze
+  NOTHING_TO_RETRY = "There is nothing to try again: the thread's last turn did not fail.".freeze
   # Where a deleted thread's branch waits on GitHub (archive/design/…).
   ARCHIVE = "archive/".freeze
   GONE = "This thread's archive is no longer on GitHub, so it can't come back.".freeze
@@ -59,6 +61,46 @@ module Designs::Threads
     name!(thread, text) if thread.fresh?
     thread.update!(focus_context: context, focus_screen: screen) if context.present? && screen.present?
     queue_turn(thread, user, text)
+  end
+
+  # Try again, under the thread's last turn when it failed: its request runs
+  # once more, as a new turn of its kind, so the failed one keeps what it did.
+  # Claude resumes the session the failed run is in, and is told that none of
+  # its edits were kept (Designs::TurnJob#earlier_failure).
+  def retry!(thread, user:)
+    raise Busy, IMPORTING if importing?(thread)
+
+    DesignTurn.fail_stale!
+    turns = DesignTurn.where(chat_session_id: thread.chat_session_id)
+    raise Busy, BUSY if turns.active.exists?
+
+    last = turns.order(:id).last
+    raise ArgumentError, NOTHING_TO_RETRY unless last&.failed?
+
+    note(thread, "Tried again by #{user&.name || 'someone'}")
+    turn = DesignTurn.create!(chat_session: thread.chat_session, chat_message: last.chat_message, kind: last.kind)
+    thread.touch
+    Designs::TurnJob.perform_later(turn.id)
+    turn
+  end
+
+  # Stop, on a turn of the thread that waits or runs. One that waits is failed
+  # at once, and never starts. One that runs is asked to stop: its job looks
+  # every few seconds (Designs::TurnJob#follow), stops Claude and puts the
+  # worktree back. The row lock settles a stop and the job's claim of a turn
+  # that waits, whichever comes first.
+  def stop!(thread, turn_id:, user:)
+    turn = DesignTurn.where(chat_session_id: thread.chat_session_id).find(turn_id)
+    by = user&.name.presence || "someone"
+    turn.with_lock do
+      if turn.queued?
+        turn.fail!("Stopped by #{by} before it started.")
+        thread.chat_session.chat_messages.create!(role: "assistant", kind: "error", content: turn.error)
+      elsif turn.running? && turn.stop_requested_at.nil?
+        turn.update!(stop_requested_at: Time.current, stop_requested_by: by)
+      end
+    end
+    turn
   end
 
   # Files a person adds for the AI to borrow from (Workshop Designs v2's

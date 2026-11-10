@@ -1,7 +1,8 @@
 # What a person does to a design thread (Workshop Designs v2): start one, talk
-# in it, bring its task's description or master into it, merge it, and turn a
-# thread with no task into one (Generate task). Each sends them back to the
-# Designs module, where the thread shows what happened.
+# in it, stop a turn or try a failed one again, bring its task's description
+# or master into it, merge it, and turn a thread with no task into one
+# (Generate task). Each sends them back to the Designs module, where the
+# thread shows what happened.
 class Workshop::DesignThreadsController < Workshop::BaseController
   before_action { require_permission!(:designs) }
   include DesignsVisibility
@@ -79,6 +80,20 @@ class Workshop::DesignThreadsController < Workshop::BaseController
   rescue GitRunner::Error => e
     redirect_to workshop_designs_overview_path,
                 alert: "The branch could not come back on GitHub, so the thread stays deleted: #{e.message.to_s.lines.first.to_s.strip.truncate(200)}"
+  end
+
+  # Try again, under a turn that failed: its request runs once more.
+  def retry
+    Designs::Threads.retry!(@thread, user: current_user)
+    redirect_to workshop_designs_overview_path(thread: @thread.id)
+  rescue Designs::Threads::Busy, ArgumentError => e
+    redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
+  end
+
+  # Stop, on a turn that runs or waits.
+  def stop
+    Designs::Threads.stop!(@thread, turn_id: params[:turn], user: current_user)
+    redirect_to workshop_designs_overview_path(thread: @thread.id)
   end
 
   def update_description

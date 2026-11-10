@@ -43,6 +43,37 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  # A stand-in for Claude that streams: it edits the worktree, hands each of
+  # the events (made from the CLI's options, for their paths) to the turn's
+  # block, then gives `answer`. A block that raises stops it there, as the CLI
+  # is stopped then. The calls are kept in @calls, as scripted_claude keeps them.
+  def streaming_claude(events: ->(_opts) { [] }, files: {}, answer: {})
+    calls = @calls = []
+    Designs::TurnJob.claude_factory = lambda do |**opts|
+      Object.new.tap do |cli|
+        %i[start_session resume_session].each do |call|
+          cli.define_singleton_method(call) do |**keywords, &on_event|
+            calls << [ call, keywords ]
+            files.each { |p, b| FileUtils.mkdir_p(File.dirname(File.join(opts[:codebase_path], p))); File.write(File.join(opts[:codebase_path], p), b) }
+            events.call(opts).each { |event| on_event&.call(event) }
+            { session_id: "s", response: "<summary>Did it.</summary>", is_error: false, subtype: "success",
+              final_text: "<summary>Did it.</summary>", final_tool_use: false }.merge(answer)
+          end
+        end
+      end
+    end
+  end
+
+  # An assistant message of one block, as the CLI streams it.
+  def said(text)
+    { "type" => "assistant", "message" => { "id" => "msg-#{SecureRandom.hex(4)}", "content" => [ { "type" => "text", "text" => text } ] } }
+  end
+
+  def tool(name, input)
+    { "type" => "assistant",
+      "message" => { "id" => "msg-#{SecureRandom.hex(4)}", "content" => [ { "type" => "tool_use", "id" => "t", "name" => name, "input" => input } ] } }
+  end
+
   def new_turn(task)
     session = ChatSession.create!(task: task, workspace: task.project.workspace, user: users(:one), purpose: "designs",
                                   claude_session_id: SecureRandom.uuid, codebase_path: "/tmp")
@@ -263,10 +294,11 @@ class Designs::TurnJobTest < ActiveJob::TestCase
 
       assert turn.succeeded?, turn.error
       worktree = repo.worktree!("wip/REC-1").to_s
-      assert_equal %i[add_dirs allowed_tools api_key append_system_prompt_file codebase_path max_budget_usd mcp_config restricted timeout],
+      assert_equal %i[add_dirs allowed_tools api_key append_system_prompt_file codebase_path max_budget_usd mcp_config restricted timeout tools],
                    seen.keys.sort
       assert_equal worktree, seen[:codebase_path]
       assert_equal %w[Read Glob Grep Edit Write], seen[:allowed_tools]
+      assert_equal %w[Read Glob Grep Edit Write], seen[:tools], "no other tool, the subagent least of all"
       assert_nil seen[:mcp_config], "only a setup turn has a browser"
       assert_equal true, seen[:restricted]
       assert_equal "sk-ant", seen[:api_key]
@@ -507,6 +539,127 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       assert turn.failed?
       assert_equal "Claude returned no answer — it may have hit the cost cap or the time limit.", turn.error
       assert_nil remote_branch_sha(remote, "wip/REC-1")
+    end
+  end
+
+  test "Claude's turn streams, and each step it takes is kept on the turn for the chat to show" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      app_checkout(repo.project, { "app/views/jobs/index.html.erb" => "<h1>Jobs</h1>\n" })
+      streaming_claude(files: { "designs/a.html" => "a" }, events: lambda { |opts|
+        worktree = opts[:codebase_path]
+        app = opts[:add_dirs].first
+        [ { "type" => "system", "subtype" => "init" },
+          said("Let me look at the jobs screen first."),
+          tool("Read", "file_path" => "#{worktree}/designs/admin/jobs.html"),
+          tool("Read", "file_path" => "#{app}/app/views/jobs/index.html.erb"),
+          tool("Glob", "pattern" => "components/**/*.html"),
+          tool("Grep", "pattern" => "archive", "path" => app),
+          :tick,
+          { "type" => "user", "message" => { "content" => [ { "type" => "tool_result", "tool_use_id" => "t", "content" => "x" } ] } },
+          tool("Write", "file_path" => "#{worktree}/designs/admin/archive.html", "content" => "x"),
+          tool("Edit", "file_path" => "#{worktree}/designs/admin/jobs.html", "old_string" => "a", "new_string" => "b"),
+          said("<summary>Added an archive tab.</summary>\n<missing>Who can archive?</missing>") ]
+      })
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_equal [ "Let me look at the jobs screen first.", "Reading designs/admin/jobs.html",
+                     "Reading app/views/jobs/index.html.erb in the app", "Looking for components/**/*.html",
+                     "Searching for “archive” in the app", "Writing designs/admin/archive.html", "Editing designs/admin/jobs.html" ],
+                   turn.activity.map { |step| step["text"] }, "the reply itself is posted, not kept as a step"
+      assert_equal %w[say read read find search write edit], turn.activity.map { |step| step["kind"] }
+      assert turn.activity.all? { |step| step["at"].is_a?(Integer) && step["at"] >= 0 }
+    end
+  end
+
+  test "a turn someone asks to stop is stopped: nothing Claude wrote is kept, and the chat says who stopped it" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      master = repo.head("master")
+      turn = new_turn(task)
+      streaming_claude(files: { "designs/a.html" => "a" }, events: lambda { |_opts|
+        turn.update_columns(stop_requested_at: Time.current, stop_requested_by: "Kacper")
+        [ :tick, said("Never kept") ]
+      })
+
+      turn = run_turn(turn, remote)
+
+      assert turn.failed?
+      assert_equal "Stopped by Kacper. Nothing it changed was kept.", turn.error
+      assert_equal master, repo.head("wip/REC-1")
+      assert_not repo.worktree!("wip/REC-1").join("designs/a.html").exist?
+      assert_equal [ [ "error", turn.error ] ], assistant_messages(turn).pluck(:kind, :content)
+      assert_equal 1, @calls.size, "a stopped turn is not run again"
+      assert_not_includes turn.activity.map { |step| step["text"] }, "Never kept"
+    end
+  end
+
+  # Claude sees what is left of its budget as it works, and wraps up: the
+  # call that writes its answer can cross the cap, which then ends the run
+  # with no result text. Seen on SCRUM-70's first turn (2026-11-06).
+  test "a turn the cost cap ended just as Claude finished keeps its work, and says the cap was reached" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      streaming_claude(files: { "designs/a.html" => "a" },
+                       answer: { response: "", is_error: true, subtype: "error_max_budget_usd",
+                                 final_text: "<summary>Added an archive tab.</summary>", final_tool_use: false })
+
+      turn = run_turn(new_turn(task), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_equal turn.commit_sha, remote_branch_sha(remote, "wip/REC-1")
+      assert_equal [ [ "summary", "Added an archive tab." ], [ "system", Designs::TurnJob::CAPPED ] ],
+                   assistant_messages(turn).pluck(:kind, :content)
+    end
+  end
+
+  test "a turn the cost cap ended before Claude finished is failed, and nothing it wrote is kept" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      [ { final_text: "<summary>Added an archive tab.</summary>", final_tool_use: true },
+        { final_text: "Now the archive screen.", final_tool_use: false } ].each do |last|
+        streaming_claude(files: { "designs/a.html" => "a" },
+                         answer: { response: "", is_error: true, subtype: "error_max_budget_usd", **last })
+
+        turn = run_turn(new_turn(task), remote)
+
+        assert turn.failed?, last.inspect
+        assert_equal Designs::TurnJob::NO_ANSWER, turn.error
+        assert_nil remote_branch_sha(remote, "wip/REC-1")
+      end
+    end
+  end
+
+  # Its session has the failed run in it, but the worktree went back to the
+  # last commit: Claude must not build on edits that are gone.
+  test "a turn after one that failed is told none of its changes were kept, and a retry that it is one" do
+    with_design_remote do |repo, remote|
+      task = design_task(repo)
+      out_of_time = ClaudeCliService::TimeoutError.new("Claude CLI did not finish within 2400 seconds and was stopped")
+      fake_claude(raise_error: out_of_time)
+      failed = run_turn(new_turn(task), remote)
+      session = failed.chat_session
+      assert_not_includes @calls.dig(0, 1, :prompt), "Note from Flosis"
+
+      fake_claude(files: { "designs/a.html" => "a" })
+      assert run_turn(DesignTurn.create!(chat_session: session, chat_message: failed.chat_message), remote).succeeded?
+      again = @calls.dig(0, 1, :prompt)
+      assert again.start_with?("## Note from Flosis\nYour last turn did not finish (#{out_of_time.message}), and none of its " \
+                               "changes were kept"), again
+      assert_includes again, "another try at the same request"
+      assert again.end_with?(Designs::Prompt.turn_message(task: task.reload, request: "Add an archive tab"))
+
+      fake_claude(raise_error: out_of_time)
+      assert run_turn(next_turn(session), remote).failed?
+      assert_not_includes @calls.dig(0, 1, :prompt), "Note from Flosis", "the turn before it succeeded"
+
+      fake_claude(files: { "designs/b.html" => "b" })
+      assert run_turn(next_turn(session, "And a search box"), remote).succeeded?
+      after = @calls.dig(0, 1, :prompt)
+      assert after.start_with?("## Note from Flosis\nYour last turn did not finish"), after
+      assert_not_includes after, "another try"
     end
   end
 
@@ -1119,6 +1272,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       assert_includes options[:allowed_tools], "Read"
       assert_not_includes options[:allowed_tools], "mcp__flosis_browser__save_features", "only the map saves features"
       assert_equal [ DesignTurn.setup_timeout, DesignTurn.setup_budget_usd ], options.values_at(:timeout, :max_budget_usd)
+      assert_nil options[:tools], "a setup turn keeps the CLI's own set, beside its browser"
       assert_equal Designs::SignIn.node_env.merge("FLOSIS_BROWSER_CONFIG" => setup.run_dir.join("browser.json").to_s), server["env"]
       assert_not File.exist?(options[:mcp_config]), "the MCP config is gone after the turn"
     end

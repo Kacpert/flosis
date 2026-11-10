@@ -470,6 +470,152 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
     assert_equal "original-id", result[:session_id]
   end
 
+  # -- a design turn's exact tool set --
+
+  test "a run can be given its exact set of tools, which leaves out every other one" do
+    service = ClaudeCliService.new(codebase_path: @codebase_path, tools: %w[Read Glob Grep Edit Write])
+    cmd = service.send(:build_command, streaming: true)
+
+    assert_equal "Read,Glob,Grep,Edit,Write", cmd[cmd.index("--tools") + 1]
+  end
+
+  # -- a session run with a block streams its events --
+
+  test "a session run with a block streams: each event is handed over as it comes, and the answer is returned" do
+    events = [
+      assistant("msg_1", { "type" => "text", "text" => "Let me look." }),
+      assistant("msg_1", { "type" => "tool_use", "id" => "t1", "name" => "Read", "input" => { "file_path" => "/w/a.html" } }),
+      { "type" => "user", "message" => { "content" => [ { "type" => "tool_result", "tool_use_id" => "t1", "content" => "x" } ] } },
+      assistant("msg_2", { "type" => "text", "text" => "<summary>Done</summary>" }),
+      { "type" => "result", "subtype" => "success", "is_error" => false, "result" => "<summary>Done</summary>", "session_id" => "s-1" }
+    ]
+    service, ran = streaming_service(events)
+    seen = []
+
+    answer = service.start_session(prompt: "Hi", new_session_id: "s-1") { |event| seen << event }
+
+    assert_equal events, seen.reject { |event| event == :tick }
+    assert_equal({ session_id: "s-1", response: "<summary>Done</summary>", is_error: false, subtype: "success",
+                   final_text: "<summary>Done</summary>", final_tool_use: false }, answer)
+    assert_equal "stream-json", ran[:cmd][ran[:cmd].index("--output-format") + 1]
+    assert_equal "s-1", ran[:cmd][ran[:cmd].index("--session-id") + 1]
+    assert_equal "Hi", ran[:message]
+  end
+
+  # The cost cap ends a run with no text: what Claude said last is all there is of its answer.
+  test "a streamed run the cost cap ended keeps what Claude said last" do
+    events = [
+      assistant("msg_1", { "type" => "text", "text" => "<summary>Built the screen</summary>" }),
+      { "type" => "result", "subtype" => "error_max_budget_usd", "is_error" => true, "errors" => [ "Reached maximum budget ($5)" ], "session_id" => "s-1" }
+    ]
+    service, = streaming_service(events)
+
+    answer = service.resume_session(session_id: "s-1", prompt: "Hi") { |_event| }
+
+    assert_equal "", answer[:response]
+    assert_equal true, answer[:is_error]
+    assert_equal "error_max_budget_usd", answer[:subtype]
+    assert_equal "<summary>Built the screen</summary>", answer[:final_text]
+    assert_equal false, answer[:final_tool_use]
+  end
+
+  test "Claude's last words are its last message's, which may have gone on to use a tool" do
+    events = [
+      assistant("msg_1", { "type" => "text", "text" => "First" }),
+      assistant("msg_2", { "type" => "text", "text" => "Now " }),
+      assistant("msg_2", { "type" => "text", "text" => "writing" }),
+      assistant("msg_2", { "type" => "tool_use", "id" => "t2", "name" => "Write", "input" => {} }),
+      { "type" => "result", "subtype" => "error_max_budget_usd", "is_error" => true, "session_id" => "s-1" }
+    ]
+    service, = streaming_service(events)
+
+    answer = service.start_session(prompt: "Hi") { |_event| }
+
+    assert_equal "Now writing", answer[:final_text]
+    assert_equal true, answer[:final_tool_use]
+  end
+
+  test "a subagent's messages are never taken for Claude's last words" do
+    events = [
+      assistant("msg_1", { "type" => "text", "text" => "<summary>Mine</summary>" }),
+      assistant("msg_9", { "type" => "text", "text" => "The subagent's" }).merge("parent_tool_use_id" => "t1"),
+      { "type" => "result", "subtype" => "success", "is_error" => false, "result" => "<summary>Mine</summary>", "session_id" => "s-1" }
+    ]
+    service, = streaming_service(events)
+
+    assert_equal "<summary>Mine</summary>", service.start_session(prompt: "Hi") { |_event| }[:final_text]
+  end
+
+  test "a resumed session streams too" do
+    service, ran = streaming_service([ { "type" => "result", "subtype" => "success", "result" => "ok", "session_id" => "abc" } ])
+
+    assert_equal "ok", service.resume_session(session_id: "abc", prompt: "Hi") { |_event| }[:response]
+    assert_equal "abc", ran[:cmd][ran[:cmd].index("--resume") + 1]
+    assert_includes ran[:cmd], "stream-json"
+  end
+
+  # A session the CLI cannot resume, or an id it will not start, prints no result.
+  test "a streamed run that ends without a result raises ClaudeCliError" do
+    service, = streaming_service([ { "type" => "system", "subtype" => "init" } ])
+
+    assert_raises(ClaudeCliService::ClaudeCliError) { service.start_session(prompt: "Hi") { |_event| } }
+  end
+
+  # -- stream_claude (these run real processes) --
+
+  test "stream_claude hands over each JSON line the CLI prints, and skips what is not JSON" do
+    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 30)
+    script = %q(cat > /dev/null; printf '%s\n' '{"type":"a"}' 'noise' '{"type":"b","n":1}')
+    seen = []
+
+    service.send(:stream_claude, [ "sh", "-c", script ], "the prompt") { |event| seen << event }
+
+    assert_equal [ { "type" => "a" }, { "type" => "b", "n" => 1 } ], seen.reject { |event| event == :tick }
+  end
+
+  test "stream_claude ticks while the CLI is quiet, so the caller can look up from waiting" do
+    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 30)
+    seen = []
+
+    service.send(:stream_claude, [ "sh", "-c", %q(sleep 0.5; printf '{"type":"a"}\n') ], "", tick: 0.1) { |event| seen << event }
+
+    assert_operator seen.index(:tick), :<, seen.index({ "type" => "a" })
+  end
+
+  test "a streamed run past its timeout is stopped and raises" do
+    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 0.3)
+    started = monotonic
+
+    error = assert_raises(ClaudeCliService::TimeoutError) { service.send(:stream_claude, [ "sleep", "10" ], "") { |_event| } }
+    assert_includes error.message, "0.3 seconds"
+    assert_operator monotonic - started, :<, 7
+  end
+
+  test "the streamed run's timeout covers handing over the prompt as well" do
+    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 0.3)
+    started = monotonic
+
+    assert_raises(ClaudeCliService::TimeoutError) { service.send(:stream_claude, [ "sleep", "10" ], "x" * 1_000_000) { |_event| } }
+    assert_operator monotonic - started, :<, 7
+  end
+
+  # How a turn is stopped on request: its block raises, and the CLI must not run on.
+  test "an error the caller's block raises stops the CLI and goes up to the caller" do
+    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 30)
+    started = monotonic
+
+    assert_raises(ArgumentError) do
+      service.send(:stream_claude, [ "sh", "-c", %q(printf '{"type":"a"}\n'; sleep 10) ], "") { |_event| raise ArgumentError, "stop" }
+    end
+    assert_operator monotonic - started, :<, 7
+  end
+
+  test "stream_claude reports a missing CLI as ClaudeCliError" do
+    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 30)
+
+    assert_raises(ClaudeCliService::ClaudeCliError) { service.send(:stream_claude, [ "/nonexistent/claude-cli" ], "") { |_event| } }
+  end
+
   # -- Error class tests --
 
   test "ClaudeCliError is a StandardError" do
@@ -515,6 +661,26 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
       ran[:message] = message
       answer
     end
+    [ service, ran ]
+  end
+
+  # One content block of an assistant message, as the CLI streams it.
+  def assistant(id, block)
+    { "type" => "assistant", "message" => { "id" => id, "role" => "assistant", "content" => [ block ] } }
+  end
+
+  # A service whose stream_claude yields `events` and records what it was given:
+  # [ service, ran ], with ran[:cmd] and ran[:message] filled in by a run.
+  def streaming_service(events, **options)
+    ran = {}
+    service = ClaudeCliService.new(codebase_path: @codebase_path, **options)
+    service.define_singleton_method(:stream_claude) do |cmd, message, **_opts, &block|
+      ran[:cmd] = cmd
+      ran[:message] = message
+      events.each { |event| block.call(event) }
+    end
+    # Never the real CLI: a run that did not stream fails here instead.
+    service.define_singleton_method(:run_claude) { |*| raise "a run given a block must stream" }
     [ service, ran ]
   end
 

@@ -62,8 +62,10 @@ module Designs::Subject
     def secrets = ProjectCredentials.new(project).all_secrets
     def prepare! = nil
     # File tools, the app's checkout copied for the turn, no browser and a
-    # thread turn's bounds.
+    # thread turn's bounds. The file tools are all it has (tool_set): no
+    # subagent, which spent minutes mapping a repo Claude then read itself.
     def tools = Designs::TurnJob::TOOLS
+    def tool_set = Designs::TurnJob::TOOLS
     def with_mcp(_worktree) = yield(nil)
     def timeout = DesignTurn.turn_timeout
     def budget_usd = DesignTurn.turn_budget_usd
@@ -144,6 +146,7 @@ module Designs::Subject
     # File tools, the app's checkout copied for the turn, no browser and a
     # thread turn's bounds.
     def tools = Designs::TurnJob::TOOLS
+    def tool_set = Designs::TurnJob::TOOLS
     def with_mcp(_worktree) = yield(nil)
     def timeout = DesignTurn.turn_timeout
     def budget_usd = DesignTurn.turn_budget_usd
@@ -258,6 +261,8 @@ module Designs::Subject
     end
 
     def tools = Designs::TurnJob::TOOLS + BROWSER_TOOLS + (SAVING.include?(setup.phase) ? MAP_TOOLS : [])
+    # The CLI's own set of tools, beside the browser's.
+    def tool_set = nil
     def timeout = DesignTurn.setup_timeout
     def budget_usd = DesignTurn.setup_budget_usd
     # The app comes from the repositories the run cloned (add_dirs).

@@ -418,4 +418,82 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     end
   end
 
+  test "Try again runs the request of the turn that failed once more, as a new turn of its kind" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = Designs::Threads.start!(project: repo.project, user: @user)
+      failed = Designs::Threads.message!(thread, user: @user, text: "Add a status filter")
+      failed.update!(status: "failed", error: "Claude returned no answer", started_at: 2.minutes.ago, kind: "resolve_conflicts")
+      clear_enqueued_jobs
+
+      turn = Designs::Threads.retry!(thread.reload, user: @user)
+
+      assert_equal [ failed.chat_message_id, "resolve_conflicts", "queued" ], [ turn.chat_message_id, turn.kind, turn.status ]
+      assert_not_equal failed.id, turn.id, "the failed turn keeps what it did"
+      assert_enqueued_with(job: Designs::TurnJob, args: [ turn.id ])
+      assert_equal "Tried again by #{@user.name}", system_lines(thread).last
+    end
+  end
+
+  test "Try again needs the thread's last turn to have failed, and nothing running" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = Designs::Threads.start!(project: repo.project, user: @user)
+      assert_raises(ArgumentError) { Designs::Threads.retry!(thread, user: @user) }
+      turn = Designs::Threads.message!(thread, user: @user, text: "Add a status filter")
+      assert_raises(Designs::Threads::Busy) { Designs::Threads.retry!(thread.reload, user: @user) }
+      turn.update!(status: "succeeded")
+      assert_raises(ArgumentError) { Designs::Threads.retry!(thread, user: @user) }
+      assert_equal 1, DesignTurn.where(chat_session: thread.chat_session).count
+    end
+  end
+
+  test "Stop on a turn that waits fails it at once, so it never starts" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = Designs::Threads.start!(project: repo.project, user: @user)
+      turn = Designs::Threads.message!(thread, user: @user, text: "Add a status filter")
+
+      Designs::Threads.stop!(thread.reload, turn_id: turn.id, user: @user)
+
+      assert turn.reload.failed?
+      assert_equal "Stopped by #{@user.name} before it started.", turn.error
+      assert_equal [ "error", turn.error ], thread.chat_session.chat_messages.order(:id).pluck(:kind, :content).last
+    end
+  end
+
+  test "Stop on a turn that runs asks its job to stop it, once" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = Designs::Threads.start!(project: repo.project, user: @user)
+      turn = Designs::Threads.message!(thread, user: @user, text: "Add a status filter")
+      turn.update!(status: "running", started_at: 1.minute.ago)
+
+      Designs::Threads.stop!(thread.reload, turn_id: turn.id, user: @user)
+
+      assert turn.reload.running?, "its job stops it, and puts the worktree back"
+      assert_equal @user.name, turn.stop_requested_by
+      asked = turn.stop_requested_at
+      travel(5.seconds) { Designs::Threads.stop!(thread, turn_id: turn.id, user: users(:two)) }
+      assert_equal [ asked, @user.name ], [ turn.reload.stop_requested_at, turn.stop_requested_by ]
+    end
+  end
+
+  test "Stop leaves a finished turn as it is, and reaches no other thread's turn" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = Designs::Threads.start!(project: repo.project, user: @user)
+      turn = Designs::Threads.message!(thread, user: @user, text: "Add a status filter")
+      turn.update!(status: "succeeded")
+      other = Designs::Threads.start!(project: repo.project, user: @user)
+      elsewhere = Designs::Threads.message!(other, user: @user, text: "Add a date filter")
+
+      Designs::Threads.stop!(thread.reload, turn_id: turn.id, user: @user)
+
+      assert turn.reload.succeeded?
+      assert_nil turn.stop_requested_at
+      assert_raises(ActiveRecord::RecordNotFound) { Designs::Threads.stop!(thread, turn_id: elsewhere.id, user: @user) }
+      assert elsewhere.reload.queued?
+    end
+  end
 end

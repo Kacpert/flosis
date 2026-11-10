@@ -5,9 +5,13 @@ class ClaudeCliService
   DEFAULT_CODEBASE_PATH = File.expand_path("~/work/elvium").freeze
   # What a run that is out of time gets to wind down after TERM, before it is killed.
   KILL_GRACE_SECONDS = 5
+  # How often a streamed run looks up from a CLI that prints nothing, in seconds
+  # (see stream_claude).
+  TICK_SECONDS = 2
 
   def initialize(codebase_path: nil, allowed_tools: nil, model: nil, mcp_config: nil, api_key: nil,
-                 restricted: false, append_system_prompt_file: nil, add_dirs: [], max_budget_usd: nil, timeout: nil)
+                 restricted: false, append_system_prompt_file: nil, add_dirs: [], max_budget_usd: nil, timeout: nil,
+                 tools: nil)
     @codebase_path = codebase_path || ENV.fetch("CHAT_CODEBASE_PATH", DEFAULT_CODEBASE_PATH)
     # Per-chat override of the pre-approved tool list. The briefing chat passes a
     # code-free set (no Read/Glob/Grep) so it stays a product conversation and
@@ -51,13 +55,22 @@ class ClaudeCliService
     end
     @max_budget_usd = max_budget_usd
     @timeout = timeout
+    # Optional exact set of built-in tools the run has (--tools): every other one
+    # is left out, the subagent among them. nil = the CLI's own set, as before.
+    @tools = tools
   end
 
   # Start a new Claude session with an initial prompt. A new_session_id (a UUID)
   # names the session up front (--session-id), so the caller has it before the run
   # is over and resume_session can find it later.
   # Returns { session_id: String, response: String, is_error: Boolean }
-  def start_session(prompt:, new_session_id: nil)
+  #
+  # With a block, the run streams: each event the CLI prints is handed to the
+  # block as it comes, and :tick while it prints nothing (see stream_session for
+  # what is returned then).
+  def start_session(prompt:, new_session_id: nil, &on_event)
+    return stream_session(build_command(streaming: true, new_session_id: new_session_id), prompt, &on_event) if on_event
+
     run_session(build_command(streaming: false, new_session_id: new_session_id), prompt)
   end
 
@@ -65,7 +78,10 @@ class ClaudeCliService
   # run is over (send_message_streaming is the line-by-line variant). A session the
   # CLI cannot find prints nothing on stdout, which raises ClaudeCliError.
   # Returns { session_id: String, response: String, is_error: Boolean }
-  def resume_session(session_id:, prompt:)
+  # With a block, the run streams, as start_session's does.
+  def resume_session(session_id:, prompt:, &on_event)
+    return stream_session(build_command(session_id: session_id, streaming: true), prompt, &on_event) if on_event
+
     run_session(build_command(session_id: session_id, streaming: false), prompt)
   end
 
@@ -219,6 +235,7 @@ class ClaudeCliService
     @add_dirs.each { |dir| cmd.push("--add-dir", dir) }
     # IO.popen takes strings only, and the budget may have been given as a number.
     cmd.push("--max-budget-usd", @max_budget_usd.to_s) unless @max_budget_usd.nil?
+    cmd.push("--tools", @tools.join(",")) unless @tools.nil?
     # Pre-approve the tools we want the chat assistant to use without
     # prompting. -p (non-interactive) refuses any tool not on this list.
     @allowed_tools.each { |t| cmd += ["--allowedTools", t] }
@@ -255,6 +272,111 @@ class ClaudeCliService
     raise ClaudeCliError, "Failed to parse Claude response"
   rescue Errno::ENOENT
     raise ClaudeCliError, "Claude CLI not found. Install it with: npm install -g @anthropic-ai/claude-code"
+  end
+
+  # One streamed run, its events handed to the block as they come. Returns
+  # { session_id:, response:, is_error:, subtype:, final_text:, final_tool_use: }:
+  # subtype is the result's ("success", or what the run ended in, such as
+  # "error_max_budget_usd"); final_text is what Claude's last message said, and
+  # final_tool_use whether that message went on to use a tool. The cost cap ends
+  # a run with no result text, though Claude may have finished its answer by
+  # then. A subagent's messages are not Claude's own. A run with no result (a
+  # session the CLI cannot resume, an id it will not start) raises
+  # ClaudeCliError, as a non-streaming one does.
+  def stream_session(cmd, prompt)
+    result = nil
+    last = nil
+    said = Hash.new { |texts, id| texts[id] = +"" }
+    used_tool = {}
+    stream_claude(cmd, prompt) do |event|
+      if event.is_a?(Hash) && event["type"] == "assistant" && !event["parent_tool_use_id"]
+        last = event.dig("message", "id")
+        Array(event.dig("message", "content")).grep(Hash).each do |block|
+          said[last] << block["text"].to_s if block["type"] == "text"
+          used_tool[last] = true if block["type"] == "tool_use"
+        end
+      elsif event.is_a?(Hash) && event["type"] == "result"
+        result = event
+      end
+      yield event
+    end
+    raise ClaudeCliError, "Claude CLI ended without an answer" unless result
+
+    { session_id: result["session_id"], response: result["result"].to_s, is_error: result["is_error"] == true,
+      subtype: result["subtype"], final_text: (last ? said[last] : ""), final_tool_use: used_tool[last] == true }
+  end
+
+  # Runs the CLI with the prompt on stdin, and yields each line it prints that is
+  # a JSON object, parsed (anything else is skipped), and :tick every `tick`
+  # seconds while it prints nothing, so the caller can look up from waiting. The
+  # timeout is a deadline this loop keeps, never Timeout around the caller's
+  # block, which is then never cut off halfway; handing over the prompt is timed
+  # too. Past the deadline, or when the block raises, the CLI is stopped (see
+  # stop_child) before the error goes up: IO.popen would otherwise wait for it to
+  # finish on its own.
+  def stream_claude(cmd, message, tick: TICK_SECONDS, &block)
+    IO.popen(*popen_args(cmd), "r+", chdir: @codebase_path) do |io|
+      deadline = @timeout && monotonic + @timeout
+      begin
+        @timeout ? Timeout.timeout(@timeout) { hand_over(io, message) } : hand_over(io, message)
+        read_events(io, deadline, tick, &block)
+      rescue Timeout::Error
+        stop_child(io.pid)
+        raise TimeoutError, "Claude CLI did not finish within #{@timeout} seconds and was stopped"
+      rescue StandardError
+        stop_child(io.pid)
+        raise
+      end
+    end
+  rescue Errno::ENOENT
+    raise ClaudeCliError, "Claude CLI not found. Install it with: npm install -g @anthropic-ai/claude-code"
+  end
+
+  def hand_over(io, message)
+    io.write(message)
+    io.close_write
+  end
+
+  # The lines are put together as bytes and read as UTF-8 once whole, so a
+  # character split between two reads stays one.
+  def read_events(io, deadline, tick)
+    buffer = String.new(encoding: Encoding::BINARY)
+    loop do
+      wait = tick
+      if deadline
+        left = deadline - monotonic
+        raise Timeout::Error if left <= 0
+
+        wait = [ wait, left ].min
+      end
+      unless IO.select([ io ], nil, nil, wait)
+        yield :tick
+        next
+      end
+
+      chunk = io.read_nonblock(65_536, exception: false)
+      next if chunk == :wait_readable
+      break if chunk.nil?
+
+      buffer << chunk
+      while (newline = buffer.index("\n"))
+        event = parse_event(buffer.slice!(0..newline))
+        yield event if event
+      end
+    end
+    event = parse_event(buffer)
+    yield event if event
+  end
+
+  def parse_event(line)
+    event = JSON.parse(line.dup.force_encoding(Encoding::UTF_8).strip)
+    event if event.is_a?(Hash)
+  rescue JSON::ParserError
+    nil
+  end
+
+  def monotonic
+    Process.clock_gettime(Process::CLOCK_MONOTONIC)
   end
 
   # Runs the CLI to the end and returns what it printed. With a timeout, a run that

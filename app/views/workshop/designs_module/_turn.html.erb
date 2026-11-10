@@ -1,0 +1,53 @@
+<%# One turn of a design thread, between its request and its reply: what
+    Claude does while the turn waits or runs, step by step (Designs::
+    TurnActivity), with Stop; once it is over, folded to how long it took. A
+    turn from before turns kept their steps shows nothing, unless it was cut
+    off: no message says that. %>
+<% steps = Array(turn.activity) %>
+<% active = turn.queued? || turn.running? %>
+<% interrupted = turn.failed? && turn.error == DesignTurn::INTERRUPTED %>
+<% if active || steps.any? || interrupted %>
+  <% started = turn.started_at || turn.created_at %>
+  <% took = designs_duration((turn.finished_at || Time.current) - started) %>
+  <div class="flex-none" data-turn-id="<%= turn.id %>">
+    <% if active %>
+      <% thinking = turn.running? && !turn.stop_requested_at && Time.current - (started + steps.last&.dig("at").to_i) > 20 %>
+      <div class="flex items-center gap-1.5 text-[12px] font-bold clar-text-text">
+        <span class="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-none" style="background: var(--ai-soft); color: var(--ai);"><%= designs_icon(:ai, 10) %></span>
+        <span class="min-w-0 truncate"><%= turn.queued? ? "Waiting to start" : turn.stop_requested_at ? "Stopping…" : "Working · #{took}" %></span>
+        <span class="flex gap-1 flex-none" aria-hidden="true"><% 3.times do |i| %><span class="clar-blink" style="animation-delay: <%= i * 0.2 %>s;"></span><% end %></span>
+        <span class="flex-1"></span>
+        <% unless turn.stop_requested_at %>
+          <%= button_to stop_workshop_design_thread_path(thread), params: { turn: turn.id }, class: "clar-btn !py-1 !px-2 !text-[11.5px] flex-none",
+                        title: "Stop this turn. Nothing it changed is kept.", form: { class: "contents", data: { turbo_frame: "_top" } } do %>
+            <%= designs_icon(:stop, 11) %>Stop
+          <% end %>
+        <% end %>
+      </div>
+      <% if steps.any? || thinking %>
+        <ol class="mt-1.5 pl-6 flex flex-col gap-1 list-none">
+          <% if steps.size > 6 %>
+            <li>
+              <details data-keep="turn-<%= turn.id %>-earlier">
+                <summary class="cursor-pointer text-[11.5px] clar-text-faint"><%= pluralize(steps.size - 6, "earlier step") %></summary>
+                <ol class="mt-1 flex flex-col gap-1 list-none"><%= render partial: "turn_step", collection: steps.first(steps.size - 6), as: :step %></ol>
+              </details>
+            </li>
+          <% end %>
+          <%= render partial: "turn_step", collection: steps.last(6), as: :step %>
+          <% if thinking %><li class="text-[12px] clar-text-faint italic">Thinking…</li><% end %>
+        </ol>
+      <% end %>
+    <% else %>
+      <% if steps.any? %>
+        <details data-keep="turn-<%= turn.id %>">
+          <summary class="cursor-pointer text-[11.5px] clar-text-faint"><span class="inline-flex align-[-1px] mr-1"><%= designs_icon(:ai, 11) %></span><%= turn.succeeded? ? "Worked #{took}" : "Did not finish · #{took}" %> · <%= pluralize(steps.size, "step") %></summary>
+          <ol class="mt-1.5 pl-6 flex flex-col gap-1 list-none"><%= render partial: "turn_step", collection: steps, as: :step %></ol>
+        </details>
+      <% end %>
+      <% if interrupted %>
+        <div class="flex items-center gap-1.5 text-[12px] clar-text-danger"><span class="flex flex-none"><%= designs_icon(:ai, 11) %></span><%= DesignTurn::INTERRUPTED %></div>
+      <% end %>
+    <% end %>
+  </div>
+<% end %>

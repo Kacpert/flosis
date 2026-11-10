@@ -53,6 +53,9 @@ class Designs::TurnJob < ApplicationJob
   TOOLS = %w[Read Glob Grep Edit Write].freeze
 
   NO_ANSWER = "Claude returned no answer — it may have hit the cost cap or the time limit.".freeze
+  # What the chat says of a turn the cost cap ended just as Claude finished
+  # (see answer_text).
+  CAPPED = "Reached the turn's cost limit as it finished. Everything it did was kept.".freeze
   # What the publish failed on can name the preview folder, so it goes to the
   # log only.
   PREVIEW_NOT_UPDATED = "Saved, but the preview could not be updated. It refreshes with the next turn.".freeze
@@ -73,9 +76,16 @@ class Designs::TurnJob < ApplicationJob
   # would show a live turn as interrupted.
   RETRY_WINDOW = 60.seconds
 
+  # How often a running turn looks whether someone asked to stop it, in
+  # seconds, besides every time the CLI has been quiet for a while.
+  STOP_CHECK_EVERY = 2
+
   # A turn that cannot go on. Its message is what the person is told, and
   # nothing more is logged: none of these is Flosis's own failure.
   class Failure < StandardError; end
+
+  # A turn someone stopped (Designs::Threads.stop!). Its message says who.
+  class Stopped < Failure; end
 
   class << self
     # Test seams. claude_factory is what a turn talks to Claude through, built
@@ -136,13 +146,13 @@ class Designs::TurnJob < ApplicationJob
     turn.update!(library_version_ids: subject.library_version_ids)
     subject.prepare!
     answer = ask_claude(turn, repo, worktree, key, subject)
-    raise Failure, stopped(answer[:response]) if answer[:is_error]
-
-    output = Designs::TurnOutput.parse(answer[:response])
+    response, capped = answer_text(answer)
+    output = Designs::TurnOutput.parse(response)
     raise Failure, NO_ANSWER if output.summary.blank?
 
     check_resolved!(worktree) if @conflicts
     sha, notes = save(turn, repo, subject, worktree, output.summary)
+    notes.unshift(CAPPED) if capped
     subject.after_turn(repo)
     finish(turn, output, sha, notes, subject.chips(repo, start, sha))
   rescue StandardError => e
@@ -165,6 +175,24 @@ class Designs::TurnJob < ApplicationJob
     end
   rescue StandardError => e
     Rails.logger.warn("[#{self.class.name}] could not sweep the temp folder: #{e.message}")
+  end
+
+  # The answer's text, and whether the cost cap ended the run just as Claude
+  # finished. Claude sees what is left of its budget and wraps up, and the call
+  # that writes its answer can cross the cap: the CLI then ends the run as an
+  # error with no text. A last message that ends the turn (a whole <summary>,
+  # and no tool after it) is the finished answer, and the work is kept. Any
+  # other run that ended in an error fails the turn.
+  def answer_text(answer)
+    return [ answer[:response], false ] unless answer[:is_error]
+    raise Failure, stopped(answer[:response]) unless finished_at_cap?(answer)
+
+    [ answer[:final_text], true ]
+  end
+
+  def finished_at_cap?(answer)
+    answer[:subtype] == "error_max_budget_usd" && !answer[:final_tool_use] &&
+      answer[:final_text].to_s.match?(%r{<summary>\s*\S.*?</summary>}m)
   end
 
   # A run the CLI says ended in an error: an API error (an overload past the
@@ -228,19 +256,51 @@ class Designs::TurnJob < ApplicationJob
     # A resolving turn asks about the files that collide now: master may have
     # moved since "Update from master" named them.
     request = @conflicts ? DesignTurn.resolve_request(@conflicts) : turn.chat_message.content
-    prompt = subject.turn_message(request)
+    prompt = [ earlier_failure(turn), subject.turn_message(request) ].compact.join("\n\n")
     with_system_prompt(subject) do |system_prompt|
       with_app(subject) do |app|
         subject.with_mcp(worktree) do |mcp_config|
           cli = self.class.claude_factory.call(
             codebase_path: worktree.to_s, allowed_tools: subject.tools, restricted: true, api_key: key,
             append_system_prompt_file: system_prompt, add_dirs: [ app, *subject.add_dirs ].compact,
-            max_budget_usd: subject.budget_usd, timeout: subject.timeout, mcp_config: mcp_config
+            max_budget_usd: subject.budget_usd, timeout: subject.timeout, mcp_config: mcp_config, tools: subject.tool_set
           )
-          converse(cli, turn, prompt, repo, worktree)
+          activity = Designs::TurnActivity.new(turn, worktree: worktree, app: app)
+          begin
+            converse(cli, turn, prompt, repo, worktree) { |event| follow(turn, activity, event) }
+          ensure
+            activity.save
+          end
         end
       end
     end
+  end
+
+  # A note for Claude when the turn before this one started and failed: the
+  # session holds that run, but the worktree went back to the branch's last
+  # commit, so none of its edits are there. A retry, the same message again,
+  # is told it is one.
+  def earlier_failure(turn)
+    before = DesignTurn.where(chat_session_id: turn.chat_session_id, id: ...turn.id).where.not(started_at: nil).order(:id).last
+    return unless before&.failed?
+
+    again = " This turn is another try at the same request: do it again from the start, with what you learned." if before.chat_message_id == turn.chat_message_id
+    "## Note from Flosis\nYour last turn did not finish (#{before.error.to_s.truncate(200)}), and none of its changes " \
+      "were kept: the files are as they were before it.#{again}"
+  end
+
+  # Each event the CLI streams becomes a step for the chat. Every
+  # STOP_CHECK_EVERY seconds, and whenever the CLI has been quiet for a while
+  # (:tick), the turn looks whether someone asked to stop it: raising stops
+  # the CLI, and fails the turn.
+  def follow(turn, activity, event)
+    activity.record(event) unless event == :tick
+    now = self.class.clock.call
+    return unless event == :tick || @stop_checked_at.nil? || now - @stop_checked_at >= STOP_CHECK_EVERY
+
+    @stop_checked_at = now
+    asked, by = DesignTurn.where(id: turn.id).pick(:stop_requested_at, :stop_requested_by)
+    raise Stopped, "Stopped by #{by.presence || 'someone'}. Nothing it changed was kept." if asked
   end
 
   # The app's checkout, copied for the turn, when the subject reads the app
@@ -261,13 +321,15 @@ class Designs::TurnJob < ApplicationJob
   # session, under a new id the chat keeps, from a clean start (master merged
   # in again for a resolving turn) rather than from what the failed run left.
   # A run that failed later, or went past its time limit, is not run again.
-  def converse(cli, turn, prompt, repo, worktree)
+  #
+  # The run streams: each event goes to the block as the CLI prints it.
+  def converse(cli, turn, prompt, repo, worktree, &on_event)
     session = turn.chat_session
     started = self.class.clock.call
     if session.design_turns.where.not(id: turn.id).where.not(started_at: nil).exists?
-      cli.resume_session(session_id: session.claude_session_id, prompt: prompt)
+      cli.resume_session(session_id: session.claude_session_id, prompt: prompt, &on_event)
     else
-      cli.start_session(prompt: prompt, new_session_id: session.claude_session_id)
+      cli.start_session(prompt: prompt, new_session_id: session.claude_session_id, &on_event)
     end
   rescue ClaudeCliService::TimeoutError
     raise
@@ -277,7 +339,7 @@ class Designs::TurnJob < ApplicationJob
     log(turn, e, "starting a new Claude session")
     start_clean(turn, repo, worktree)
     session.update!(claude_session_id: SecureRandom.uuid)
-    cli.start_session(prompt: prompt, new_session_id: session.claude_session_id)
+    cli.start_session(prompt: prompt, new_session_id: session.claude_session_id, &on_event)
   end
 
   # The system prompt goes to the CLI as a file in the system's temp folder:

@@ -37,8 +37,8 @@ class DesignTurnTest < ActiveSupport::TestCase
   # A setup turn builds a whole feature: its bounds are a setup turn's, so it
   # is not taken for cut off once a thread turn would be.
   test "a long setup turn is not stale, a design turn as old is" do
-    long = turn(status: "running", kind: "setup", started_at: 30.minutes.ago)
-    design = turn(status: "running", started_at: 30.minutes.ago)
+    long = turn(status: "running", kind: "setup", started_at: 50.minutes.ago)
+    design = turn(status: "running", started_at: 50.minutes.ago)
     with_env("DESIGNS_TURN_TIMEOUT_SECONDS" => nil, "DESIGNS_SETUP_TIMEOUT_SECONDS" => nil) do
       assert_equal 1, DesignTurn.fail_stale!
       assert_not long.reload.stale?
@@ -140,33 +140,33 @@ class DesignTurnTest < ActiveSupport::TestCase
     assert_equal %w[queued running], DesignTurn.active.order(:id).pluck(:status)
   end
 
-  # The CLI is given DESIGNS_TURN_TIMEOUT_SECONDS (15 minutes unless set);
+  # The CLI is given DESIGNS_TURN_TIMEOUT_SECONDS (40 minutes unless set);
   # committing, pushing and publishing get five more.
   test "a turn is stale five minutes after the CLI's timeout" do
-    with_env("DESIGNS_TURN_TIMEOUT_SECONDS" => nil) { assert_equal 20.minutes, DesignTurn.stale_after }
+    with_env("DESIGNS_TURN_TIMEOUT_SECONDS" => nil) { assert_equal 45.minutes, DesignTurn.stale_after }
     with_env("DESIGNS_TURN_TIMEOUT_SECONDS" => "60") { assert_equal 6.minutes, DesignTurn.stale_after }
   end
 
   # Ruling P2-R8: one reader for the CLI's timeout and for stale_after, so the
   # two cannot drift apart.
-  test "a turn's time limit is DESIGNS_TURN_TIMEOUT_SECONDS when that is a positive whole number, else 15 minutes" do
-    with_env("DESIGNS_TURN_TIMEOUT_SECONDS" => nil) { assert_equal 900, DesignTurn.turn_timeout }
+  test "a turn's time limit is DESIGNS_TURN_TIMEOUT_SECONDS when that is a positive whole number, else 40 minutes" do
+    with_env("DESIGNS_TURN_TIMEOUT_SECONDS" => nil) { assert_equal 2_400, DesignTurn.turn_timeout }
     with_env("DESIGNS_TURN_TIMEOUT_SECONDS" => "120") { assert_equal 120, DesignTurn.turn_timeout }
     with_env("DESIGNS_TURN_TIMEOUT_SECONDS" => "010") { assert_equal 10, DesignTurn.turn_timeout, "decimal, not octal" }
     [ "", "0", "-5", "1.5", "ten", "60s", "0x10" ].each do |value|
-      with_env("DESIGNS_TURN_TIMEOUT_SECONDS" => value) { assert_equal 900, DesignTurn.turn_timeout, value.inspect }
+      with_env("DESIGNS_TURN_TIMEOUT_SECONDS" => value) { assert_equal 2_400, DesignTurn.turn_timeout, value.inspect }
     end
-    with_env("DESIGNS_TURN_TIMEOUT_SECONDS" => "ten") { assert_equal 20.minutes, DesignTurn.stale_after }
+    with_env("DESIGNS_TURN_TIMEOUT_SECONDS" => "ten") { assert_equal 45.minutes, DesignTurn.stale_after }
   end
 
   # Ruling P2-R12. The CLI refuses a cap that is not a positive number, and a
   # turn must not run uncapped.
-  test "a turn's cost cap is DESIGNS_TURN_BUDGET_USD when that is a positive number, else 5 dollars" do
-    with_env("DESIGNS_TURN_BUDGET_USD" => nil) { assert_equal 5, DesignTurn.turn_budget_usd }
+  test "a turn's cost cap is DESIGNS_TURN_BUDGET_USD when that is a positive number, else 40 dollars" do
+    with_env("DESIGNS_TURN_BUDGET_USD" => nil) { assert_equal 40, DesignTurn.turn_budget_usd }
     with_env("DESIGNS_TURN_BUDGET_USD" => "2.5") { assert_equal 2.5, DesignTurn.turn_budget_usd }
     with_env("DESIGNS_TURN_BUDGET_USD" => "12") { assert_equal 12, DesignTurn.turn_budget_usd }
     [ "", "0", "-1", "five", "Infinity", "1e400" ].each do |value|
-      with_env("DESIGNS_TURN_BUDGET_USD" => value) { assert_equal 5, DesignTurn.turn_budget_usd, value.inspect }
+      with_env("DESIGNS_TURN_BUDGET_USD" => value) { assert_equal 40, DesignTurn.turn_budget_usd, value.inspect }
     end
   end
 

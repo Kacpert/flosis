@@ -1,0 +1,2 @@
+<%# One step of a turn: what Claude said, or a file it read, searched or wrote. %>
+<li class="text-[12px] leading-[1.45] <%= step["kind"] == "say" ? "clar-text-text" : "clar-text-muted" %>"><%= step["text"] %></li>

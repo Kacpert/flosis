@@ -375,4 +375,115 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # -- a turn in the chat, as it runs and after (Designs::TurnActivity) --
+
+  def steps(*texts)
+    texts.each_with_index.map { |text, i| { "at" => i * 10, "kind" => text.start_with?("Reading") ? "read" : "say", "text" => text } }
+  end
+
+  def chat(thread)
+    get workshop_designs_overview_path(thread: thread.id, frame: "messages")
+    assert_response :success
+    response.body
+  end
+
+  test "a running turn shows its last steps as they come, the earlier ones folded, and Stop" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      turn = Designs::Threads.message!(thread, user: users(:one), text: "Add a counter")
+      turn.update!(status: "running", started_at: 3.minutes.ago,
+                   activity: steps("Reading designs/a.html", "Reading designs/b.html", "Let me check the form.",
+                                   "Reading designs/c.html", "Reading designs/d.html", "Reading designs/e.html",
+                                   "Reading designs/f.html", "Reading designs/g.html"))
+
+      body = chat(thread)
+
+      assert_select "[data-turn-id=?]", turn.id.to_s do
+        assert_select "*", text: /Working · 3 min/
+        assert_select "li", text: "Reading designs/g.html"
+        assert_select "li", text: "Let me check the form."
+        assert_select "details[data-keep=?] summary", "turn-#{turn.id}-earlier", text: "2 earlier steps"
+        assert_select "form[action=?] input[name=turn][value=?]", stop_workshop_design_thread_path(thread), turn.id.to_s
+      end
+      assert_operator body.index("Add a counter"), :<, body.index("Working · 3 min"), "the request, then its turn"
+      assert_select "[data-designs-poll-active-value=true]"
+    end
+  end
+
+  test "a turn that has been quiet for a while is thinking, and one asked to stop says so, with no Stop" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      turn = Designs::Threads.message!(thread, user: users(:one), text: "Add a counter")
+      turn.update!(status: "running", started_at: 2.minutes.ago, activity: steps("Reading designs/a.html"))
+
+      assert_includes chat(thread), "Thinking"
+
+      turn.update!(stop_requested_at: Time.current, stop_requested_by: "Kacper")
+      chat(thread)
+
+      assert_select "[data-turn-id=?]", turn.id.to_s, text: /Stopping/
+      assert_select "form[action=?]", stop_workshop_design_thread_path(thread), count: 0
+    end
+  end
+
+  test "a turn that waits offers Stop too" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      turn = Designs::Threads.message!(thread, user: users(:one), text: "Add a counter")
+
+      chat(thread)
+
+      assert_select "[data-turn-id=?]", turn.id.to_s, text: /Waiting to start/
+      assert_select "form[action=?]", stop_workshop_design_thread_path(thread)
+    end
+  end
+
+  test "a finished turn folds to how long it took and how many steps, before its reply" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      turn = Designs::Threads.message!(thread, user: users(:one), text: "Add a counter")
+      turn.update!(status: "succeeded", started_at: 13.minutes.ago, finished_at: 1.minute.ago,
+                   activity: steps("Reading designs/a.html", "Let me check the form."))
+      thread.chat_session.chat_messages.create!(role: "assistant", kind: "summary", content: "Added a character counter.")
+
+      body = chat(thread)
+
+      assert_select "[data-turn-id=?] details summary", turn.id.to_s, text: /Worked 12 min · 2 steps/
+      assert_select "[data-turn-id=?] details li", turn.id.to_s, count: 2
+      assert_operator body.index("Worked 12 min"), :<, body.index("Added a character counter."), "its steps, then its reply"
+      assert_select "form[action=?]", stop_workshop_design_thread_path(thread), count: 0
+      assert_select "[data-designs-poll-active-value=false]"
+    end
+  end
+
+  test "the chat's last turn that failed offers Try again, until another one runs" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      failed = Designs::Threads.message!(thread, user: users(:one), text: "Add a counter")
+      failed.update!(status: "failed", error: DesignTurn::INTERRUPTED, started_at: 50.minutes.ago, finished_at: 1.minute.ago)
+
+      chat(thread)
+
+      assert_select "form[action=?] button", retry_workshop_design_thread_path(thread), text: /Try again/
+      assert_select "[data-turn-id=?]", failed.id.to_s, { text: /#{Regexp.escape(DesignTurn::INTERRUPTED)}/ },
+                    "a turn that was cut off has no message to say so"
+
+      Designs::Threads.retry!(thread, user: users(:one))
+      chat(thread)
+
+      assert_select "form[action=?]", retry_workshop_design_thread_path(thread), count: 0
+    end
+  end
+
+  test "a turn from before turns kept their steps adds nothing to the chat" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      turn = Designs::Threads.message!(thread, user: users(:one), text: "Add a counter")
+      turn.update!(status: "succeeded", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+
+      chat(thread)
+
+      assert_select "[data-turn-id=?]", turn.id.to_s, count: 0
+    end
+  end
 end

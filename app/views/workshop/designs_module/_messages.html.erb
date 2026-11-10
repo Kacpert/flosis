@@ -1,21 +1,33 @@
 <%# The conversation, polled while a turn is queued or running
-    (designs_poll_controller); a request Flosis made on the person's behalf is
-    not shown. %>
+    (designs_poll_controller): the messages, and each turn between its request
+    and its reply, as they came. A request Flosis made on the person's behalf
+    is not shown; its turn is. When the last turn failed, Try again ends it. %>
 <% session = thread.chat_session %>
-<% active = session && DesignTurn.active.where(chat_session: session).exists? %>
+<% messages = session ? session.chat_messages.ordered.where("kind IS NULL OR kind <> ?", "request").to_a : [] %>
+<% turns = session ? session.design_turns.order(:id).to_a : [] %>
+<% active = turns.any? { |turn| turn.queued? || turn.running? } %>
+<% timeline = (messages.map { |message| [ message.created_at, 0, message.id, message ] } +
+               turns.map { |turn| [ turn.created_at, 1, turn.id, turn ] }).sort_by { |at, order, id, _| [ at, order, id ] } %>
 <%= turbo_frame_tag "design_thread_messages", class: "flex-1 min-h-0 flex flex-col" do %>
   <div class="flex-1 overflow-y-auto px-3.5 pt-4 pb-2.5 flex flex-col gap-3.5 [overflow-wrap:anywhere]"
        data-controller="designs-poll"
        data-designs-poll-active-value="<%= active %>"
-       data-designs-poll-commit-value="<%= session && DesignTurn.where(chat_session: session).where.not(commit_sha: nil).maximum(:id) %>"
+       data-designs-poll-commit-value="<%= turns.select(&:commit_sha).map(&:id).max %>"
        data-designs-poll-url-value="<%= workshop_designs_overview_path(thread: thread.id, frame: "messages") %>">
-    <% (session ? session.chat_messages.ordered.where("kind IS NULL OR kind <> ?", "request") : []).each do |message| %>
-      <%= render "message", message: message %>
+    <% timeline.each do |*, item| %>
+      <% if item.is_a?(DesignTurn) %>
+        <%= render "turn", turn: item, thread: thread %>
+      <% else %>
+        <%= render "message", message: item %>
+      <% end %>
     <% end %>
-    <% if active %>
-      <div class="flex gap-2.5 items-center">
-        <span class="w-[26px] h-[26px] rounded-full flex items-center justify-center flex-none" style="background: var(--ai-soft); color: var(--ai);"><%= designs_icon(:ai, 13) %></span>
-        <span class="flex gap-1"><% 3.times do |i| %><span class="w-1.5 h-1.5 rounded-full clar-blink" style="background: var(--ai); animation-delay: <%= i * 0.2 %>s;"></span><% end %></span>
+    <% if turns.last&.failed? && !active && thread.open? && !Designs::Threads.importing?(thread) %>
+      <div class="flex items-center gap-2 flex-wrap pl-6">
+        <%= button_to retry_workshop_design_thread_path(thread), class: "clar-btn !py-1.5 !px-2.5 !text-[12px] flex-none",
+                      form: { class: "contents", data: { turbo_frame: "_top" } } do %>
+          <%= designs_icon(:reload, 13) %>Try again
+        <% end %>
+        <span class="text-[11.5px] clar-text-faint leading-[1.45] min-w-0">Runs the request again. Claude is told nothing of the last try was kept.</span>
       </div>
     <% end %>
   </div>

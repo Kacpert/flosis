@@ -30,6 +30,9 @@ class DesignTurn < ApplicationRecord
   # kept here and never in the design repo: [] until it runs Claude. Typed
   # as JSON, with its default here, for MySQL (see DesignRequest#links).
   attribute :library_version_ids, :json, default: []
+  # What the turn did, step by step, as Designs::TurnActivity keeps it for the
+  # chat: [] until it runs Claude. JSON, with its default here, as above.
+  attribute :activity, :json, default: []
 
   validates :status, inclusion: { in: STATUSES }
   validates :kind, inclusion: { in: KINDS }
@@ -72,15 +75,17 @@ class DesignTurn < ApplicationRecord
     update!(status: "failed", error: message.to_s.truncate(ERROR_LIMIT), finished_at: Time.current)
   end
 
-  DEFAULT_TIMEOUT_SECONDS = 900
-  DEFAULT_BUDGET_USD = 5
+  # Kacper's bounds for a thread's turn (2026-11-10): a task designed from
+  # scratch reads the repo and the app and writes several screens.
+  DEFAULT_TIMEOUT_SECONDS = 2_400
+  DEFAULT_BUDGET_USD = 40
   # A setup turn builds a whole feature, browser and all. Its bounds stop a
   # turn that runs away; they are not there to save money.
   DEFAULT_SETUP_TIMEOUT_SECONDS = 7_200
   DEFAULT_SETUP_BUDGET_USD = 60
 
   # How long the CLI may run one turn, in seconds: DESIGNS_TURN_TIMEOUT_SECONDS
-  # when it is a positive whole number, else fifteen minutes. stale_after
+  # when it is a positive whole number, else forty minutes. stale_after
   # counts from it too, so the two cannot drift apart.
   def self.turn_timeout
     seconds = Integer(ENV["DESIGNS_TURN_TIMEOUT_SECONDS"].to_s, 10, exception: false)
@@ -88,7 +93,7 @@ class DesignTurn < ApplicationRecord
   end
 
   # What one turn may cost, in dollars (the CLI's --max-budget-usd):
-  # DESIGNS_TURN_BUDGET_USD when it is a positive number, else five. A value
+  # DESIGNS_TURN_BUDGET_USD when it is a positive number, else forty. A value
   # that is not one gets the default, never no cap at all.
   def self.turn_budget_usd
     budget = Float(ENV["DESIGNS_TURN_BUDGET_USD"].to_s, exception: false)

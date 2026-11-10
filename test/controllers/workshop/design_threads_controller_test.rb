@@ -246,4 +246,43 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "Try again runs the failed turn's request once more" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      turn = Designs::Threads.message!(thread, user: users(:one), text: "Add a status filter")
+      turn.update!(status: "failed", error: "Claude returned no answer", started_at: 1.minute.ago)
+
+      assert_difference -> { DesignTurn.where(chat_message: turn.chat_message).count } do
+        post retry_workshop_design_thread_path(thread)
+      end
+
+      assert_redirected_to workshop_designs_overview_path(thread: thread.id)
+      assert DesignTurn.order(:id).last.queued?
+    end
+  end
+
+  test "Try again with nothing to try says so" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      Designs::Threads.message!(thread, user: users(:one), text: "Add a status filter").update!(status: "succeeded")
+
+      post retry_workshop_design_thread_path(thread)
+
+      assert_redirected_to workshop_designs_overview_path(thread: thread.id)
+      assert_equal Designs::Threads::NOTHING_TO_RETRY, flash[:alert]
+    end
+  end
+
+  test "Stop asks the job of a running turn to stop it" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      turn = Designs::Threads.message!(thread, user: users(:one), text: "Add a status filter")
+      turn.update!(status: "running", started_at: 1.minute.ago)
+
+      post stop_workshop_design_thread_path(thread), params: { turn: turn.id }
+
+      assert_redirected_to workshop_designs_overview_path(thread: thread.id)
+      assert_equal users(:one).name, turn.reload.stop_requested_by
+    end
+  end
 end
