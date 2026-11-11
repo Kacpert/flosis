@@ -156,6 +156,21 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
     refute_includes prompt, "referencing concrete files"
   end
 
+  # The AI judges from the conversation and the code when it has enough, and
+  # writes the ticket then — it no longer asks "Should I draft…?" and waits.
+  test "details prompt has the AI write the ticket itself once it has enough, without asking first" do
+    controller = ChatSessionsController.new
+    controller.instance_variable_set(:@task, @task)
+    def controller.params; {}; end
+
+    prompt = controller.send(:build_initial_prompt)
+
+    refute_match(/ask: \*"Should I draft/, prompt)
+    refute_includes prompt, "If the user says yes"
+    assert_includes prompt, "do NOT ask for a go-ahead"
+    assert_includes prompt, "write the ticket in your reply to that answer"
+  end
+
   # Task 9.2: the Figma instruction paragraph is gated by the Configuration ->
   # Integrations "Figma" toggle, which is the PROJECT's. The gate is the same
   # predicate ProjectMcpConfig writes the server on, so the prompt can never
