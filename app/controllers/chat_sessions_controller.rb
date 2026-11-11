@@ -117,9 +117,15 @@ class ChatSessionsController < ApplicationController
 
       One question per turn. Short messages. Build the picture gradually.
 
-      ## Step 3 — Draft the ticket
+      ## Step 3 — Draft the ticket as soon as you have enough
 
-      When you have enough, ask: *"Should I draft the final ticket description now?"*. If the user says yes, output the ticket inside `<draft>...</draft>` tags, in markdown, using this exact structure:
+      You judge when the picture is complete, from the conversation and from
+      the code where you have it. The moment it is, write the ticket in that same
+      message — do NOT ask for a go-ahead ("Should I draft it now?") and do not
+      wait for one. If one last point still needs confirming, ask it, then
+      write the ticket in your reply to that answer.
+
+      Output the ticket inside `<draft>...</draft>` tags, in markdown, using this exact structure:
 
       <draft>
       ## Background
