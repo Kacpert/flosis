@@ -7,7 +7,7 @@
       <input type="text" name="title" value="<%= @thread.title %>" required class="clar-input mb-3.5 font-semibold">
       <label class="clar-field-label">DESCRIPTION</label>
       <textarea name="description" rows="13" class="clar-textarea mb-3 text-[13px] leading-[1.55]"><%= @generate_draft %></textarea>
-      <div class="flex items-center gap-2 text-[12px] clar-text-muted mb-4.5"><%= designs_icon(:branch, 13) %>Linked to <%= @thread.branch %>. The thread merges into master when the task is Done.</div>
+      <div class="flex items-center gap-2 text-[12px] clar-text-muted mb-4.5"><%= designs_icon(:branch, 13) %>Linked to <%= @thread.branch %>.</div>
       <div class="flex gap-2 justify-end">
         <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
         <button type="submit" class="clar-btn clar-btn-primary"><%= designs_icon(:task, 14) %>Create task · start Details Gathering</button>

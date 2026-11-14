@@ -162,29 +162,19 @@ class Designs::TurnJob < ApplicationJob
 
   # A components turn that Merge queued (Designs::Threads.merge_or_prepare!)
   # merges its thread once it has succeeded, as Merge would have. What stops
-  # the merge is said in the chat, and the turn has succeeded all the same. An
-  # auto merge that finds the repo busy has nobody to read that: it is tried
-  # again later, as AutoMergeJob tries a busy thread again.
+  # the merge is said in the chat, and the turn has succeeded all the same.
   def merge_after(turn)
     thread = turn.chat_session.design_thread or return
     Designs::Threads.merge!(thread, user: turn.chat_message.user, how: turn.then_merge)
   rescue Designs::Threads::AlreadyMerged
     nil
-  rescue Designs::Threads::Busy => e
-    turn.then_merge == "auto" ? merge_later(turn, thread) : not_merged(turn, thread, e.message)
   rescue Designs::Repo::Conflict
     not_merged(turn, thread, "master changed the same lines. Update from master, then merge.")
-  rescue Designs::Threads::NothingToMerge, Designs::Repo::Diverged => e
+  rescue Designs::Threads::Busy, Designs::Threads::NothingToMerge, Designs::Repo::Diverged => e
     not_merged(turn, thread, e.message)
   rescue StandardError => e
     log(turn, e, "the thread is not merged")
     not_merged(turn, thread, "#{reason(e).truncate(200)}. Merge it again.")
-  end
-
-  def merge_later(turn, thread)
-    Designs::AutoMergeJob.set(wait: 2.minutes).perform_later(thread.id)
-  rescue StandardError => e
-    log(turn, e, "the auto merge is not tried again")
   end
 
   # Said in the chat; a note that cannot be posted is logged, never raised:
