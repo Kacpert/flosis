@@ -1400,25 +1400,4 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       assert_equal "Stopped by Kacper. Nothing it changed was kept.", turn.error
     end
   end
-
-  # An auto merge has nobody to read a note: it is tried again later, as
-  # AutoMergeJob tries a busy thread again.
-  test "a components turn whose auto merge finds the repo busy has the merge tried again later" do
-    with_design_remote do |repo, remote|
-      base = seed_master(repo, { "designs/candidate/apply.html" => "<title>Application form</title>" })
-      repo.project.update!(anthropic_api_key: "sk-ant")
-      fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p>121</p>" })
-      assert run_turn(thread_turn(repo, base), remote).succeeded?
-      thread = DesignThread.find_by!(branch: "design/add-a-counter-under")
-      components = with_remote_url(remote) { Designs::Threads.merge_or_prepare!(thread, how: "auto") }
-      waiting = thread.chat_session.chat_messages.create!(role: "user", content: "One more thing", user: users(:one))
-      DesignTurn.create!(chat_session: thread.chat_session, chat_message: waiting)
-
-      assert run_turn(components, remote).succeeded?
-
-      assert thread.reload.open?
-      assert_enqueued_with(job: Designs::AutoMergeJob, args: [ thread.id ])
-      assert_empty thread.chat_session.chat_messages.where(kind: "system").where("content LIKE ?", "Not merged%")
-    end
-  end
 end

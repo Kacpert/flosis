@@ -2135,6 +2135,9 @@ span.flatpickr-weekday {
     pointer-events:none; }
   .clar-tip:hover::after, .clar-tip:hover::before,
   .clar-tip:focus-visible::after, .clar-tip:focus-visible::before { opacity:1; visibility:visible; }
+  /* Below the element instead, for one at the top of the screen. */
+  .clar-tip-below::after { bottom:auto; top:calc(100% + 9px); }
+  .clar-tip-below::before { bottom:auto; top:calc(100% + 4px); border-top-color:transparent; border-bottom-color:var(--text); }
 
   .clar-toast { position:fixed; bottom:26px; left:50%; transform:translateX(-50%); z-index:60;
     background:var(--text); color:var(--bg); padding:12px 18px; border-radius:11px;

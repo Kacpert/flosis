@@ -26,15 +26,10 @@ export default class extends Controller {
     if (event?.currentTarget) event.currentTarget.title = shown ? "Hide top bar" : "Show top bar"
   }
 
-  // The panel's menu button: peeks the sidebar while menus are hidden, and
-  // collapses it otherwise.
+  // The left edge's tab peeks the sidebar while menus are hidden.
   peekNav(event) {
-    if (this.app.classList.contains("designs-immersive")) {
-      const shown = this.app.classList.toggle("designs-peek-nav")
-      if (event?.currentTarget) event.currentTarget.title = shown ? "Hide menu" : "Show menu"
-    } else {
-      document.querySelector('[data-action="click->clar-sidebar#toggle"]')?.click()
-    }
+    const shown = this.app.classList.toggle("designs-peek-nav")
+    if (event?.currentTarget) event.currentTarget.title = shown ? "Hide menu" : "Show menu"
   }
 
   apply(on) {

@@ -333,7 +333,6 @@ class JiraSyncService
     ActiveRecord::Base.transaction(requires_new: true) do
       task.save!
     end
-    queue_design_merge(task)
 
     sync_attachments(task, issue[:attachments] || [])
     sync_comments(task, @client.fetch_all_comments(issue[:key]))
@@ -344,15 +343,6 @@ class JiraSyncService
     sync_comments(task, @client.fetch_all_comments(issue[:key]))
   rescue StandardError => e
     Rails.logger.warn("[JiraSyncService] Failed to sync #{issue[:key]}: #{e.message}")
-  end
-
-  # Workshop Designs v2: a task's open design thread merges into master when
-  # its issue reaches Done, once, on the sync that sees it get there.
-  def queue_design_merge(task)
-    return unless task.saved_change_to_status? && task.done?
-
-    thread = task.design_thread
-    Designs::AutoMergeJob.perform_later(thread.id) if thread&.open?
   end
 
   def sync_comments(task, comments)

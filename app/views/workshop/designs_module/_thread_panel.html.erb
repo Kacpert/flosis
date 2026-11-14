@@ -3,15 +3,28 @@
 <% thread = @thread %>
 <% merged = thread.merged? %>
 <% key = thread.task && Designs::ThreadNames.key(thread.task) %>
-<% jira_done = thread.task&.external_type == "jira" %>
-<div class="px-3.5 py-3 border-b border-[color:var(--border)]">
-  <div class="flex items-center justify-between gap-x-2.5 gap-y-1.5 flex-wrap mb-2">
-    <%= link_to workshop_designs_overview_path, class: "inline-flex items-center gap-2 text-[12.5px] font-semibold clar-text-muted no-underline rounded-lg py-1 pr-2 min-w-0" do %>
-      <span class="w-6 h-6 rounded-[7px] border border-[color:var(--border)] bg-[var(--surface)] flex items-center justify-center clar-text-text flex-none"><%= designs_icon(:back, 14) %></span><span class="designs-cut">Threads</span>
+<% offers_task = !thread.task && !merged && !thread.fresh? %>
+<div class="px-3.5 py-3 border-b border-[color:var(--border)] @container">
+  <%# Back to the threads, then the thread's task (or Generate task) beside
+      Hide menus; the task's stage shows on hover. A column too narrow for all
+      three (they need 19rem) drops the word Threads. %>
+  <div class="flex items-center justify-between gap-x-2.5 gap-y-1.5 flex-wrap mb-2" data-designs-head>
+    <%= link_to workshop_designs_overview_path, class: "inline-flex items-center gap-2 text-[12.5px] font-semibold clar-text-muted no-underline rounded-lg py-1 pr-2 min-w-0", "aria-label": "Threads" do %>
+      <span class="w-6 h-6 rounded-[7px] border border-[color:var(--border)] bg-[var(--surface)] flex items-center justify-center clar-text-text flex-none"><%= designs_icon(:back, 14) %></span><span class="designs-cut<%= " @max-[19.25rem]:hidden" if thread.task || offers_task %>">Threads</span>
     <% end %>
     <div class="flex items-center gap-2.5 min-w-0">
+      <% if thread.task %>
+        <% stage = { "new" => "New", "briefing" => "Briefing", "details" => "Details", "ready" => "Ready" }[thread.task.workshop_stage] %>
+        <%= link_to workshop_idea_path(thread.task), class: "clar-btn clar-tip clar-tip-below !py-1 !px-2 !text-[12px] no-underline", data: { tip: [ stage, "Open task" ].compact.join(" · ") } do %>
+          <%= designs_icon(:task, 13) %><span class="clar-mono text-[11px] clar-text-primary"><%= key %></span>
+        <% end %>
+      <% elsif offers_task %>
+        <button type="button" class="clar-btn clar-tip clar-tip-below !py-1 !px-2 !text-[12px] clar-text-ai" data-tip="Generate a task when the scope is clear. It starts in Details Gathering."
+                data-action="clar-modal#open" data-clar-modal-id-param="generate-task">
+          <%= designs_icon(:ai, 13) %>Generate task
+        </button>
+      <% end %>
       <%= render "menus_switch" %>
-      <button type="button" class="clar-btn !p-0 w-7 h-7 justify-center" title="Show menu" data-action="designs-immersive#peekNav"><%= designs_icon(:panel, 15) %></button>
     </div>
   </div>
   <div class="text-[15px] font-bold tracking-[-.2px] clar-text-text leading-[1.35]"><%= thread.title %></div>
@@ -24,31 +37,9 @@
     <% elsif thread.fresh? %>
       <span class="text-[11.5px] clar-text-faint">No changes yet</span>
     <% else %>
-      <span class="text-[11.5px] clar-text-faint"><%= @ahead %> commits ahead<%= " · #{@behind.size} merge#{'s' unless @behind.size == 1} behind master" if @behind.any? %></span>
+      <span class="text-[11.5px] clar-text-faint"><%= pluralize(@ahead, "commit") %> ahead</span>
     <% end %>
   </div>
-  <div class="flex gap-1.5 flex-wrap mt-2.5">
-    <% if thread.task %>
-      <%= link_to workshop_idea_path(thread.task), class: "clar-btn !py-1.5 !px-2.5 !text-[12px] no-underline max-w-full designs-cut", title: "Open task" do %>
-        <%= designs_icon(:task, 13) %><span class="clar-mono text-[11px] clar-text-primary"><%= key %></span><span class="clar-text-faint font-medium">· <%= { "new" => "New", "briefing" => "Briefing", "details" => "Details", "ready" => "Ready" }[thread.task.workshop_stage] %></span>
-      <% end %>
-    <% elsif !merged && !thread.fresh? %>
-      <button type="button" class="clar-btn !py-1.5 !px-2.5 !text-[12px] clar-text-ai max-w-full designs-cut" data-action="clar-modal#open" data-clar-modal-id-param="generate-task">
-        <%= designs_icon(:ai, 13) %>Generate task
-      </button>
-    <% end %>
-  </div>
-  <% unless merged %>
-    <div class="text-[11.5px] clar-text-faint mt-2 leading-[1.45]">
-      <% if thread.task && jira_done %>
-        Merges automatically when <%= key %> moves to Done.
-      <% elsif thread.task %>
-        This thread merges when you merge it.
-      <% else %>
-        Generate a task when the scope is clear. It starts in Details Gathering.
-      <% end %>
-    </div>
-  <% end %>
 </div>
 
 <% if @description_change && !merged %>
@@ -59,12 +50,17 @@
 <% end %>
 
 <% if @behind.any? && !merged %>
-  <div class="mx-3 mt-3 px-3 py-2.5 rounded-[10px] bg-[var(--warn-soft)] border border-[color:var(--border)]">
-    <div class="flex items-center gap-2.5 flex-wrap">
-      <div class="flex-1 min-w-[min(150px,100%)] text-[12.5px] clar-text-text leading-[1.45]"><b class="clar-text-warn">master changed</b> since this thread branched (<%= thread.base_sha.to_s.first(7) %> → <%= @behind.first.short_sha %>).</div>
-      <%= button_to "Update from master", update_master_workshop_design_thread_path(thread), class: "clar-btn clar-btn-primary !py-1.5 !px-2.5 !text-[12px]", form: { class: "contents" } %>
-    </div>
-    <div class="flex flex-col gap-1.5 mt-2">
+  <%# master's merges since the thread branched, folded under one line with
+      Update at hand. The button belongs to the form outside the fold, so a
+      click on it updates and leaves the fold as it was. %>
+  <%= form_with url: update_master_workshop_design_thread_path(thread), method: :post, id: "designs-update-master", class: "hidden" do %><% end %>
+  <details class="group mx-3 mt-3 rounded-[10px] bg-[var(--warn-soft)] border border-[color:var(--border)]">
+    <summary class="flex items-center gap-2 pl-2.5 pr-1.5 py-1.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+      <span class="flex flex-none clar-text-warn transition-transform group-open:rotate-90"><%= designs_icon(:next, 12) %></span>
+      <span class="flex-1 min-w-0 text-[12px] clar-text-text designs-cut"><b class="clar-text-warn">master changed</b> · <%= pluralize(@behind.size, "merge") %></span>
+      <button type="submit" form="designs-update-master" class="clar-btn clar-btn-primary clar-tip !py-1 !px-2.5 !text-[11.5px] flex-none" data-tip="Update from master">Update</button>
+    </summary>
+    <div class="flex flex-col gap-1.5 px-2.5 pb-2.5">
       <% @behind.first(3).each do |merge| %>
         <%= link_to workshop_designs_overview_path(tab: "history", merge: merge.id), class: "flex items-start gap-2 no-underline bg-[var(--surface)] border border-[color:var(--border)] rounded-lg px-2 py-1.5" do %>
           <span class="clar-mono text-[10.5px] font-semibold clar-text-success bg-[var(--success-soft)] px-1.5 rounded-[5px] flex-none"><%= merge.short_sha %></span>
@@ -75,7 +71,7 @@
         <div class="text-[11.5px] clar-text-faint pl-1">and <%= @behind.size - 3 %> more</div>
       <% end %>
     </div>
-  </div>
+  </details>
 <% end %>
 
 <%= render "messages", thread: thread %>

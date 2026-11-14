@@ -68,6 +68,7 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       assert_equal "allow-scripts allow-forms allow-popups allow-modals", frame["sandbox"]
       assert_match %r{/design/designs/candidate/apply\.html\z}, frame["src"]
       assert_select ".clar-seg-item[title=?]", "Not available for Recruiter"
+      assert_select "[data-action='designs-immersive#peekNav']", count: 1
     end
   end
 
@@ -76,14 +77,18 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       thread = thread_with_work(repo)
       get workshop_designs_overview_path(thread: thread.id)
       assert_response :success
-      [ thread.branch, "1 commits ahead", "Generate task", "Generate a task when the scope is clear. It starts in Details Gathering.",
-        "This branch", "Master", "Changes", "Merge to master", "Describe a change…", "AI sees Candidate › Application form",
-        "Merge into master?", "This thread has no task, so it only merges when you merge it.",
+      [ thread.branch, "1 commit ahead", "This branch", "Master", "Changes", "Merge to master", "Describe a change…",
+        "AI sees Candidate › Application form", "Merge into master?",
         "After merging, master stays read-only and further changes need a new thread.",
-        "Create task · start Details Gathering", "Linked to #{thread.branch}. The thread merges into master when the task is Done.",
+        "Create task · start Details Gathering", "Linked to #{thread.branch}.",
         "Scope, from design thread #{thread.branch}:" ].each do |copy|
         assert_includes response.body, CGI.escapeHTML(copy), copy
       end
+      # A thread without a task offers one in its top row; the hint is the button's tooltip.
+      assert_select "[data-designs-head] button.clar-tip[data-tip=?]", "Generate a task when the scope is clear. It starts in Details Gathering.",
+                    text: /Generate task/
+      # Only Merge merges a thread: nothing says it merges on its own.
+      assert_no_match(/only merges when you merge it|merges into master when/, response.body)
     end
   end
 
@@ -175,12 +180,14 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       get workshop_designs_overview_path(thread: waiting.id)
       assert_includes response.body, "SP-1051 changed"
       assert_includes response.body, "since the last design update"
-      assert_includes response.body, "master changed"
-      assert_includes response.body, "since this thread branched"
-      assert_includes response.body, "Update from master"
-      assert_includes response.body, "Stage colours on pipeline"
-      assert_includes response.body, "1 merge behind master"
-      assert_includes response.body, "Merges automatically when SP-1051 moves to Done."
+      # master's merges since the thread branched fold under one line, Update at hand.
+      assert_select "details:not([open]) > summary", text: /master changed\s*·\s*1 merge(?!s)/
+      assert_select "details:not([open]) > summary button.clar-tip[form=designs-update-master][data-tip=?]", "Update from master", text: "Update"
+      assert_select "details > summary button[title]", count: 0
+      assert_select "form#designs-update-master[action=?]", update_master_workshop_design_thread_path(waiting)
+      assert_select "details:not([open]) a[href*=?]", "merge=", text: /Stage colours on pipeline/
+      assert_not_includes response.body, "merge behind master"
+      assert_no_match(/merges automatically/i, response.body)
       assert_includes response.body, "Update from master first to see the result before it lands."
     end
   end
@@ -221,6 +228,28 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "a thread's top row holds its task next to Hide menus, and no menu button" do
+    with_designs do |repo|
+      task = tasks(:jira_task)
+      task.update!(project: @project, external_reference: "SP-1051", external_type: "jira")
+      task.enter_pipeline!(author: users(:one), stage: "details")
+      thread = thread_with_work(repo, "x", { "designs/candidate/apply.html" => SCREEN.("Application form", "<em>mine</em>") }, task: task)
+
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_select "[data-designs-head]" do
+        # The task's stage shows on hover, which keeps the row to one line.
+        assert_select "a.clar-tip.clar-tip-below[data-tip=?]", "Details · Open task", text: "SP-1051"
+        assert_select "[data-designs-immersive-target=switch]"
+        # Hover hints show at once: none waits on the browser's slow title.
+        assert_select "[title]", count: 0
+      end
+      # Hide menus is enough: the one way back to the menu is the edge tab it shows.
+      assert_select "[data-action='designs-immersive#peekNav']", count: 1
+      assert_select ".designs-peek-tab[data-action='designs-immersive#peekNav']"
+    end
+  end
+
   test "a thread with nothing of its own yet offers no merge" do
     with_designs do
       thread = Designs::Threads.start!(project: @project, user: users(:one))
@@ -247,14 +276,16 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
   end
 
 
-  test "a thread of a local task merges by hand, and its merge dialog says so" do
+  # Every thread merges by hand, so neither the panel nor the merge dialog
+  # spends a line saying when it merges.
+  test "a thread of a local task says nothing about when it merges" do
     with_designs do |repo|
       task = @project.tasks.create!(name: "Local idea")
       task.enter_pipeline!(author: users(:one), stage: "briefing")
       thread = thread_with_work(repo, "x", { "designs/candidate/apply.html" => SCREEN.("Application form", "<em>1</em>") }, task: task)
       get workshop_designs_overview_path(thread: thread.id)
-      assert_includes response.body, "This thread merges when you merge it."
-      assert_not_includes response.body, "This thread has no task"
+      assert_includes response.body, "After merging, master stays read-only and further changes need a new thread."
+      assert_no_match(/This thread merges when you merge it|This thread has no task/, response.body)
     end
   end
 

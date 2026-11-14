@@ -12,7 +12,7 @@ module Designs::GeneratedTask
     lines = [ "Goal: #{asks.first || thread.title}", "", "Scope, from design thread #{thread.branch}:" ]
     changed.each { |context, screen| lines << "- #{context} › #{screen}" }
     asks.drop(1).each { |ask| lines << "- #{ask}" }
-    lines += [ "", "Designs: #{thread.project.design_repo} @ #{thread.branch} (merges into master when this task is Done).",
+    lines += [ "", "Designs: #{thread.project.design_repo} @ #{thread.branch}.",
                "", "Open questions for Details Gathering:",
                "- Empty, loading and error states the designs do not cover yet.",
                "- Which roles can see and use this?" ]

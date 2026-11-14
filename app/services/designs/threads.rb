@@ -263,13 +263,13 @@ module Designs::Threads
     raise NothingToMerge, NOTHING_TO_MERGE
   end
 
-  # Merge to master, by a person or when the task is Done. A thread whose
-  # screens were not made into components since its design turns committed
-  # (components_due?) gets a components turn first, which merges it once it
-  # succeeds (Designs::TurnJob#merge_after): the turn is returned then, and
-  # the merge otherwise.
-  def merge_or_prepare!(thread, user: nil, how: "manual")
-    return merge!(thread, user: user, how: how) unless components_due?(thread)
+  # Merge to master, which only a person does. A thread whose screens were not
+  # made into components since its design turns committed (components_due?)
+  # gets a components turn first, which merges it once it succeeds
+  # (Designs::TurnJob#merge_after): the turn is returned then, and the merge
+  # otherwise.
+  def merge_or_prepare!(thread, user:)
+    return merge!(thread, user: user) unless components_due?(thread)
     raise AlreadyMerged, "#{thread.branch} is already merged" if thread.merged?
 
     repo = Designs::Repo.new(thread.project)
@@ -280,8 +280,8 @@ module Designs::Threads
       repo.follow_origin!(thread.branch)
       changed_screens(repo, thread)
     end
-    note(thread, "Making components from this thread's screens before it merges · #{user&.name || 'automatically'}")
-    queue_turn(thread, user, components_request(screens), kind: "components", visible: false, then_merge: how)
+    note(thread, "Making components from this thread's screens before it merges · #{user&.name || 'someone'}")
+    queue_turn(thread, user, components_request(screens), kind: "components", visible: false, then_merge: "manual")
   rescue Designs::Repo::Busy
     raise Busy, BUSY
   end
