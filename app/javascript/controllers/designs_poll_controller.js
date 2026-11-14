@@ -12,6 +12,9 @@ import { Controller } from "@hotwired/stimulus"
 // A reload keeps what the reader had: where the chat was scrolled to (the
 // bottom, when they were there, so each new step of the turn comes into view)
 // and which folds (details[data-keep]) were open. A chat opens at its latest.
+// The replies inside draw their Markdown as they connect, after this
+// controller, so the chat is scrolled once they have: on the next frame,
+// still before it is painted.
 export default class extends Controller {
   static values = { active: Boolean, commit: String, url: String }
 
@@ -24,7 +27,7 @@ export default class extends Controller {
       window.Turbo.visit(window.location.href, { action: "replace" })
       return
     }
-    this.restore(frame)
+    requestAnimationFrame(() => this.restore(frame))
     if (this.activeValue) this.timer = setTimeout(() => this.reload(frame), 2000)
   }
 

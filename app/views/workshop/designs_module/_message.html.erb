@@ -32,7 +32,14 @@
         <span class="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-none text-[8px] font-bold text-white" style="background: #64748b;"><%= designs_initials(message.user&.name) %></span><%= message.user&.name || "Someone" %>
       <% end %>
     </div>
-    <div class="text-[13px] leading-[1.55] <%= message.kind == 'error' ? 'clar-text-danger' : 'clar-text-text' %> whitespace-pre-line"><%= message.kind == "missing" ? "Open question: #{message.content}" : message.content %></div>
+    <% text = message.kind == "missing" ? "Open question: #{message.content}" : message.content %>
+    <% if ai && message.kind != "error" %>
+      <%# Claude answers in Markdown, drawn as a task's documents are; its lists
+          keep their bullets, as the chat's other lists do. %>
+      <div class="clar-prose text-[13px] leading-[1.55] clar-text-text [&_ul]:list-disc [&_ol]:list-decimal" data-controller="clar-markdown"><%= text %></div>
+    <% else %>
+      <div class="text-[13px] leading-[1.55] <%= message.kind == 'error' ? 'clar-text-danger' : 'clar-text-text' %> whitespace-pre-line"><%= text %></div>
+    <% end %>
     <% chips = Array(message.data&.dig("chips")) %>
     <% if chips.any? %>
       <div class="flex flex-wrap gap-1.5 mt-2">

@@ -250,6 +250,26 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Claude answers in Markdown: the chat shows it formatted, as a task's
+  # documents are (clar-markdown). A person's message and an error read as typed.
+  test "an AI reply in a thread reads as Markdown, a person's message and an error as typed" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      session = thread.chat_session
+      session.chat_messages.create!(role: "assistant", kind: "summary", content: "**AI usage** is a new screen.\n\n- a month selector")
+      session.chat_messages.create!(role: "user", user: users(:one), content: "Make it **bold**")
+      session.chat_messages.create!(role: "assistant", kind: "error", content: "Claude returned **no** answer")
+
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_select ".clar-prose[data-controller=clar-markdown]", text: "**AI usage** is a new screen. - a month selector"
+      assert_includes response.body, "**AI usage** is a new screen.\n\n- a month selector", "the reply's lines reach the renderer as written"
+      assert_select ".whitespace-pre-line", text: "Make it **bold**"
+      assert_select ".whitespace-pre-line.clar-text-danger", text: "Claude returned **no** answer"
+      assert_select "[data-controller=clar-markdown]", text: /Make it|returned/, count: 0
+    end
+  end
+
   test "a thread with nothing of its own yet offers no merge" do
     with_designs do
       thread = Designs::Threads.start!(project: @project, user: users(:one))
