@@ -73,6 +73,22 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     end
   end
 
+  # Kacper (2026-11-18): Design starts by making sure of its assumptions in
+  # the chat, so a task's thread first plans, out of sight.
+  test "a thread started from a task plans first, out of sight" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "SP-1051", description: "Validate on blur")
+      thread = Designs::Threads.start_from_task!(task, user: @user)
+
+      turn = DesignTurn.where(chat_session: thread.chat_session).sole
+      assert_equal "plan", turn.kind
+      assert_equal Designs::Threads::PLAN_REQUEST, turn.chat_message.content
+      assert_equal "request", turn.chat_message.kind
+    end
+  end
+
   test "a changed description shows as a diff, and updating designs from it queues a turn" do
     with_threads_remote do |repo, _|
       seed_master(repo)

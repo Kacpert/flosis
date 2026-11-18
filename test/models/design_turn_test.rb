@@ -14,6 +14,11 @@ class DesignTurnTest < ActiveSupport::TestCase
     assert_equal "queued", turn.status
   end
 
+  test "a plan turn is a kind of its own" do
+    assert turn(kind: "plan").plan?
+    assert_not turn.plan?
+  end
+
   test "a turn moves through running to succeeded" do
     t = turn
     t.start!
