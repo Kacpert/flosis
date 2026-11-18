@@ -68,7 +68,15 @@ module Designs::Subject
     def turn_message(request, turn: nil, worktree: nil)
       first = turn && turn.chat_session.design_turns.where.not(id: turn.id).where.not(started_at: nil).none?
       Designs::Prompt.thread_message(thread: @thread, request: request, repo_map: (repo_map(worktree, first) if worktree),
-                                     screens_only: turn&.kind == "design")
+                                     screens_only: turn&.kind == "design", after_plan: after_plan?(turn))
+    end
+
+    # A design turn whose turn before it is a plan that finished: what comes
+    # now answers that plan.
+    def after_plan?(turn)
+      return false unless turn&.kind == "design"
+
+      turn.chat_session.design_turns.where("id < ?", turn.id).order(:id).last&.then { |last| last.plan? && last.succeeded? } || false
     end
 
     # Only a help to Claude: a map that cannot be made is left out, and the

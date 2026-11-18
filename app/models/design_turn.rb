@@ -13,8 +13,10 @@ class DesignTurn < ApplicationRecord
   # "Update from master" starts when master changed the same files. "setup" is
   # a setup run's (the map, the design system or one feature): it runs on a
   # setup turn's bounds. "components" makes components from a thread's
-  # screens before it is merged (Designs::Threads.merge_or_prepare!).
-  KINDS = %w[design resolve_conflicts setup components].freeze
+  # screens before it is merged (Designs::Threads.merge_or_prepare!). "plan"
+  # is a task's thread's first turn: it reads, posts its plan and questions,
+  # and changes nothing (Designs::Threads.start_from_task!).
+  KINDS = %w[design resolve_conflicts setup components plan].freeze
   # Not finished yet: while a chat has one, the screen keeps polling and the
   # work cannot be approved.
   ACTIVE = %w[queued running].freeze
@@ -58,6 +60,8 @@ class DesignTurn < ApplicationRecord
     kind == "resolve_conflicts"
   end
 
+  def plan? = kind == "plan"
+
   def setup?
     kind == "setup"
   end
@@ -94,6 +98,11 @@ class DesignTurn < ApplicationRecord
   # turn that runs away; they are not there to save money.
   DEFAULT_SETUP_TIMEOUT_SECONDS = 7_200
   DEFAULT_SETUP_BUDGET_USD = 60
+  # A plan turn reads and answers, so it is quick and cheap (Kacper,
+  # 2026-11-18: it must not keep the person waiting).
+  PLAN_TIMEOUT_SECONDS = 300
+  PLAN_BUDGET_USD = 3
+  PLAN_EFFORT = "medium"
 
   # How long the CLI may run one turn, in seconds: DESIGNS_TURN_TIMEOUT_SECONDS
   # when it is a positive whole number, else forty minutes. stale_after
@@ -137,6 +146,10 @@ class DesignTurn < ApplicationRecord
     setup_timeout.seconds + 5.minutes
   end
 
+  def self.plan_stale_after
+    PLAN_TIMEOUT_SECONDS.seconds + 5.minutes
+  end
+
   # Fails every running turn older than stale_after and returns how many. One
   # UPDATE, not a load and a save per turn: the screen calls this on every
   # poll, and a job that took a turn over in the meantime (start! sets a fresh
@@ -149,8 +162,9 @@ class DesignTurn < ApplicationRecord
   def self.fail_stale!
     now = Time.current
     failed = { status: "failed", error: INTERRUPTED, finished_at: now, updated_at: now }
-    stale = where(status: "running", started_at: ...(now - stale_after)).where.not(kind: "setup").update_all(failed) +
-            where(status: "running", kind: "setup", started_at: ...(now - setup_stale_after)).update_all(failed)
+    stale = where(status: "running", started_at: ...(now - stale_after)).where.not(kind: %w[setup plan]).update_all(failed) +
+            where(status: "running", kind: "setup", started_at: ...(now - setup_stale_after)).update_all(failed) +
+            where(status: "running", kind: "plan", started_at: ...(now - plan_stale_after)).update_all(failed)
     stale + where(status: "running", stop_requested_at: ...(now - STOP_GRACE)).count { |turn| turn.fail_stopped! }
   end
 
@@ -166,10 +180,15 @@ class DesignTurn < ApplicationRecord
     end
   end
 
-  # Running for longer than stale_after (setup_stale_after, for a setup turn).
+  # Running for longer than stale_after (setup_stale_after for a setup turn,
+  # plan_stale_after for a plan).
   # Only a running turn can be: a queued
   # one has not started, and a finished one was not cut off.
   def stale?
-    running? && started_at.present? && started_at < (setup? ? self.class.setup_stale_after : self.class.stale_after).ago
+    bound = if setup? then self.class.setup_stale_after
+            elsif plan? then self.class.plan_stale_after
+            else self.class.stale_after
+            end
+    running? && started_at.present? && started_at < bound.ago
   end
 end

@@ -14,6 +14,11 @@ class DesignTurnTest < ActiveSupport::TestCase
     assert_equal "queued", turn.status
   end
 
+  test "a plan turn is a kind of its own" do
+    assert turn(kind: "plan").plan?
+    assert_not turn.plan?
+  end
+
   test "a turn moves through running to succeeded" do
     t = turn
     t.start!
@@ -32,6 +37,18 @@ class DesignTurnTest < ActiveSupport::TestCase
     assert old.reload.failed?
     assert_match(/Interrupted/, old.error)
     assert fresh.reload.running?
+  end
+
+  # A plan has five minutes: one a deploy cut off is let go after ten, not
+  # after a design turn's forty-five.
+  test "a plan turn is stale once its own bounds are past" do
+    plan = turn(status: "running", kind: "plan", started_at: 11.minutes.ago)
+    design = turn(status: "running", started_at: 11.minutes.ago)
+
+    assert plan.stale?
+    assert_equal 1, DesignTurn.fail_stale!
+    assert plan.reload.failed?
+    assert design.reload.running?
   end
 
   # A setup turn builds a whole feature: its bounds are a setup turn's, so it

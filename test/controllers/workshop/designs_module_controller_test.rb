@@ -270,6 +270,40 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  def planned_thread(status:)
+    task = tasks(:jira_task)
+    task.update!(project: @project, external_reference: "SP-1051", external_type: "jira")
+    thread = Designs::Threads.start_from_task!(task, user: users(:one))
+    DesignTurn.where(chat_session: thread.chat_session).sole.update!(status: status, started_at: 10.seconds.ago,
+                                                                      finished_at: (Time.current unless status == "running"))
+    thread
+  end
+
+  test "a plan that asked offers Design with these proposals until the person answers" do
+    with_designs do
+      thread = planned_thread(status: "succeeded")
+      thread.chat_session.chat_messages.create!(role: "assistant", kind: "missing", content: "Where does the total go? Proposal: in the header.")
+
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_select "form[action=?] button", go_workshop_design_thread_path(thread), text: /Design with these proposals/
+      assert_includes response.body, "Or answer the questions above in your own words."
+
+      Designs::Threads.message!(thread, user: users(:one), text: "In the header, yes")
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_select "form[action=?]", go_workshop_design_thread_path(thread), count: 0
+    end
+  end
+
+  test "a running plan says Planning" do
+    with_designs do
+      thread = planned_thread(status: "running")
+
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_match(/Planning · /, response.body)
+    end
+  end
+
   test "a thread with nothing of its own yet offers no merge" do
     with_designs do
       thread = Designs::Threads.start!(project: @project, user: users(:one))

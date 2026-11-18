@@ -261,6 +261,20 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "Design with these proposals starts the design and goes back to the thread" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      Designs::Threads.message!(thread, user: users(:one), text: "Add a status filter").update!(kind: "plan", status: "succeeded")
+
+      post go_workshop_design_thread_path(thread)
+
+      assert_redirected_to workshop_designs_overview_path(thread: thread.id)
+      last = DesignTurn.order(:id).last
+      assert_equal "design", last.kind
+      assert last.queued?
+    end
+  end
+
   test "Try again with nothing to try says so" do
     with_designs do
       thread = Designs::Threads.start!(project: @project, user: users(:one))

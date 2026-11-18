@@ -21,6 +21,7 @@ module Designs::Threads
   NOT_AN_INSPIRATION = "Inspirations are images, PDFs or notes (.png, .jpg, .gif, .webp, .svg, .pdf, .txt, .md), up to 10 MB each.".freeze
   NO_BRANCH_YET = "Describe the change first: the thread gets its branch, and its inspirations/, with its first message.".freeze
   NOTHING_TO_RETRY = "There is nothing to try again: the thread's last turn did not fail.".freeze
+  NO_PLAN = "There is no plan waiting for an answer.".freeze
   # A thread's design turns build screens only (Designs::Prompt::SCREENS_ONLY,
   # 2026-11-10): before it is merged, one turn makes components from them.
   COMPONENTS_REQUEST = <<~REQUEST.squish.freeze
@@ -35,11 +36,19 @@ module Designs::Threads
   GONE = "This thread's archive is no longer on GitHub, so it can't come back.".freeze
   INSPIRATION_TYPES = %w[png jpg jpeg gif webp svg pdf txt md].freeze
   INSPIRATION_LIMIT = 10.megabytes
-  START_FROM_TASK = <<~REQUEST.freeze
-    Design this task. Read its current description and compare it with master. Where a screen already
-    covers it, update that screen instead of making a new one; where nothing does, draft it as a new
-    section on the screen it belongs to. Say which screens you changed, and what is left to decide.
+  # A task's thread first plans (Kacper, 2026-11-18): it makes sure of its
+  # assumptions in the chat, and designs at once when it has no doubts
+  # (Designs::TurnJob#carry_on), or once the person answers.
+  PLAN_REQUEST = <<~REQUEST.freeze
+    Before you design, make sure you know what to do. Read the task's current description and the screens it
+    touches; change no file in this turn. In the summary, give your plan in at most five short lines: what you
+    will design and where (screen and spot), reusing the screens that already cover it. Ask in a missing block
+    only where a standard answer will not do, one question each, ending with "Proposal: " and your answer. With
+    nothing to ask, end the summary with "No doubts, designing now."
   REQUEST
+  DESIGN_AS_PLANNED = "No doubts: design it as planned. Say which screens you changed, and what is left to decide.".freeze
+  GO_WITH_PROPOSALS = "Go with your proposals for the open questions, and design it as planned. Say which screens you " \
+                      "changed, and what is left to decide.".freeze
 
   module_function
 
@@ -58,8 +67,31 @@ module Designs::Threads
       described_text: Designs::CurrentDescription.for(task), described_version: version_label(task)
     )
     note(thread, "Thread started from #{Designs::ThreadNames.key(task)} · branch #{thread.branch} created from master #{short(base)}")
-    queue_turn(thread, user, START_FROM_TASK, visible: false)
+    queue_turn(thread, user, PLAN_REQUEST, kind: "plan", visible: false)
     thread
+  end
+
+  # "Design with these proposals", under a plan that asked (Kacper,
+  # 2026-11-18): the design turn takes every proposal as the answer. Only the
+  # last turn's plan, once it has finished, and only one design at a time.
+  def go!(thread, user:)
+    raise ArgumentError, "#{thread.branch} is already merged." unless thread.open?
+    raise Busy, IMPORTING if importing?(thread)
+
+    DesignTurn.fail_stale!
+    turns = DesignTurn.where(chat_session_id: thread.chat_session_id)
+    raise Busy, BUSY if turns.active.exists?
+
+    last = turns.order(:id).last
+    raise ArgumentError, NO_PLAN unless last&.plan? && last.succeeded?
+
+    queue_turn(thread, user, GO_WITH_PROPOSALS, visible: false)
+  end
+
+  # The design turn a plan that asked nothing goes on to (Designs::TurnJob#
+  # carry_on), out of sight: the person saw the plan.
+  def design_as_planned!(thread, user:)
+    queue_turn(thread, user, DESIGN_AS_PLANNED, visible: false)
   end
 
   # The person's message, with the screen they have open. A fresh thread's

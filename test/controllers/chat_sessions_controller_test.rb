@@ -140,6 +140,39 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
     refute_includes prompt, "Briefed version is in."
   end
 
+  # Kacper (2026-11-18): the chat comes in as a specialist who proposes the
+  # standard way and asks only what a standard cannot settle, in short
+  # messages ("people read slowly"), and drafts in his SCRUM-70 format.
+  test "the details prompt makes the AI a specialist who proposes, in short messages" do
+    prompt = details_prompt
+    assert_includes prompt, "You are a specialist"
+    assert_includes prompt, "Ask only about what a standard cannot settle"
+    assert_includes prompt, "At most three short sentences"
+    assert_includes prompt, "One decision per message, put as a proposal to confirm"
+  end
+
+  test "before drafting, the details AI settles where each new piece shows and how" do
+    prompt = details_prompt
+    [ "where it shows (screen, tab, spot)", "who sees it", "its default (shown or hidden, on or off)",
+      "one item or a total, and for which period", "its format, with an example", "empty and error states" ].each do |item|
+      assert_includes prompt, item
+    end
+  end
+
+  test "the draft is short, laid out by feature or place, with no user story or file paths" do
+    prompt = details_prompt
+    [ "## Background", "## User story", "## Requirements", "Implementation pointers" ].each { |old| refute_includes prompt, old }
+    [ "2–3 sentences, no heading", "## Rules", "## Out of scope", "## Acceptance criteria", "## Open questions", "Proposal:" ].each do |part|
+      assert_includes prompt, part
+    end
+  end
+
+  # With the Briefing step off, Step 0 settles who and why with a question:
+  # the first message's proposal does not override it.
+  test "the first message ends with a proposal, or with Step 0's question when it applies" do
+    assert_includes details_prompt, "your first proposal to confirm, or Step 0's question when it applies"
+  end
+
   test "details prompt tells the AI to talk product in chat, not dump code / file paths" do
     controller = ChatSessionsController.new
     controller.instance_variable_set(:@task, @task)
@@ -375,5 +408,14 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
 
     assert_not_includes prompt, "Carried over from"
     assert_not_includes prompt, "brought over"
+  end
+
+  private
+
+  def details_prompt
+    controller = ChatSessionsController.new
+    controller.instance_variable_set(:@task, @task)
+    def controller.params; {}; end
+    controller.send(:build_initial_prompt)
   end
 end
