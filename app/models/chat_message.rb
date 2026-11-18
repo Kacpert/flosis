@@ -15,8 +15,12 @@ class ChatMessage < ApplicationRecord
   # column :text (see DesignRequest#links).
   attribute :data, :json
 
+  # Images a person added to a task's AI chat (ChatImages).
+  has_many_attached :images
+
   validates :role, presence: true, inclusion: { in: %w[user assistant system] }
-  validates :content, presence: true
+  validates :content, presence: true, unless: -> { images.attached? }
+  validate :images_fit
   validates :kind, inclusion: { in: KINDS }, allow_nil: true
 
   # A transcript is a sequence, so the tie has to be broken: a question and its
@@ -24,4 +28,16 @@ class ChatMessage < ApplicationRecord
   # back in either order — Postgres and MySQL disagree, and the reply showed
   # above the message it answered.
   scope :ordered, -> { order(:created_at, :id) }
+
+  private
+
+  def images_fit
+    return unless images.attached?
+
+    errors.add(:images, "at most #{ChatImages::PER_MESSAGE} per message") if images.size > ChatImages::PER_MESSAGE
+    images.each do |image|
+      errors.add(:images, "#{image.filename} is not a PNG, JPG, GIF or WebP image") unless ChatImages::TYPES.key?(image.content_type)
+      errors.add(:images, "#{image.filename} is over 10 MB") if image.byte_size > ChatImages::SIZE_LIMIT
+    end
+  end
 end

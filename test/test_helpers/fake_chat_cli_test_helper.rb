@@ -44,11 +44,14 @@ module FakeChatCliTestHelper
   end
 
   # A chat's follow-up messages reach a fake CLI: each message Claude is sent
-  # is kept in order, and each is answered "Noted."
+  # is kept in order, with the keywords its service was built with, and each
+  # is answered "Noted."
   def with_message_cli
     sent = []
+    built = []
     original = ClaudeCliService.method(:new)
-    ClaudeCliService.define_singleton_method(:new) do |**|
+    ClaudeCliService.define_singleton_method(:new) do |**keywords|
+      built << keywords
       Object.new.tap do |fake|
         fake.define_singleton_method(:send_message_streaming) do |session_id:, message:, &block|
           sent << message
@@ -57,7 +60,7 @@ module FakeChatCliTestHelper
         end
       end
     end
-    yield sent
+    yield sent, built
   ensure
     ClaudeCliService.define_singleton_method(:new, original)
   end
