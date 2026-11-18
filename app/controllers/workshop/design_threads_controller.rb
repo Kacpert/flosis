@@ -97,6 +97,14 @@ class Workshop::DesignThreadsController < Workshop::BaseController
     redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
   end
 
+  # Design with these proposals, under a plan that asked.
+  def go
+    Designs::Threads.go!(@thread, user: current_user)
+    redirect_to workshop_designs_overview_path(thread: @thread.id)
+  rescue Designs::Threads::Busy, ArgumentError => e
+    redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
+  end
+
   # Stop, on a turn that runs or waits.
   def stop
     Designs::Threads.stop!(@thread, turn_id: params[:turn], user: current_user)

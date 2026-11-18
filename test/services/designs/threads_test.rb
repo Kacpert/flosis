@@ -89,6 +89,49 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     end
   end
 
+  def planned_thread(repo, status: "succeeded")
+    seed_master(repo)
+    task = tasks(:jira_task)
+    task.update!(project: repo.project, external_reference: "SP-1051", description: "Validate on blur")
+    thread = Designs::Threads.start_from_task!(task, user: @user)
+    DesignTurn.where(chat_session: thread.chat_session).sole.update!(status: status, started_at: 1.minute.ago, finished_at: Time.current)
+    thread
+  end
+
+  test "Design with these proposals starts the design turn after a plan that asked" do
+    with_threads_remote do |repo, _|
+      thread = planned_thread(repo)
+      clear_enqueued_jobs
+
+      turn = Designs::Threads.go!(thread, user: @user)
+
+      assert_equal "design", turn.kind
+      assert_equal Designs::Threads::GO_WITH_PROPOSALS, turn.chat_message.content
+      assert_equal "request", turn.chat_message.kind
+      assert_enqueued_jobs 1, only: Designs::TurnJob
+    end
+  end
+
+  test "Design with these proposals is refused without a plan waiting, or twice" do
+    with_threads_remote do |repo, _|
+      unplanned = Designs::Threads.start!(project: repo.project, user: @user)
+      error = assert_raises(ArgumentError) { Designs::Threads.go!(unplanned, user: @user) }
+      assert_equal Designs::Threads::NO_PLAN, error.message
+
+      thread = planned_thread(repo)
+      Designs::Threads.go!(thread, user: @user)
+      assert_raises(Designs::Threads::Busy) { Designs::Threads.go!(thread, user: @user) }
+    end
+  end
+
+  test "Try again on a failed plan plans again" do
+    with_threads_remote do |repo, _|
+      thread = planned_thread(repo, status: "failed")
+
+      assert_equal "plan", Designs::Threads.retry!(thread, user: @user).kind
+    end
+  end
+
   test "a changed description shows as a diff, and updating designs from it queues a turn" do
     with_threads_remote do |repo, _|
       seed_master(repo)

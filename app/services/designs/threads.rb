@@ -21,6 +21,7 @@ module Designs::Threads
   NOT_AN_INSPIRATION = "Inspirations are images, PDFs or notes (.png, .jpg, .gif, .webp, .svg, .pdf, .txt, .md), up to 10 MB each.".freeze
   NO_BRANCH_YET = "Describe the change first: the thread gets its branch, and its inspirations/, with its first message.".freeze
   NOTHING_TO_RETRY = "There is nothing to try again: the thread's last turn did not fail.".freeze
+  NO_PLAN = "There is no plan waiting for an answer.".freeze
   # A thread's design turns build screens only (Designs::Prompt::SCREENS_ONLY,
   # 2026-11-10): before it is merged, one turn makes components from them.
   COMPONENTS_REQUEST = <<~REQUEST.squish.freeze
@@ -68,6 +69,23 @@ module Designs::Threads
     note(thread, "Thread started from #{Designs::ThreadNames.key(task)} · branch #{thread.branch} created from master #{short(base)}")
     queue_turn(thread, user, PLAN_REQUEST, kind: "plan", visible: false)
     thread
+  end
+
+  # "Design with these proposals", under a plan that asked (Kacper,
+  # 2026-11-18): the design turn takes every proposal as the answer. Only the
+  # last turn's plan, once it has finished, and only one design at a time.
+  def go!(thread, user:)
+    raise ArgumentError, "#{thread.branch} is already merged." unless thread.open?
+    raise Busy, IMPORTING if importing?(thread)
+
+    DesignTurn.fail_stale!
+    turns = DesignTurn.where(chat_session_id: thread.chat_session_id)
+    raise Busy, BUSY if turns.active.exists?
+
+    last = turns.order(:id).last
+    raise ArgumentError, NO_PLAN unless last&.plan? && last.succeeded?
+
+    queue_turn(thread, user, GO_WITH_PROPOSALS, visible: false)
   end
 
   # The design turn a plan that asked nothing goes on to (Designs::TurnJob#
