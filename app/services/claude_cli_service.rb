@@ -11,7 +11,7 @@ class ClaudeCliService
 
   def initialize(codebase_path: nil, allowed_tools: nil, model: nil, mcp_config: nil, api_key: nil,
                  restricted: false, append_system_prompt_file: nil, add_dirs: [], max_budget_usd: nil, timeout: nil,
-                 tools: nil)
+                 tools: nil, effort: nil)
     @codebase_path = codebase_path || ENV.fetch("CHAT_CODEBASE_PATH", DEFAULT_CODEBASE_PATH)
     # Per-chat override of the pre-approved tool list. The briefing chat passes a
     # code-free set (no Read/Glob/Grep) so it stays a product conversation and
@@ -58,6 +58,9 @@ class ClaudeCliService
     # Optional exact set of built-in tools the run has (--tools): every other one
     # is left out, the subagent among them. nil = the CLI's own set, as before.
     @tools = tools
+    # Optional effort level (low, medium, high, xhigh, max), as --effort.
+    # nil = the model's default. A Designs plan turn asks for less.
+    @effort = effort
   end
 
   # Start a new Claude session with an initial prompt. A new_session_id (a UUID)
@@ -236,6 +239,7 @@ class ClaudeCliService
     # IO.popen takes strings only, and the budget may have been given as a number.
     cmd.push("--max-budget-usd", @max_budget_usd.to_s) unless @max_budget_usd.nil?
     cmd.push("--tools", @tools.join(",")) unless @tools.nil?
+    cmd.push("--effort", @effort) unless @effort.nil?
     # Pre-approve the tools we want the chat assistant to use without
     # prompting. -p (non-interactive) refuses any tool not on this list.
     @allowed_tools.each { |t| cmd += ["--allowedTools", t] }

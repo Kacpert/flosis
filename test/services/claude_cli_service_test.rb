@@ -479,6 +479,17 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
     assert_equal "Read,Glob,Grep,Edit,Write", cmd[cmd.index("--tools") + 1]
   end
 
+  # A Designs plan turn runs at a lower effort than the model's default
+  # (Designs::TurnJob): the level reaches the CLI as --effort, and a call that
+  # sets none leaves the CLI's default.
+  test "an effort level reaches the CLI, and none is passed by default" do
+    cmd = ClaudeCliService.new(codebase_path: @codebase_path, effort: "medium").send(:build_command, streaming: true)
+    assert_equal "medium", cmd[cmd.index("--effort") + 1]
+
+    cmd = ClaudeCliService.new(codebase_path: @codebase_path).send(:build_command, streaming: true)
+    assert_not_includes cmd, "--effort"
+  end
+
   # -- a session run with a block streams its events --
 
   test "a session run with a block streams: each event is handed over as it comes, and the answer is returned" do
