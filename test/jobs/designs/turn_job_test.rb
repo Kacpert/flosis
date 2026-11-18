@@ -295,7 +295,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
 
       assert turn.succeeded?, turn.error
       worktree = repo.worktree!("wip/REC-1").to_s
-      assert_equal %i[add_dirs allowed_tools api_key append_system_prompt_file codebase_path max_budget_usd mcp_config restricted timeout tools],
+      assert_equal %i[add_dirs allowed_tools api_key append_system_prompt_file codebase_path effort max_budget_usd mcp_config restricted timeout tools],
                    seen.keys.sort
       assert_equal worktree, seen[:codebase_path]
       assert_equal %w[Read Glob Grep Edit Write], seen[:allowed_tools]
