@@ -410,12 +410,43 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes prompt, "brought over"
   end
 
-  private
+  # Kacper (2026-11-18): a description edited in the panel reaches the AI with
+  # the person's next message, said to be theirs, so "check my edits" works.
+  # The AI saw its own drafts; an edit it has not seen is sent once.
+  def refine_session
+    ChatSession.create!(task: @task, workspace: @task.project.workspace, user: users(:one),
+                        claude_session_id: "refine-uuid", codebase_path: "/tmp", purpose: "refine")
+  end
 
-  def details_prompt
-    controller = ChatSessionsController.new
-    controller.instance_variable_set(:@task, @task)
-    def controller.params; {}; end
-    controller.send(:build_initial_prompt)
+  test "a description the person edited reaches the AI with their next message, once" do
+    session = refine_session
+    @task.task_drafts.create!(source: "ai", origin: "ai", content: "## Background\nOld words")
+    @task.task_drafts.create!(source: "ai", origin: "manual", content: "<h2>Usage</h2><p>Plans have a margin.</p><ul><li>Costs hidden by default</li></ul>").make_current!
+
+    with_message_cli do |sent|
+      post message_jira_task_chat_session_path(@task), params: { content: "Check my edits" }, as: :json
+      post message_jira_task_chat_session_path(@task), params: { content: "And now?" }, as: :json
+
+      assert_includes sent[0], "The person edited the ticket description in the panel"
+      assert_includes sent[0], "## Usage\nPlans have a margin.\n- Costs hidden by default"
+      assert sent[0].end_with?("Check my edits"), sent[0]
+      assert_equal "And now?", sent[1]
+    end
+    assert_equal [ "Check my edits", "And now?" ], session.chat_messages.where(role: "user").order(:id).pluck(:content)
+  end
+
+  test "the AI's own draft goes back to it only once edited in place" do
+    refine_session
+    draft = @task.task_drafts.create!(source: "ai", origin: "ai", content: "## Background\nThe AI's words")
+    draft.make_current!
+
+    with_message_cli do |sent|
+      post message_jira_task_chat_session_path(@task), params: { content: "Looks good" }, as: :json
+      draft.update!(content: "<p>The person's words</p>", edited_at: Time.current)
+      post message_jira_task_chat_session_path(@task), params: { content: "I changed a line" }, as: :json
+
+      assert_equal "Looks good", sent[0]
+      assert_includes sent[1], "The person's words"
+    end
   end
 end

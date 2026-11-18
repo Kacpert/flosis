@@ -24,6 +24,41 @@ class ChatSessionsController < ApplicationController
 
   DRAFT_REGEX = %r{<draft>\s*(.*?)\s*</draft>}m
 
+  EDITED_DESCRIPTION = "The person edited the ticket description in the panel since you last saw it. This is " \
+                       "the current version (v%<version>s), and it replaces your last draft:".freeze
+
+  # Kacper (2026-11-18): a description the person edited in the panel reaches
+  # the AI with their next message, said to be theirs, so "check my edits"
+  # works. The AI saw its own drafts as it wrote them; a version the person
+  # made, or an AI draft they edited in place, goes once.
+  def claude_message(text)
+    draft = @task.current_detail_draft
+    return [ text, nil ] if draft.nil? || (draft.origin == "ai" && draft.edited_at.nil?)
+
+    stamp = "#{draft.id}:#{draft.updated_at.to_f}"
+    seen = @chat_session.chat_messages.where(role: "user").order(id: :desc).detect { |message| message.data&.dig("description_seen") }
+    return [ text, nil ] if seen&.data&.dig("description_seen") == stamp
+
+    [ "#{format(EDITED_DESCRIPTION, version: draft.version)}\n\n#{description_text(draft.content)}\n\nTheir message:\n#{text}",
+      { "description_seen" => stamp } ]
+  end
+
+  # A version saved from the editor is HTML: the AI reads it as plain lines.
+  def description_text(content)
+    return content.to_s unless content.to_s.lstrip.start_with?("<")
+
+    Nokogiri::HTML::DocumentFragment.parse(content).css("h1, h2, h3, h4, h5, h6, p, li, pre").filter_map do |block|
+      text = block.text.strip
+      next if text.empty?
+
+      case block.name
+      when /\Ah\d\z/ then "## #{text}"
+      when "li" then "- #{text}"
+      else text
+      end
+    end.join("\n")
+  end
+
   def extract_and_save_results(text)
     text.scan(DRAFT_REGEX).each do |(body)|
       next if body.blank?

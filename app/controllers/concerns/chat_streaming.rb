@@ -154,7 +154,8 @@ module ChatStreaming
       return
     end
 
-    @chat_session.chat_messages.create!(role: "user", content: user_content, user: current_user)
+    prompt, data = claude_message(user_content)
+    @chat_session.chat_messages.create!(role: "user", content: user_content, user: current_user, data: data)
 
     write_sse_headers
 
@@ -165,7 +166,7 @@ module ChatStreaming
     begin
       result = service.send_message_streaming(
         session_id: @chat_session.claude_session_id,
-        message: user_content
+        message: prompt
       ) do |line|
         handle_stream_line(line, final_done: true) { |chunk| full_response += chunk }
       end
@@ -186,6 +187,13 @@ module ChatStreaming
   end
 
   private
+
+  # What Claude is sent for the person's message, and what the stored message
+  # keeps about that (its data). The chat shows the message as typed.
+  # ChatSessionsController adds a description the person edited since.
+  def claude_message(text)
+    [ text, nil ]
+  end
 
   # SSE writes/close can themselves raise ClientDisconnected once the client is
   # gone; these swallow that so a disconnect never turns into a 500.

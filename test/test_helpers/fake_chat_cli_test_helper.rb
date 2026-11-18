@@ -43,6 +43,25 @@ module FakeChatCliTestHelper
     ClaudeCliService.define_singleton_method(:new, original)
   end
 
+  # A chat's follow-up messages reach a fake CLI: each message Claude is sent
+  # is kept in order, and each is answered "Noted."
+  def with_message_cli
+    sent = []
+    original = ClaudeCliService.method(:new)
+    ClaudeCliService.define_singleton_method(:new) do |**|
+      Object.new.tap do |fake|
+        fake.define_singleton_method(:send_message_streaming) do |session_id:, message:, &block|
+          sent << message
+          block&.call({ "type" => "result", "session_id" => session_id, "result" => "Noted." }.to_json)
+          { session_id: session_id }
+        end
+      end
+    end
+    yield sent
+  ensure
+    ClaudeCliService.define_singleton_method(:new, original)
+  end
+
   # A chat controller as a request would have it (its prompt reads params),
   # holding the task, to build its prompt.
   def chat_controller(klass, task)
