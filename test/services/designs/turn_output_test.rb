@@ -14,6 +14,15 @@ class Designs::TurnOutputTest < ActiveSupport::TestCase
     assert_equal 2, result.missing.size
   end
 
+  # A model now and then misspells a closing tag (</missary>, seen on
+  # 2026-11-19): the block still ends there, and no tag reaches the chat.
+  test "a block whose closing tag is misspelled still ends at it" do
+    output = Designs::TurnOutput.parse("<summary>Plan.</summary>\n<missing>Where? Proposal: here.</missary>\n" \
+                                       "<missing>May I add a context? Proposal: yes.</missing>")
+    assert_equal "Plan.", output.summary
+    assert_equal [ "Where? Proposal: here.", "May I add a context? Proposal: yes." ], output.missing
+  end
+
   test "a reply without a summary block still yields a summary" do
     assert_equal "Just text", Designs::TurnOutput.parse("  Just text  ").summary
   end

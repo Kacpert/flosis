@@ -38,8 +38,16 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     thread = @project.design_threads.create!(author: users(:one), title: "T", branch: "design/t",
                                              chat_session: Designs::Threads.new_session(@project, users(:one)))
     other = Designs::Subject.for(thread.chat_session)
-    assert_equal [ Designs::TurnJob::TOOLS, true, DesignTurn.turn_timeout ], [ other.tools, other.app_copy?, other.timeout ]
-    other.with_mcp("/tmp") { |path| assert_nil path }
+    assert_equal [ Designs::TurnJob::TOOLS + [ Designs::Subject::COPY_TOOL ], true, DesignTurn.turn_timeout ],
+                 [ other.tools, other.app_copy?, other.timeout ]
+    # A thread's turn can copy a file of its repo (flosis_files), but a plan, which only reads, has no such tool.
+    other.with_mcp("/tmp/worktree") do |path|
+      server = JSON.parse(File.read(path)).dig("mcpServers", "flosis_files")
+      assert_equal "node", server["command"]
+      assert server["args"].last.end_with?("files.mjs"), server["args"].inspect
+      assert_equal "/tmp/worktree", server.dig("env", "FLOSIS_FILES_ROOT")
+    end
+    other.with_mcp("/tmp/worktree", read_only: true) { |path| assert_nil path }
   end
 
   test "a setup turn is told the contexts by the names the browser knows them by" do
@@ -195,6 +203,24 @@ class Designs::SubjectTest < ActiveSupport::TestCase
 
       assert_includes subject.turn_message("In the header", turn: design, worktree: worktree), Designs::Prompt::AFTER_PLAN
       assert_not_includes subject.turn_message("Plan it", turn: plan, worktree: worktree), Designs::Prompt::AFTER_PLAN
+    end
+  end
+
+  # Kacper (2026-11-19): one file per page of the app, its states inside it,
+  # and a new page started from a copy of the closest one.
+  test "a design turn keeps a screen's states in it and copies the closest screen for a new one; a plan plans the states in" do
+    Dir.mktmpdir("worktree") do |worktree|
+      thread, design = thread_with_turn
+      plan = DesignTurn.create!(chat_session: thread.chat_session, chat_message: design.chat_message, kind: "plan")
+      subject = Designs::Subject.for(thread.chat_session)
+
+      message = subject.turn_message("Add usage", turn: design, worktree: worktree)
+      assert_includes message, Designs::Prompt::STATES
+      assert_includes message, Designs::Prompt::COPIES
+
+      plan_message = subject.turn_message("Plan it", turn: plan, worktree: worktree)
+      assert_includes plan_message, Designs::Prompt::STATES
+      assert_not_includes plan_message, Designs::Prompt::COPIES
     end
   end
 

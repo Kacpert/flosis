@@ -138,6 +138,16 @@ module Designs::Prompt
   AFTER_PLAN = "Your plan in this thread is settled: the request below answers it. Design now, as planned, and for " \
                "anything the answer leaves open, use your own proposal. Ask nothing more before designing.".freeze
 
+  # Kacper (2026-11-19): one file per page of the app, its states inside it,
+  # as the app's own page has them; separate files drifted apart and took the
+  # longest to write. Replaces the base prompt's states as screens of their own.
+  STATES = "Show a screen's states (empty, over a limit, no plan, an option off, an error) in that screen, not as " \
+           "screens of their own: a small state switcher at the top of the screen links to each state by its hash " \
+           "(consumption.html#over-limit), and only what differs changes. A new file is for a new page of the app " \
+           "only. This replaces what the base prompt says about showing states as screens of their own.".freeze
+  COPIES = "To start a new page, copy the closest existing screen with the copy_file tool and edit the copy; never " \
+           "write a near-copy of a screen out from scratch.".freeze
+
   module_function
 
   # BASE, then the project: its name and the context the team wrote for it.
@@ -155,7 +165,7 @@ module Designs::Prompt
   # description when the thread has one, the design repo as the turn starts
   # and the rule to build screens only when the turn is given them, then the
   # request, last.
-  def thread_message(thread:, request:, repo_map: nil, screens_only: false, after_plan: false)
+  def thread_message(thread:, request:, repo_map: nil, screens_only: false, after_plan: false, plan: false)
     sections = [ "## Thread\n#{thread.title}\nBranch: #{thread.branch}" ]
     if thread.focus_context.present? && thread.focus_screen.present?
       sections << "## The person is looking at\n#{thread.focus_context.humanize} › #{thread.focus_screen.humanize} " \
@@ -166,7 +176,8 @@ module Designs::Prompt
       sections << "## Current description\n#{Designs::CurrentDescription.for(task)&.strip || "(none yet)"}"
     end
     sections << "## The design repo now\n#{REPO_MAP_INTRO}\n\n#{repo_map}" if repo_map
-    this_turn = [ (SCREENS_ONLY if screens_only), (AFTER_PLAN if after_plan) ].compact
+    this_turn = [ (SCREENS_ONLY if screens_only), (STATES if screens_only || plan), (COPIES if screens_only),
+                  (AFTER_PLAN if after_plan) ].compact
     sections << "## This turn\n#{this_turn.join("\n\n")}" if this_turn.any?
     sections << "## Request\n#{request.to_s.strip}"
     "#{sections.join("\n\n")}\n"
