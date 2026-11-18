@@ -1164,6 +1164,97 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     DesignTurn.create!(chat_session: session, chat_message: msg)
   end
 
+  # A task's thread's first turn (Designs::Threads.start_from_task!): it plans
+  # and asks, out of sight, before anything is designed.
+  def plan_turn(repo, base)
+    turn = thread_turn(repo, base)
+    turn.chat_message.update!(content: Designs::Threads::PLAN_REQUEST, kind: "request")
+    turn.update!(kind: "plan")
+    turn
+  end
+
+  def plan_seed(repo)
+    repo.project.update!(anthropic_api_key: "sk-ant")
+    seed_master(repo, { "designs/candidate/apply.html" => "<title>Application form</title>" })
+  end
+
+  NO_DOUBTS = "<summary>A counter under long answers, on the application form.\nNo doubts, designing now.</summary>".freeze
+
+  test "a plan turn runs read-only, at a lower effort and on the plan's limits" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      opts = nil
+      scripted_claude { |_call, _keywords, o| opts = o; { session_id: "s", response: NO_DOUBTS, is_error: false } }
+
+      turn = run_turn(plan_turn(repo, base), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_nil turn.commit_sha
+      assert_equal %w[Read Glob Grep], opts[:tools]
+      assert_equal "medium", opts[:effort]
+      assert_equal 3, opts[:max_budget_usd]
+      assert_equal 300, opts[:timeout]
+    end
+  end
+
+  test "a design turn keeps today's tools and no effort" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      opts = nil
+      scripted_claude { |_call, _keywords, o| opts = o; { session_id: "s", response: "<summary>Did it.</summary>", is_error: false } }
+
+      run_turn(thread_turn(repo, base), remote)
+
+      assert_equal Designs::TurnJob::TOOLS, opts[:tools]
+      assert_nil opts[:effort]
+    end
+  end
+
+  test "a plan with no questions goes straight on to design" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      fake_claude(reply: NO_DOUBTS)
+
+      plan = run_turn(plan_turn(repo, base), remote)
+
+      assert plan.succeeded?, plan.error
+      design = DesignTurn.where(chat_session: plan.chat_session).where.not(id: plan.id).sole
+      assert_equal "design", design.kind
+      assert design.queued?
+      assert_equal Designs::Threads::DESIGN_AS_PLANNED, design.chat_message.content
+      assert_equal "request", design.chat_message.kind
+      assert_enqueued_with(job: Designs::TurnJob, args: [ design.id ])
+    end
+  end
+
+  test "a plan with questions waits for the person" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      question = "Where should the monthly total show? Proposal: in the header, muted."
+      fake_claude(reply: "<summary>Totals in the conversation header.</summary>\n<missing>#{question}</missing>")
+
+      plan = run_turn(plan_turn(repo, base), remote)
+
+      assert plan.succeeded?, plan.error
+      assert_equal [ plan.id ], DesignTurn.where(chat_session: plan.chat_session).pluck(:id)
+      assert_equal question, plan.chat_session.chat_messages.find_by!(kind: "missing").content
+    end
+  end
+
+  test "a plan does not start a second design turn when the person already wrote" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      plan = plan_turn(repo, base)
+      message = plan.chat_session.chat_messages.create!(role: "user", content: "Make the counter red", user: users(:one))
+      waiting = DesignTurn.create!(chat_session: plan.chat_session, chat_message: message)
+      fake_claude(reply: NO_DOUBTS)
+
+      run_turn(plan, remote)
+
+      assert_equal [ plan.id, waiting.id ], DesignTurn.where(chat_session: plan.chat_session).order(:id).pluck(:id)
+    end
+  end
+
   test "a thread's turn commits on its branch, publishes it with its changes and names the screens it changed" do
     with_design_remote do |repo, remote|
       page = ->(body) { "<html><head><title>Application form</title></head><body><h1>Apply</h1>#{body}</body></html>" }

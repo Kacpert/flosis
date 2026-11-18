@@ -70,6 +70,12 @@ module Designs::Threads
     thread
   end
 
+  # The design turn a plan that asked nothing goes on to (Designs::TurnJob#
+  # carry_on), out of sight: the person saw the plan.
+  def design_as_planned!(thread, user:)
+    queue_turn(thread, user, DESIGN_AS_PLANNED, visible: false)
+  end
+
   # The person's message, with the screen they have open. A fresh thread's
   # first message names its branch and becomes its title.
   def message!(thread, user:, text:, context: nil, screen: nil)

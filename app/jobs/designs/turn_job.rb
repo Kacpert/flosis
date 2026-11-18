@@ -51,6 +51,8 @@ class Designs::TurnJob < ApplicationJob
   # Reading and writing files, nothing else (the library's base prompt tells
   # Claude so).
   TOOLS = %w[Read Glob Grep Edit Write].freeze
+  # A plan turn reads and answers: it cannot change a file.
+  PLAN_TOOLS = %w[Read Glob Grep].freeze
 
   NO_ANSWER = "Claude returned no answer — it may have hit the cost cap or the time limit.".freeze
   # What the chat says of a turn the cost cap ended just as Claude finished
@@ -156,8 +158,23 @@ class Designs::TurnJob < ApplicationJob
     subject.after_turn(repo)
     finish(turn, output, sha, notes, subject.chips(repo, start, sha))
     merge_after(turn) if turn.then_merge.present?
+    carry_on(turn, output) if turn.plan?
   rescue StandardError => e
     fail_turn(turn, e, repo, worktree)
+  end
+
+  # A plan that asks nothing goes straight on to design (Kacper, 2026-11-18:
+  # "if it has no doubts, it says so and designs"), unless the person has
+  # written meanwhile: their turn carries on instead. What stops it is logged,
+  # never raised: the plan has succeeded.
+  def carry_on(turn, output)
+    return if output.missing.any?
+    return if DesignTurn.where(chat_session_id: turn.chat_session_id).active.where.not(id: turn.id).exists?
+
+    thread = turn.chat_session.design_thread or return
+    Designs::Threads.design_as_planned!(thread, user: turn.chat_message.user)
+  rescue StandardError => e
+    log(turn, e, "the design does not start on its own")
   end
 
   # A components turn that Merge queued (Designs::Threads.merge_or_prepare!)
@@ -286,10 +303,14 @@ class Designs::TurnJob < ApplicationJob
     with_system_prompt(subject) do |system_prompt|
       with_app(subject) do |app|
         subject.with_mcp(worktree) do |mcp_config|
+          # A plan turn only reads, at a lower effort and on small bounds.
+          plan = turn.plan?
           cli = self.class.claude_factory.call(
             codebase_path: worktree.to_s, allowed_tools: subject.tools, restricted: true, api_key: key,
             append_system_prompt_file: system_prompt, add_dirs: [ app, *subject.add_dirs ].compact,
-            max_budget_usd: subject.budget_usd, timeout: subject.timeout, mcp_config: mcp_config, tools: subject.tool_set
+            max_budget_usd: plan ? DesignTurn::PLAN_BUDGET_USD : subject.budget_usd,
+            timeout: plan ? DesignTurn::PLAN_TIMEOUT_SECONDS : subject.timeout, mcp_config: mcp_config,
+            tools: plan ? PLAN_TOOLS : subject.tool_set, effort: (DesignTurn::PLAN_EFFORT if plan)
           )
           activity = Designs::TurnActivity.new(turn, worktree: worktree, app: app)
           begin
