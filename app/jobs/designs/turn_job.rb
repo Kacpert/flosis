@@ -151,6 +151,7 @@ class Designs::TurnJob < ApplicationJob
     response, capped = answer_text(answer)
     output = Designs::TurnOutput.parse(response)
     raise Failure, NO_ANSWER if output.summary.blank?
+    return plan_done(turn, repo, worktree, output, capped) if turn.plan?
 
     check_resolved!(worktree) if @conflicts
     sha, notes = save(turn, repo, subject, worktree, output.summary)
@@ -158,9 +159,17 @@ class Designs::TurnJob < ApplicationJob
     subject.after_turn(repo)
     finish(turn, output, sha, notes, subject.chips(repo, start, sha))
     merge_after(turn) if turn.then_merge.present?
-    carry_on(turn, output) if turn.plan?
   rescue StandardError => e
     fail_turn(turn, e, repo, worktree)
+  end
+
+  # A plan only reads. The CLI cannot always be held to that (a project on its
+  # own key runs it --bare, where Edit stays), so what it changed anyway is
+  # put back, and nothing goes out: no commit, push, preview or Jira link.
+  def plan_done(turn, repo, worktree, output, capped)
+    put_back(turn, repo, worktree)
+    finish(turn, output, nil, capped ? [ CAPPED ] : [])
+    carry_on(turn, output)
   end
 
   # A plan that asks nothing goes straight on to design (Kacper, 2026-11-18:
@@ -306,7 +315,7 @@ class Designs::TurnJob < ApplicationJob
           # A plan turn only reads, at a lower effort and on small bounds.
           plan = turn.plan?
           cli = self.class.claude_factory.call(
-            codebase_path: worktree.to_s, allowed_tools: subject.tools, restricted: true, api_key: key,
+            codebase_path: worktree.to_s, allowed_tools: plan ? PLAN_TOOLS : subject.tools, restricted: true, api_key: key,
             append_system_prompt_file: system_prompt, add_dirs: [ app, *subject.add_dirs ].compact,
             max_budget_usd: plan ? DesignTurn::PLAN_BUDGET_USD : subject.budget_usd,
             timeout: plan ? DesignTurn::PLAN_TIMEOUT_SECONDS : subject.timeout, mcp_config: mcp_config,

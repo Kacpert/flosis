@@ -146,6 +146,10 @@ class DesignTurn < ApplicationRecord
     setup_timeout.seconds + 5.minutes
   end
 
+  def self.plan_stale_after
+    PLAN_TIMEOUT_SECONDS.seconds + 5.minutes
+  end
+
   # Fails every running turn older than stale_after and returns how many. One
   # UPDATE, not a load and a save per turn: the screen calls this on every
   # poll, and a job that took a turn over in the meantime (start! sets a fresh
@@ -158,8 +162,9 @@ class DesignTurn < ApplicationRecord
   def self.fail_stale!
     now = Time.current
     failed = { status: "failed", error: INTERRUPTED, finished_at: now, updated_at: now }
-    stale = where(status: "running", started_at: ...(now - stale_after)).where.not(kind: "setup").update_all(failed) +
-            where(status: "running", kind: "setup", started_at: ...(now - setup_stale_after)).update_all(failed)
+    stale = where(status: "running", started_at: ...(now - stale_after)).where.not(kind: %w[setup plan]).update_all(failed) +
+            where(status: "running", kind: "setup", started_at: ...(now - setup_stale_after)).update_all(failed) +
+            where(status: "running", kind: "plan", started_at: ...(now - plan_stale_after)).update_all(failed)
     stale + where(status: "running", stop_requested_at: ...(now - STOP_GRACE)).count { |turn| turn.fail_stopped! }
   end
 
@@ -175,10 +180,15 @@ class DesignTurn < ApplicationRecord
     end
   end
 
-  # Running for longer than stale_after (setup_stale_after, for a setup turn).
+  # Running for longer than stale_after (setup_stale_after for a setup turn,
+  # plan_stale_after for a plan).
   # Only a running turn can be: a queued
   # one has not started, and a finished one was not cut off.
   def stale?
-    running? && started_at.present? && started_at < (setup? ? self.class.setup_stale_after : self.class.stale_after).ago
+    bound = if setup? then self.class.setup_stale_after
+            elsif plan? then self.class.plan_stale_after
+            else self.class.stale_after
+            end
+    running? && started_at.present? && started_at < bound.ago
   end
 end

@@ -167,6 +167,12 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # With the Briefing step off, Step 0 settles who and why with a question:
+  # the first message's proposal does not override it.
+  test "the first message ends with a proposal, or with Step 0's question when it applies" do
+    assert_includes details_prompt, "your first proposal to confirm, or Step 0's question when it applies"
+  end
+
   test "details prompt tells the AI to talk product in chat, not dump code / file paths" do
     controller = ChatSessionsController.new
     controller.instance_variable_set(:@task, @task)

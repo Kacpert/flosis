@@ -1197,6 +1197,36 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  # A plan only reads, whatever the CLI lets through: on a project with its own
+  # key (--bare) Edit stays available. So a plan is also approved read tools
+  # only, and what it changed anyway is put back: nothing is committed,
+  # pushed, published or linked from Jira.
+  test "a plan that edits anyway leaves nothing behind" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      plan = plan_turn(repo, base)
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "SP-1051")
+      plan.chat_session.design_thread.update!(task: task)
+      opts = nil
+      scripted_claude do |_call, _keywords, o|
+        opts = o
+        File.write(File.join(o[:codebase_path], "designs/candidate/apply.html"), "<title>Changed by a plan</title>")
+        { session_id: "s", response: NO_DOUBTS, is_error: false }
+      end
+
+      plan = run_turn(plan, remote)
+
+      assert plan.succeeded?, plan.error
+      assert_nil plan.commit_sha
+      assert_equal %w[Read Glob Grep], opts[:allowed_tools]
+      worktree = repo.worktree!("design/add-a-counter-under", from: base).to_s
+      assert_equal "<title>Application form</title>", File.read(File.join(worktree, "designs/candidate/apply.html"))
+      assert_equal base, repo.head("design/add-a-counter-under")
+      assert_no_enqueued_jobs only: Designs::SyncJiraLinksJob
+    end
+  end
+
   test "a design turn keeps today's tools and no effort" do
     with_design_remote do |repo, remote|
       base = plan_seed(repo)

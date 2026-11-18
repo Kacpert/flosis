@@ -183,6 +183,21 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     assert_not_includes Designs::Subject.for(@session.reload).system_text, "<blocked>"
   end
 
+  # After a plan, the person's answer (or Flosis's go-ahead) is the go-ahead
+  # to design: Claude is told so, so it designs instead of asking again.
+  test "a design turn after a plan is told to design now, on its own proposals for what is left open" do
+    Dir.mktmpdir("worktree") do |worktree|
+      thread, plan = thread_with_turn(kind: "plan")
+      plan.update!(status: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+      answer = thread.chat_session.chat_messages.create!(role: "user", content: "In the header", user: users(:one))
+      design = DesignTurn.create!(chat_session: thread.chat_session, chat_message: answer)
+      subject = Designs::Subject.for(thread.chat_session)
+
+      assert_includes subject.turn_message("In the header", turn: design, worktree: worktree), Designs::Prompt::AFTER_PLAN
+      assert_not_includes subject.turn_message("Plan it", turn: plan, worktree: worktree), Designs::Prompt::AFTER_PLAN
+    end
+  end
+
   def thread_with_turn(focus_context: "admin", focus_screen: "reporting", kind: "design")
     thread = @project.design_threads.create!(author: users(:one), title: "T", branch: "design/t", focus_context: focus_context,
                                              focus_screen: focus_screen, chat_session: Designs::Threads.new_session(@project, users(:one)))

@@ -44,7 +44,7 @@ class ChatSessionsController < ApplicationController
       - Identify the 2–5 files most likely involved in this ticket (models, controllers, views, services). Read them.
       - If there are screenshots in the attachments list, read them with the `Read` tool — they usually carry critical UI context.
       #{figma_instructions_section}
-      Do all of this with your tools (Read, Grep, Glob, figma MCP). Do **not** narrate any of it. Don't say "let me read X", "now let me load the Figma", "I'll check Y" — go completely silent until you're ready to post your first user-facing message. Your first message should be a 1–2 sentence PLAIN-LANGUAGE summary of what you found about how the feature works today (NO file paths / code names) followed by your first proposal to confirm. **Do not emit any text before that summary.**
+      Do all of this with your tools (Read, Grep, Glob, figma MCP). Do **not** narrate any of it. Don't say "let me read X", "now let me load the Figma", "I'll check Y" — go completely silent until you're ready to post your first user-facing message. Your first message should be a 1–2 sentence PLAIN-LANGUAGE summary of what you found about how the feature works today (NO file paths / code names) followed by your first proposal to confirm, or Step 0's question when it applies. **Do not emit any text before that summary.**
     STEP
   end
 
@@ -55,7 +55,7 @@ class ChatSessionsController < ApplicationController
 
       #{NO_CODE}
       #{figma_instructions_section}
-      Do **not** narrate. Your first message should be a 1–2 sentence PLAIN-LANGUAGE summary of what the brief asks for, followed by your first proposal to confirm. **Do not emit any text before that summary.**
+      Do **not** narrate. Your first message should be a 1–2 sentence PLAIN-LANGUAGE summary of what the brief asks for, followed by your first proposal to confirm, or Step 0's question when it applies. **Do not emit any text before that summary.**
     STEP
   end
 
@@ -182,7 +182,7 @@ class ChatSessionsController < ApplicationController
 
       # Start now
 
-      Do your upfront investigation silently, then post your first message: a brief 1–2 sentence plain-language summary of what you found, then your first proposal to confirm. No lists of questions.#{handoff_opening}
+      Do your upfront investigation silently, then post your first message: a brief 1–2 sentence plain-language summary of what you found, then your first proposal to confirm, or Step 0's question when it applies. No lists of questions.#{handoff_opening}
     PROMPT
   end
 

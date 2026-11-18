@@ -132,6 +132,12 @@ module Designs::Prompt
                  "components from repeated UI in a turn of its own. For this turn, this replaces what the base prompt " \
                  "says about adding components.".freeze
 
+  # A design turn after a plan (Kacper, 2026-11-18: "if it has no doubts, it
+  # says so and designs"): the request is the person's answer to the plan, or
+  # Flosis's go-ahead, and it is not to ask again.
+  AFTER_PLAN = "Your plan in this thread is settled: the request below answers it. Design now, as planned, and for " \
+               "anything the answer leaves open, use your own proposal. Ask nothing more before designing.".freeze
+
   module_function
 
   # BASE, then the project: its name and the context the team wrote for it.
@@ -149,7 +155,7 @@ module Designs::Prompt
   # description when the thread has one, the design repo as the turn starts
   # and the rule to build screens only when the turn is given them, then the
   # request, last.
-  def thread_message(thread:, request:, repo_map: nil, screens_only: false)
+  def thread_message(thread:, request:, repo_map: nil, screens_only: false, after_plan: false)
     sections = [ "## Thread\n#{thread.title}\nBranch: #{thread.branch}" ]
     if thread.focus_context.present? && thread.focus_screen.present?
       sections << "## The person is looking at\n#{thread.focus_context.humanize} › #{thread.focus_screen.humanize} " \
@@ -160,7 +166,8 @@ module Designs::Prompt
       sections << "## Current description\n#{Designs::CurrentDescription.for(task)&.strip || "(none yet)"}"
     end
     sections << "## The design repo now\n#{REPO_MAP_INTRO}\n\n#{repo_map}" if repo_map
-    sections << "## This turn\n#{SCREENS_ONLY}" if screens_only
+    this_turn = [ (SCREENS_ONLY if screens_only), (AFTER_PLAN if after_plan) ].compact
+    sections << "## This turn\n#{this_turn.join("\n\n")}" if this_turn.any?
     sections << "## Request\n#{request.to_s.strip}"
     "#{sections.join("\n\n")}\n"
   end

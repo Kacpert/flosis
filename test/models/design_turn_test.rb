@@ -39,6 +39,18 @@ class DesignTurnTest < ActiveSupport::TestCase
     assert fresh.reload.running?
   end
 
+  # A plan has five minutes: one a deploy cut off is let go after ten, not
+  # after a design turn's forty-five.
+  test "a plan turn is stale once its own bounds are past" do
+    plan = turn(status: "running", kind: "plan", started_at: 11.minutes.ago)
+    design = turn(status: "running", started_at: 11.minutes.ago)
+
+    assert plan.stale?
+    assert_equal 1, DesignTurn.fail_stale!
+    assert plan.reload.failed?
+    assert design.reload.running?
+  end
+
   # A setup turn builds a whole feature: its bounds are a setup turn's, so it
   # is not taken for cut off once a thread turn would be.
   test "a long setup turn is not stale, a design turn as old is" do
