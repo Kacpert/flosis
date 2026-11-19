@@ -1,5 +1,6 @@
-<%# The canvas: a published screen, sandboxed under a grant, 1160px wide and
-    scaled to fit, with View as, the thread's modes and its changed screens. %>
+<%# The canvas: a published screen, sandboxed under a grant, 1160 × 860 or the
+    size its frame's edges were dragged to, scaled to fit, with View as, the
+    thread's modes and its changed screens. %>
 <% live = @thread&.open? && !@thread.fresh? %>
 <% params_for = ->(extra = {}) { { thread: @thread&.id, ctx: @context, screen: @screen, mode: (@mode unless @mode == "master" || !live) }.merge(extra).compact } %>
 <div class="flex items-center gap-2.5 px-3 py-2 border-b border-[color:var(--border)] bg-[var(--surface)] flex-wrap relative z-[5]">
@@ -67,28 +68,41 @@
   </div>
 <% end %>
 
+<%# The frame's sides drag it wider or narrower, both at once so that it stays
+    centered, its bottom taller or shorter, a corner both; a double-click on an
+    edge puts back the standard 1160 × 860 (designs-canvas). Kacper, 2026-11-19. %>
 <div class="flex-1 overflow-auto p-2 bg-[var(--surface-2)]">
-  <div class="max-w-[1162px] mx-auto border border-[color:var(--border)] rounded-xl overflow-hidden shadow-sm bg-white">
-    <div class="flex items-center gap-2.5 px-3 py-2 bg-[var(--surface)] border-b border-[color:var(--border)]">
-      <span class="flex gap-[5px]"><% 3.times do %><span class="w-[9px] h-[9px] rounded-full bg-[var(--border)]"></span><% end %></span>
-      <span class="clar-mono text-[11.5px] clar-text-muted flex-1 min-w-0 truncate" data-designs-canvas-target="path"><%= @current ? @current[:path] : "designs/" %></span>
-      <% if @master_for_branch %>
-        <span class="text-[11.5px] clar-text-faint flex-none">Nothing on this branch yet · showing master</span>
-      <% end %>
-      <% if @mode == "master" || !live || @master_for_branch %>
-        <span class="clar-badge clar-badge-success !py-0.5 !px-2"><%= designs_icon(:lock, 11) %>master</span>
+  <div class="relative max-w-[1162px] mx-auto" data-designs-canvas-target="box">
+    <div class="border border-[color:var(--border)] rounded-xl overflow-hidden shadow-sm bg-white">
+      <div class="flex items-center gap-2.5 px-3 py-2 bg-[var(--surface)] border-b border-[color:var(--border)]">
+        <span class="flex gap-[5px]"><% 3.times do %><span class="w-[9px] h-[9px] rounded-full bg-[var(--border)]"></span><% end %></span>
+        <span class="clar-mono text-[11.5px] clar-text-muted flex-1 min-w-0 truncate" data-designs-canvas-target="path"><%= @current ? @current[:path] : "designs/" %></span>
+        <span class="clar-mono text-[11.5px] clar-text-faint flex-none" data-designs-canvas-target="size" hidden></span>
+        <% if @master_for_branch %>
+          <span class="text-[11.5px] clar-text-faint flex-none">Nothing on this branch yet · showing master</span>
+        <% end %>
+        <% if @mode == "master" || !live || @master_for_branch %>
+          <span class="clar-badge clar-badge-success !py-0.5 !px-2"><%= designs_icon(:lock, 11) %>master</span>
+        <% else %>
+          <span class="clar-badge clar-badge-ai !py-0.5 !px-2 max-w-[50%] truncate"><%= designs_icon(:branch, 11) %><%= @thread.branch %></span>
+        <% end %>
+      </div>
+      <% if @frame_src %>
+        <div class="w-full overflow-hidden" data-designs-canvas-target="wrap">
+          <%# Sandboxed: the screen runs on an origin of its own, never as the app. %>
+          <iframe src="<%= @frame_src %>" title="<%= @current[:name] %>" sandbox="allow-scripts allow-forms allow-popups allow-modals"
+                  class="block border-0 origin-top-left" style="width: 1160px; height: 860px;" data-designs-canvas-target="frame"></iframe>
+        </div>
       <% else %>
-        <span class="clar-badge clar-badge-ai !py-0.5 !px-2 max-w-[50%] truncate"><%= designs_icon(:branch, 11) %><%= @thread.branch %></span>
+        <div class="p-10 text-center text-[13px] clar-text-muted">No screens here yet. Start a thread to design one.</div>
       <% end %>
     </div>
     <% if @frame_src %>
-      <div class="w-full overflow-hidden" data-designs-canvas-target="wrap">
-        <%# Sandboxed: the screen runs on an origin of its own, never as the app. %>
-        <iframe src="<%= @frame_src %>" title="<%= @current[:name] %>" sandbox="allow-scripts allow-forms allow-popups allow-modals"
-                class="block border-0 origin-top-left" style="width: 1160px; height: 860px;" data-designs-canvas-target="frame"></iframe>
-      </div>
-    <% else %>
-      <div class="p-10 text-center text-[13px] clar-text-muted">No screens here yet. Start a thread to design one.</div>
+      <% [ %w[x left], %w[x right], %w[y bottom], %w[xy bottom-left], %w[xy bottom-right] ].each do |edge, side| %>
+        <div class="designs-frame-edge designs-frame-edge-<%= side %>" data-edge="<%= edge %>" aria-hidden="true"
+             title="Drag to resize · double-click for 1160 × 860"
+             data-action="pointerdown->designs-canvas#sizeStart dblclick->designs-canvas#sizeReset"></div>
+      <% end %>
     <% end %>
   </div>
 </div>
