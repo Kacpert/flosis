@@ -304,6 +304,59 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Kacper (2026-11-19): a thread that changed the shared sidebar listed every
+  # screen of every role, and the list pushed the screen out of view. Changes
+  # counts the screens the thread changed itself and steps through them; a
+  # dialog lists them, the ones a shared component reached folded apart.
+  def thread_through_sidebar(repo)
+    commit_files(repo, repo.root, { "components/sidebar/sidebar.html" => "<nav>Menu</nav>",
+                                    "designs/recruiter/pipeline.html" => SCREEN.("Pipeline", '<x-include src="components/sidebar/sidebar.html"></x-include>') })
+    repo.push!("master")
+    thread_with_work(repo, "Add costs", { "components/sidebar/sidebar.html" => "<nav>Menu <a>Consumption</a></nav>",
+                                          "designs/candidate/apply.html" => SCREEN.("Application form", "<p>cost</p>"),
+                                          "designs/candidate/costs.html" => SCREEN.("Costs") })
+  end
+
+  test "Changes counts the screens a thread changed itself and folds those a shared component reached" do
+    with_designs do |repo|
+      thread = thread_through_sidebar(repo)
+
+      get workshop_designs_overview_path(thread: thread.id, mode: "changes", ctx: "candidate", screen: "apply")
+
+      assert_select "[data-designs-changes]" do
+        assert_select "span", text: /2 screens/
+        assert_select "span", text: /\+1 through Sidebar/
+        assert_select "a[title=?]", "Next changed screen"
+        assert_select "button[data-clar-modal-id-param=?]", "changed-screens", text: /All changes/
+      end
+      assert_select "[data-clar-modal-panel-id-value=?]", "changed-screens" do
+        assert_select "a[data-clar-filter-target=item]", text: /Application form/
+        assert_select "a[data-clar-filter-target=item]", text: /Costs/
+        assert_select "details summary", text: /through shared parts/
+        assert_select "details a", text: /Pipeline/
+      end
+      assert_select "[data-clar-modal-panel-id-value=?]", "merge-thread" do
+        assert_select "span", text: /Application form/
+        assert_select "span", text: /Pipeline/, count: 0
+        assert_select "div", text: /\+1 through Sidebar/
+      end
+    end
+  end
+
+  test "a reply's screen chips stop at eight, the rest one click away" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      thread.chat_session.chat_messages.create!(role: "assistant", kind: "summary", content: "Did it.",
+                                                data: { "chips" => 10.times.map { |i| [ "s#{i}", "candidate", "+" ] } })
+
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_select "a[href*='screen=s7']"
+      assert_select "a[href*='screen=s8']", count: 0
+      assert_select "button[data-clar-modal-id-param=?]", "changed-screens", text: "+2 more"
+    end
+  end
+
   test "a thread with nothing of its own yet offers no merge" do
     with_designs do
       thread = Designs::Threads.start!(project: @project, user: users(:one))

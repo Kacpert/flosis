@@ -502,7 +502,7 @@ module Designs::Threads
   def changed_screens(repo, thread)
     base = repo.merge_base(thread.branch, Designs::Repo::MASTER) || thread.base_sha
     at = ->(ref) { Designs::Screens.new(paths: repo.ls_files(ref, "designs/"), reader: ->(path) { repo.read_file(ref, path) }) }
-    Designs::Changes.new(base: at.call(base), head: at.call(thread.branch)).changed.map { |change| "#{change[:context]}/#{change[:screen]}" }
+    Designs::Changes.new(base: at.call(base), head: at.call(thread.branch)).own.map { |change| "#{change[:context]}/#{change[:screen]}" }
   end
 
   def publish(thread, branch: thread.branch, slot: thread.branch, base: thread.base_sha)

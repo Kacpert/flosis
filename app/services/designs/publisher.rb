@@ -336,6 +336,13 @@ class Designs::Publisher
       File.write(dir.join("designs", change[:context], "#{change[:screen]}.changes.html"),
                  changes.marked_html(change[:context], change[:screen]))
     end
+    # Which changed screens the branch changed itself, and which only a changed
+    # component reached, by component: the canvas lists them apart.
+    FileUtils.mkdir_p(dir.join("__flosis"))
+    File.write(dir.join("__flosis/changes.json"), JSON.generate(
+      own: changes.own.map { |change| [ change[:context], change[:screen], change[:kind] ] },
+      through: changes.through_components.transform_values { |list| list.map { |change| [ change[:context], change[:screen] ] } }
+    ))
   end
 
   # The screens of an unpacked, stripped copy, read from the copy itself.
