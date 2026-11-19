@@ -35,10 +35,11 @@ class Workshop::DesignThreadsController < Workshop::BaseController
   def message
     text = params[:text].to_s.strip
     if text.present? && @thread.open?
-      Designs::Threads.message!(@thread, user: current_user, text: text, context: params[:ctx].presence, screen: params[:screen].presence)
+      Designs::Threads.message!(@thread, user: current_user, text: text, context: params[:ctx].presence, screen: params[:screen].presence,
+                                                     images: Array(params[:images]).select { |file| file.respond_to?(:original_filename) })
     end
     redirect_to canvas_as_it_was
-  rescue Designs::Threads::Busy => e
+  rescue Designs::Threads::Busy, ArgumentError => e
     redirect_to canvas_as_it_was, alert: e.message
   end
 
@@ -122,13 +123,6 @@ class Workshop::DesignThreadsController < Workshop::BaseController
     flash[:clar_toast] = "Updated from master · #{Designs::Threads.short(to)}"
     redirect_to workshop_designs_overview_path(thread: @thread.id, mode: "changes")
   rescue Designs::Threads::Busy, Designs::Repo::Diverged => e
-    redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
-  end
-
-  def attach
-    Designs::Threads.attach!(@thread, user: current_user, files: params[:files])
-    redirect_to workshop_designs_overview_path(thread: @thread.id)
-  rescue Designs::Threads::Busy, ArgumentError => e
     redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
   end
 

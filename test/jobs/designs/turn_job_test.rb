@@ -1228,6 +1228,31 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  # An image sent with the message (Kacper, 2026-11-19) is written where the
+  # turn may read it, and the request names it for the Read tool.
+  test "a design turn reads the images sent with its message" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      turn = thread_turn(repo, base)
+      turn.chat_message.images.attach(Rack::Test::UploadedFile.new(file_fixture("inspiration.png"), "image/png"))
+      Dir.mktmpdir("chat-images") do |dir|
+        with_env("CHAT_IMAGES_DIR" => dir) do
+          opts = nil
+          scripted_claude { |_call, _keywords, o| opts = o; { session_id: "s", response: "<summary>Did it.</summary>", is_error: false } }
+
+          run_turn(turn, remote)
+
+          folder = File.join(dir, turn.chat_session_id.to_s)
+          path = File.join(folder, "#{turn.chat_message_id}-1.png")
+          assert File.file?(path)
+          assert_includes opts[:add_dirs], folder
+          assert_includes @calls.last[1][:prompt], "The person attached an image to this message"
+          assert_includes @calls.last[1][:prompt], "- #{path}"
+        end
+      end
+    end
+  end
+
   test "a design turn keeps today's tools and no effort" do
     with_design_remote do |repo, remote|
       base = plan_seed(repo)

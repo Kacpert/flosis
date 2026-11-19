@@ -18,8 +18,6 @@ module Designs::Threads
   BUSY = "The design repo is busy — try again in a minute.".freeze
   NOTHING_TO_MERGE = "Nothing to merge yet: this thread has no changes of its own.".freeze
   IMPORTING = "Re-import from staging is still running on this thread. You can talk here and merge it once it finishes.".freeze
-  NOT_AN_INSPIRATION = "Inspirations are images, PDFs or notes (.png, .jpg, .gif, .webp, .svg, .pdf, .txt, .md), up to 10 MB each.".freeze
-  NO_BRANCH_YET = "Describe the change first: the thread gets its branch, and its inspirations/, with its first message.".freeze
   NOTHING_TO_RETRY = "There is nothing to try again: the thread's last turn did not fail.".freeze
   NO_PLAN = "There is no plan waiting for an answer.".freeze
   # A thread's design turns build screens only (Designs::Prompt::SCREENS_ONLY,
@@ -34,8 +32,6 @@ module Designs::Threads
   # Where a deleted thread's branch waits on GitHub (archive/design/…).
   ARCHIVE = "archive/".freeze
   GONE = "This thread's archive is no longer on GitHub, so it can't come back.".freeze
-  INSPIRATION_TYPES = %w[png jpg jpeg gif webp svg pdf txt md].freeze
-  INSPIRATION_LIMIT = 10.megabytes
   # A task's thread first plans (Kacper, 2026-11-18): it makes sure of its
   # assumptions in the chat, and designs at once when it has no doubts
   # (Designs::TurnJob#carry_on), or once the person answers.
@@ -96,12 +92,18 @@ module Designs::Threads
 
   # The person's message, with the screen they have open. A fresh thread's
   # first message names its branch and becomes its title.
-  def message!(thread, user:, text:, context: nil, screen: nil)
+  # Images go with the message (Kacper, 2026-11-19), as in a task's chat, and
+  # the turn reads them (Designs::TurnJob#ask_claude); none go to the repo.
+  def message!(thread, user:, text:, context: nil, screen: nil, images: [])
     raise Busy, IMPORTING if importing?(thread)
+
+    images = Array(images).compact_blank
+    refusal = ChatImages.refusal(images)
+    raise ArgumentError, refusal if refusal
 
     name!(thread, text) if thread.fresh?
     thread.update!(focus_context: context, focus_screen: screen) if context.present? && screen.present?
-    queue_turn(thread, user, text)
+    queue_turn(thread, user, text, images: images)
   end
 
   # Try again, under the thread's last turn when it failed: its request runs
@@ -144,47 +146,6 @@ module Designs::Threads
       end
     end
     turn
-  end
-
-  # Files a person adds for the AI to borrow from (Workshop Designs v2's
-  # "Attach inspiration"): committed to the thread's inspirations/ through the
-  # leak guard, pushed and published, and said in the thread.
-  def attach!(thread, user:, files:)
-    raise Busy, IMPORTING if importing?(thread)
-    raise ArgumentError, NO_BRANCH_YET if thread.fresh?
-
-    uploads = Array(files).compact_blank.first(5)
-    raise ArgumentError, NOT_AN_INSPIRATION if uploads.empty? || uploads.any? { |file| !inspiration?(file) }
-
-    repo = Designs::Repo.new(thread.project)
-    names = repo.synchronize(wait: false) do
-      refuse_while_turns_run!(thread)
-      repo.ensure_clone!
-      dir = repo.worktree!(thread.branch, from: thread.base_sha.presence || Designs::Repo::MASTER)
-      repo.follow_origin!(thread.branch)
-      repo.discard!(dir)
-      FileUtils.mkdir_p(dir.join("inspirations"))
-      saved = uploads.map do |file|
-        name = ActiveStorage::Filename.new(file.original_filename.to_s).sanitized
-        File.binwrite(dir.join("inspirations", name), file.read)
-        name
-      end
-      guard = Designs::LeakGuard.new(secrets: ProjectCredentials.new(thread.project).all_secrets)
-      result = Designs::Committer.new(repo, guard).commit!(dir, message: "#{thread.branch.delete_prefix('design/')}: add inspirations")
-      raise ArgumentError, "Refused: #{result.refusal}" unless result.ok?
-
-      repo.push!(thread.branch)
-      saved
-    end
-    publish(thread)
-    note(thread, "Added to inspirations/: #{names.join(', ')}")
-    names
-  rescue Designs::Repo::Busy
-    raise Busy, BUSY
-  end
-
-  def inspiration?(file)
-    INSPIRATION_TYPES.include?(File.extname(file.original_filename.to_s).delete_prefix(".").downcase) && file.size.to_i <= INSPIRATION_LIMIT
   end
 
   # What changed in the task's description since the thread last designed
@@ -423,9 +384,10 @@ module Designs::Threads
     note(thread, "Branch #{thread.branch} created from master #{short(base)}")
   end
 
-  def queue_turn(thread, user, text, kind: "design", visible: true, then_merge: nil)
+  def queue_turn(thread, user, text, kind: "design", visible: true, then_merge: nil, images: [])
     turn = DesignTurn.transaction do
-      message = thread.chat_session.chat_messages.create!(role: "user", user: user, content: text, kind: (visible ? nil : "request"))
+      message = thread.chat_session.chat_messages.create!(role: "user", user: user, content: text, kind: (visible ? nil : "request"),
+                                                          images: images)
       DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: kind, then_merge: then_merge)
     end
     thread.touch

@@ -76,27 +76,29 @@
 
 <%= render "messages", thread: thread %>
 
-<%= form_with url: attach_workshop_design_thread_path(thread), method: :post, multipart: true, id: "design-attach-form", class: "hidden" do %><% end %>
 <div class="p-3 border-t border-[color:var(--border)]">
   <% if merged %>
     <div class="text-[12.5px] clar-text-muted leading-[1.5] py-1 px-0.5">Merged into master as <span class="clar-mono"><%= thread.merged_sha.to_s.first(7) %></span>. Start a new thread for further changes.</div>
   <% elsif Designs::Threads.importing?(thread) %>
     <div class="text-[12.5px] clar-text-muted leading-[1.5] py-1 px-0.5"><%= Designs::Threads::IMPORTING %></div>
   <% else %>
-    <%= form_with url: message_workshop_design_thread_path(thread), method: :post, class: "border border-[color:var(--border)] rounded-xl bg-[var(--bg)] pt-2 pr-2 pb-2 pl-3" do |f| %>
+    <%# Images go with the message (designs-images: the paperclip, a drop
+        anywhere on the page, a paste), waiting above the box until sent. %>
+    <%= form_with url: message_workshop_design_thread_path(thread), method: :post, multipart: true, class: "border border-[color:var(--border)] rounded-xl bg-[var(--bg)] pt-2 pr-2 pb-2 pl-3" do |f| %>
+      <div class="hidden flex-wrap gap-2 mb-2" data-designs-images-target="previews"></div>
       <%= hidden_field_tag :ctx, @context, data: { designs_canvas_target: "context" } %>
       <%= hidden_field_tag :screen, @screen, data: { designs_canvas_target: "screen" } %>
       <%= hidden_field_tag :mode, @mode %>
       <textarea name="text" rows="2" required class="w-full resize-none border-0 outline-none bg-transparent text-[13px] leading-[1.5] clar-text-text"
                 placeholder="<%= thread.fresh? ? 'What should change? Navigate the app on the right, AI sees the page you’re on.' : 'Describe a change…' %>"
                 data-controller="designs-composer" data-designs-composer-draft-key-value="designs.draft.<%= thread.id %>"
-                data-action="keydown->designs-composer#key"></textarea>
+                data-action="keydown->designs-composer#key paste->designs-images#paste"></textarea>
       <div class="flex items-center gap-2">
         <span class="text-[11px] clar-text-faint flex-1 min-w-0 truncate" data-designs-canvas-target="sees"><%= @current ? "AI sees #{designs_context_name(@contexts, @context)} › #{@current[:name]}" : "AI sees nothing yet" %></span>
-        <%# The file picker belongs to the form below, outside this one. %>
-        <label for="design-inspirations" class="clar-btn !p-0 w-[30px] h-[30px] justify-center cursor-pointer" title="Attach inspiration"><%= designs_icon(:attach, 14) %></label>
-        <input id="design-inspirations" type="file" name="files[]" multiple form="design-attach-form" class="hidden"
-               accept=".png,.jpg,.jpeg,.gif,.webp,.svg,.pdf,.txt,.md" data-controller="designs-attach" data-action="change->designs-attach#submit">
+        <input type="file" name="images[]" multiple class="hidden" accept="image/png,image/jpeg,image/gif,image/webp"
+               data-designs-images-target="input" data-action="change->designs-images#picked">
+        <button type="button" class="clar-btn !p-0 w-[30px] h-[30px] justify-center" title="Add images" aria-label="Add images"
+                data-action="designs-images#pick"><%= designs_icon(:attach, 14) %></button>
         <button type="submit" class="clar-btn clar-btn-primary !p-0 w-[30px] h-[30px] justify-center" title="Send"><%= designs_icon(:send, 14) %></button>
       </div>
     <% end %>

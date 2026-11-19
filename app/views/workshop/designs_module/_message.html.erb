@@ -33,6 +33,16 @@
       <% end %>
     </div>
     <% text = message.kind == "missing" ? "Open question: #{message.content}" : message.content %>
+    <% if message.images.attached? %>
+      <%# The images a person sent with the message; a click opens one whole. %>
+      <div class="flex flex-wrap gap-1.5 mb-1.5">
+        <% message.images.each do |image| %>
+          <%= link_to rails_blob_path(image, disposition: "inline"), target: "_blank", rel: "noopener" do %>
+            <%= image_tag rails_blob_path(image, disposition: "inline"), alt: image.filename.to_s, class: "max-h-[120px] max-w-[200px] rounded-lg border border-[color:var(--border)] block" %>
+          <% end %>
+        <% end %>
+      </div>
+    <% end %>
     <% if ai && message.kind != "error" %>
       <%# Claude answers in Markdown, drawn as a task's documents are; its lists
           keep their bullets, as the chat's other lists do. %>

@@ -355,6 +355,21 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "a person's message shows its images, and the composer takes images, not inspirations" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      thread.chat_session.chat_messages.create!(role: "user", content: "Like this", user: users(:one),
+                                                images: [ fixture_file_upload("inspiration.png", "image/png") ])
+
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_select "img[src*='/rails/active_storage/blobs/'][alt=?]", "inspiration.png"
+      assert_select "form[enctype='multipart/form-data'] input[type=file][name='images[]']"
+      assert_select "[data-controller~=designs-images]"
+      assert_select "#design-attach-form", count: 0
+    end
+  end
+
   test "a reply's screen chips stop at eight, the rest one click away" do
     with_designs do |repo|
       thread = thread_with_work(repo)

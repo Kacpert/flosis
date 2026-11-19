@@ -308,6 +308,10 @@ class Designs::TurnJob < ApplicationJob
     # A resolving turn asks about the files that collide now: master may have
     # moved since "Update from master" named them.
     request = @conflicts ? DesignTurn.resolve_request(@conflicts) : turn.chat_message.content
+    # The images sent with the message (Kacper, 2026-11-19): written where the
+    # turn may read them, and named in the request for its Read tool.
+    images = !@conflicts && turn.chat_message.images.attached? ? ChatImages.write!(turn.chat_message) : []
+    request = "#{request}\n\n#{ChatImages.note(images)}" if images.any?
     prompt = [ earlier_failure(turn), subject.turn_message(request, turn: turn, worktree: worktree) ].compact.join("\n\n")
     with_system_prompt(subject) do |system_prompt|
       with_app(subject) do |app|
@@ -316,7 +320,8 @@ class Designs::TurnJob < ApplicationJob
           plan = turn.plan?
           cli = self.class.claude_factory.call(
             codebase_path: worktree.to_s, allowed_tools: plan ? PLAN_TOOLS : subject.tools, restricted: true, api_key: key,
-            append_system_prompt_file: system_prompt, add_dirs: [ app, *subject.add_dirs ].compact,
+            append_system_prompt_file: system_prompt,
+            add_dirs: [ app, *subject.add_dirs, (ChatImages.dir(turn.chat_session) if images.any?) ].compact,
             max_budget_usd: plan ? DesignTurn::PLAN_BUDGET_USD : subject.budget_usd,
             timeout: plan ? DesignTurn::PLAN_TIMEOUT_SECONDS : subject.timeout, mcp_config: mcp_config,
             tools: plan ? PLAN_TOOLS : subject.tool_set, effort: (DesignTurn::PLAN_EFFORT if plan)

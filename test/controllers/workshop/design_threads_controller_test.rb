@@ -219,30 +219,34 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
   end
 
 
-  test "an inspiration is added to the thread's inspirations/ and said in the thread" do
+  # Kacper (2026-11-19): an image goes with the message, as in the task chat,
+  # and never into the repo's inspirations/.
+  test "an image sent with a message is kept on it and nothing goes to inspirations/" do
     with_designs do |repo|
       thread = Designs::Threads.start!(project: @project, user: users(:one))
-      Designs::Threads.message!(thread, user: users(:one), text: "Errors under the field")
-      thread.reload
-      repo.worktree!(thread.branch, from: thread.base_sha)
-      DesignTurn.update_all(status: "succeeded")
+      Designs::Threads.message!(thread, user: users(:one), text: "Errors under the field").update!(status: "succeeded")
 
-      post attach_workshop_design_thread_path(thread), params: { files: [ fixture_file_upload("inspiration.png", "image/png") ] }
+      post message_workshop_design_thread_path(thread),
+           params: { text: "Like this", images: [ fixture_file_upload("inspiration.png", "image/png") ] }
 
-      assert_redirected_to workshop_designs_overview_path(thread: thread.id)
-      assert_includes repo.ls_files(thread.branch, "inspirations/"), "inspirations/inspiration.png"
-      assert_equal "Added to inspirations/: inspiration.png", thread.chat_session.chat_messages.where(kind: "system").ordered.last.content
+      message = thread.chat_session.chat_messages.where(role: "user", kind: nil).ordered.last
+      assert_equal "Like this", message.content
+      assert_equal [ "inspiration.png" ], message.images.map { |image| image.filename.to_s }
+      assert_equal message, DesignTurn.order(:id).last.chat_message
+      assert_empty repo.ls_files(thread.reload.branch, "inspirations/")
     end
   end
 
-  test "a file that is not an inspiration is refused" do
+  test "a file that is not an image is refused, and the message is not sent" do
     with_designs do
       thread = Designs::Threads.start!(project: @project, user: users(:one))
-      Designs::Threads.message!(thread, user: users(:one), text: "Errors under the field")
-      DesignTurn.update_all(status: "succeeded")
+      Designs::Threads.message!(thread, user: users(:one), text: "Errors under the field").update!(status: "succeeded")
 
-      post attach_workshop_design_thread_path(thread), params: { files: [ Rack::Test::UploadedFile.new(StringIO.new("#!/bin/sh"), "text/x-sh", original_filename: "run.sh") ] }
-      assert_equal Designs::Threads::NOT_AN_INSPIRATION, flash[:alert]
+      assert_no_difference -> { DesignTurn.count } do
+        post message_workshop_design_thread_path(thread),
+             params: { text: "Like this", images: [ Rack::Test::UploadedFile.new(StringIO.new("#!/bin/sh"), "text/x-sh", original_filename: "run.sh") ] }
+      end
+      assert_match(/run.sh is not a PNG, JPG, GIF or WebP image/, flash[:alert])
     end
   end
 
