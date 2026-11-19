@@ -49,6 +49,17 @@ module DesignsModuleHelper
     screens.find { |screen| screen[:context] == context && screen[:id] == id }&.dig(:name) || id.to_s.humanize
   end
 
+  # The screens a thread changed only through shared components ({ name =>
+  # [[context, screen], …] }), each once however many of its components changed.
+  def designs_through_count(through)
+    through.values.flatten(1).uniq.size
+  end
+
+  # A component's folder name as words: pr-review-row is "Pr review row".
+  def designs_component_name(name)
+    name.to_s.tr("-", " ").humanize
+  end
+
   def designs_initials(name)
     name.to_s.split.map(&:first).first(2).join.upcase.presence || "?"
   end
