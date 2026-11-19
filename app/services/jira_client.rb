@@ -464,8 +464,10 @@ class JiraClient
     { ok: true, global_ids: links.filter_map { |link| link["globalId"] if link.is_a?(Hash) }, error: nil }
   end
 
+  # A link already gone is as good as deleted.
   def delete_remote_link(issue_key:, global_id:)
-    delete("/rest/api/3/issue/#{issue_key}/remotelink?globalId=#{CGI.escape(global_id)}")
+    result = delete("/rest/api/3/issue/#{issue_key}/remotelink?globalId=#{CGI.escape(global_id)}")
+    result[:error].to_s.start_with?("404") ? { ok: true, error: nil } : result
   end
 
   private
@@ -513,16 +515,16 @@ class JiraClient
     { ok: false, error: e.message }
   end
 
-  # Shared request builder for write verbs. A nil body (a DELETE) sends none.
+  # Shared request builder for write verbs. A nil body (a DELETE) sends none,
+  # but still says it is JSON: Jira refuses a DELETE without a content type
+  # ("415 Unsupported Media Type", seen 2026-11-19 on remote links).
   def http_request(verb_class, path, body)
     uri = URI("https://#{@domain}#{path}")
     request = verb_class.new(uri)
     request["Authorization"] = "Basic #{Base64.strict_encode64("#{@email}:#{@api_token}")}"
     request["Accept"] = "application/json"
-    unless body.nil?
-      request["Content-Type"] = "application/json"
-      request.body = body.to_json
-    end
+    request["Content-Type"] = "application/json"
+    request.body = body.to_json unless body.nil?
 
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = true

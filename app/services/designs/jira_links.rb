@@ -85,7 +85,9 @@ class Designs::JiraLinks
     head = at.call(ref)
     publisher = Designs::Publisher.new(@project, nil)
     overview = Link.new(global_id: "#{prefix}index", url: publisher.url(slug), title: "Designs · #{thread.branch}")
-    screens = Designs::Changes.new(base: at.call(thread.base_sha.presence || Designs::Repo::MASTER), head: head).changed.map do |change|
+    # Only the screens the thread changed itself: a shared component it changed
+    # reaches every screen using it, and those would bury the ticket in links.
+    screens = Designs::Changes.new(base: at.call(thread.base_sha.presence || Designs::Repo::MASTER), head: head).own.map do |change|
       screen = head.find(change[:context], change[:screen])
       Link.new(global_id: "#{prefix}#{screen[:path]}", url: publisher.url(slug, screen[:path]),
                title: "Design · #{change[:context].humanize} › #{screen[:name]}")

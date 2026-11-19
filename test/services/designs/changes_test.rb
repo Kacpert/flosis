@@ -15,6 +15,23 @@ class Designs::ChangesTest < ActiveSupport::TestCase
 
   PAGE = '<html><head><title>Apply</title></head><body><h1>Apply</h1><form><label>Name</label><button class="btn">Submit</button></form></body></html>'.freeze
 
+  # Kacper (2026-11-19): a thread that changed the shared sidebar listed every
+  # screen of every role as changed. The screens a thread changed itself are
+  # told apart from the ones a changed component reached.
+  test "screens changed through a component are told apart from the ones changed themselves" do
+    page = ->(body) { "<html><body><x-include src=\"components/sidebar/sidebar.html\"></x-include><p>#{body}</p></body></html>" }
+    base = { "components/sidebar/sidebar.html" => "<nav>Menu</nav>",
+             "designs/admin/a.html" => page.("A"), "designs/admin/b.html" => page.("B"), "designs/admin/d.html" => "<html><body><p>D</p></body></html>" }
+    head = base.merge("components/sidebar/sidebar.html" => "<nav>Menu <a>Consumption</a></nav>",
+                      "designs/admin/a.html" => page.("A changed"), "designs/admin/c.html" => page.("C"))
+    result = changes(base, head)
+
+    assert_equal [ %w[admin a], %w[admin b], %w[admin c] ], result.changed.map { |c| [ c[:context], c[:screen] ] }
+    assert_equal [ %w[admin a], %w[admin c] ], result.own.map { |c| [ c[:context], c[:screen] ] }
+    assert_equal({ "sidebar" => [ %w[admin b] ] },
+                 result.through_components.transform_values { |list| list.map { |c| [ c[:context], c[:screen] ] } })
+  end
+
   test "an added element is new" do
     head = PAGE.sub("<button", "<p>121 / 500</p><button")
     result = changes({ "designs/candidate/apply.html" => PAGE }, { "designs/candidate/apply.html" => head })

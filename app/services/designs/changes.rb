@@ -22,6 +22,23 @@ class Designs::Changes
     end
   end
 
+  # The changed screens whose own file the branch changed, or that are new:
+  # what a thread did to them, rather than what a shared component it changed
+  # did (Kacper, 2026-11-19: a sidebar change listed every screen of every role).
+  def own
+    @own ||= changed.select do |change|
+      change[:kind] == "new" || Diff.new(raw(@base, change), raw(@head, change)).changed?
+    end
+  end
+
+  # The other changed screens, under each changed component they include, by
+  # the component's name: { "sidebar" => [{ context:, screen:, kind: }, …] }.
+  def through_components
+    @through_components ||= (changed - own).each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |change, by_name|
+      changed_components(change).each { |name| by_name[name] << change }
+    end.to_h
+  end
+
   def marked_html(context, id)
     head = document(@head, context, id) or return
     base = document(@base, context, id)
@@ -39,6 +56,26 @@ class Designs::Changes
     base = document(@base, context, id) or return "new"
 
     "updated" if Diff.new(base.at("body"), document(@head, context, id).at("body")).changed?
+  end
+
+  # A screen's own body, its includes left as they are.
+  def raw(screens, change)
+    Nokogiri::HTML5(screens.html(change[:context], change[:screen]).to_s).at("body")
+  end
+
+  # The components a screen includes, as far down as they nest, whose files
+  # differ between the base and the head, by name (components/<name>/…).
+  def changed_components(change)
+    seen = []
+    queue = Nokogiri::HTML5(@head.html(change[:context], change[:screen]).to_s).css("x-include[src]").map { |element| element["src"] }
+    until queue.empty? || seen.size > 200
+      path = Designs::Includes.path_for(queue.shift)
+      next if path.nil? || seen.include?(path)
+
+      seen << path
+      queue.concat(Nokogiri::HTML5.fragment(@head.reader.call(path).to_s).css("x-include[src]").map { |element| element["src"] })
+    end
+    seen.select { |path| @base.reader.call(path) != @head.reader.call(path) }.map { |path| path.split("/")[1] }.uniq
   end
 
   def document(screens, context, id)

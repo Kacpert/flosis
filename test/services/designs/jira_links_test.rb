@@ -64,6 +64,47 @@ class Designs::JiraLinksTest < ActiveSupport::TestCase
     end
   end
 
+  # Kacper (2026-11-19): a thread that changed the shared sidebar linked all
+  # 200 screens it reached. Only the screens it changed itself are linked.
+  test "no link for a screen only a changed component reached" do
+    with_design_remote do |repo, remote|
+      seed_master(repo, { "components/sidebar/sidebar.html" => "<nav>Menu</nav>",
+                          "designs/admin/jobs.html" => "<title>Jobs</title>",
+                          "designs/admin/other.html" => "<title>Other</title><x-include src=\"components/sidebar/sidebar.html\"></x-include>" })
+      task = thread_task(repo, { "components/sidebar/sidebar.html" => "<nav>Menu <a>Consumption</a></nav>",
+                                 "designs/admin/jobs.html" => "<title>Jobs</title><p>new</p>" })
+      stub_request(:get, %r{/remotelink\z}).to_return(status: 200, body: "[]")
+      posts = stub_request(:post, %r{/remotelink\z}).to_return(status: 200, body: "{}")
+
+      result = with_remote_url(remote) { Designs::JiraLinks.new(task).sync! }
+
+      assert result[:ok], result[:error]
+      assert_requested posts, times: 2
+      assert_not_requested(:post, %r{/remotelink\z}) { |req| req.body.include?("other.html") }
+    end
+  end
+
+  # Jira refuses a DELETE without a content type (415, seen 2026-11-19), and a
+  # link already gone is as good as deleted.
+  test "a stale link is deleted with a content type, and one already gone counts as deleted" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      task = thread_task(repo)
+      gone = "flosis-design:#{repo.project.id}:REC-1:designs/gone.html"
+      stale = "flosis-design:#{repo.project.id}:REC-1:designs/old.html"
+      stub_request(:get, %r{/remotelink\z}).to_return(status: 200, body: [ { globalId: gone, id: 8 }, { globalId: stale, id: 9 } ].to_json)
+      stub_request(:post, %r{/remotelink\z}).to_return(status: 200, body: "{}")
+      stub_request(:delete, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink?globalId=#{CGI.escape(gone)}")
+        .with(headers: { "Content-Type" => "application/json" }).to_return(status: 404, body: "{}")
+      stub_request(:delete, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink?globalId=#{CGI.escape(stale)}")
+        .with(headers: { "Content-Type" => "application/json" }).to_return(status: 204)
+
+      result = with_remote_url(remote) { Designs::JiraLinks.new(task).sync! }
+
+      assert result[:ok], result[:error]
+    end
+  end
+
   test "syncing links never writes the description" do
     with_design_remote do |repo, remote|
       seed_master(repo)
