@@ -246,6 +246,19 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Kacper (2026-11-19): after sending, the canvas went back to This branch;
+  # it stays on the mode and screen the person was looking at.
+  test "a message keeps the canvas where it was" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      Designs::Threads.message!(thread, user: users(:one), text: "Add a status filter").update!(status: "succeeded")
+
+      post message_workshop_design_thread_path(thread), params: { text: "And a count", ctx: "candidate", screen: "apply", mode: "changes" }
+
+      assert_redirected_to workshop_designs_overview_path(thread: thread.id, ctx: "candidate", screen: "apply", mode: "changes")
+    end
+  end
+
   test "Try again runs the failed turn's request once more" do
     with_designs do
       thread = Designs::Threads.start!(project: @project, user: users(:one))

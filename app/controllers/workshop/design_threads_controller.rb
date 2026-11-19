@@ -37,9 +37,9 @@ class Workshop::DesignThreadsController < Workshop::BaseController
     if text.present? && @thread.open?
       Designs::Threads.message!(@thread, user: current_user, text: text, context: params[:ctx].presence, screen: params[:screen].presence)
     end
-    redirect_to workshop_designs_overview_path(thread: @thread.id, ctx: params[:ctx].presence, screen: params[:screen].presence)
+    redirect_to canvas_as_it_was
   rescue Designs::Threads::Busy => e
-    redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
+    redirect_to canvas_as_it_was, alert: e.message
   end
 
   # Merge, after a components turn when the thread's screens need one
@@ -147,5 +147,12 @@ class Workshop::DesignThreadsController < Workshop::BaseController
   def set_thread
     threads = current_workshop_project.design_threads
     @thread = (action_name == "restore" ? threads.deleted : threads.live).find(params[:id])
+  end
+
+  # The canvas as the person had it when they sent: its screen and its mode
+  # (Kacper, 2026-11-19: after sending, it went back to This branch).
+  def canvas_as_it_was
+    workshop_designs_overview_path(thread: @thread.id, ctx: params[:ctx].presence, screen: params[:screen].presence,
+                                   mode: params[:mode].presence_in(Workshop::DesignsModuleController::MODES))
   end
 end

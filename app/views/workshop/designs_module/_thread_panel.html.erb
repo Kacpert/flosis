@@ -86,9 +86,11 @@
     <%= form_with url: message_workshop_design_thread_path(thread), method: :post, class: "border border-[color:var(--border)] rounded-xl bg-[var(--bg)] pt-2 pr-2 pb-2 pl-3" do |f| %>
       <%= hidden_field_tag :ctx, @context, data: { designs_canvas_target: "context" } %>
       <%= hidden_field_tag :screen, @screen, data: { designs_canvas_target: "screen" } %>
+      <%= hidden_field_tag :mode, @mode %>
       <textarea name="text" rows="2" required class="w-full resize-none border-0 outline-none bg-transparent text-[13px] leading-[1.5] clar-text-text"
                 placeholder="<%= thread.fresh? ? 'What should change? Navigate the app on the right, AI sees the page you’re on.' : 'Describe a change…' %>"
-                data-controller="designs-composer" data-action="keydown->designs-composer#key"></textarea>
+                data-controller="designs-composer" data-designs-composer-draft-key-value="designs.draft.<%= thread.id %>"
+                data-action="keydown->designs-composer#key"></textarea>
       <div class="flex items-center gap-2">
         <span class="text-[11px] clar-text-faint flex-1 min-w-0 truncate" data-designs-canvas-target="sees"><%= @current ? "AI sees #{designs_context_name(@contexts, @context)} › #{@current[:name]}" : "AI sees nothing yet" %></span>
         <%# The file picker belongs to the form below, outside this one. %>
