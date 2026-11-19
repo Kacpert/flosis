@@ -34,14 +34,36 @@
 </div>
 
 <% if live && @mode == "changes" %>
-  <div class="flex items-center gap-2 flex-wrap px-3 py-1.5 border-b border-[color:var(--border)] bg-[var(--ai-soft)] text-[12px] clar-text-text">
+  <%# The screens the thread changed itself, stepped through with ‹ ›; all of
+      them, and those only a changed shared component reached, in a dialog
+      (_changes_modal). Kacper, 2026-11-19: a list of every screen pushed the
+      screen itself out of view. %>
+  <% own = @changed_own %>
+  <% at = own.index { |context, screen, _| [ context, screen ] == [ @context, @screen ] } %>
+  <% through = @changed_through.values.sum(&:size) %>
+  <div class="flex items-center gap-2.5 flex-wrap px-3 py-1.5 border-b border-[color:var(--border)] bg-[var(--ai-soft)] text-[12px] clar-text-text" data-designs-changes>
     <span class="font-bold clar-text-ai">Changed in this thread</span>
-    <% @changed.each do |context, screen| %>
-      <%= link_to "#{designs_context_name(@contexts, context)} › #{designs_screen_name(@screens, context, screen)}",
-                  workshop_designs_overview_path(params_for.call(ctx: context, screen: screen)),
-                  class: "text-[11.5px] font-semibold px-2 py-0.5 rounded-[7px] no-underline bg-[var(--surface)] border #{[ context, screen ] == [ @context, @screen ] ? 'border-[color:var(--ai)] clar-text-ai' : 'border-[color:var(--border)] clar-text-text'}" %>
+    <% if own.any? %>
+      <span><%= pluralize(own.size, "screen") %></span>
+    <% else %>
+      <span class="clar-text-muted">Nothing yet.</span>
     <% end %>
-    <% if @changed.empty? %><span class="clar-text-muted">Nothing yet.</span><% end %>
+    <% if through.positive? %>
+      <span class="clar-text-muted">+<%= through %> through <%= @changed_through.keys.map(&:humanize).to_sentence %></span>
+    <% end %>
+    <span class="flex-1"></span>
+    <% if own.any? %>
+      <% previous = own[at ? (at - 1) % own.size : own.size - 1] %>
+      <% following = own[at ? (at + 1) % own.size : 0] %>
+      <span class="flex items-center gap-1.5">
+        <%= link_to workshop_designs_overview_path(params_for.call(ctx: previous[0], screen: previous[1])), class: "clar-btn !p-0 w-6 h-6 justify-center no-underline", title: "Previous changed screen" do %><%= designs_icon(:back, 12) %><% end %>
+        <span class="text-[11.5px] clar-text-muted min-w-[42px] text-center"><%= at ? "#{at + 1} / #{own.size}" : "– / #{own.size}" %></span>
+        <%= link_to workshop_designs_overview_path(params_for.call(ctx: following[0], screen: following[1])), class: "clar-btn !p-0 w-6 h-6 justify-center no-underline", title: "Next changed screen" do %><%= designs_icon(:next, 12) %><% end %>
+      </span>
+    <% end %>
+    <% if own.any? || through.positive? %>
+      <button type="button" class="clar-btn !py-1 !px-2.5 !text-[11.5px]" data-action="clar-modal#open" data-clar-modal-id-param="changed-screens">All changes</button>
+    <% end %>
   </div>
 <% end %>
 

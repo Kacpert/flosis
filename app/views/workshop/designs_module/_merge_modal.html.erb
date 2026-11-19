@@ -7,10 +7,13 @@
     <% end %>
     <label class="clar-field-label">CHANGED SCREENS</label>
     <div class="border border-[color:var(--border)] rounded-[11px] overflow-hidden mb-3.5">
-      <% @changed.each_with_index do |(context, screen), i| %>
+      <% @changed_own.each_with_index do |(context, screen), i| %>
         <div class="flex items-center justify-between gap-3 px-3 py-2 flex-wrap <%= 'border-t border-[color:var(--border)]' if i.positive? %>"><span class="text-[13px] font-semibold clar-text-text"><%= designs_context_name(@contexts, context) %> › <%= designs_screen_name(@screens, context, screen) %></span><span class="clar-mono text-[11px] clar-text-faint">designs/<%= context %>/<%= screen %>.html</span></div>
       <% end %>
-      <% if @changed.empty? %><div class="px-3 py-2 text-[12.5px] clar-text-faint">No screen differs from master yet.</div><% end %>
+      <% if @changed_own.empty? %><div class="px-3 py-2 text-[12.5px] clar-text-faint">No screen differs from master yet.</div><% end %>
+      <% if @changed_through.any? %>
+        <div class="px-3 py-2 border-t border-[color:var(--border)] text-[12px] clar-text-muted">+<%= @changed_through.values.sum(&:size) %> through <%= @changed_through.keys.map(&:humanize).to_sentence %></div>
+      <% end %>
     </div>
     <% if Designs::Threads.components_due?(@thread) %>
       <p class="mt-0 mb-3 text-[12.5px] clar-text-text leading-[1.55]">Flosis first makes components from the UI this thread’s screens repeat, in a turn of its own (a few minutes), then merges.</p>

@@ -69,7 +69,7 @@ class Workshop::DesignsModuleController < Workshop::BaseController
     @contexts = screens[:contexts]
     @screens = screens[:screens]
     @context, @screen = pick_screen
-    @changed = live ? changed_screens(@thread.branch) : []
+    @changed, @changed_own, @changed_through = live ? changed_screens(@thread.branch) : [ [], [], {} ]
     @current = @screens.find { |s| s[:context] == @context && s[:id] == @screen }
     return unless @current
 
@@ -168,12 +168,23 @@ class Workshop::DesignsModuleController < Workshop::BaseController
     { contexts: [], screens: [] }
   end
 
+  # [all, own, through]: every changed screen, as [context, screen]; the ones
+  # the thread changed itself, as [context, screen, "new" | "updated"]; and the
+  # ones only a changed component reached, by component. A preview published
+  # before the record (__flosis/changes.json) has every screen as its own.
   def changed_screens(slot)
-    folder = @publisher.slot_folder(slot) or return []
-    Dir.glob("designs/*/*.changes.html", base: folder.to_s).sort.map do |path|
+    folder = @publisher.slot_folder(slot) or return [ [], [], {} ]
+    all = Dir.glob("designs/*/*.changes.html", base: folder.to_s).sort.map do |path|
       _, context, file = path.split("/")
       [ context, file.delete_suffix(".changes.html") ]
     end
+    record = folder.join("__flosis/changes.json")
+    return [ all, all.map { |pair| [ *pair, "updated" ] }, {} ] unless record.file?
+
+    data = JSON.parse(record.read)
+    [ all, Array(data["own"]), data["through"].is_a?(Hash) ? data["through"] : {} ]
+  rescue JSON::ParserError
+    [ all, all.map { |pair| [ *pair, "updated" ] }, {} ]
   end
 
   # The screen asked for, else where the thread was last, else the first.

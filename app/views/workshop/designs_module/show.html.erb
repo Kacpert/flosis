@@ -39,6 +39,7 @@
   <%= render "settings_drawer" %>
   <% if @thread&.open? && !@thread.fresh? %>
     <%= render "merge_modal" %>
+    <%= render "changes_modal" %>
     <%= render "generate_modal" unless @thread.task %>
   <% end %>
 </div>

@@ -145,7 +145,7 @@ module Designs::Subject
       before = from ? screens_at(repo, from) : Designs::Screens.new(paths: [], reader: ->(_path) { nil })
       head = screens_at(repo, to)
       own = Designs::Changes.new(base: screens_at(repo, @thread.base_sha.presence || Designs::Repo::MASTER), head: head)
-                            .changed.map { |change| [ change[:context], change[:screen] ] }
+                            .own.map { |change| [ change[:context], change[:screen] ] }
       chips = Designs::Changes.new(base: before, head: head).changed.filter_map do |change|
         [ change[:screen], change[:context], change[:kind] == "new" ? "+" : "M" ] if own.include?([ change[:context], change[:screen] ])
       end
