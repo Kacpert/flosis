@@ -12,7 +12,7 @@
       <% end %>
       <% if @changed_own.empty? %><div class="px-3 py-2 text-[12.5px] clar-text-faint">No screen differs from master yet.</div><% end %>
       <% if @changed_through.any? %>
-        <div class="px-3 py-2 border-t border-[color:var(--border)] text-[12px] clar-text-muted">+<%= @changed_through.values.sum(&:size) %> through <%= @changed_through.keys.map(&:humanize).to_sentence %></div>
+        <div class="px-3 py-2 border-t border-[color:var(--border)] text-[12px] clar-text-muted">+<%= designs_through_count(@changed_through) %> through <%= @changed_through.keys.map { |name| designs_component_name(name) }.to_sentence %></div>
       <% end %>
     </div>
     <% if Designs::Threads.components_due?(@thread) %>

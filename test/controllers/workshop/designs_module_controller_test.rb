@@ -343,6 +343,32 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # A screen that includes two changed components is one screen, not two, and
+  # a component's name reads as words: pr-review-row is "Pr review row".
+  test "a screen reached through two changed components counts once, and their names read as words" do
+    with_designs do |repo|
+      commit_files(repo, repo.root, { "components/sidebar/sidebar.html" => "<nav>Menu</nav>",
+                                      "components/pr-review-row/pr-review-row.html" => "<div>PR</div>",
+                                      "designs/recruiter/pipeline.html" => SCREEN.("Pipeline", '<x-include src="components/sidebar/sidebar.html"></x-include>' \
+                                                                                              '<x-include src="components/pr-review-row/pr-review-row.html"></x-include>') })
+      repo.push!("master")
+      thread = thread_with_work(repo, "Add costs", { "components/sidebar/sidebar.html" => "<nav>Menu <a>Consumption</a></nav>",
+                                                     "components/pr-review-row/pr-review-row.html" => "<div>PR <b>cost</b></div>",
+                                                     "designs/candidate/costs.html" => SCREEN.("Costs") })
+
+      get workshop_designs_overview_path(thread: thread.id, mode: "changes", ctx: "candidate", screen: "costs")
+
+      assert_select "[data-designs-changes] span", text: "+1 through Sidebar and Pr review row"
+      assert_select "[data-clar-modal-panel-id-value=?]", "changed-screens" do
+        assert_select "details summary", text: "1 screen changed only through shared parts"
+        assert_select "details div", text: "THROUGH PR REVIEW ROW"
+      end
+      assert_select "[data-clar-modal-panel-id-value=?]", "merge-thread" do
+        assert_select "div", text: "+1 through Sidebar and Pr review row"
+      end
+    end
+  end
+
   # Kacper (2026-11-19): moving to another screen reloads the page, and the
   # message being typed went with it. The composer keeps it per thread.
   test "the composer keeps what is typed per thread" do
