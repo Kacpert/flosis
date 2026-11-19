@@ -18,6 +18,18 @@ module ChatImages
     File.join(root, chat_session.id.to_s)
   end
 
+  # Why these uploads cannot go with a message, or nil: the message's own
+  # validation, said before anything else is done with them.
+  def refusal(files)
+    return "At most #{PER_MESSAGE} images a message." if files.size > PER_MESSAGE
+
+    bad = files.find { |file| !TYPES.key?(file.content_type.to_s) }
+    return "#{bad.original_filename} is not a PNG, JPG, GIF or WebP image." if bad
+
+    big = files.find { |file| file.size.to_i > SIZE_LIMIT }
+    "#{big.original_filename} is over 10 MB." if big
+  end
+
   # Writes the message's images to its session's folder; returns their paths.
   def write!(message)
     folder = dir(message.chat_session)
