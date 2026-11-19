@@ -56,6 +56,24 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Kacper (2026-11-19): the preview's frame drags wider or narrower by either
+  # side, both at once so that it stays centered, taller or shorter by its
+  # bottom, and a double-click on an edge puts back the standard 1160 × 860.
+  test "the canvas frame resizes by its edges and a double-click puts it back" do
+    with_designs do
+      get workshop_designs_overview_path
+
+      assert_select "[data-designs-canvas-target=box]" do
+        assert_select "iframe[data-designs-canvas-target=frame]"
+        assert_select "[data-designs-canvas-target=size]"
+        sides = "[data-action~='pointerdown->designs-canvas#sizeStart'][data-action~='dblclick->designs-canvas#sizeReset']"
+        assert_select "[data-edge=x]#{sides}", count: 2
+        assert_select "[data-edge=y]#{sides}", count: 1
+        assert_select "[data-edge=xy]#{sides}", count: 2
+      end
+    end
+  end
+
   test "the list shows master read-only, the library and New thread, and the canvas shows master's screen" do
     with_designs do
       get workshop_designs_overview_path

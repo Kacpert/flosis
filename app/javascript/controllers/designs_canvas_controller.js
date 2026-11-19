@@ -1,34 +1,167 @@
 import { Controller } from "@hotwired/stimulus"
 
-// The Designs canvas (Workshop Designs v2): the published screen, 1160px wide
+// The Designs canvas (Workshop Designs v2): the published screen, 1160 × 860
 // and scaled to fit, and what the screen tells it. The preview is sandboxed on
 // an origin of its own, so it speaks only through postMessage (runtime/
 // flosis.js): which screen it shows ("AI sees …", and what the next message
 // is about), and a link to a screen that is not designed (a toast, as the
 // design has it).
+//
+// The frame's edges resize it (Kacper, 2026-11-19): a side drags its width,
+// both sides at once so that it stays centered, the bottom its height, a
+// corner both; a double-click on an edge puts back the standard size. Another
+// size shows in the frame's bar and is remembered in this browser; a frame
+// wider than the canvas is scaled to fit, as the standard one is.
+const STANDARD = { width: 1160, height: 860 }
+const STORAGE_KEY = "designs.frameSize"
+const MIN_WIDTH = 320
+const MIN_HEIGHT = 320
+// The frame's border, a pixel on each side.
+const BORDER = 2
+// A click that wobbles a pixel or two is not a drag.
+const DRAG_THRESHOLD = 3
+
 export default class extends Controller {
-  static targets = ["wrap", "frame", "sees", "context", "screen", "path"]
-  static values = { contexts: Object, width: { type: Number, default: 1160 }, height: { type: Number, default: 860 } }
+  static targets = ["box", "wrap", "frame", "size", "sees", "context", "screen", "path"]
+  static values = { contexts: Object, width: { type: Number, default: STANDARD.width }, height: { type: Number, default: STANDARD.height } }
 
   connect() {
     this.onMessage = this.message.bind(this)
     window.addEventListener("message", this.onMessage)
+    this.sizeMove = this.sizeMove.bind(this)
+    this.sizeEnd = this.sizeEnd.bind(this)
+    const stored = this.storedSize()
+    if (stored) {
+      this.widthValue = stored.width
+      this.heightValue = stored.height
+    }
     this.resize = this.fit.bind(this)
     this.observer = new ResizeObserver(this.resize)
     if (this.hasWrapTarget) this.observer.observe(this.wrapTarget)
-    this.fit()
+    this.applySize()
   }
 
   disconnect() {
     window.removeEventListener("message", this.onMessage)
     this.observer?.disconnect()
+    this.sizeEnd()
   }
 
   fit() {
     if (!this.hasWrapTarget || !this.hasFrameTarget) return
-    const scale = Math.min(1, this.wrapTarget.clientWidth / this.widthValue)
+    const scale = this.scale()
     this.frameTarget.style.transform = `scale(${scale})`
     this.wrapTarget.style.height = `${Math.ceil(this.heightValue * scale)}px`
+  }
+
+  scale() {
+    return Math.min(1, this.wrapTarget.clientWidth / this.widthValue)
+  }
+
+  // The frame at the size chosen: the screen at that size, the box no wider
+  // than it and its border, and the size in the bar unless it is the standard.
+  applySize() {
+    if (!this.hasFrameTarget) return
+    this.frameTarget.style.width = `${this.widthValue}px`
+    this.frameTarget.style.height = `${this.heightValue}px`
+    if (this.hasBoxTarget) this.boxTarget.style.maxWidth = `${this.widthValue + BORDER}px`
+    const standard = this.widthValue === STANDARD.width && this.heightValue === STANDARD.height
+    this.sizeTargets.forEach((element) => {
+      element.textContent = `${this.widthValue} × ${this.heightValue}`
+      element.hidden = standard && !this.sizing
+    })
+    this.fit()
+  }
+
+  sizeStart(event) {
+    if (event.button !== 0 || !this.hasBoxTarget || !this.hasWrapTarget) return
+    event.preventDefault() // no text selection while dragging
+    const handle = event.currentTarget
+    const area = this.boxTarget.parentElement
+    this.sizing = { edge: handle.dataset.edge, handle, x: event.clientX, y: event.clientY, moved: false,
+                    area, padding: parseFloat(getComputedStyle(area).paddingBottom) || 0, wrapHeight: this.wrapTarget.offsetHeight }
+    // The pointer is captured, so passing over the iframe never drops the drag.
+    try { handle.setPointerCapture(event.pointerId) } catch {}
+    document.addEventListener("pointermove", this.sizeMove)
+    document.addEventListener("pointerup", this.sizeEnd)
+    document.addEventListener("pointercancel", this.sizeEnd)
+    handle.classList.add("designs-frame-edge-active")
+    this.element.style.setProperty("--designs-frame-cursor", getComputedStyle(handle).cursor)
+    this.element.classList.add("designs-frame-sizing")
+  }
+
+  sizeMove(event) {
+    const sizing = this.sizing
+    if (!sizing) return
+    if (!sizing.moved && Math.abs(event.clientX - sizing.x) < DRAG_THRESHOLD && Math.abs(event.clientY - sizing.y) < DRAG_THRESHOLD) return
+    sizing.moved = true
+    if (sizing.edge.includes("x")) {
+      // Both sides move: the frame is twice as wide as the pointer is far
+      // from its middle, which stays where it is.
+      const box = this.boxTarget.getBoundingClientRect()
+      const width = 2 * Math.abs(event.clientX - (box.left + box.width / 2)) - BORDER
+      this.widthValue = Math.round(Math.min(Math.max(width, MIN_WIDTH), Math.max(this.room(), MIN_WIDTH)))
+    }
+    if (sizing.edge.includes("y")) {
+      const top = this.wrapTarget.getBoundingClientRect().top
+      const scale = this.scale()
+      this.heightValue = Math.round(Math.max((event.clientY - top) / scale, MIN_HEIGHT))
+      // A shorter frame would let a canvas scrolled to its end scroll back,
+      // moving the frame under the pointer: what it gives up is kept as
+      // padding until the drag ends, so the edge stays with the pointer.
+      const shorter = Math.max(0, sizing.wrapHeight - Math.ceil(this.heightValue * scale))
+      sizing.area.style.paddingBottom = `${sizing.padding + shorter}px`
+    }
+    this.applySize()
+  }
+
+  sizeEnd() {
+    const sizing = this.sizing
+    if (!sizing) return
+    this.sizing = null
+    document.removeEventListener("pointermove", this.sizeMove)
+    document.removeEventListener("pointerup", this.sizeEnd)
+    document.removeEventListener("pointercancel", this.sizeEnd)
+    sizing.handle.classList.remove("designs-frame-edge-active")
+    sizing.area.style.removeProperty("padding-bottom")
+    this.element.classList.remove("designs-frame-sizing")
+    this.element.style.removeProperty("--designs-frame-cursor")
+    if (sizing.moved) this.remember()
+    this.applySize()
+  }
+
+  sizeReset() {
+    this.widthValue = STANDARD.width
+    this.heightValue = STANDARD.height
+    try { localStorage.removeItem(STORAGE_KEY) } catch {}
+    this.applySize()
+  }
+
+  // The widest the frame can be dragged: the canvas inside its padding.
+  room() {
+    const area = this.boxTarget.parentElement
+    const style = getComputedStyle(area)
+    return area.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - BORDER
+  }
+
+  remember() {
+    try {
+      if (this.widthValue === STANDARD.width && this.heightValue === STANDARD.height) {
+        localStorage.removeItem(STORAGE_KEY)
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ width: this.widthValue, height: this.heightValue }))
+      }
+    } catch {}
+  }
+
+  storedSize() {
+    try {
+      const size = JSON.parse(localStorage.getItem(STORAGE_KEY))
+      if (Number.isFinite(size?.width) && Number.isFinite(size?.height)) {
+        return { width: Math.max(Math.round(size.width), MIN_WIDTH), height: Math.max(Math.round(size.height), MIN_HEIGHT) }
+      }
+    } catch {}
+    return null
   }
 
   message(event) {
