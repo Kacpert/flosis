@@ -449,4 +449,58 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
       assert_includes sent[1], "The person's words"
     end
   end
+
+  # Kacper (2026-11-19): images added to the chat reach the AI with the
+  # message: written where Claude may read them, and named for its Read tool.
+  test "an image sent in the chat is kept on the message and read by the AI" do
+    session = refine_session
+    Dir.mktmpdir("chat-images") do |dir|
+      with_env("CHAT_IMAGES_DIR" => dir) do
+        with_message_cli do |sent, built|
+          post message_jira_task_chat_session_path(@task),
+               params: { content: "Like this screen", images: [ fixture_file_upload("inspiration.png", "image/png") ] }
+
+          message = session.chat_messages.where(role: "user").sole
+          assert_equal 1, message.images.count
+          path = File.join(dir, session.id.to_s, "#{message.id}-1.png")
+          assert_equal file_fixture("inspiration.png").binread, File.binread(path)
+          assert_includes sent[0], "The person attached an image to this message"
+          assert_includes sent[0], "- #{path}"
+          assert_includes built[0][:add_dirs], File.join(dir, session.id.to_s)
+        end
+      end
+    end
+  end
+
+  test "images can be sent without text, but a file that is not an image is refused" do
+    session = refine_session
+    Dir.mktmpdir("chat-images") do |dir|
+      with_env("CHAT_IMAGES_DIR" => dir) do
+        with_message_cli do |sent|
+          post message_jira_task_chat_session_path(@task), params: { images: [ fixture_file_upload("inspiration.png", "image/png") ] }
+          assert_equal 1, session.chat_messages.where(role: "user").count
+          assert_includes sent[0], "The person attached an image"
+
+          post message_jira_task_chat_session_path(@task),
+               params: { content: "the spec", images: [ fixture_file_upload("setup-designs_v1.txt", "text/plain") ] }
+          assert_response :unprocessable_entity
+          assert_match(/is not a PNG, JPG, GIF or WebP image/, response.parsed_body["error"])
+          assert_equal 1, sent.size
+        end
+      end
+    end
+  end
+
+  test "the chat's history shows the images a person sent" do
+    session = refine_session
+    message = session.chat_messages.create!(role: "user", content: "Like this", user: users(:one),
+                                            images: [ fixture_file_upload("inspiration.png", "image/png") ])
+
+    get jira_task_chat_session_path(@task), as: :json
+
+    shown = response.parsed_body.dig("chat_session", "messages").find { |m| m["id"] == message.id }
+    assert_equal [ "inspiration.png" ], shown["images"].map { |i| i["name"] }
+    assert_match %r{/rails/active_storage/blobs/}, shown["images"].first["url"]
+  end
+
 end

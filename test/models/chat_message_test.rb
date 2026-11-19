@@ -64,4 +64,28 @@ class ChatMessageTest < ActiveSupport::TestCase
 
     assert_equal [first, second, third], session.chat_messages.ordered.to_a
   end
+
+  # Kacper (2026-11-19): a person can add images to a task's AI chat.
+  def image(name = "inspiration.png", type = "image/png")
+    Rack::Test::UploadedFile.new(file_fixture(name), type)
+  end
+
+  test "a person's message can be images alone" do
+    message = ChatMessage.new(chat_session: chat_sessions(:one), role: "user", content: "")
+    message.images.attach(image)
+    assert message.valid?, message.errors.full_messages.to_sentence
+  end
+
+  test "only PNG, JPG, GIF or WebP images, at most ten" do
+    pdf = ChatMessage.new(chat_session: chat_sessions(:one), role: "user", content: "see")
+    pdf.images.attach(io: StringIO.new("%PDF-1.4 not an image"), filename: "spec.pdf", content_type: "application/pdf")
+    assert_not pdf.valid?
+    assert_includes pdf.errors[:images].to_sentence, "spec.pdf is not a PNG, JPG, GIF or WebP image"
+
+    many = ChatMessage.new(chat_session: chat_sessions(:one), role: "user", content: "see")
+    11.times { many.images.attach(image) }
+    assert_not many.valid?
+    assert_includes many.errors[:images].to_sentence, "at most 10 per message"
+  end
+
 end

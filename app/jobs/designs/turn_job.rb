@@ -311,7 +311,7 @@ class Designs::TurnJob < ApplicationJob
     prompt = [ earlier_failure(turn), subject.turn_message(request, turn: turn, worktree: worktree) ].compact.join("\n\n")
     with_system_prompt(subject) do |system_prompt|
       with_app(subject) do |app|
-        subject.with_mcp(worktree) do |mcp_config|
+        subject.with_mcp(worktree, read_only: turn.plan?) do |mcp_config|
           # A plan turn only reads, at a lower effort and on small bounds.
           plan = turn.plan?
           cli = self.class.claude_factory.call(

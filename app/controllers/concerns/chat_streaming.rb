@@ -149,18 +149,30 @@ module ChatStreaming
     end
 
     user_content = params[:content].to_s.strip
-    if user_content.blank?
+    images = Array(params[:images]).select { |file| file.respond_to?(:original_filename) }
+    if user_content.blank? && images.empty?
       render json: { error: "Message content required" }, status: :unprocessable_entity
       return
     end
 
-    prompt, data = claude_message(user_content)
-    @chat_session.chat_messages.create!(role: "user", content: user_content, user: current_user, data: data)
+    prompt, data = claude_message(user_content.presence || "(No text: only the images below.)")
+    message = @chat_session.chat_messages.new(role: "user", content: user_content, user: current_user, data: data)
+    message.images.attach(images) if images.any?
+    unless message.save
+      render json: { error: message.errors.full_messages.to_sentence }, status: :unprocessable_entity
+      return
+    end
+    # Images go to Claude as files it reads (ChatImages), so a chat that may not
+    # read code may still read them.
+    paths = message.images.attached? ? ChatImages.write!(message) : []
+    prompt = "#{prompt}\n\n#{ChatImages.note(paths)}" if paths.any?
+    tools = chat_tools(@chat_session.codebase_path)
+    tools = (tools || ClaudeCliService::ALLOWED_TOOLS) | %w[Read] if paths.any?
 
     write_sse_headers
 
-    service = ClaudeCliService.new(codebase_path: @chat_session.codebase_path,
-                                   allowed_tools: chat_tools(@chat_session.codebase_path))
+    service = ClaudeCliService.new(codebase_path: @chat_session.codebase_path, allowed_tools: tools,
+                                   add_dirs: paths.any? ? [ ChatImages.dir(@chat_session) ] : [])
     full_response = ""
 
     begin
@@ -470,14 +482,15 @@ module ChatStreaming
         claude_session_id: chat_session.claude_session_id,
         status: chat_session.status,
         purpose: chat_session.purpose,
-        messages: chat_session.chat_messages.includes(:user).ordered.map do |msg|
+        messages: chat_session.chat_messages.includes(:user, images_attachments: :blob).ordered.map do |msg|
           {
             id: msg.id,
             role: msg.role,
             content: msg.content,
             thinking: msg.thinking,
             created_at: msg.created_at,
-            author: msg.user&.name
+            author: msg.user&.name,
+            images: msg.images.map { |image| { url: rails_blob_path(image, disposition: "inline"), name: image.filename.to_s } }
           }
         end
       }

@@ -16,7 +16,8 @@ const inFlightCreates = new Set()
 // Details stage chat (Task 5.1) is expected to reuse this same controller
 // with persona: "details" and its own create/show/message/reset URLs.
 export default class extends Controller {
-  static targets = ["messages", "input", "liveThinkingBtn", "liveThinkingLabel", "liveThinkingIconOn", "liveThinkingIconOff"]
+  static targets = ["messages", "input", "liveThinkingBtn", "liveThinkingLabel", "liveThinkingIconOn", "liveThinkingIconOff",
+                    "fileInput", "previews", "dropHint"]
   static values = {
     createUrl: String,
     showUrl: String,
@@ -29,6 +30,7 @@ export default class extends Controller {
 
   connect() {
     this.abortController = null
+    this.pendingImages = []
     // Whether to show the AI's live tool-use narration while it works, or just a
     // "thinking…" indicator. Off by default; either way the trail is saved and
     // available behind the per-message "Show thinking" toggle. Preference persists.
@@ -225,23 +227,47 @@ export default class extends Controller {
     event?.preventDefault()
     const input = this.inputTarget
     const content = input.value.trim()
-    if (!content) return
+    const images = this.pendingImages
+    if (!content && images.length === 0) return
     input.value = ""
     // The box sizes itself again for the next message (clar-composer).
     input.dispatchEvent(new Event("input"))
     input.disabled = true
-    this.appendMessage("user", content, this.currentUserNameValue || null)
+    this.pendingImages = []
+    this.renderPreviews()
+    const userBubble = this.appendMessage("user", content, this.currentUserNameValue || null, null,
+      images.map((file) => ({ url: URL.createObjectURL(file), name: file.name })))
     const assistantBubble = this.appendMessage("ai", "")
     const textSpan = assistantBubble.querySelector("[data-chat-text]")
     this.showThinking(textSpan)
     this.abortController = new AbortController()
     try {
+      // With images the message goes as a form, so the files go along.
+      let body = JSON.stringify({ content })
+      const headers = { ...this.headers(), "Content-Type": "application/json" }
+      if (images.length > 0) {
+        body = new FormData()
+        body.append("content", content)
+        images.forEach((file) => body.append("images[]", file))
+        delete headers["Content-Type"]
+      }
       const response = await fetch(this.messageUrlValue, {
         method: "POST",
-        headers: { ...this.headers(), "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        headers,
+        body,
         signal: this.abortController.signal
       })
+      // Refused (a file that is not an image): the message goes back into
+      // the box, with the reason above it, and the chat is as it was.
+      if (response.status === 422) {
+        const data = await response.json().catch(() => ({}))
+        assistantBubble.remove()
+        userBubble.remove()
+        input.value = content
+        this.pendingImages = images
+        this.renderPreviews(data.error || "Couldn't send that.")
+        return
+      }
       const result = await this.consumeSSE(response, textSpan)
       if (result.error) {
         this.showError(result.error)
@@ -261,6 +287,90 @@ export default class extends Controller {
     }
   }
 
+  // Images for the next message (Kacper, 2026-11-19): the paperclip, a drop
+  // on the chat, or a paste. PNG, JPG, GIF or WebP, up to 10 MB, 10 a message.
+  pickImages() {
+    this.fileInputTarget.click()
+  }
+
+  filesPicked(event) {
+    this.addImages(event.target.files)
+    event.target.value = ""
+  }
+
+  dragOver(event) {
+    if (!event.dataTransfer?.types?.includes("Files")) return
+    event.preventDefault()
+    this.dropHintTarget.classList.replace("hidden", "flex")
+  }
+
+  dragLeave(event) {
+    if (event.relatedTarget && this.element.contains(event.relatedTarget)) return
+    this.dropHintTarget.classList.replace("flex", "hidden")
+  }
+
+  drop(event) {
+    if (!event.dataTransfer?.files?.length) return
+    event.preventDefault()
+    this.dropHintTarget.classList.replace("flex", "hidden")
+    this.addImages(event.dataTransfer.files)
+  }
+
+  pasteImages(event) {
+    const files = [...(event.clipboardData?.files || [])].filter((file) => file.type.startsWith("image/"))
+    if (files.length === 0) return
+    event.preventDefault()
+    this.addImages(files)
+  }
+
+  addImages(files) {
+    const types = ["image/png", "image/jpeg", "image/gif", "image/webp"]
+    let refused = 0
+    for (const file of files) {
+      if (!types.includes(file.type) || file.size > 10 * 1024 * 1024 || this.pendingImages.length >= 10) {
+        refused += 1
+      } else {
+        this.pendingImages.push(file)
+      }
+    }
+    this.renderPreviews(refused ? "Only PNG, JPG, GIF or WebP images, up to 10 MB each and 10 a message." : null)
+  }
+
+  removeImage(index) {
+    this.pendingImages.splice(index, 1)
+    this.renderPreviews()
+  }
+
+  renderPreviews(note = null) {
+    const box = this.previewsTarget
+    box.innerHTML = ""
+    this.pendingImages.forEach((file, index) => {
+      const item = document.createElement("div")
+      item.className = "relative"
+      const img = document.createElement("img")
+      img.src = URL.createObjectURL(file)
+      img.alt = file.name
+      img.style.cssText = "height:56px;width:auto;max-width:120px;object-fit:cover;border-radius:8px;border:1px solid var(--border);"
+      const remove = document.createElement("button")
+      remove.type = "button"
+      remove.textContent = "×"
+      remove.title = "Remove"
+      remove.setAttribute("aria-label", `Remove ${file.name}`)
+      remove.style.cssText = "position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;line-height:1;cursor:pointer;"
+      remove.addEventListener("click", () => this.removeImage(index))
+      item.append(img, remove)
+      box.appendChild(item)
+    })
+    if (note) {
+      const line = document.createElement("div")
+      line.className = "w-full text-[11.5px] clar-text-warn"
+      line.textContent = note
+      box.appendChild(line)
+    }
+    box.classList.toggle("hidden", box.children.length === 0)
+    box.classList.toggle("flex", box.children.length > 0)
+  }
+
   handleKeydown(event) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault()
@@ -268,7 +378,7 @@ export default class extends Controller {
     }
   }
 
-  appendMessage(role, content, author = null, thinking = null) {
+  appendMessage(role, content, author = null, thinking = null, images = []) {
     const wrapper = document.createElement("div")
     wrapper.style.cssText = "display:flex;gap:10px;align-items:flex-start;" +
       (role === "ai" ? "" : "flex-direction:row-reverse")
@@ -294,6 +404,24 @@ export default class extends Controller {
       const toggle = this.buildThinkingToggle(thinking)
       if (toggle) textSpan.appendChild(toggle)
     }
+    // A person's images, above their words; a click opens one full size.
+    if (images && images.length > 0) {
+      const strip = document.createElement("div")
+      strip.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;" + (content ? "margin-bottom:6px;" : "")
+      images.forEach((image) => {
+        const link = document.createElement("a")
+        link.href = image.url
+        link.target = "_blank"
+        link.rel = "noopener"
+        const img = document.createElement("img")
+        img.src = image.url
+        img.alt = image.name || "Image"
+        img.style.cssText = "max-height:140px;max-width:220px;border-radius:8px;display:block;"
+        link.appendChild(img)
+        strip.appendChild(link)
+      })
+      bubble.appendChild(strip)
+    }
     bubble.appendChild(textSpan)
 
     if (role === "user" && author) {
@@ -313,7 +441,7 @@ export default class extends Controller {
 
   renderMessages(messages) {
     this.messagesTarget.innerHTML = ""
-    messages.forEach(msg => this.appendMessage(msg.role === "assistant" ? "ai" : msg.role, msg.content, msg.author, msg.thinking))
+    messages.forEach(msg => this.appendMessage(msg.role === "assistant" ? "ai" : msg.role, msg.content, msg.author, msg.thinking, msg.images))
   }
 
   // "Reset session" (persona-banner button, behind the "Reset AI session"

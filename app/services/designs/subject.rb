@@ -11,6 +11,10 @@ require "tempfile"
 # Claude gets, the texts the leak guard refuses and the versions the turn
 # records are one read.
 module Designs::Subject
+  # A thread's design turn can copy a file of its repo (flosis_files, Kacper
+  # 2026-11-19): a new screen starts from the closest one.
+  COPY_TOOL = "mcp__flosis_files__copy_file".freeze
+
   module_function
 
   def for(chat_session)
@@ -68,7 +72,7 @@ module Designs::Subject
     def turn_message(request, turn: nil, worktree: nil)
       first = turn && turn.chat_session.design_turns.where.not(id: turn.id).where.not(started_at: nil).none?
       Designs::Prompt.thread_message(thread: @thread, request: request, repo_map: (repo_map(worktree, first) if worktree),
-                                     screens_only: turn&.kind == "design", after_plan: after_plan?(turn))
+                                     screens_only: turn&.kind == "design", after_plan: after_plan?(turn), plan: turn&.plan? || false)
     end
 
     # A design turn whose turn before it is a plan that finished: what comes
@@ -98,9 +102,22 @@ module Designs::Subject
     # File tools, the app's checkout copied for the turn, no browser and a
     # thread turn's bounds. The file tools are all it has (tool_set): no
     # subagent, which spent minutes mapping a repo Claude then read itself.
-    def tools = Designs::TurnJob::TOOLS
+    def tools = Designs::TurnJob::TOOLS + [ COPY_TOOL ]
     def tool_set = Designs::TurnJob::TOOLS
-    def with_mcp(_worktree) = yield(nil)
+
+    # copy_file, from flosis_files on the turn's worktree; a plan only reads,
+    # so it has none. The CLI's config is a temp file, gone with the turn.
+    def with_mcp(worktree, read_only: false)
+      return yield(nil) if read_only
+
+      server = { command: "node", args: [ File.join(Designs::SignIn.crawler_dir, "files.mjs") ],
+                 env: Designs::SignIn.node_env.merge("FLOSIS_FILES_ROOT" => worktree.to_s) }
+      Tempfile.create([ "#{Designs::TurnJob::PROMPT_PREFIX}-mcp", ".json" ]) do |file|
+        file.write(JSON.generate(mcpServers: { flosis_files: server }))
+        file.close
+        yield file.path
+      end
+    end
     def timeout = DesignTurn.turn_timeout
     def budget_usd = DesignTurn.turn_budget_usd
     def app_copy? = true
@@ -181,7 +198,7 @@ module Designs::Subject
     # thread turn's bounds.
     def tools = Designs::TurnJob::TOOLS
     def tool_set = Designs::TurnJob::TOOLS
-    def with_mcp(_worktree) = yield(nil)
+    def with_mcp(_worktree, **) = yield(nil)
     def timeout = DesignTurn.turn_timeout
     def budget_usd = DesignTurn.turn_budget_usd
     def app_copy? = true
@@ -305,7 +322,7 @@ module Designs::Subject
     # The turn's browser: its config written beside the run's states (no
     # password is in it), and the CLI's MCP config in the system's temp folder,
     # gone when the turn is done. A killed turn's is swept with its prompt's.
-    def with_mcp(worktree)
+    def with_mcp(worktree, **)
       FileUtils.mkdir_p(setup.run_dir)
       File.chmod(0o700, setup.run_dir)
       config = setup.run_dir.join("browser.json")

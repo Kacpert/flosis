@@ -1191,6 +1191,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       assert turn.succeeded?, turn.error
       assert_nil turn.commit_sha
       assert_equal %w[Read Glob Grep], opts[:tools]
+      assert_nil opts[:mcp_config], "a plan has no tool that writes"
       assert_equal "medium", opts[:effort]
       assert_equal 3, opts[:max_budget_usd]
       assert_equal 300, opts[:timeout]
@@ -1237,6 +1238,8 @@ class Designs::TurnJobTest < ActiveJob::TestCase
 
       assert_equal Designs::TurnJob::TOOLS, opts[:tools]
       assert_nil opts[:effort]
+      assert_includes opts[:allowed_tools], Designs::Subject::COPY_TOOL
+      assert opts[:mcp_config].present?, "a design turn can copy a file of its repo"
     end
   end
 

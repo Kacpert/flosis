@@ -15,13 +15,15 @@ module Designs::TurnOutput
     end
   end
 
-  SUMMARY = %r{<summary>(.*?)</summary>}mi
-  CONTEXT = %r{<context>(.*?)</context>}mi
-  MISSING = %r{<missing>(.*?)</missing>}mi
-  BLOCKED = %r{<blocked>(.*?)</blocked>}mi
-  COMES_IN = %r{<comes-in>(.*?)</comes-in>}mi
-  KEPT = %r{<kept>(.*?)</kept>}mi
-  REPLACED = %r{<replaced>(.*?)</replaced>}mi
+  # A closing tag is known by its first three letters: a model now and then
+  # misspells the rest (</missary>, 2026-11-19), and the block still ends there.
+  SUMMARY = %r{<summary>(.*?)</sum[\w-]*>}mi
+  CONTEXT = %r{<context>(.*?)</con[\w-]*>}mi
+  MISSING = %r{<missing>(.*?)</mis[\w-]*>}mi
+  BLOCKED = %r{<blocked>(.*?)</blo[\w-]*>}mi
+  COMES_IN = %r{<comes-in>(.*?)</com[\w-]*>}mi
+  KEPT = %r{<kept>(.*?)</kep[\w-]*>}mi
+  REPLACED = %r{<replaced>(.*?)</rep[\w-]*>}mi
   BLOCKS = [ SUMMARY, CONTEXT, MISSING, BLOCKED, COMES_IN, KEPT, REPLACED ].freeze
 
   # A reply that ignores the protocol still has to say something in the chat
