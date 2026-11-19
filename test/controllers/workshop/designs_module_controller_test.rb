@@ -343,6 +343,18 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Kacper (2026-11-19): moving to another screen reloads the page, and the
+  # message being typed went with it. The composer keeps it per thread.
+  test "the composer keeps what is typed per thread" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_select "textarea[data-controller=designs-composer][data-designs-composer-draft-key-value=?]", "designs.draft.#{thread.id}"
+    end
+  end
+
   test "a reply's screen chips stop at eight, the rest one click away" do
     with_designs do |repo|
       thread = thread_with_work(repo)
