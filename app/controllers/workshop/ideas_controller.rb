@@ -21,6 +21,7 @@ class Workshop::IdeasController < Workshop::BaseController
 
     seed_v0_detail_draft if @stage == "details"
     load_ready_summary if @stage == "ready"
+    @announce = announce_acceptance if @stage == "details"
 
     render "workshop/ideas/show"
   end
@@ -199,6 +200,31 @@ class Workshop::IdeasController < Workshop::BaseController
       flash[:alert] = "Couldn't write to Jira: #{result[:error]}"
     end
     redirect_to workshop_idea_path(@idea, stage: stage)
+  end
+
+  # Finish · Update Jira & Create branch (Kacper, 2026-11-21): Jira, the task's
+  # branch with its file for the developer, then Ready (TaskFinish).
+  def finish
+    @idea = current_workshop_project.tasks.pipeline.find(params[:id])
+    result = TaskFinish.new(@idea).run!
+    if result[:ok]
+      flash[:clar_toast] = result[:toast]
+      redirect_to workshop_idea_path(@idea, stage: "ready")
+    else
+      redirect_to workshop_idea_path(@idea, stage: "details"), alert: result[:error]
+    end
+  end
+
+  # Ready's Create branch, after a Finish whose branch GitHub refused.
+  def create_branch
+    @idea = current_workshop_project.tasks.pipeline.find(params[:id])
+    result = TaskBranch.new(@idea).push!
+    if result[:ok]
+      flash[:clar_toast] = "Branch #{result[:branch]} created"
+    else
+      flash[:alert] = result[:error]
+    end
+    redirect_to workshop_idea_path(@idea, stage: "ready")
   end
 
   # Remove a task from the Create Tasks pipeline.
@@ -386,6 +412,14 @@ class Workshop::IdeasController < Workshop::BaseController
 
   def idea_params
     params.require(:idea).permit(:title, :description)
+  end
+
+  # The modal after a task's designs are accepted (2026-11-21): once per
+  # acceptance, to whoever opens the task first, stamped as it renders.
+  def announce_acceptance
+    merge = @idea.design_merges.where.not(description_version: nil).where(announced_at: nil).newest_first.first or return
+    merge.update_column(:announced_at, Time.current)
+    merge
   end
 
   # Rename only ever touches the local `name` column — for Jira-linked tasks

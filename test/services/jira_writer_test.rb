@@ -377,4 +377,29 @@ class JiraWriterTest < ActiveSupport::TestCase
     assert_equal "403 Forbidden", res[:error]
     assert_match(/--- Designs ---/, task.reload.description)
   end
+  # Accept designs (2026-11-21): what leaves for Jira carries the Designs
+  # section, even when a later version lost it.
+  test "commit_detail puts the Designs section back when a later version lacks it" do
+    root = Dir.mktmpdir("preview")
+    ENV["DESIGNS_PREVIEW_ROOT"] = root
+    @project.update!(design_preview_token: "t0k")
+    task = @project.tasks.create!(name: "JW-40 Existing", external_type: "jira", external_reference: "JW-40")
+    DesignMerge.create!(project: @project, task: task, sha: "a" * 40, title: "t", branch: "design/x", how: "manual",
+                        merged_at: Time.current, slot: "accepted/9")
+    folder = Pathname(root).join("t0k", "accepted/9/__flosis")
+    FileUtils.mkdir_p(folder)
+    File.write(folder.join("screens.json"), { contexts: [ { id: "admin", name: "Admin" } ], screens: [ { id: "plans", context: "admin", name: "Plans" } ] }.to_json)
+    File.write(folder.join("changes.json"), { own: [ [ "admin", "plans", "new" ] ], through: {} }.to_json)
+    draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "Intro.\n\n## Rules")
+    c = fake_client
+    sent = nil
+    c.define_singleton_method(:update_issue_description) { |**k| sent = k[:description_text]; { ok: true } }
+
+    assert JiraWriter.new(client: c).commit_detail(draft)[:ok]
+    assert_match(/\AIntro\.\n\n\*\*Designs\*\* · \[Open the designs\]\(http.*JW-40\/design\)/, sent)
+    assert_includes sent, "## Rules"
+  ensure
+    ENV.delete("DESIGNS_PREVIEW_ROOT")
+    FileUtils.remove_entry(root) if root
+  end
 end

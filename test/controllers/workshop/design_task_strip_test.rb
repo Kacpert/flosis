@@ -63,9 +63,11 @@ class Workshop::DesignTaskStripTest < ActionDispatch::IntegrationTest
       @task.update!(description: "Validate on blur\nShow a counter")
 
       get workshop_idea_path(@task)
-      [ thread.branch, "merges on Done", "Description changed since the last design update", "Update designs from diff", "Open in Designs" ].each do |copy|
+      [ thread.branch, "Description changed since the last design update", "Update designs from diff", "Open in Designs" ].each do |copy|
         assert_includes response.body, copy, copy
       end
+      # Every thread merges by hand (2026-11-14): nothing says it merges on Done.
+      assert_not_includes response.body, "merges on Done"
 
       get workshop_pipeline_path
       assert_includes response.body, "Designs need update"
@@ -81,7 +83,8 @@ class Workshop::DesignTaskStripTest < ActionDispatch::IntegrationTest
       merge = Designs::Threads.merge!(thread, user: users(:one))
 
       get workshop_idea_path(@task)
-      assert_includes response.body, "Merged into master · #{merge.short_sha}"
+      # A task's merge is its designs' acceptance (2026-11-21).
+      assert_includes response.body, "Accepted · #{merge.short_sha}"
       get workshop_pipeline_path
       assert_includes response.body, "Designs merged"
     end
@@ -93,4 +96,41 @@ class Workshop::DesignTaskStripTest < ActionDispatch::IntegrationTest
     assert_nil thread.reload.task_id
   end
 
+  # Accept designs (2026-11-21): an accepted thread's strip opens its designs in
+  # a new tab; a reopened one keeps a link to what was accepted.
+  def accepted_thread(repo)
+    thread = Designs::Threads.start_from_task!(@task, user: users(:one))
+    commit_files(repo, repo.worktree!(thread.branch, from: thread.base_sha), { "designs/candidate/apply.html" => "<title>Application form</title><p>1</p>" })
+    repo.push!(thread.branch)
+    DesignTurn.update_all(status: "succeeded")
+    [ thread, Designs::Threads.merge!(thread.reload, user: users(:one)) ]
+  end
+
+  test "an accepted thread's strip opens the designs in a new tab" do
+    with_designs do |repo|
+      _, merge = accepted_thread(repo)
+      get workshop_idea_path(@task)
+
+      assert_select "[data-task-header-top]" do
+        assert_select "*", text: /Accepted · #{merge.short_sha}/
+        assert_select "a[target=_blank][href=?]", Designs::Publisher.new(@project, nil).url("SP-1051", nil), text: /Open designs/
+        assert_select "a", text: /Open in Designs/
+      end
+    end
+  end
+
+  test "a reopened thread's strip links the accepted version" do
+    with_designs do |repo|
+      thread, merge = accepted_thread(repo)
+      # The describe turn has written the description by now.
+      DesignTurn.where(kind: "describe").update_all(status: "succeeded")
+      Designs::Threads.reopen!(thread.reload, user: users(:one))
+      get workshop_idea_path(@task)
+
+      assert_select "[data-task-header-top]" do
+        assert_select "*", text: thread.branch
+        assert_select "a[target=_blank][href=?]", Designs::Publisher.new(@project, nil).url("SP-1051", nil), text: /Accepted · #{merge.short_sha}/
+      end
+    end
+  end
 end

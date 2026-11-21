@@ -56,7 +56,7 @@ class JiraWriter
 
     if task.external_reference.present?
       res = @client.update_issue_description(issue_key: task.external_reference,
-                                             description_text: plain_text(draft.content))
+                                             description_text: self.class.detail_text(draft))
       return res unless res[:ok]
       key = task.external_reference
     else
@@ -64,7 +64,7 @@ class JiraWriter
       return { ok: false, error: "Project is not linked to Jira" } if project_key.blank?
 
       res = @client.create_issue(project_key: project_key, summary: task.name,
-                                 description_text: plain_text(draft.content))
+                                 description_text: self.class.detail_text(draft))
       return res unless res[:ok]
       key = res[:key]
       task.update!(external_reference: key, external_url: res[:url], external_type: "jira")
@@ -136,6 +136,12 @@ class JiraWriter
     id = @client.fetch_field_id(AI_ACTION_FIELD_NAME)
     project.update_column(:jira_ai_actions_field_id, id) if id.present?
     id
+  end
+
+  # A Details version as it goes to Jira (2026-11-21): with the task's Designs
+  # section put back when the version lost it, as Markdown.
+  def self.detail_text(draft)
+    plain_text(Designs::DesignsSection.with_section(draft.task, draft.content))
   end
 
   # Rich-text editing (Task 5.2) lets a brief/draft's `content` be stored as

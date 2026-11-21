@@ -24,7 +24,13 @@
   else
     "None"
   end
-  branch = idea.suggested_branch
+  # Accepted designs (2026-11-21) and the branch Finish creates (TaskBranch).
+  accepted = Designs::AcceptedScreens.new(idea)
+  designs_link = accepted.any? && Designs::Publisher.new(idea.project, nil).url(Designs::BranchNames.slug(idea), nil)
+  branch = idea.code_branch.presence || idea.suggested_branch
+  github = ProjectCredentials.new(idea.project).github_configured?
+  branched = idea.code_branch_pushed_at.present?
+  task_file = TaskFile.new(idea)
 %>
 <div class="flex-1 overflow-y-auto px-10 py-10 flex justify-center items-start">
   <div class="w-full max-w-[620px] text-center">
@@ -33,7 +39,9 @@
     </div>
     <h2 class="m-0 text-[22px] font-bold clar-text-text">Ready for the team</h2>
     <p class="mt-2.5 mb-6 clar-text-muted text-sm leading-[1.5]">
-      <% if @detail_pushed %>
+      <% if @detail_pushed && branched %>
+        The description is in Jira and on its own branch. A developer checks it out and tells their AI to read the task file.
+      <% elsif @detail_pushed %>
         The description is in Jira. AI has estimated it and prepared a branch &mdash; a developer can start straight away.
       <% else %>
         The description is saved locally. AI has estimated it and prepared a branch &mdash; push to Jira whenever you like.
@@ -63,7 +71,11 @@
         </div>
         <div class="bg-[var(--surface)] px-4 py-3.5">
           <div class="text-[11px] clar-text-faint mb-0.5">Designs</div>
-          <div class="font-semibold text-[13px] clar-text-text"><%= design_copy %></div>
+          <% if designs_link %>
+            <a href="<%= designs_link %>" target="_blank" rel="noopener noreferrer" class="font-semibold text-[13px] clar-text-primary no-underline">Accepted · <%= pluralize(accepted.own.size, "screen") %></a>
+          <% else %>
+            <div class="font-semibold text-[13px] clar-text-text"><%= design_copy %></div>
+          <% end %>
         </div>
         <div class="bg-[var(--surface)] px-4 py-3.5">
           <div class="text-[11px] clar-text-faint mb-0.5">Versions saved</div>
@@ -72,13 +84,24 @@
       </div>
     </div>
 
+    <%# The branch (Finish, 2026-11-21): the one TaskBranch created, or why it
+        was not, with Create branch; without GitHub, a suggested name only. %>
     <div class="bg-[var(--ai-soft)] border clar-divider rounded-[14px] p-4 text-left mt-3.5" data-controller="clar-copy" data-clar-copy-value="git checkout <%= branch %>">
-      <div class="flex items-center gap-2 mb-2.5">
+      <div class="flex items-center gap-2 mb-2.5 flex-wrap">
         <span class="clar-text-ai flex">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v12M18 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a9 9 0 0 0 9-9"/></svg>
         </span>
-        <span class="text-[12.5px] font-bold clar-text-text">AI prepared a branch</span>
-        <span class="clar-badge clar-badge-success">READY</span>
+        <% if branched %>
+          <span class="text-[12.5px] font-bold clar-text-text">Branch created</span>
+          <span class="clar-badge clar-badge-success">ON GITHUB</span>
+          <span class="flex-1"></span>
+          <a href="https://github.com/<%= ProjectCredentials.new(idea.project).github_repo %>/tree/<%= branch %>" target="_blank" rel="noopener noreferrer" class="clar-btn !text-xs !py-1 no-underline">Open on GitHub</a>
+        <% elsif github %>
+          <span class="text-[12.5px] font-bold clar-text-text">Branch</span>
+          <span class="clar-badge clar-badge-warn">NOT CREATED</span>
+        <% else %>
+          <span class="text-[12.5px] font-bold clar-text-text">Suggested branch</span>
+        <% end %>
       </div>
       <div class="flex items-center gap-2.5">
         <code class="clar-mono flex-1 text-xs clar-text-text bg-[var(--surface)] border clar-divider rounded-lg px-2.5 py-2 overflow-hidden text-ellipsis whitespace-nowrap"><%= branch %></code>
@@ -87,7 +110,19 @@
           Copy
         </button>
       </div>
-      <div class="text-[11.5px] clar-text-muted leading-[1.5] mt-2">The task description is committed to the branch. A developer checks it out and starts the task with AI &mdash; no setup.</div>
+      <% if branched %>
+        <div class="text-[11.5px] clar-text-muted leading-[1.5] mt-2">In it: <span class="clar-mono clar-text-text"><%= task_file.path %></span> (description <%= task_file.version %> with the designs' links). Tell your AI: “read <%= task_file.path %>”.</div>
+      <% elsif github %>
+        <% if idea.code_branch_error.present? %>
+          <div class="text-[11.5px] clar-text-warn leading-[1.5] mt-2"><%= idea.code_branch_error %></div>
+        <% end %>
+        <div class="flex items-center gap-2.5 mt-2.5">
+          <%= button_to create_branch_workshop_idea_path(idea), method: :post, class: "clar-btn clar-btn-primary !text-xs !py-1.5" do %>Create branch<% end %>
+          <span class="text-[11.5px] clar-text-muted leading-[1.5]">With <span class="clar-mono"><%= task_file.path %></span> for the developer.</span>
+        </div>
+      <% else %>
+        <div class="text-[11.5px] clar-text-muted leading-[1.5] mt-2">This project has no GitHub repository in Flosis, so the branch is only a suggestion.</div>
+      <% end %>
     </div>
 
     <div class="flex gap-2.5 justify-center mt-6">

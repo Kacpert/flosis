@@ -257,6 +257,15 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "a", text: /Continue to Details/, count: 0
   end
 
+  # The machine's own Jira login (ProjectCredentials falls back to it): a
+  # project without Jira finishes locally only when none is set.
+  def without_machine_jira
+    saved = %w[JIRA_DOMAIN JIRA_EMAIL JIRA_API_TOKEN].to_h { |name| [ name, ENV.delete(name) ] }
+    yield
+  ensure
+    saved.each { |name, value| value.nil? ? ENV.delete(name) : ENV[name] = value }
+  end
+
   # The button's name sounds like it might publish something; the (i) on it
   # tells the user it doesn't, without a line of text under the button.
   test "details' Finish says in its (i) that finishing sends nothing to Jira" do
@@ -264,7 +273,7 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
     idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "d").make_current!
 
-    get workshop_idea_path(idea, stage: "details")
+    without_machine_jira { get workshop_idea_path(idea, stage: "details") }
 
     assert_response :success
     note = "Safe — nothing is sent to Jira. This only marks the ticket finished here; the Jira ticket stays as it is."
@@ -317,7 +326,8 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
 
     idea.update!(workshop_stage: "details")
     idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "user", content: "d").tap(&:make_current!)
-    get workshop_idea_path(idea, stage: "details")
+    # With neither Jira nor GitHub, Finish stays local (2026-11-21).
+    without_machine_jira { get workshop_idea_path(idea, stage: "details") }
     assert_response :success
     # The "Finish · go to Ready" primary is a save_locally form…
     assert_select "form[action='#{save_locally_workshop_idea_path(idea, stage: 'details')}'] button",
@@ -772,7 +782,9 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "*", text: /8 pts/
     assert_select "*", text: /auto/
     assert_select "code", text: idea.suggested_branch
-    assert_select "*", text: /AI prepared a branch/
+    # No GitHub repo: the branch is only suggested (2026-11-21).
+    assert_select "*", text: /Suggested branch/
+    assert_select "*", text: /AI prepared a branch/, count: 0
   end
 
   test "GET show at ready stage shows Push to Jira when the detail draft has not been pushed" do
@@ -1064,5 +1076,95 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_nil task.spun_off_from
     assert_nil task.handoff_chat_session
     assert_equal "- Billed monthly", task.handoff
+  end
+  # Finish (Kacper, 2026-11-21): Jira and the task's branch, then Ready.
+  def configure_jira_and_github(project)
+    project.update!(jira_site: "acme.atlassian.net", jira_email: "j@acme.test", jira_api_token: "jt",
+                    github_repo: "acme/app", github_token: "tok")
+  end
+
+  def details_idea
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "d").make_current!
+    idea
+  end
+
+  test "the Details panel's Finish names what it will do and posts to finish" do
+    idea = details_idea
+    configure_jira_and_github(idea.project)
+
+    get workshop_idea_path(idea, stage: "details")
+    assert_select "form[action=?] button", finish_workshop_idea_path(idea), text: /Finish · Update Jira & Create branch/
+    assert_select "form[action*='save_locally']", count: 0
+  end
+
+  test "Finish takes the task to Ready, or stays on Details with Jira's reason" do
+    idea = details_idea
+    original = TaskFinish.instance_method(:run!)
+    TaskFinish.define_method(:run!) { { ok: true, error: nil, toast: "Jira updated · branch feat/x created" } }
+    post finish_workshop_idea_path(idea)
+    assert_redirected_to workshop_idea_path(idea, stage: "ready")
+    assert_equal "Jira updated · branch feat/x created", flash[:clar_toast]
+
+    TaskFinish.define_method(:run!) { { ok: false, error: "Couldn't write to Jira: 403", toast: nil } }
+    post finish_workshop_idea_path(idea)
+    assert_redirected_to workshop_idea_path(idea, stage: "details")
+    assert_equal "Couldn't write to Jira: 403", flash[:alert]
+  ensure
+    TaskFinish.define_method(:run!, original)
+  end
+
+  test "the modal shows once after acceptance, then never again" do
+    idea = details_idea
+    configure_jira_and_github(idea.project)
+    merge = DesignMerge.create!(project: idea.project, task: idea, sha: "a" * 40, title: "t", branch: "design/x", how: "manual",
+                                merged_at: Time.current, slot: "accepted/1", description_version: 5,
+                                description_changes: [ "Costs in euro." ])
+
+    get workshop_idea_path(idea, stage: "details")
+    assert_select "[data-controller~=clar-modal][data-clar-modal-open-value=designs-accepted]"
+    modal = css_select("[data-clar-modal-panel-id-value=designs-accepted]").sole.text.squish
+    [ "Designs accepted", "Description updated · v5", "Changed to match the designs:", "Costs in euro.", "Designs linked",
+      "What's left", "A branch with the task for the developer to take over, and the Jira ticket updated with the new description.",
+      "Later", "Finish · Update Jira & Create branch" ].each { |copy| assert_includes modal, copy }
+    assert merge.reload.announced_at
+
+    get workshop_idea_path(idea, stage: "details")
+    assert_select "[data-clar-modal-open-value=designs-accepted]", count: 0
+  end
+
+  test "the modal says a ticket will be created for a task without one, and when the text was not checked" do
+    idea = tasks(:local_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "designs", content: "d").make_current!
+    configure_jira_and_github(idea.project)
+    DesignMerge.create!(project: idea.project, task: idea, sha: "a" * 40, title: "t", branch: "design/x", how: "manual",
+                        merged_at: Time.current, slot: "accepted/1", description_version: 1, described_fallback: true)
+
+    get workshop_idea_path(idea, stage: "details")
+    modal = css_select("[data-clar-modal-panel-id-value=designs-accepted]").sole.text.squish
+    assert_includes modal, "and a Jira ticket created with the new description."
+    assert_includes modal, "The text wasn't checked against the designs this time."
+    assert_includes modal, "Finish · Create Jira ticket & branch"
+  end
+
+  test "Ready shows the branch that was created, or why it was not, with Create branch" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "ready", pipeline_entered_at: 1.hour.ago,
+                 code_branch: "feat/elv-1-existing-task", code_branch_sha: "c1", code_branch_pushed_at: Time.current)
+    idea.task_drafts.create!(source: "ai", origin: "ai", content: "d", pushed_at: 1.minute.ago).make_current!
+    configure_jira_and_github(idea.project)
+
+    get workshop_idea_path(idea, stage: "ready")
+    assert_select "*", text: /Branch created/
+    assert_select "a[href=?]", "https://github.com/acme/app/tree/feat/elv-1-existing-task", text: /Open on GitHub/
+    assert_includes css_select("main, body").first.text, "tasks/ELV-1/elv-1.md"
+
+    idea.update!(code_branch_pushed_at: nil, code_branch_sha: nil,
+                 code_branch_error: "The project's GitHub token can't write to acme/app (403).")
+    get workshop_idea_path(idea, stage: "ready")
+    assert_includes response.body, CGI.escapeHTML("The project's GitHub token can't write to acme/app (403).")
+    assert_select "form[action=?] button", create_branch_workshop_idea_path(idea), text: /Create branch/
   end
 end
