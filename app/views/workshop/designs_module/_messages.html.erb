@@ -39,6 +39,9 @@
         <span class="text-[11.5px] clar-text-faint leading-[1.45] min-w-0">Runs the request again. Claude is told nothing of the last try was kept.</span>
       </div>
     <% end %>
+    <% if (steps = Designs::Threads.acceptance(thread)) %>
+      <%= render "acceptance", thread: thread, steps: steps %>
+    <% end %>
     <%# Accept designs (2026-11-21): once the task's description is written, the
         person who accepted goes to the task, where its modal says what
         changed; only until the modal has been shown. %>

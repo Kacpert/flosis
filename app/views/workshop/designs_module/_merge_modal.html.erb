@@ -15,15 +15,22 @@
       <div class="mb-3.5 px-3 py-2.5 rounded-[9px] bg-[var(--warn-soft)] text-[12.5px] clar-text-text leading-[1.5]"><%= key %>'s description changed since the designs were last updated (<%= @description_change[:from] %> → <%= @description_change[:to] %>). Update the designs first to see it in the screens.</div>
     <% end %>
     <label class="clar-field-label">CHANGED SCREENS</label>
+    <% row = lambda do |(context, screen), first| %>
+      <div data-changed-screen class="flex items-center justify-between gap-3 px-3 py-2 flex-wrap <%= 'border-t border-[color:var(--border)]' unless first %>"><span class="text-[13px] font-semibold clar-text-text"><%= designs_context_name(@contexts, context) %> › <%= designs_screen_name(@screens, context, screen) %></span><span class="clar-mono text-[11px] clar-text-faint">designs/<%= context %>/<%= screen %>.html</span></div>
+    <% end %>
     <div class="border border-[color:var(--border)] rounded-[11px] overflow-hidden mb-3.5">
-      <%# Five, then how many more, as the mockup has it. %>
-      <% @changed_own.first(5).each_with_index do |(context, screen), i| %>
-        <div data-changed-screen class="flex items-center justify-between gap-3 px-3 py-2 flex-wrap <%= 'border-t border-[color:var(--border)]' if i.positive? %>"><span class="text-[13px] font-semibold clar-text-text"><%= designs_context_name(@contexts, context) %> › <%= designs_screen_name(@screens, context, screen) %></span><span class="clar-mono text-[11px] clar-text-faint">designs/<%= context %>/<%= screen %>.html</span></div>
-      <% end %>
-      <% if @changed_own.size > 5 %>
-        <div class="px-3 py-2 border-t border-[color:var(--border)] text-[12px] clar-text-muted">and <%= @changed_own.size - 5 %> more</div>
-      <% end %>
-      <% if @changed_own.empty? %><div class="px-3 py-2 text-[12.5px] clar-text-faint">No screen differs from master yet.</div><% end %>
+      <%# Five, then "and N more", which opens the rest inside the list; the list
+          then scrolls on its own (Kacper, 2026-11-22). %>
+      <div class="max-h-[22rem] overflow-y-auto" data-changed-list>
+        <% @changed_own.first(5).each_with_index do |pair, i| %><%= row.call(pair, i.zero?) %><% end %>
+        <% if @changed_own.size > 5 %>
+          <details class="[&[open]>summary]:hidden">
+            <summary class="px-3 py-2 border-t border-[color:var(--border)] text-[12px] font-semibold clar-text-primary cursor-pointer list-none hover:underline [&::-webkit-details-marker]:hidden">and <%= @changed_own.size - 5 %> more</summary>
+            <% @changed_own.drop(5).each do |pair| %><%= row.call(pair, false) %><% end %>
+          </details>
+        <% end %>
+        <% if @changed_own.empty? %><div class="px-3 py-2 text-[12.5px] clar-text-faint">No screen differs from master yet.</div><% end %>
+      </div>
       <% if @changed_through.any? %>
         <div class="px-3 py-2 border-t border-[color:var(--border)] text-[12px] clar-text-muted">+<%= designs_through_count(@changed_through) %> through <%= @changed_through.keys.map { |name| designs_component_name(name) }.to_sentence %></div>
       <% end %>
@@ -31,14 +38,11 @@
     <% if task %>
       <div class="rounded-[10px] bg-[var(--surface-2)] px-3.5 py-3 mb-5 text-[12.5px] leading-[1.6] clar-text-text">
         <div class="text-[10.5px] font-bold tracking-[.4px] clar-text-faint mb-1.5">THEN</div>
-        <div>1 · Main designs will be updated</div>
-        <div>2 · <%= key %>'s description gets <b>v<%= Designs::Threads.next_description_version(task) %></b>: the designs' link, the merge commit, the changed screens, and small fixes where the designs settled something new</div>
-        <div>3 · You will be moved back to <%= key %></div>
+        <div>1 · This thread's changes are merged into the main designs</div>
+        <div>2 · <%= key %>'s description is updated to <b>v<%= Designs::Threads.next_description_version(task) %></b>, adding a link to the designs, the merge commit and the changed screens, with small edits wherever the designs settled something new</div>
+        <div>3 · You're taken back to <%= key %></div>
       </div>
     <% else %>
-      <% if Designs::Threads.components_due?(@thread) %>
-        <p class="mt-0 mb-3 text-[12.5px] clar-text-text leading-[1.55]">Flosis first makes components from the UI this thread’s screens repeat, in a turn of its own (a few minutes), then merges.</p>
-      <% end %>
       <p class="mt-0 mb-5 text-[12.5px] clar-text-muted leading-[1.55]">After merging, the thread is finished. Reopen it for further changes.</p>
     <% end %>
     <div class="flex gap-2 justify-end">

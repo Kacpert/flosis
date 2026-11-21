@@ -478,7 +478,7 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       thread = thread_with_work(repo, "x", { "designs/candidate/apply.html" => SCREEN.("Application form", "<em>1</em>") }, task: task)
       get workshop_designs_overview_path(thread: thread.id)
       # A task's thread is accepted into it (2026-11-21).
-      assert_includes response.body, "You will be moved back to #{Designs::ThreadNames.key(task)}"
+      assert_includes response.body, "You're taken back to #{Designs::ThreadNames.key(task)}"
       assert_no_match(/This thread merges when you merge it|This thread has no task/, response.body)
     end
   end
@@ -733,15 +733,15 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "the merge dialog says components come first when the thread's turns made screens since" do
+  # Kacper, 2026-11-22: components are made as the designs are, so the dialog
+  # says nothing of a components step.
+  test "the merge dialog says nothing of making components first" do
     with_designs do |repo|
       thread = thread_with_work(repo)
-      get workshop_designs_overview_path(thread: thread.id)
-      assert_not_includes response.body, "Flosis first makes components"
-
       DesignTurn.where(chat_session: thread.chat_session).update_all(commit_sha: "abc1234")
       get workshop_designs_overview_path(thread: thread.id)
-      assert_includes response.body, "Flosis first makes components"
+
+      assert_not_includes response.body, "Flosis first makes components"
     end
   end
 
@@ -796,10 +796,11 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       get workshop_designs_overview_path(thread: thread.id)
 
       assert_select "button[data-clar-modal-id-param=merge-thread]", text: /Accept designs/
-      [ "Accept designs?", "1 · Main designs will be updated",
-        "2 · SP-1051's description gets v#{version}: the designs' link, the merge commit, the changed screens, and small fixes where " \
-        "the designs settled something new",
-        "3 · You will be moved back to SP-1051" ].each { |copy| assert_includes dialog_text, copy }
+      # Kacper, 2026-11-22: the steps in plainer English.
+      [ "Accept designs?", "1 · This thread's changes are merged into the main designs",
+        "2 · SP-1051's description is updated to v#{version}, adding a link to the designs, the merge commit and the changed " \
+        "screens, with small edits wherever the designs settled something new",
+        "3 · You're taken back to SP-1051" ].each { |copy| assert_includes dialog_text, copy }
       assert_not_includes response.body, "Merge to master"
       assert_not_includes response.body, "Flosis first makes components"
     end
@@ -913,9 +914,46 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       dialog = css_select("[data-clar-modal-panel-id-value=merge-thread] .clar-modal").sole
       assert_includes dialog["class"], "overflow-y-auto"
       assert_includes dialog["class"], "max-h-[calc(100vh-48px)]"
-      rows = css_select("[data-clar-modal-panel-id-value=merge-thread] [data-changed-screen]")
-      assert_equal 5, rows.size
-      assert_includes dialog.text.squish, "and 2 more"
+      # Kacper, 2026-11-22: "and 2 more" opens the rest inside the list, which
+      # then scrolls on its own.
+      list = css_select("[data-clar-modal-panel-id-value=merge-thread] [data-changed-list]").sole
+      assert_includes list["class"], "overflow-y-auto"
+      assert_equal 5, list.css("> [data-changed-screen]").size
+      more = list.css("details").sole
+      assert_equal "and 2 more", more.at("summary").text.squish
+      assert_equal 2, more.css("[data-changed-screen]").size
+    end
+  end
+
+  # Kacper, 2026-11-22 ("nie wiem co się dzieje"): while the designs are
+  # accepted, the thread says so, step by step as the mockup does, and Accept
+  # and the composer step aside.
+  test "while the designs are accepted, the chat shows the steps and Accept steps aside" do
+    with_designs do |repo|
+      _, thread = task_thread(repo)
+      request = thread.chat_session.chat_messages.create!(role: "user", kind: "request", content: "Make components", user: users(:one))
+      DesignTurn.create!(chat_session: thread.chat_session, chat_message: request, kind: "components", then_merge: "manual")
+      get workshop_designs_overview_path(thread: thread.id)
+
+      steps = css_select("[data-acceptance]").sole.text.squish
+      [ "Accepting the designs", "Making components from the thread's screens", "Merging into master",
+        "Writing SP-1051's description", "Back to SP-1051",
+        "You'll be taken back to SP-1051 when it's done. You can leave this page." ].each { |copy| assert_includes steps, copy }
+      assert_includes response.body, "Accepting"
+      assert_select "button[data-clar-modal-id-param=merge-thread]", count: 0
+      assert_select "textarea[name=text]", count: 0
+    end
+  end
+
+  test "once merged, the steps say the description is being written" do
+    with_designs do |repo|
+      _, thread = task_thread(repo)
+      merge = Designs::Threads.merge!(thread, user: users(:one))
+      get workshop_designs_overview_path(thread: thread.id)
+
+      steps = css_select("[data-acceptance]").sole.text.squish
+      assert_includes steps, "Merged into master as #{merge.short_sha}"
+      assert_includes steps, "Writing SP-1051's description"
     end
   end
 end

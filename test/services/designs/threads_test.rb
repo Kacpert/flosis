@@ -835,59 +835,30 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     thread
   end
 
-  test "Merge makes components first when design turns committed since: a components turn, which merges once it is done" do
+  # Kacper, 2026-11-22: design turns make components as they build, so Merge
+  # merges at once, however many turns committed since.
+  test "Merge merges at once, though design turns committed since" do
     with_threads_remote do |repo, _|
       seed_master(repo)
       thread = with_committed_turns(thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" }))
-      clear_enqueued_jobs
 
-      turn = Designs::Threads.merge_or_prepare!(thread, user: @user)
-
-      assert_equal [ "components", "manual", "queued" ], [ turn.kind, turn.then_merge, turn.status ]
-      assert_equal "request", turn.chat_message.kind
-      assert_includes turn.chat_message.content, Designs::Threads::COMPONENTS_REQUEST
-      assert_includes turn.chat_message.content, "The screens this thread changed:\n- designs/admin/pipeline.html"
-      assert_enqueued_with(job: Designs::TurnJob, args: [ turn.id ])
-      assert_equal "Making components from this thread's screens before it merges · #{@user.name}", system_lines(thread).last
-      assert_not thread.reload.merged?
+      assert_kind_of DesignMerge, Designs::Threads.merge_or_prepare!(thread, user: @user)
+      assert thread.reload.merged?
+      assert_not DesignTurn.where(chat_session: thread.chat_session, kind: "components").exists?
     end
   end
 
-  test "Merge goes straight to master when no design turn committed since the components turn, or none ever did" do
-    with_threads_remote do |repo, _|
-      seed_master(repo)
-      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
-      assert_kind_of DesignMerge, Designs::Threads.merge_or_prepare!(thread, user: @user), "no turn of it committed"
-
-      other = with_committed_turns(thread_with_work(repo, "Closing dates", { "designs/candidate/apps.html" => "<title>Apps</title>" }))
-      DesignTurn.create!(chat_session: other.chat_session, chat_message: other.chat_session.chat_messages.first, kind: "components",
-                         status: "succeeded")
-      assert_not Designs::Threads.components_due?(other)
-      assert_kind_of DesignMerge, Designs::Threads.merge_or_prepare!(other.reload, user: @user)
-    end
-  end
-
+  # A components turn from before still merges its thread when tried again.
   test "Try again on a components turn that failed merges when it succeeds, as the first one would have" do
     with_threads_remote do |repo, _|
       seed_master(repo)
       thread = with_committed_turns(thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" }))
-      Designs::Threads.merge_or_prepare!(thread, user: @user).update!(status: "failed", error: "Claude returned no answer", started_at: 1.minute.ago)
+      DesignTurn.create!(chat_session: thread.chat_session, chat_message: thread.chat_session.chat_messages.first, kind: "components",
+                         then_merge: "manual", status: "failed", error: "Claude returned no answer", started_at: 1.minute.ago)
 
       turn = Designs::Threads.retry!(thread.reload, user: @user)
 
       assert_equal [ "components", "manual" ], [ turn.kind, turn.then_merge ]
-    end
-  end
-
-  # Its failure is in the chat, with Try again: Merge again is the way past it.
-  test "a components turn that did not finish lets Merge go straight to master" do
-    with_threads_remote do |repo, _|
-      seed_master(repo)
-      thread = with_committed_turns(thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" }))
-      Designs::Threads.merge_or_prepare!(thread, user: @user).update!(status: "failed", error: "Claude returned no answer", started_at: 1.minute.ago)
-
-      assert_not Designs::Threads.components_due?(thread)
-      assert_kind_of DesignMerge, Designs::Threads.merge_or_prepare!(thread.reload, user: @user)
     end
   end
 
