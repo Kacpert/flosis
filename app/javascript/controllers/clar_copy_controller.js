@@ -1,44 +1,63 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Generic clipboard-copy button (Task 5.4's Ready screen "AI prepared a
-// branch" card copies `git checkout {branch}`, not just the branch name).
-// The value to copy lives on the controller's data-clar-copy-value attribute
-// so this controller has no knowledge of what it's copying. On success,
-// dispatches the same window "clar:toast" event used elsewhere (see
-// clar_rename_controller.js / clar_toast_controller.js).
+// Generic clipboard-copy button (Task 5.4's Ready screen copies
+// `git checkout {branch}`). The value to copy lives on the controller's
+// data-clar-copy-value attribute so this controller has no knowledge of what
+// it's copying. It says "copied" only when the copy went through (the window
+// "clar:toast" event, as clar_rename_controller.js does).
+//
+// Kacper, 2026-11-22: Copy said "copied" in Safari while nothing reached the
+// clipboard. The copy now happens inside the click itself (a selected,
+// read-only textarea and execCommand, which every browser honours during a
+// click), then the Clipboard API; when both fail, the text on screen is
+// selected so ⌘C finishes the job.
 export default class extends Controller {
+  static targets = ["text"]
   static values = { value: String, message: { type: String, default: "Checkout command copied" } }
 
   copy() {
     const text = this.valueValue
+    if (this.copyBySelection(text)) return this.announce(this.messageValue)
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => this.announce(), () => this.fallbackCopy(text))
+      navigator.clipboard.writeText(text).then(() => this.announce(this.messageValue), () => this.failed())
     } else {
-      this.fallbackCopy(text)
+      this.failed()
     }
   }
 
-  fallbackCopy(text) {
+  copyBySelection(text) {
     const textarea = document.createElement("textarea")
     textarea.value = text
-    textarea.style.position = "fixed"
-    textarea.style.opacity = "0"
+    textarea.setAttribute("readonly", "")
+    Object.assign(textarea.style, { position: "fixed", top: "0", left: "0", opacity: "0", pointerEvents: "none" })
     document.body.appendChild(textarea)
     textarea.focus()
     textarea.select()
+    textarea.setSelectionRange(0, text.length)
 
+    let copied = false
     try {
-      document.execCommand("copy")
+      copied = document.execCommand("copy")
     } catch (e) {
-      // clipboard unavailable — nothing more we can do
+      copied = false
     }
-
     document.body.removeChild(textarea)
-    this.announce()
+    return copied
   }
 
-  announce() {
-    window.dispatchEvent(new CustomEvent("clar:toast", { detail: { message: this.messageValue } }))
+  failed() {
+    if (this.hasTextTarget) {
+      const range = document.createRange()
+      range.selectNodeContents(this.textTarget)
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      selection.addRange(range)
+    }
+    this.announce("Couldn't copy · it is selected, press ⌘C")
+  }
+
+  announce(message) {
+    window.dispatchEvent(new CustomEvent("clar:toast", { detail: { message } }))
   }
 }

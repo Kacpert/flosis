@@ -781,7 +781,9 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "*", text: /Detailed/
     assert_select "*", text: /8 pts/
     assert_select "*", text: /auto/
-    assert_select "code", text: idea.suggested_branch
+    # What is copied is what shows: the checkout command (2026-11-22).
+    assert_select "[data-controller=clar-copy][data-clar-copy-value=?] code[data-clar-copy-target=text]",
+                  "git checkout #{idea.suggested_branch}", text: "git checkout #{idea.suggested_branch}"
     # No GitHub repo: the branch is only suggested (2026-11-21).
     assert_select "*", text: /Suggested branch/
     assert_select "*", text: /AI prepared a branch/, count: 0
