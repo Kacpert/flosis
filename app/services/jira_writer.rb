@@ -144,7 +144,12 @@ class JiraWriter
   # Rails::Html::FullSanitizer strips tags entirely (not just an allowlist) —
   # safe to run unconditionally since it's a no-op on tag-free text (plain
   # text or markdown like "## Foo" survives untouched).
+  #
+  # HTML (the editor's) goes as Markdown instead (2026-11-21): stripping its
+  # tags lost every link's address, and the headings and bold with them.
   def self.plain_text(content)
+    return HtmlToMarkdown.call(content) if content.to_s.lstrip.start_with?("<")
+
     text = Rails::Html::FullSanitizer.new.sanitize(content.to_s)
     text.gsub(/\n{3,}/, "\n\n").strip
   end

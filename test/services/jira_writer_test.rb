@@ -119,6 +119,24 @@ class JiraWriterTest < ActiveSupport::TestCase
     assert_equal "customfield_project", c.calls[:action][:field_id]
   end
 
+  # The editor saves HTML (2026-11-21): stripping its tags lost every link's
+  # address on the way to Jira.
+  test "an HTML version reaches Jira as Markdown with its links" do
+    task = @project.tasks.create!(name: "JW-31 Existing", external_type: "jira", external_reference: "JW-31")
+    draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "manual",
+                                     content: %(<p>See <a href="https://x.test/d">designs</a></p>))
+    c = fake_client
+    sent = nil
+    c.define_singleton_method(:update_issue_description) { |**k| sent = k[:description_text]; { ok: true } }
+
+    assert JiraWriter.new(client: c).commit_detail(draft)[:ok]
+    assert_equal "See [designs](https://x.test/d)", sent
+  end
+
+  test "Markdown and plain text pass to Jira as they are" do
+    assert_equal "## Title\n\n- a [link](https://x.test)", JiraWriter.plain_text("## Title\n\n- a [link](https://x.test)")
+  end
+
   test "commit_detail reads the field id off the task's project too" do
     @project.update!(jira_ai_actions_field_id: "customfield_project")
     task = @project.tasks.create!(name: "JW-22 Existing", external_type: "jira", external_reference: "JW-22")
@@ -225,7 +243,8 @@ class JiraWriterTest < ActiveSupport::TestCase
     assert_no_match(/<[^>]+>/, text, "description_text must have no HTML tags: #{text.inspect}")
     assert_no_match(/alert\(1\)/, text, "script contents must not leak into the plain text")
     assert_match(/Summary/, text)
-    assert_match(/Hello world/, text)
+    # Markdown since 2026-11-21: the editor's bold and lists reach Jira.
+    assert_match(/Hello \*\*world\*\*/, text)
   end
 
   test "commit_brief strips HTML tags before creating a new issue's description in Jira" do
@@ -238,7 +257,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     assert res[:ok], res.inspect
     text = c.captured[:create][:description_text]
     assert_no_match(/<[^>]+>/, text)
-    assert_match(/Some rich concept/, text)
+    assert_match(/Some _rich_ concept/, text)
   end
 
   test "commit_detail strips HTML tags before pushing the draft's description to Jira" do
@@ -251,7 +270,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     assert res[:ok], res.inspect
     text = c.captured[:update][:description_text]
     assert_no_match(/<[^>]+>/, text)
-    assert_match(/Detailed plan/, text)
+    assert_match(/Detailed \*\*plan\*\*/, text)
   end
 
   test "plain-text/markdown content passes through the strip helper unchanged (aside from blank-line squeeze)" do
