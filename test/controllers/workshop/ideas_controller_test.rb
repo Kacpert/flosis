@@ -781,7 +781,9 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "*", text: /Detailed/
     assert_select "*", text: /8 pts/
     assert_select "*", text: /auto/
-    assert_select "code", text: idea.suggested_branch
+    # What is copied is what shows: the checkout command (2026-11-22).
+    assert_select "[data-controller=clar-copy][data-clar-copy-value=?] code[data-clar-copy-target=text]",
+                  "git checkout #{idea.suggested_branch}", text: "git checkout #{idea.suggested_branch}"
     # No GitHub repo: the branch is only suggested (2026-11-21).
     assert_select "*", text: /Suggested branch/
     assert_select "*", text: /AI prepared a branch/, count: 0
@@ -1175,6 +1177,23 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
                                 merged_at: Time.current, slot: "accepted/1", description_version: 5)
 
     get workshop_idea_path(idea, stage: "details"), headers: { "X-Sec-Purpose" => "prefetch" }
+    # A click soon after uses this response, so it carries the modal too.
+    assert_select "[data-clar-modal-open-value=designs-accepted]"
+    assert_nil merge.reload.announced_at
+
+    get workshop_idea_path(idea, stage: "details")
+    assert_select "[data-clar-modal-open-value=designs-accepted]"
+    assert merge.reload.announced_at
+  end
+
+  # Kacper, 2026-11-22: the Details chat reloads the description panel's frame
+  # through this page; that reload shows no modal, so it must not use it up.
+  test "a reload of the description panel does not use up the modal" do
+    idea = details_idea
+    merge = DesignMerge.create!(project: idea.project, task: idea, sha: "a" * 40, title: "t", branch: "design/x", how: "manual",
+                                merged_at: Time.current, slot: "accepted/1", description_version: 5)
+
+    get workshop_idea_path(idea, stage: "details"), headers: { "Turbo-Frame" => "clar-document" }
     assert_nil merge.reload.announced_at
 
     get workshop_idea_path(idea, stage: "details")

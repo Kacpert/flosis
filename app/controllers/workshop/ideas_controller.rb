@@ -419,13 +419,16 @@ class Workshop::IdeasController < Workshop::BaseController
   end
 
   # The modal after a task's designs are accepted (2026-11-21): once per
-  # acceptance, to whoever opens the task first, stamped as it renders. Turbo
-  # prefetching the page on hover is not someone opening it (review I5).
+  # acceptance, to whoever opens the task first, stamped as it renders. A
+  # reload of one of the page's frames (the description panel after the chat)
+  # shows no modal, so it leaves it be; Turbo prefetching the page on hover
+  # (review I5) gets the modal, since a click soon after shows that response,
+  # but does not stamp it (Kacper, 2026-11-22: the modal never showed).
   def announce_acceptance
-    return if prefetch?
+    return if turbo_frame_request?
 
     merge = @idea.design_merges.where.not(description_version: nil).where(announced_at: nil).newest_first.first or return
-    merge.update_column(:announced_at, Time.current)
+    merge.update_column(:announced_at, Time.current) unless prefetch?
     merge
   end
 
