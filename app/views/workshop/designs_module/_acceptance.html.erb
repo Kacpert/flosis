@@ -1,0 +1,19 @@
+<%# The acceptance under way (Kacper, 2026-11-22, mockups v2 step 2): its
+    steps as they stand, in the polled chat, and where the person goes next. %>
+<% key = Designs::ThreadNames.key(thread.task) %>
+<div class="rounded-[12px] border border-[color:var(--border)] bg-[var(--surface-2)] px-3.5 py-3 flex flex-col gap-2" data-acceptance>
+  <div class="text-[12px] font-bold clar-text-text">Accepting the designs</div>
+  <% steps.each do |step| %>
+    <div class="flex items-center gap-2.5 text-[12.5px] <%= step[:state] == :waiting ? 'clar-text-faint' : 'clar-text-text' %>">
+      <% if step[:state] == :done %>
+        <span class="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-none" style="background: var(--success-soft); color: var(--success);"><%= designs_icon(:check, 11) %></span>
+      <% elsif step[:state] == :running %>
+        <span class="w-[18px] h-[18px] flex items-center justify-center flex-none clar-text-ai"><svg class="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg></span>
+      <% else %>
+        <span class="w-[18px] h-[18px] rounded-full flex-none border border-[color:var(--border)]"></span>
+      <% end %>
+      <span><%= step[:label] %><%= "…" if step[:state] == :running %></span>
+    </div>
+  <% end %>
+  <div class="text-[11.5px] clar-text-muted leading-[1.5] pt-0.5">You'll be taken back to <%= key %> when it's done. You can leave this page.</div>
+</div>

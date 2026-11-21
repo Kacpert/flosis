@@ -20,15 +20,6 @@ module Designs::Threads
   IMPORTING = "Re-import from staging is still running on this thread. You can talk here and merge it once it finishes.".freeze
   NOTHING_TO_RETRY = "There is nothing to try again: the thread's last turn did not fail.".freeze
   NO_PLAN = "There is no plan waiting for an answer.".freeze
-  # A thread's design turns build screens only (Designs::Prompt::SCREENS_ONLY,
-  # 2026-11-10): before it is merged, one turn makes components from them.
-  COMPONENTS_REQUEST = <<~REQUEST.squish.freeze
-    This thread is about to be merged into master. First make components from its screens: where a piece of UI this
-    thread added appears more than once, or is what an existing component is for, put it in a component under
-    components/<name>/ (its .html, README.md with its guidelines, preview.html with each of its states), or use the
-    existing one, and include it in place of every copy. Keep every screen looking and working exactly as it does now,
-    and change nothing else. If nothing needs a component, change nothing and say so.
-  REQUEST
   # Where a deleted thread's branch waits on GitHub (archive/design/…).
   ARCHIVE = "archive/".freeze
   GONE = "This thread's archive is no longer on GitHub, so it can't come back.".freeze
@@ -301,34 +292,20 @@ module Designs::Threads
     raise NothingToMerge, NOTHING_TO_MERGE
   end
 
-  # Merge to master, which only a person does. A thread whose screens were not
-  # made into components since its design turns committed (components_due?)
-  # gets a components turn first, which merges it once it succeeds
-  # (Designs::TurnJob#merge_after): the turn is returned then, and the merge
-  # otherwise.
+  # Merge to master, which only a person does: at once, since design turns make
+  # components as they build (Kacper, 2026-11-22). A check that waits or runs
+  # merges the thread once it is done (merge_after_check!): the turn is
+  # returned then, and the merge otherwise.
   def merge_or_prepare!(thread, user:)
     waiting = merge_after_check!(thread, user)
     return waiting if waiting
-    return merge!(thread, user: user) unless components_due?(thread)
-    raise AlreadyMerged, "#{thread.branch} is already merged" if thread.merged?
 
-    repo = Designs::Repo.new(thread.project)
-    screens = repo.synchronize(wait: false) do
-      refuse_while_turns_run!(thread)
-      repo.ensure_clone!
-      repo.worktree!(thread.branch, from: thread.base_sha.presence || Designs::Repo::MASTER)
-      repo.follow_origin!(thread.branch)
-      changed_screens(repo, thread)
-    end
-    note(thread, "Making components from this thread's screens before it merges · #{user&.name || 'someone'}")
-    queue_turn(thread, user, components_request(screens), kind: "components", visible: false, then_merge: "manual")
-  rescue Designs::Repo::Busy
-    raise Busy, BUSY
+    merge!(thread, user: user)
   end
 
   # Merge while the thread's on-screen check waits or runs (2026-11-21): the
-  # check merges the thread once it is done (Designs::TurnJob#merge_after),
-  # components first when they are due, so what is merged is what it checked.
+  # check merges the thread once it is done (Designs::TurnJob#merge_after), so
+  # what is merged is what it checked.
   # Nil when no check is under way, or one is already stopping. The row lock
   # settles it against the check's job finishing at the same moment: a check
   # that has finished is merged here as any thread is.
@@ -342,20 +319,6 @@ module Designs::Threads
       note(thread, "Merging once the on-screen check is done · #{user&.name || 'someone'}")
       check
     end
-  end
-
-  # A design turn committed since the thread's last components turn, or the
-  # thread has had none. A components turn that failed counts: the chat says
-  # why, with Try again, and Merge again is the way past it.
-  def components_due?(thread)
-    turns = DesignTurn.where(chat_session_id: thread.chat_session_id)
-    work = turns.where(kind: "design", status: "succeeded").where.not(commit_sha: nil).maximum(:id) or return false
-    turns.where(kind: "components", status: %w[succeeded failed]).where("id > ?", work).none?
-  end
-
-  def components_request(screens)
-    list = screens.map { |screen| "- designs/#{screen}.html" }.join("\n")
-    "#{COMPONENTS_REQUEST}\n\nThe screens this thread changed:\n#{list.presence || '- (none)'}"
   end
 
   # A finished thread back at work (Kacper, 2026-11-21: a task may need its
@@ -396,6 +359,28 @@ module Designs::Threads
     return if last.slot.present? && Designs::Publisher.new(thread.project, nil).published?(last.slot)
 
     publish_accepted(thread, last)
+  end
+
+  # The acceptance under way on a task's thread (Kacper, 2026-11-22: "nie wiem
+  # co się dzieje"), as its steps for the chat: [{ label:, state: :done |
+  # :running | :waiting }], or nil when none is under way. Before the merge, a
+  # check (or a components turn from before 2026-11-22) that will merge goes
+  # first; after it, the describe turn writes the task's description.
+  def acceptance(thread)
+    task = thread.task or return
+    turns = DesignTurn.where(chat_session_id: thread.chat_session_id).order(:id).to_a
+    key = Designs::ThreadNames.key(task)
+    writing = "Writing #{key}'s description v#{next_description_version(task)}"
+    back = { label: "Back to #{key}", state: :waiting }
+    waiting = turns.reverse.find { |turn| turn.then_merge.present? && (turn.queued? || turn.running?) }
+    if waiting && thread.open?
+      first = waiting.check? ? "Checking the screens on screen" : "Making components from the thread's screens"
+      [ { label: first, state: :running }, { label: "Merging into master", state: :waiting },
+        { label: writing, state: :waiting }, back ]
+    elsif thread.merged? && turns.reverse.find(&:describe?)&.then { |turn| turn.queued? || turn.running? }
+      merge = thread.design_merges.newest_first.first
+      [ { label: "Merged into master as #{merge&.short_sha}", state: :done }, { label: writing, state: :running }, back ]
+    end
   end
 
   # The version a task's description gets next from its accepted designs:

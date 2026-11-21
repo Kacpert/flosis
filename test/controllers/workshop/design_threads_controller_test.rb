@@ -333,18 +333,20 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "Merge makes components first when the thread's turns made screens since, and says it merges after" do
+  # Kacper, 2026-11-22: design turns make components as they build, so Merge
+  # merges at once.
+  test "Merge merges at once, though the thread's turns made screens since" do
     with_designs do |repo, _|
       thread = thread_with_work(repo, "Add a counter")
       DesignTurn.where(chat_session: thread.chat_session).update_all(commit_sha: "abc1234")
 
       post merge_workshop_design_thread_path(thread)
 
-      assert_redirected_to workshop_designs_overview_path(thread: thread.id)
-      assert_equal "Making components first · it merges when they're done", flash[:clar_toast]
-      turn = DesignTurn.order(:id).last
-      assert_equal [ "components", "manual" ], [ turn.kind, turn.then_merge ]
-      assert_not thread.reload.merged?
+      merge = DesignMerge.order(:id).last
+      assert_redirected_to workshop_designs_overview_path(tab: "history", merge: merge.id)
+      assert_equal "Merged into master · #{merge.short_sha}", flash[:clar_toast]
+      assert thread.reload.merged?
+      assert_not DesignTurn.where(chat_session: thread.chat_session, kind: "components").exists?
     end
   end
   # Accept designs (2026-11-21): on a task's thread the person stays on the

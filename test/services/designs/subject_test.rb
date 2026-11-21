@@ -322,7 +322,7 @@ class Designs::SubjectTest < ActiveSupport::TestCase
       assert_includes message, "- designs/admin/reporting.html — Reporting"
       assert_includes message, "@theme { --radius: 4px; }"
       assert_includes message, "The screen the person has open: designs/admin/reporting.html"
-      assert_includes message, Designs::Prompt::SCREENS_ONLY
+      assert_includes message, Designs::Prompt::COMPONENTS
 
       first.update!(status: "succeeded", started_at: 1.minute.ago)
       later = DesignTurn.create!(chat_session: thread.chat_session, chat_message: first.chat_message, kind: "components")
@@ -330,7 +330,7 @@ class Designs::SubjectTest < ActiveSupport::TestCase
 
       assert_includes message, "- designs/admin/reporting.html — Reporting"
       assert_not_includes message, "@theme", "the session has them already"
-      assert_not_includes message, Designs::Prompt::SCREENS_ONLY, "a components turn makes components"
+      assert_not_includes message, Designs::Prompt::COMPONENTS, "a components turn has its own request"
     end
   end
 

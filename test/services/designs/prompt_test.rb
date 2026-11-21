@@ -168,8 +168,8 @@ class Designs::PromptTest < ActiveSupport::TestCase
   # proposed first; the answer to a proposal is built, never proposed again.
   test "a design turn that may propose is told to propose a direction first, unless it answers a plan" do
     thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x")
-    proposing = Designs::Prompt.thread_message(thread: thread, request: "Make costs subtle", screens_only: true, may_propose: true)
-    answering = Designs::Prompt.thread_message(thread: thread, request: "Yes", screens_only: true, may_propose: true, after_plan: true)
+    proposing = Designs::Prompt.thread_message(thread: thread, request: "Make costs subtle", design: true, may_propose: true)
+    answering = Designs::Prompt.thread_message(thread: thread, request: "Yes", design: true, may_propose: true, after_plan: true)
 
     assert_includes proposing, Designs::Prompt::DIRECTION_FIRST
     assert_not_includes proposing, Designs::Prompt::AFTER_PLAN
@@ -192,13 +192,13 @@ class Designs::PromptTest < ActiveSupport::TestCase
 
     assert_equal [ "## Thread", "## This turn", "## Request" ], message.scan(/^## .+$/)
     assert_includes message, Designs::Prompt::CHECK
-    assert_not_includes message, Designs::Prompt::SCREENS_ONLY
+    assert_not_includes message, Designs::Prompt::COMPONENTS
     [ "design_shot", "1160", "1024", "check_design", "Checked on screen:" ].each { |rule| assert_includes Designs::Prompt::CHECK, rule }
   end
 
   test "the note on what a check changed comes before This turn" do
     thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x")
-    message = Designs::Prompt.thread_message(thread: thread, request: "Do it", screens_only: true,
+    message = Designs::Prompt.thread_message(thread: thread, request: "Do it", design: true,
                                              check_note: "Checked on screen: the cost now wraps at 1024 px.")
 
     assert_equal [ "## Thread", "## Since your last turn", "## This turn", "## Request" ], message.scan(/^## .+$/)
@@ -224,13 +224,16 @@ class Designs::PromptTest < ActiveSupport::TestCase
     end
   end
 
-  test "a thread's turn can carry the design repo and the rule to build screens only, both before the request" do
+  # Kacper, 2026-11-22: a design turn makes components as it builds.
+  test "a design turn carries the design repo and its rules, components as it builds among them, before the request" do
     thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x")
-    message = Designs::Prompt.thread_message(thread: thread, request: "Do it", repo_map: "Kit: plain\n\n### Screens\n(none yet)", screens_only: true)
+    message = Designs::Prompt.thread_message(thread: thread, request: "Do it", repo_map: "Kit: plain\n\n### Screens\n(none yet)", design: true)
 
     assert_equal [ "## Thread", "## The design repo now", "## This turn", "## Request" ], message.scan(/^## .+$/)
     assert_includes message, "Kit: plain"
-    assert_includes message, Designs::Prompt::SCREENS_ONLY
+    assert_includes message, Designs::Prompt::COMPONENTS
+    assert_not_includes message, "Build the screens only"
+    [ Designs::Prompt::STATES, Designs::Prompt::COPIES ].each { |rule| assert_includes message, rule }
     assert message.rstrip.end_with?("Do it")
   end
   # Accept designs (2026-11-21): the task's next description version keeps

@@ -1877,7 +1877,8 @@ class Designs::TurnJobTest < ActiveJob::TestCase
   end
 
   # Merge pressed while the check after a build runs (2026-11-21): the check
-  # merges the thread once it is done, making components first when due.
+  # merges the thread once it is done, at once since components are made as
+  # the designs are (2026-11-22).
   test "Merge while a check runs waits for it, then merges" do
     with_design_remote do |repo, remote|
       base = seed_master(repo, { "designs/candidate/apply.html" => "<title>Application form</title>" })
@@ -1891,8 +1892,8 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       looking_claude
       assert run_turn(check, remote).succeeded?
 
-      components = DesignTurn.where(chat_session: thread.chat_session, kind: "components").sole
-      assert_equal [ "manual", "queued" ], [ components.then_merge, components.status ]
+      assert thread.reload.merged?
+      assert_not DesignTurn.where(chat_session: thread.chat_session, kind: "components").exists?
     end
   end
 
@@ -1904,7 +1905,9 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       fake_claude(raise_error: ClaudeCliService::ClaudeCliError.new("the browser did not start"))
 
       assert run_turn(check, remote).failed?
-      assert_equal [ "manual" ], DesignTurn.where(chat_session: check.chat_session, kind: "components").pluck(:then_merge)
+      # It goes on to the merge (this thread has nothing of its own to merge).
+      assert_equal "Not merged: #{Designs::Threads::NOTHING_TO_MERGE}",
+                   check.chat_session.chat_messages.where(kind: "system").order(:id).last.content
 
       check.chat_session.design_thread.update!(branch: "design/done")
       other = check_turn(repo, base)
@@ -1914,7 +1917,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
         [ :tick ]
       })
       assert run_turn(other, remote).failed?
-      assert_not DesignTurn.where(chat_session: other.chat_session, kind: "components").exists?
+      assert_not other.chat_session.design_thread.reload.merged?
       assert_equal "Not merged: a new message came first. Merge again once it is done.",
                    other.chat_session.chat_messages.where(kind: "system").order(:id).last.content
     end
@@ -1928,13 +1931,15 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       assert run_turn(thread_turn(repo, base), remote).succeeded?
       thread = DesignThread.find_by!(branch: "design/add-a-counter-under")
       finish_check(thread, remote)
-      components = with_remote_url(remote) { Designs::Threads.merge_or_prepare!(thread, user: users(:one)) }
+      # A components turn queued before Merge merged at once (2026-11-22).
+      request = thread.chat_session.chat_messages.create!(role: "user", kind: "request", content: "Make components", user: users(:one))
+      components = DesignTurn.create!(chat_session: thread.chat_session, chat_message: request, kind: "components", then_merge: "manual")
       fake_claude(files: { "components/counter/counter.html" => "<span>{{n}}</span>" }, reply: "<summary>Made the counter a component.</summary>")
 
       components = run_turn(components, remote)
 
       assert components.succeeded?, components.error
-      assert_not_includes @calls.dig(0, 1, :prompt), Designs::Prompt::SCREENS_ONLY
+      assert_not_includes @calls.dig(0, 1, :prompt), Designs::Prompt::COMPONENTS
       assert thread.reload.merged?
       merge = DesignMerge.last
       assert_equal [ "manual", users(:one) ], [ merge.how, merge.user ]
@@ -1944,7 +1949,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
 
   # Accept designs (2026-11-21): however the merge comes about, a task's
   # thread asks for its description once it lands.
-  test "a task's merge that waited on components queues the describe turn when it lands" do
+  test "a task's merge that waited on a check queues the describe turn when it lands" do
     with_design_remote do |repo, remote|
       base = seed_master(repo, { "designs/candidate/apply.html" => "<title>Application form</title>" })
       repo.project.update!(anthropic_api_key: "sk-ant")
@@ -1954,11 +1959,11 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       task = tasks(:jira_task)
       task.update!(project: repo.project, external_reference: "SP-1051")
       thread.update!(task: task)
-      finish_check(thread, remote)
-      components = with_remote_url(remote) { Designs::Threads.merge_or_prepare!(thread, user: users(:one)) }
-      fake_claude(files: { "components/counter/counter.html" => "<span>{{n}}</span>" }, reply: "<summary>Made the counter a component.</summary>")
+      check = with_remote_url(remote) { Designs::Threads.merge_or_prepare!(thread, user: users(:one)) }
+      assert_equal [ "check", "manual" ], [ check.kind, check.then_merge ]
+      looking_claude
 
-      assert run_turn(components, remote).succeeded?
+      assert run_turn(check, remote).succeeded?
 
       assert thread.reload.merged?
       describe = DesignTurn.where(chat_session: thread.chat_session, kind: "describe").sole
@@ -1975,7 +1980,9 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       assert run_turn(thread_turn(repo, base), remote).succeeded?
       thread = DesignThread.find_by!(branch: "design/add-a-counter-under")
       finish_check(thread, remote)
-      components = with_remote_url(remote) { Designs::Threads.merge_or_prepare!(thread, user: users(:one)) }
+      # A components turn queued before Merge merged at once (2026-11-22).
+      request = thread.chat_session.chat_messages.create!(role: "user", kind: "request", content: "Make components", user: users(:one))
+      components = DesignTurn.create!(chat_session: thread.chat_session, chat_message: request, kind: "components", then_merge: "manual")
       waiting = thread.chat_session.chat_messages.create!(role: "user", content: "One more thing", user: users(:one))
       DesignTurn.create!(chat_session: thread.chat_session, chat_message: waiting)
 

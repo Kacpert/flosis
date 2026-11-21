@@ -40,6 +40,9 @@
     <% else %>
       <span class="text-[11.5px] clar-text-faint"><%= pluralize(@ahead, "commit") %> ahead</span>
     <% end %>
+    <% if @accepting %>
+      <span class="clar-badge clar-badge-primary !py-0.5 !px-2">Accepting</span>
+    <% end %>
   </div>
 </div>
 
@@ -94,6 +97,8 @@
     <% else %>
       <div class="text-[12.5px] clar-text-muted leading-[1.5] py-1 px-0.5">Merged into master as <%= thread.merged_sha.to_s.first(7) %>. Reopen to change it again.</div>
     <% end %>
+  <% elsif @accepting %>
+    <div class="text-[12.5px] clar-text-muted leading-[1.5] py-1 px-0.5">Accepting the designs. You'll be taken back to <%= Designs::ThreadNames.key(thread.task) %> when it's done.</div>
   <% elsif Designs::Threads.importing?(thread) %>
     <div class="text-[12.5px] clar-text-muted leading-[1.5] py-1 px-0.5"><%= Designs::Threads::IMPORTING %></div>
   <% else %>

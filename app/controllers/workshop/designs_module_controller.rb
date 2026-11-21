@@ -34,6 +34,8 @@ class Workshop::DesignsModuleController < Workshop::BaseController
     @tab = params[:tab].presence_in(TABS) || "canvas"
     load_imports if @tab == "imports"
     @behind = @thread ? Designs::Threads.behind(@thread) : []
+    # An acceptance under way: the header says so, Accept and the composer step aside.
+    @accepting = @thread && Designs::Threads.acceptance(@thread).present?
     @description_change = @thread && Designs::Threads.description_change(@thread)
     @rows = @threads.map { |thread| row_for(thread) }
     @back = @project.tasks.pipeline.find_by(id: params[:back]) if params[:back].present?

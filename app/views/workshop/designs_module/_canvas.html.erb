@@ -29,7 +29,7 @@
     <a href="<%= @frame_src %>" target="_blank" rel="noopener noreferrer" class="clar-btn no-underline" title="Open this preview in a new tab"
        data-action="designs-canvas#toast" data-designs-canvas-message-param="Opened in new tab · <%= @frame_src.sub(%r{\Ahttps?://}, "") %>"><%= designs_icon(:external, 14) %>Open in new tab</a>
   <% end %>
-  <% if live && @ahead.positive? %>
+  <% if live && @ahead.positive? && !@accepting %>
     <%# A task's thread is accepted into its task (Kacper, 2026-11-21). %>
     <% if @thread.task %>
       <button type="button" class="clar-btn clar-btn-primary" data-action="clar-modal#open" data-clar-modal-id-param="merge-thread"><%= designs_icon(:check, 14) %>Accept designs</button>
