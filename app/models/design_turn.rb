@@ -15,8 +15,11 @@ class DesignTurn < ApplicationRecord
   # setup turn's bounds. "components" makes components from a thread's
   # screens before it is merged (Designs::Threads.merge_or_prepare!). "plan"
   # is a task's thread's first turn: it reads, posts its plan and questions,
-  # and changes nothing (Designs::Threads.start_from_task!).
-  KINDS = %w[design resolve_conflicts setup components plan].freeze
+  # and changes nothing (Designs::Threads.start_from_task!). "check" follows a
+  # thread's design turn that committed: in a session of its own, it looks at
+  # the screens that turn changed in a browser and fixes only what broke on
+  # screen (Kacper, 2026-11-21).
+  KINDS = %w[design resolve_conflicts setup components plan check].freeze
   # Not finished yet: while a chat has one, the screen keeps polling and the
   # work cannot be approved.
   ACTIVE = %w[queued running].freeze
@@ -61,6 +64,11 @@ class DesignTurn < ApplicationRecord
   end
 
   def plan? = kind == "plan"
+  def check? = kind == "check"
+
+  # A plan, or a design turn that answered with a proposal: the person answers
+  # it, or takes its proposals with "Design with these proposals".
+  def awaits_answer? = succeeded? && (plan? || proposed?)
 
   def setup?
     kind == "setup"
@@ -79,9 +87,10 @@ class DesignTurn < ApplicationRecord
     update!(status: "running", started_at: Time.current, finished_at: nil, error: nil)
   end
 
-  # commit_sha is nil when Claude's answer changed no file.
-  def succeed!(commit_sha:)
-    update!(status: "succeeded", commit_sha: commit_sha, finished_at: Time.current)
+  # commit_sha is nil when Claude's answer changed no file; proposed, when that
+  # answer was a proposal.
+  def succeed!(commit_sha:, proposed: false)
+    update!(status: "succeeded", commit_sha: commit_sha, proposed: proposed, finished_at: Time.current)
   end
 
   # The job records every error here and never re-raises one, so this must not
@@ -103,6 +112,11 @@ class DesignTurn < ApplicationRecord
   PLAN_TIMEOUT_SECONDS = 300
   PLAN_BUDGET_USD = 3
   PLAN_EFFORT = "medium"
+  # A check looks at a few screens and fixes small things while the person
+  # already looks at the preview (2026-11-21).
+  CHECK_TIMEOUT_SECONDS = 600
+  CHECK_BUDGET_USD = 5
+  CHECK_EFFORT = "medium"
 
   # How long the CLI may run one turn, in seconds: DESIGNS_TURN_TIMEOUT_SECONDS
   # when it is a positive whole number, else forty minutes. stale_after
@@ -150,6 +164,10 @@ class DesignTurn < ApplicationRecord
     PLAN_TIMEOUT_SECONDS.seconds + 5.minutes
   end
 
+  def self.check_stale_after
+    CHECK_TIMEOUT_SECONDS.seconds + 5.minutes
+  end
+
   # Fails every running turn older than stale_after and returns how many. One
   # UPDATE, not a load and a save per turn: the screen calls this on every
   # poll, and a job that took a turn over in the meantime (start! sets a fresh
@@ -162,9 +180,10 @@ class DesignTurn < ApplicationRecord
   def self.fail_stale!
     now = Time.current
     failed = { status: "failed", error: INTERRUPTED, finished_at: now, updated_at: now }
-    stale = where(status: "running", started_at: ...(now - stale_after)).where.not(kind: %w[setup plan]).update_all(failed) +
+    stale = where(status: "running", started_at: ...(now - stale_after)).where.not(kind: %w[setup plan check]).update_all(failed) +
             where(status: "running", kind: "setup", started_at: ...(now - setup_stale_after)).update_all(failed) +
-            where(status: "running", kind: "plan", started_at: ...(now - plan_stale_after)).update_all(failed)
+            where(status: "running", kind: "plan", started_at: ...(now - plan_stale_after)).update_all(failed) +
+            where(status: "running", kind: "check", started_at: ...(now - check_stale_after)).update_all(failed)
     stale + where(status: "running", stop_requested_at: ...(now - STOP_GRACE)).count { |turn| turn.fail_stopped! }
   end
 
@@ -187,6 +206,7 @@ class DesignTurn < ApplicationRecord
   def stale?
     bound = if setup? then self.class.setup_stale_after
             elsif plan? then self.class.plan_stale_after
+            elsif check? then self.class.check_stale_after
             else self.class.stale_after
             end
     running? && started_at.present? && started_at < bound.ago
