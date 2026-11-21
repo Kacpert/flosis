@@ -124,13 +124,14 @@ module Designs::Prompt
   REPO_MAP_INTRO = "This is the design repo as this turn starts: there is no need to list it again, nor to read what is " \
                    "given whole below. Read the other files you need, several at a time.".freeze
 
-  # A thread's design turn builds the screens only (2026-11-10): components
-  # are made in a turn of their own before the thread is merged (Designs::
-  # Threads.merge_or_prepare!), so the turn a person waits on is shorter.
-  SCREENS_ONLY = "Build the screens only. Include the components that exist, but make no new component in this turn: " \
-                 "write new UI into the screen itself, even where it repeats. Before the thread is merged, Flosis makes " \
-                 "components from repeated UI in a turn of its own. For this turn, this replaces what the base prompt " \
-                 "says about adding components.".freeze
+  # Kacper, 2026-11-22: components are made as the designs are, and render in
+  # the screens at once ("on cały czas powinien tworzyć komponenty na bieżąco
+  # i je tutaj renderować"). Before, design turns built screens only and a turn
+  # of its own made components just before Merge (2026-11-10).
+  COMPONENTS = "Make components as you build: where a piece of UI appears more than once, or is what an existing " \
+               "component is for, put it in a component under components/<name>/ (its .html, README.md with its " \
+               "guidelines, preview.html with each of its states), or use the existing one, and include it in every " \
+               "screen that shows it.".freeze
 
   # A design turn after a plan (Kacper, 2026-11-18: "if it has no doubts, it
   # says so and designs"): the request is the person's answer to the plan, or
@@ -273,11 +274,11 @@ module Designs::Prompt
   # thread, the screen the person has open, the task and its current
   # description when the thread has one, the design repo as the turn starts,
   # what a check changed since the last turn, and the rules of this turn (a
-  # plan's, a check's, the rule to build screens only, to propose a direction
+  # plan's, a check's, a design turn's (components as it builds, states, copies), to propose a direction
   # first, or that a plan is settled), then the request, last. A check runs in
   # a session of its own and is given only the thread, its rules and its
   # request, which lists what to look at.
-  def thread_message(thread:, request:, repo_map: nil, screens_only: false, after_plan: false, plan: false,
+  def thread_message(thread:, request:, repo_map: nil, design: false, after_plan: false, plan: false,
                      may_propose: false, check: false, check_note: nil)
     sections = [ "## Thread\n#{thread.title}\nBranch: #{thread.branch}" ]
     unless check
@@ -292,8 +293,8 @@ module Designs::Prompt
       sections << "## The design repo now\n#{REPO_MAP_INTRO}\n\n#{repo_map}" if repo_map
       sections << "## Since your last turn\n#{check_note.strip}" if check_note.present?
     end
-    this_turn = [ (PLAN if plan), (CHECK if check), (SCREENS_ONLY if screens_only), (STATES if screens_only || plan),
-                  (COPIES if screens_only), (DIRECTION_FIRST if may_propose && !after_plan), (AFTER_PLAN if after_plan) ].compact
+    this_turn = [ (PLAN if plan), (CHECK if check), (COMPONENTS if design), (STATES if design || plan),
+                  (COPIES if design), (DIRECTION_FIRST if may_propose && !after_plan), (AFTER_PLAN if after_plan) ].compact
     sections << "## This turn\n#{this_turn.join("\n\n")}" if this_turn.any?
     sections << "## Request\n#{request.to_s.strip}"
     "#{sections.join("\n\n")}\n"
