@@ -189,6 +189,20 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     end
   end
 
+  # Final review M5: Merge was waiting on the check a new message stopped.
+  test "a new message after Merge during a waiting check says it did not merge" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread, _check = thread_with_check(repo)
+      Designs::Threads.merge_or_prepare!(thread, user: @user)
+
+      Designs::Threads.message!(thread, user: @user, text: "Make it bolder")
+
+      assert_equal "Not merged: a new message came first. Merge again once it is done.", system_lines(thread).last
+      assert_not thread.reload.merged?
+    end
+  end
+
   test "a person's message asks a running check to stop" do
     with_threads_remote do |repo, _|
       seed_master(repo)

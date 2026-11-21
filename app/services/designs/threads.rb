@@ -121,7 +121,8 @@ module Designs::Threads
     screens = chips.first(CHECK_SCREENS).map { |screen, context, _mark| "- designs/#{context}/#{screen}.html" }
     request = "The request:\n#{after.chat_message.content.to_s.strip.truncate(2_000)}\n\n" \
               "What the last turn did:\n#{summary.to_s.strip}\n\nThe screens it changed:\n#{screens.join("\n")}"
-    message = thread.chat_session.chat_messages.create!(role: "user", user: after.chat_message.user, content: request, kind: "request")
+    message = thread.chat_session.chat_messages.create!(role: "user", user: after.chat_message.user, content: request, kind: "request",
+                                                        data: { "after" => after.id })
     DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: "check")
   end
 
@@ -135,6 +136,7 @@ module Designs::Threads
         if check.queued?
           check.fail!(DesignTurn::CHECK_STOPPED)
           note(thread, DesignTurn::CHECK_STOPPED)
+          note(thread, "Not merged: #{DesignTurn::MESSAGE_CAME_FIRST}") if check.then_merge.present?
         elsif check.running? && check.stop_requested_at.nil?
           check.update!(stop_requested_at: Time.current, stop_requested_by: DesignTurn::NEW_MESSAGE)
         end

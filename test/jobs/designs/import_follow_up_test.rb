@@ -290,6 +290,22 @@ class Designs::ImportFollowUpTest < ActiveSupport::TestCase
     end
   end
 
+  # Final review I3: a design thread's check holds the host's one browser too.
+  test "an import unit waits while a design thread's check uses the browser" do
+    with_design_remote do |repo, _remote|
+      setup = finished_import(repo, [ [ "Bug Reporting", "todo", { queued_at: Time.current } ] ])
+      session = ChatSession.create!(project: repo.project, workspace: repo.project.workspace, user: users(:one), purpose: "designs_thread",
+                                    claude_session_id: SecureRandom.uuid, codebase_path: "/tmp")
+      DesignTurn.create!(chat_session: session, chat_message: session.chat_messages.create!(role: "user", content: "x", user: users(:one)),
+                         kind: "check", status: "running", started_at: 1.minute.ago)
+      Designs::SetupRunJob.turn_runner = ->(_turn_id) { flunk "nothing is built while a check uses the browser" }
+
+      Designs::SetupRunJob.perform_now(setup.id)
+      assert_equal "todo", setup.features.sole.reload.status
+      assert_enqueued_with(job: Designs::SetupRunJob, args: [ setup.id ])
+    end
+  end
+
   test "only one import unit runs at a time on the server" do
     with_design_remote do |repo, _remote|
       setup = finished_import(repo, [ [ "Bug Reporting", "todo", { queued_at: Time.current } ] ])

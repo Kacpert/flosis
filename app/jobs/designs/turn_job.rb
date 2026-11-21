@@ -135,7 +135,11 @@ class Designs::TurnJob < ApplicationJob
   def run(turn)
     sweep_leftovers
     subject = Designs::Subject.for(turn.chat_session)
-    return skip_check(turn) if turn.check? && DesignSetup.unit_running?
+    if turn.check?
+      return stand_down(turn) if superseded?(turn)
+      return skip_check(turn, DesignTurn::CHECK_IMPORTING) if DesignSetup.unit_running?
+      return skip_check(turn, DesignTurn::CHECK_BROWSER_BUSY) if DesignTurn.check_running?(except: turn.id)
+    end
 
     repo = Designs::Repo.new(subject.project)
     key = subject.api_key
@@ -151,6 +155,7 @@ class Designs::TurnJob < ApplicationJob
     subject.prepare!
     answer = ask_claude(turn, repo, worktree, key, subject)
     response, capped = answer_text(answer)
+    raise Failure, DesignTurn::CHECK_NO_BROWSER if turn.check? && !looked?
     output = Designs::TurnOutput.parse(response)
     raise Failure, NO_ANSWER if output.summary.blank?
     return plan_done(turn, repo, worktree, output, capped) if turn.plan?
@@ -182,16 +187,36 @@ class Designs::TurnJob < ApplicationJob
 
   # A thread's design turn that committed screens is checked on screen next
   # (Kacper, 2026-11-21); a plan, a components or a resolving turn, and a
-  # check, are not.
+  # check, are not. Nor is one the person wrote during: their turn is next,
+  # and it is checked once it builds.
   def check_follows?(turn, subject, sha, chips)
-    turn.kind == "design" && sha.present? && chips.any? && subject.is_a?(Designs::Subject::ThreadSubject)
+    turn.kind == "design" && sha.present? && chips.any? && subject.is_a?(Designs::Subject::ThreadSubject) &&
+      DesignTurn.where(chat_session_id: turn.chat_session_id).active.where.not(id: turn.id).none?
   end
 
-  # The import's browser leaves no room for a check's: the chat says so, and
-  # the check ends without Claude.
-  def skip_check(turn)
+  # Another turn came after the build the check follows (a message, Update
+  # designs, master brought in): what it would check is no longer what is
+  # there, and that turn is checked once it builds.
+  def superseded?(turn)
+    after = turn.chat_message.data&.dig("after") or return false
+    DesignTurn.where(chat_session_id: turn.chat_session_id).where("id > ?", after).where.not(kind: "check").exists?
+  end
+
+  def stand_down(turn)
     DesignTurn.transaction do
-      turn.chat_session.chat_messages.create!(role: "assistant", kind: "system", content: DesignTurn::CHECK_IMPORTING)
+      turn.fail!(DesignTurn::CHECK_STOPPED)
+      messages = turn.chat_session.chat_messages
+      messages.create!(role: "assistant", kind: "system", content: DesignTurn::CHECK_STOPPED)
+      messages.create!(role: "assistant", kind: "system", content: "Not merged: #{DesignTurn::MESSAGE_CAME_FIRST}") if turn.then_merge.present?
+    end
+  end
+
+  # The host's one browser is taken, by an import or another thread's check:
+  # the chat says so, and the check ends without Claude. Merge waiting on it
+  # goes ahead.
+  def skip_check(turn, note)
+    DesignTurn.transaction do
+      turn.chat_session.chat_messages.create!(role: "assistant", kind: "system", content: note)
       turn.succeed!(commit_sha: nil)
     end
     merge_after(turn) if turn.reload.then_merge.present?
@@ -439,12 +464,35 @@ class Designs::TurnJob < ApplicationJob
   # the CLI is quiet, so the cache would answer every tick as it did the first.
   def follow(turn, activity, event)
     activity.record(event) unless event == :tick
+    watch_browser(event) if turn.check?
     now = self.class.clock.call
     return unless event == :tick || @stop_checked_at.nil? || now - @stop_checked_at >= STOP_CHECK_EVERY
 
     @stop_checked_at = now
     asked, by = DesignTurn.uncached { DesignTurn.where(id: turn.id).pick(:stop_requested_at, :stop_requested_by) }
     raise Stopped, DesignTurn.stopped_by(by) if asked
+  end
+
+  # What a check's stream says of its browser: whether its server failed to
+  # start (the CLI's init event), and whether a look through it came back
+  # without an error.
+  def watch_browser(event)
+    return unless event.is_a?(Hash)
+
+    @browser_calls ||= []
+    if event["type"] == "system" && event["subtype"] == "init"
+      @browser_down = Array(event["mcp_servers"]).any? { |server| server.is_a?(Hash) && server["name"] == "flosis_browser" && server["status"] == "failed" }
+    end
+    Array(event.dig("message", "content")).each do |block|
+      next unless block.is_a?(Hash)
+
+      @browser_calls << block["id"] if block["type"] == "tool_use" && block["name"].to_s.start_with?("mcp__flosis_browser__")
+      @browser_worked = true if block["type"] == "tool_result" && @browser_calls.include?(block["tool_use_id"]) && !block["is_error"]
+    end
+  end
+
+  def looked?
+    !@browser_down && @browser_worked == true
   end
 
   # The app's checkout, copied for the turn, when the subject reads the app
@@ -482,7 +530,9 @@ class Designs::TurnJob < ApplicationJob
   rescue ClaudeCliService::TimeoutError
     raise
   rescue ClaudeCliService::ClaudeCliError => e
-    raise if self.class.clock.call - started > RETRY_WINDOW.to_f
+    # A check starts a session of its own under a new id, so its error is
+    # never one a new session would get past.
+    raise if turn.check? || self.class.clock.call - started > RETRY_WINDOW.to_f
 
     log(turn, e, "starting a new Claude session")
     start_clean(turn, repo, worktree)

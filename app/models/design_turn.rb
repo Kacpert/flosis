@@ -36,6 +36,12 @@ class DesignTurn < ApplicationRecord
   CHECK_IMPORTING = "Not checked on screen: an import is using the browser.".freeze
   CHECK_STOPPED = "On-screen check stopped: a new message came first. Nothing it changed was kept.".freeze
   NEW_MESSAGE = "a new message".freeze
+  # The host has room for one browser at a time (an import's, or one check's),
+  # and a check that never saw a screen did not check anything.
+  CHECK_BROWSER_BUSY = "Not checked on screen: another check is using the browser.".freeze
+  CHECK_NO_BROWSER = "Not checked on screen: the browser did not start.".freeze
+  # Why a merge that waited on a check did not happen.
+  MESSAGE_CAME_FIRST = "a new message came first. Merge again once it is done.".freeze
 
   # How long a running turn asked to stop may take to stop. Its job looks
   # every few seconds (Designs::TurnJob#follow); one that has not stopped by
@@ -176,6 +182,12 @@ class DesignTurn < ApplicationRecord
 
   def self.check_stale_after
     CHECK_TIMEOUT_SECONDS.seconds + 5.minutes
+  end
+
+  # Whether a check (other than except) has the host's browser now: one that
+  # runs and is not past its bounds.
+  def self.check_running?(except: nil)
+    where(kind: "check", status: "running").where.not(id: except).where(started_at: check_stale_after.ago..).exists?
   end
 
   # Fails every running turn older than stale_after and returns how many. One

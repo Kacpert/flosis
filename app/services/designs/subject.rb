@@ -98,16 +98,18 @@ module Designs::Subject
       return unless last&.check? && last.succeeded? && last.commit_sha.present?
 
       said = turn.chat_session.chat_messages.where(role: "assistant", kind: "summary").where("id > ?", last.chat_message_id)
-                 .order(:id).first&.content
+                 .order(:id).detect { |message| message.data&.dig("check") }&.content
       "An on-screen check after your last turn changed this: #{said}" if said.present?
     end
 
     # A design turn whose turn before it is a plan, or a proposal, that
-    # finished: what comes now answers it.
+    # finished: what comes now answers it. Earlier tries at the same message
+    # (Try again) and checks are passed over.
     def after_plan?(turn)
       return false unless turn&.kind == "design"
 
-      turn.chat_session.design_turns.where("id < ?", turn.id).order(:id).last&.awaits_answer? || false
+      turn.chat_session.design_turns.where("id < ?", turn.id).where.not(chat_message_id: turn.chat_message_id)
+          .where.not(kind: "check").order(:id).last&.awaits_answer? || false
     end
 
     # Only a help to Claude: a map that cannot be made is left out, and the
