@@ -136,6 +136,74 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     end
   end
 
+  # A new message stops the check that follows a build (2026-11-21): the
+  # person's turn runs next and is checked once it builds.
+  def thread_with_check(repo)
+    thread = thread_with_work(repo, "Add a counter", { "designs/admin/home.html" => "<title>Home</title>" })
+    design = DesignTurn.where(chat_session: thread.chat_session, kind: "design").last
+    [ thread, Designs::Threads.new_check(thread, after: design, summary: "Added a counter.", chips: [ [ "home", "admin", "M" ] ]) ]
+  end
+
+  # A check's reply says how the screens looked, not what the thread did, so
+  # a merge is summed up by the thread's last design reply.
+  test "a merge's summary is the thread's last design reply, not a check's line" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread, check = thread_with_check(repo)
+      messages = thread.chat_session.chat_messages
+      messages.create!(role: "assistant", kind: "summary", content: "Added a counter under long answers.")
+      check.update!(status: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+      messages.create!(role: "assistant", kind: "summary", content: "Checked on screen: looks right wide and narrow.", data: { "check" => true })
+
+      merge = Designs::Threads.merge!(thread, user: @user)
+
+      assert_equal "Added a counter under long answers.", merge.summary
+    end
+  end
+
+  # Merge pressed while the check after a build runs or waits: the check
+  # merges the thread once it is done (Designs::TurnJob#merge_after).
+  test "Merge during a check hands the merge to the check" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread, check = thread_with_check(repo)
+
+      turn = Designs::Threads.merge_or_prepare!(thread, user: @user)
+
+      assert_equal [ check.id, "manual" ], [ turn.id, check.reload.then_merge ]
+      assert_equal "Merging once the on-screen check is done · #{@user.name}", system_lines(thread).last
+      assert_not thread.reload.merged?
+    end
+  end
+
+  test "a person's message stops a waiting check quietly" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread, check = thread_with_check(repo)
+
+      Designs::Threads.message!(thread, user: @user, text: "Make it bolder")
+
+      assert check.reload.failed?
+      assert_includes system_lines(thread), DesignTurn::CHECK_STOPPED
+      assert_not thread.chat_session.chat_messages.where(kind: "error").exists?
+    end
+  end
+
+  test "a person's message asks a running check to stop" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread, check = thread_with_check(repo)
+      check.update!(status: "running", started_at: 10.seconds.ago)
+
+      Designs::Threads.message!(thread, user: @user, text: "Make it bolder")
+
+      check.reload
+      assert check.running?
+      assert check.stop_requested_at.present?
+      assert_equal DesignTurn::NEW_MESSAGE, check.stop_requested_by
+    end
+  end
+
   # A design turn that changed nothing and asked waits as a plan that asked:
   # its proposals can be taken with one click.
   test "Design with these proposals starts the design after a proposal" do

@@ -27,6 +27,16 @@ class DesignTurn < ApplicationRecord
   # What a turn that was cut off is failed with (see .fail_stale!).
   INTERRUPTED = "Interrupted before it finished — retry it.".freeze
 
+  # The check after a build (Kacper, 2026-11-21: "żeby AI odpisało że gotowe i
+  # że sprawdzi teraz rezultat samo"): what ends a design turn's reply when a
+  # check follows it, what the chat says when the import's browser leaves no
+  # room for one, and when a new message stops one. A new message is who
+  # stops it.
+  CHECKING = "Checking it on screen now; the preview is already up to date.".freeze
+  CHECK_IMPORTING = "Not checked on screen: an import is using the browser.".freeze
+  CHECK_STOPPED = "On-screen check stopped: a new message came first. Nothing it changed was kept.".freeze
+  NEW_MESSAGE = "a new message".freeze
+
   # How long a running turn asked to stop may take to stop. Its job looks
   # every few seconds (Designs::TurnJob#follow); one that has not stopped by
   # then has no job left to stop it, and is failed by .fail_stale!.

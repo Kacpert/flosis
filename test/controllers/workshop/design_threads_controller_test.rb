@@ -319,6 +319,20 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "Merge during the check after a build says it merges once the check is done" do
+    with_designs do |repo, _|
+      thread = thread_with_work(repo, "Add a counter")
+      design = DesignTurn.where(chat_session: thread.chat_session, kind: "design").last
+      Designs::Threads.new_check(thread, after: design, summary: "Added a counter.", chips: [ [ "apply", "candidate", "M" ] ])
+
+      post merge_workshop_design_thread_path(thread)
+
+      assert_redirected_to workshop_designs_overview_path(thread: thread.id)
+      assert_equal "Checking on screen first · it merges when that's done", flash[:clar_toast]
+      assert_not thread.reload.merged?
+    end
+  end
+
   test "Merge makes components first when the thread's turns made screens since, and says it merges after" do
     with_designs do |repo, _|
       thread = thread_with_work(repo, "Add a counter")

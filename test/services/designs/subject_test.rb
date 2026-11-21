@@ -238,6 +238,28 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     end
   end
 
+  # A check runs in a session of its own, so the thread's next turn is told
+  # what it changed.
+  test "the turn after a check that changed something is told what it changed" do
+    Dir.mktmpdir("worktree") do |worktree|
+      thread, built = thread_with_turn
+      built.update!(status: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago, commit_sha: "abc123")
+      check = Designs::Threads.new_check(thread, after: built, summary: "Added usage.", chips: [ [ "reporting", "admin", "M" ] ])
+      check.update!(status: "succeeded", started_at: 1.minute.ago, finished_at: Time.current, commit_sha: "def456")
+      thread.chat_session.chat_messages.create!(role: "assistant", kind: "summary", content: "Checked on screen: the total now wraps at 1024 px.")
+      later = thread.chat_session.chat_messages.create!(role: "user", content: "Make it bolder", user: users(:one))
+      design = DesignTurn.create!(chat_session: thread.chat_session, chat_message: later, may_propose: true)
+      subject = Designs::Subject.for(thread.chat_session)
+
+      message = subject.turn_message("Make it bolder", turn: design, worktree: worktree)
+      assert_includes message, "## Since your last turn"
+      assert_includes message, "Checked on screen: the total now wraps at 1024 px."
+
+      check.update!(commit_sha: nil)
+      assert_not_includes subject.turn_message("Make it bolder", turn: design, worktree: worktree), "## Since your last turn"
+    end
+  end
+
   # Kacper (2026-11-19): one file per page of the app, its states inside it,
   # and a new page started from a copy of the closest one.
   test "a design turn keeps a screen's states in it and copies the closest screen for a new one; a plan plans the states in" do

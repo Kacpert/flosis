@@ -106,7 +106,40 @@ module Designs::Threads
     thread.update!(focus_context: context, focus_screen: screen) if context.present? && screen.present?
     return queue_turn(thread, user, text, kind: "plan", images: images) if fresh
 
+    stop_checks!(thread)
     queue_turn(thread, user, text, images: images, may_propose: true)
+  end
+
+  # The most screens a check looks at.
+  CHECK_SCREENS = 6
+
+  # The check that follows a design turn that committed (Kacper, 2026-11-21):
+  # queued out of sight, for Designs::TurnJob to start once the turn's reply
+  # is out. It runs in a session of its own, so its request carries what it
+  # needs: what was asked, what the turn answered, and the screens it changed.
+  def new_check(thread, after:, summary:, chips:)
+    screens = chips.first(CHECK_SCREENS).map { |screen, context, _mark| "- designs/#{context}/#{screen}.html" }
+    request = "The request:\n#{after.chat_message.content.to_s.strip.truncate(2_000)}\n\n" \
+              "What the last turn did:\n#{summary.to_s.strip}\n\nThe screens it changed:\n#{screens.join("\n")}"
+    message = thread.chat_session.chat_messages.create!(role: "user", user: after.chat_message.user, content: request, kind: "request")
+    DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: "check")
+  end
+
+  # A new message stops the thread's check: the person's turn runs next, and
+  # is checked once it builds. One that waits never starts; one that runs is
+  # asked to stop, as Stop does, and its job says so quietly
+  # (Designs::TurnJob#fail_turn).
+  def stop_checks!(thread)
+    DesignTurn.where(chat_session_id: thread.chat_session_id, kind: "check").active.find_each do |check|
+      check.with_lock do
+        if check.queued?
+          check.fail!(DesignTurn::CHECK_STOPPED)
+          note(thread, DesignTurn::CHECK_STOPPED)
+        elsif check.running? && check.stop_requested_at.nil?
+          check.update!(stop_requested_at: Time.current, stop_requested_by: DesignTurn::NEW_MESSAGE)
+        end
+      end
+    end
   end
 
   # Try again, under the thread's last turn when it failed: its request runs
@@ -268,6 +301,8 @@ module Designs::Threads
   # (Designs::TurnJob#merge_after): the turn is returned then, and the merge
   # otherwise.
   def merge_or_prepare!(thread, user:)
+    waiting = merge_after_check!(thread, user)
+    return waiting if waiting
     return merge!(thread, user: user) unless components_due?(thread)
     raise AlreadyMerged, "#{thread.branch} is already merged" if thread.merged?
 
@@ -283,6 +318,24 @@ module Designs::Threads
     queue_turn(thread, user, components_request(screens), kind: "components", visible: false, then_merge: "manual")
   rescue Designs::Repo::Busy
     raise Busy, BUSY
+  end
+
+  # Merge while the thread's on-screen check waits or runs (2026-11-21): the
+  # check merges the thread once it is done (Designs::TurnJob#merge_after),
+  # components first when they are due, so what is merged is what it checked.
+  # Nil when no check is under way, or one is already stopping. The row lock
+  # settles it against the check's job finishing at the same moment: a check
+  # that has finished is merged here as any thread is.
+  def merge_after_check!(thread, user)
+    check = DesignTurn.where(chat_session_id: thread.chat_session_id, kind: "check").active.order(:id).last or return
+
+    check.with_lock do
+      next unless (check.queued? || check.running?) && check.stop_requested_at.nil?
+
+      check.update!(then_merge: "manual")
+      note(thread, "Merging once the on-screen check is done · #{user&.name || 'someone'}")
+      check
+    end
   end
 
   # A design turn committed since the thread's last components turn, or the
@@ -482,7 +535,9 @@ module Designs::Threads
 
   def record_merge!(thread, user, how, sha, commits, screens)
     messages = thread.chat_session.chat_messages
-    summary = messages.where(role: "assistant", kind: "summary").ordered.last&.content.presence || thread.title
+    # A check's one line says how the screens looked, not what the thread did.
+    summary = messages.where(role: "assistant", kind: "summary").ordered.reject { |message| message.data&.dig("check") }
+                      .last&.content.presence || thread.title
     asked = messages.where(role: "user", kind: nil).ordered.pluck(:content) + messages.where(kind: "diff").ordered.pluck(:content)
     merge = DesignMerge.create!(
       project: thread.project, design_thread: thread, task: thread.task, user: (user if how == "manual"), sha: sha,

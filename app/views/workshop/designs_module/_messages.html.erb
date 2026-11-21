@@ -9,12 +9,17 @@
 <% messages = session ? session.chat_messages.ordered.where("kind IS NULL OR kind <> ?", "request").to_a : [] %>
 <% turns = session ? session.design_turns.order(:id).to_a : [] %>
 <% active = turns.any? { |turn| turn.queued? || turn.running? } %>
+<%# A check runs while the person already looks at the preview (2026-11-21):
+    the chat polls for it, but the screen counts as idle, so a check that
+    changes nothing never reloads what they are looking at. %>
+<% busy = turns.any? { |turn| (turn.queued? || turn.running?) && !turn.check? } %>
 <% timeline = (messages.map { |message| [ message.created_at, 0, message.id, message ] } +
                turns.map { |turn| [ [ turn.created_at, turn.started_at ].compact.max, 1, turn.id, turn ] }).sort_by { |at, order, id, _| [ at, order, id ] } %>
 <%= turbo_frame_tag "design_thread_messages", class: "flex-1 min-h-0 flex flex-col" do %>
   <div class="flex-1 overflow-y-auto px-3.5 pt-4 pb-2.5 flex flex-col gap-3.5 [overflow-wrap:anywhere]"
        data-controller="designs-poll"
        data-designs-poll-active-value="<%= active %>"
+       data-designs-poll-busy-value="<%= busy %>"
        data-designs-poll-commit-value="<%= turns.select(&:commit_sha).map(&:id).max %>"
        data-designs-poll-url-value="<%= workshop_designs_overview_path(thread: thread.id, frame: "messages") %>">
     <% timeline.each do |*, item| %>

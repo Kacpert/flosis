@@ -67,6 +67,11 @@ class Designs::TurnActivity
     when "Edit", "MultiEdit" then [ "edit", "Editing #{place(input["file_path"])}" ]
     when "Glob" then [ "find", "Looking for #{input["pattern"]}#{where(input["path"])}" ]
     when "Grep" then [ "search", "Searching for “#{input["pattern"].to_s.truncate(80)}”#{where(input["path"])}" ]
+    # A check's browser on the design repo (2026-11-21).
+    when "mcp__flosis_browser__design_shot" then [ "read", "Looking at #{input["path"]}#{" at #{input["width"]} px" if input["width"]}" ]
+    when "mcp__flosis_browser__check_design" then [ "read", "Checking #{input["path"]}" ]
+    when "mcp__flosis_browser__design" then [ "read", "Opening #{input["path"]}" ]
+    when "mcp__flosis_browser__click_design" then [ "other", "Clicking through the design" ]
     else [ "other", "Using #{name}" ]
     end
   end

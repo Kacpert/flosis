@@ -635,6 +635,26 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # The check runs while the person already looks at the preview: the chat
+  # keeps polling, but the screen is idle, so a check that changes nothing
+  # does not reload what they are looking at.
+  test "a running check reads Checking on screen, and keeps the chat polling with the screen idle" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      design = DesignTurn.where(chat_session: thread.chat_session, kind: "design").last
+      check = Designs::Threads.new_check(thread, after: design, summary: "Added a counter.", chips: [ [ "apply", "candidate", "M" ] ])
+      check.update!(status: "running", started_at: 30.seconds.ago)
+
+      chat(thread)
+      assert_select "[data-turn-id=?]", check.id.to_s, text: /Checking on screen/
+      assert_select "[data-designs-poll-active-value=true][data-designs-poll-busy-value=false]"
+
+      design.update!(status: "running")
+      chat(thread)
+      assert_select "[data-designs-poll-active-value=true][data-designs-poll-busy-value=true]"
+    end
+  end
+
   test "a turn that has been quiet for a while is thinking, and one asked to stop says so, with no Stop" do
     with_designs do
       thread = Designs::Threads.start!(project: @project, user: users(:one))
