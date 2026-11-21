@@ -149,6 +149,81 @@ class Designs::PromptTest < ActiveSupport::TestCase
     assert_equal [ "## Thread", "## Request" ], Designs::Prompt.thread_message(thread: thread, request: "Do it").scan(/^## .+$/)
   end
 
+  # Kacper, 2026-11-21: a thread starts with a proposal: how the AI reads the
+  # request, where things go and each value's exact strings, asking only what
+  # a standard cannot settle.
+  test "a plan turn's message carries the plan's rules" do
+    thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x")
+    message = Designs::Prompt.thread_message(thread: thread, request: "Show AI costs", plan: true)
+
+    assert_equal [ "## Thread", "## This turn", "## Request" ], message.scan(/^## .+$/)
+    assert_includes message, Designs::Prompt::PLAN
+    assert_includes message, Designs::Prompt::STATES
+    [ "change no file", "exact strings", "Proposal: ", "No doubts, designing now." ].each { |rule| assert_includes Designs::Prompt::PLAN, rule }
+    assert_not_includes message, Designs::Prompt::DIRECTION_FIRST
+    assert message.rstrip.end_with?("Show AI costs")
+  end
+
+  # Variant (b): a later message that brings a direction or a new thing is
+  # proposed first; the answer to a proposal is built, never proposed again.
+  test "a design turn that may propose is told to propose a direction first, unless it answers a plan" do
+    thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x")
+    proposing = Designs::Prompt.thread_message(thread: thread, request: "Make costs subtle", screens_only: true, may_propose: true)
+    answering = Designs::Prompt.thread_message(thread: thread, request: "Yes", screens_only: true, may_propose: true, after_plan: true)
+
+    assert_includes proposing, Designs::Prompt::DIRECTION_FIRST
+    assert_not_includes proposing, Designs::Prompt::AFTER_PLAN
+    [ "change no file", "built at once", "This replaces what the base prompt says about never stopping to ask." ].each do |rule|
+      assert_includes Designs::Prompt::DIRECTION_FIRST, rule
+    end
+    assert_not_includes answering, Designs::Prompt::DIRECTION_FIRST
+    assert_includes answering, Designs::Prompt::AFTER_PLAN
+    assert_includes Designs::Prompt::AFTER_PLAN, "plan or proposal"
+  end
+
+  # A check runs in a session of its own, so its message is what it needs:
+  # the thread, its rules and the request that lists what to look at.
+  test "a check turn's message holds only the thread, the check's rules and its request" do
+    task = tasks(:jira_task)
+    task.update!(external_reference: "SP-1051", description: "Validate on blur")
+    thread = DesignThread.new(project: task.project, task: task, title: "Inline validation", branch: "design/SP-1051-inline-validation",
+                              focus_context: "candidate", focus_screen: "apply")
+    message = Designs::Prompt.thread_message(thread: thread, request: "Check these screens", check: true)
+
+    assert_equal [ "## Thread", "## This turn", "## Request" ], message.scan(/^## .+$/)
+    assert_includes message, Designs::Prompt::CHECK
+    assert_not_includes message, Designs::Prompt::SCREENS_ONLY
+    [ "design_shot", "1160", "1024", "check_design", "Checked on screen:" ].each { |rule| assert_includes Designs::Prompt::CHECK, rule }
+  end
+
+  test "the note on what a check changed comes before This turn" do
+    thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x")
+    message = Designs::Prompt.thread_message(thread: thread, request: "Do it", screens_only: true,
+                                             check_note: "Checked on screen: the cost now wraps at 1024 px.")
+
+    assert_equal [ "## Thread", "## Since your last turn", "## This turn", "## Request" ], message.scan(/^## .+$/)
+    assert_includes message, "Checked on screen: the cost now wraps at 1024 px."
+  end
+
+  # The skill is a Library text: the guard refuses twelve words of it in a
+  # repo, and a new screen starts as a copy of the template's pages.
+  test "the skill shares no twelve words with the template" do
+    guard = Designs::LeakGuard.new(forbidden_texts: [ Designs::Prompt::SENIOR_DESIGNER_SKILL ], flosis_files: true)
+    Project::DESIGN_BASE_KITS.each do |kit|
+      project = projects(:jira_project)
+      project.design_base_kit = kit
+      Dir.mktmpdir("prompt") do |dir|
+        Designs::Template.render_into(dir, project: project)
+        changes = Dir.glob("**/*", base: dir).select { |path| File.file?(File.join(dir, path)) }
+                     .map { |path| Designs::Repo::Change.new(path: path, added_text: File.read(File.join(dir, path))) }
+        assert_empty guard.check(changes), kit
+      end
+    end
+    [ "purpose", "limited attention", "(none this month)", "margins", "three short sentences" ].each do |rule|
+      assert_includes Designs::Prompt::SENIOR_DESIGNER_SKILL, rule
+    end
+  end
+
   test "a thread's turn can carry the design repo and the rule to build screens only, both before the request" do
     thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x")
     message = Designs::Prompt.thread_message(thread: thread, request: "Do it", repo_map: "Kit: plain\n\n### Screens\n(none yet)", screens_only: true)

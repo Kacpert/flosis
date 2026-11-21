@@ -34,14 +34,10 @@ module Designs::Threads
   GONE = "This thread's archive is no longer on GitHub, so it can't come back.".freeze
   # A task's thread first plans (Kacper, 2026-11-18): it makes sure of its
   # assumptions in the chat, and designs at once when it has no doubts
-  # (Designs::TurnJob#carry_on), or once the person answers.
-  PLAN_REQUEST = <<~REQUEST.freeze
-    Before you design, make sure you know what to do. Read the task's current description and the screens it
-    touches; change no file in this turn. In the summary, give your plan in at most five short lines: what you
-    will design and where (screen and spot), reusing the screens that already cover it. Ask in a missing block
-    only where a standard answer will not do, one question each, ending with "Proposal: " and your answer. With
-    nothing to ask, end the summary with "No doubts, designing now."
-  REQUEST
+  # (Designs::TurnJob#carry_on), or once the person answers. What a plan does
+  # is in its turn's rules (Designs::Prompt::PLAN), which a thread started by
+  # typing gets too (2026-11-21); this is what the task's plan is asked.
+  PLAN_REQUEST = "Plan the design of this task.".freeze
   DESIGN_AS_PLANNED = "No doubts: design it as planned. Say which screens you changed, and what is left to decide.".freeze
   GO_WITH_PROPOSALS = "Go with your proposals for the open questions, and design it as planned. Say which screens you " \
                       "changed, and what is left to decide.".freeze
