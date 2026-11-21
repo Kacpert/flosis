@@ -155,6 +155,46 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     end
   end
 
+  # A thread's acceptance keeps a copy of its merge commit (2026-11-21).
+  test "the slot pattern takes an accepted copy by thread id, and nothing else under accepted/" do
+    %w[accepted/7 accepted/123].each { |slot| assert_match Designs::Publisher::SLOT, slot }
+    %w[accepted accepted/ accepted/x accepted/7/8 accepted/../x].each { |slot| assert_no_match Designs::Publisher::SLOT, slot }
+  end
+
+  test "a merge commit is published as an accepted copy, marked only where told, with a changes page" do
+    with_design_remote do |repo, _|
+      screen = ->(title, body) { "<html><head><title>#{title}</title></head><body><h1>#{title}</h1>#{body}</body></html>" }
+      base = seed_master(repo, { "designs/admin/consumption.html" => screen.("Consumption", ""),
+                                 "designs/admin/bugs.html" => screen.("Bug Reporting", "") })
+      sha = commit_files(repo, repo.worktree!("design/x", from: base),
+                         { "designs/admin/consumption.html" => screen.("Consumption", "<p>New</p>"),
+                           "designs/admin/bugs.html" => screen.("Bug Reporting", "<p>Other</p>") })
+
+      published = Designs::Publisher.new(repo.project, repo).publish_commit!(
+        sha, "accepted/7", base: base, only: [ "admin/consumption" ],
+        page: { title: "SCRUM-70 · Add token calculations", status: "Accepted 21 Nov 2026 · abc1234" }
+      )
+
+      assert_equal Pathname(@preview_root).join(repo.project.reload.design_preview_token, "accepted/7"), published
+      assert published.join("designs/admin/consumption.changes.html").file?
+      assert_not published.join("designs/admin/bugs.changes.html").file?
+      assert_equal [ [ "admin", "consumption", "updated" ] ], JSON.parse(published.join("__flosis/changes.json").read)["own"]
+      page = published.join("__flosis/changes.html").read
+      assert_includes page, "SCRUM-70 · Add token calculations"
+      assert_includes page, "Accepted 21 Nov 2026 · abc1234"
+      assert_includes page, %(href="../designs/admin/consumption.html")
+      assert_includes page, %(href="../designs/admin/consumption.changes.html")
+      assert_not_includes page, "Bug Reporting"
+    end
+  end
+
+  test "a lasting link with no page names the version and stops at design" do
+    project = projects(:jira_project)
+    project.update!(design_preview_token: "t0k")
+    assert_equal "https://preview.example/test-workspace/elvium/SCRUM-70/design",
+                 Designs::Publisher.new(project, nil).url("SCRUM-70", nil)
+  end
+
   test "the slot pattern takes a thread's branch, and nothing below it" do
     %w[design/SP-1051-inline-validation design/fix-the-header-2].each { |slot| assert_match Designs::Publisher::SLOT, slot }
     %w[design design/ design/a/b design/../x].each { |slot| assert_no_match Designs::Publisher::SLOT, slot }

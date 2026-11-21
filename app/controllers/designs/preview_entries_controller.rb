@@ -6,12 +6,15 @@
 # same page under a short-lived grant, where it runs sandboxed
 # (Designs::PreviewsController). The query, contexts and all, goes along.
 class Designs::PreviewEntriesController < ApplicationController
+  CHANGES_PAGE = "__flosis/changes.html".freeze
+
   def master
     open_preview(Designs::Repo::MASTER)
   end
 
-  # A task's lasting link: its design thread's branch (Workshop Designs v2),
-  # else the slot of that name.
+  # A task's lasting link: its designs' last accepted copy (2026-11-21), else
+  # its design thread's branch (Workshop Designs v2), else the slot of that
+  # name. It goes through the task's merges, so it outlives the thread.
   def task
     project = named_project
     open_preview(task_slot(project, params[:key]), project)
@@ -26,6 +29,8 @@ class Designs::PreviewEntriesController < ApplicationController
     page = params[:path].to_s
     # Rails takes a folder's slash off request.path before routing; the path as asked keeps it.
     page = "#{page}/" if page.present? && request.original_fullpath.split("?", 2).first.end_with?("/")
+    # A version with a list of what changed opens on it (2026-11-21).
+    page = CHANGES_PAGE if page.empty? && publisher.slot_folder(slot)&.join(CHANGES_PAGE)&.file?
     target = publisher.grant_url(slot, page)
     target = "#{target}?#{request.query_string}" if request.query_string.present?
     # The host is the app's own, from DESIGNS_PREVIEW_URL.
@@ -41,7 +46,9 @@ class Designs::PreviewEntriesController < ApplicationController
     return key unless project
 
     task = key.to_s.start_with?("task-") ? project.tasks.find_by(id: key.delete_prefix("task-")) : project.tasks.find_by(external_reference: key)
-    task&.design_thread&.branch.presence || key
+    return key unless task
+
+    Designs::AcceptedScreens.new(task).slot || task.design_thread&.branch.presence || key
   end
 
   def named_project

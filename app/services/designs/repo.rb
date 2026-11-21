@@ -280,6 +280,14 @@ class Designs::Repo
   end
 
   # The last commit two branches share, or nil when either is missing.
+  # A commit's first parent: for a merge commit, master as it was just before
+  # (an accepted copy's changes are marked against it). nil for a root commit.
+  def first_parent(sha)
+    synchronize { git("rev-parse", "--verify", "--quiet", "#{sha}^1").strip.presence }
+  rescue GitRunner::Error
+    nil
+  end
+
   def merge_base(a, b)
     synchronize { git("merge-base", "refs/heads/#{a}", "refs/heads/#{b}").strip.presence }
   rescue GitRunner::Error

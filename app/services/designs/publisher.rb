@@ -14,6 +14,7 @@ require "tmpdir"
 #   <root>/<token>/REC-1/        a task's approved design
 #   <root>/<token>/wip/REC-1/    a task's work in progress
 #   <root>/<token>/wip/setup/    the design system being set up
+#   <root>/<token>/accepted/7/   thread 7's last accepted merge commit
 #
 # Links name the organization and the project, never the token: lasting ones
 # ask whoever opens them to sign in, and send them on under a short-lived
@@ -23,9 +24,11 @@ class Designs::Publisher
   # What may name a slot: master, a task's key, work in progress under wip/, or
   # a design thread's branch under design/. A slot becomes folders in the
   # document root, so it is never a path of its own: no dots, no leading or
-  # doubled slashes, nothing after a newline. A bare "wip" or "design" is
-  # refused too: it would replace that folder and every slot in it.
-  SLOT = %r{\A(master|wip/setup|wip/[A-Za-z0-9_-]+|design/[A-Za-z0-9_-]+|(?!(?:wip|design)\z)[A-Za-z0-9_-]+)\z}
+  # doubled slashes, nothing after a newline. A bare "wip", "design" or
+  # "accepted" is refused too: it would replace that folder and every slot in
+  # it. accepted/<thread id> is the copy of a thread's last merge commit, which
+  # only its next acceptance replaces (2026-11-21).
+  SLOT = %r{\A(master|wip/setup|wip/[A-Za-z0-9_-]+|design/[A-Za-z0-9_-]+|accepted/[0-9]+|(?!(?:wip|design|accepted)\z)[A-Za-z0-9_-]+)\z}
 
   # Anything pushed to the design repo reaches the docroot, where Apache honours nested .htaccess and PHP runs as the Rails user.
   SERVABLE_EXTENSIONS = %w[
@@ -107,27 +110,25 @@ class Designs::Publisher
   # screens it has, as __flosis/screens.json for the runtime, and, given the
   # commit a thread is based on, each changed screen marked up against it, as
   # designs/<context>/<screen>.changes.html for the Changes view.
-  def publish!(branch, slot, base: nil)
+  def publish!(branch, slot, base: nil, only: nil, page: nil)
     slot = check_slot!(slot)
     raise Error, "the project has no design repo folder yet, so there is nothing to publish" unless stored_workspace_dir
 
     repo.synchronize do
       sha = repo.head(branch) || raise(ArgumentError, "the design repo has no branch #{branch}")
-      folder = token_folder!
-      staging = folder.join(".staging-#{SecureRandom.hex(8)}")
-      begin
-        unpack(sha, into: staging)
-        current_runtime!(staging)
-        strip_unservable!(staging)
-        write_screens!(staging)
-        write_changes!(staging, base) if base
-        open_up!(staging)
-        swap!(staging, folder.join(slot))
-      ensure
-        FileUtils.rm_rf(staging)
-      end
-      folder.join(slot)
+      publish_sha(sha, slot, base: base, only: only, page: page)
     end
+  end
+
+  # A commit rather than a branch's head: a thread's merge commit, as its
+  # accepted copy (Designs::Threads.after_merge!). only names the screens
+  # ("context/screen") whose own changes count; page ({ title:, status: })
+  # asks for the changes page a task's lasting link opens.
+  def publish_commit!(sha, slot, base: nil, only: nil, page: nil)
+    slot = check_slot!(slot)
+    raise Error, "the project has no design repo folder yet, so there is nothing to publish" unless stored_workspace_dir
+
+    repo.synchronize { publish_sha(sha, slot, base: base, only: only, page: page) }
   end
 
   # Whether the slot has been published, so that a link into it leads to a
@@ -167,7 +168,12 @@ class Designs::Publisher
     slot = check_slot!(slot)
     raise ArgumentError, "#{slot} is work in progress, which has no lasting link" if slot.start_with?("wip/")
 
-    link(slot == Designs::Repo::MASTER ? "design" : "#{slot}/design", path, ctx)
+    within = slot == Designs::Repo::MASTER ? "design" : "#{slot}/design"
+    # No page: the version itself, which opens the list of what changed when
+    # it has one (Designs::PreviewEntriesController).
+    return "#{self.class.base_url}/#{names}/#{within}" if path.nil?
+
+    link(within, path, ctx)
   end
 
   # The page under a short-lived grant for the slot, where it is served
@@ -206,6 +212,25 @@ class Designs::Publisher
 
   def root
     self.class.root
+  end
+
+  # Under the repo's lock: the commit unpacked into a private folder, then
+  # swapped in (see publish!).
+  def publish_sha(sha, slot, base:, only:, page:)
+    folder = token_folder!
+    staging = folder.join(".staging-#{SecureRandom.hex(8)}")
+    begin
+      unpack(sha, into: staging)
+      current_runtime!(staging)
+      strip_unservable!(staging)
+      write_screens!(staging)
+      write_changes!(staging, base, only: only, page: page) if base
+      open_up!(staging)
+      swap!(staging, folder.join(slot))
+    ensure
+      FileUtils.rm_rf(staging)
+    end
+    folder.join(slot)
   end
 
   def check_slot!(slot)
@@ -329,20 +354,33 @@ class Designs::Publisher
     File.write(dir.join("__flosis/screens.json"), screens_in(dir).as_json.to_json)
   end
 
-  def write_changes!(dir, base)
+  def write_changes!(dir, base, only: nil, page: nil)
     before = Designs::Screens.new(paths: repo.ls_files(base, "designs/"), reader: ->(path) { repo.read_file(base, path) })
-    changes = Designs::Changes.new(base: before, head: screens_in(dir), root: "../../")
-    changes.changed.each do |change|
+    head = screens_in(dir)
+    changes = Designs::Changes.new(base: before, head: head, root: "../../")
+    # An accepted copy counts only the screens its thread changed itself: master
+    # took other threads' work between its acceptances (2026-11-21).
+    wanted = only&.to_set
+    own = changes.own.select { |change| wanted.nil? || wanted.include?("#{change[:context]}/#{change[:screen]}") }
+    through = changes.through_components
+    marked = wanted ? (own + through.values.flatten).uniq { |change| change.values_at(:context, :screen) } : changes.changed
+    marked.each do |change|
       File.write(dir.join("designs", change[:context], "#{change[:screen]}.changes.html"),
                  changes.marked_html(change[:context], change[:screen]))
     end
     # Which changed screens the branch changed itself, and which only a changed
     # component reached, by component: the canvas lists them apart.
+    record = {
+      own: own.map { |change| [ change[:context], change[:screen], change[:kind] ] },
+      through: through.transform_values { |list| list.map { |change| [ change[:context], change[:screen] ] } }
+    }
     FileUtils.mkdir_p(dir.join("__flosis"))
-    File.write(dir.join("__flosis/changes.json"), JSON.generate(
-      own: changes.own.map { |change| [ change[:context], change[:screen], change[:kind] ] },
-      through: changes.through_components.transform_values { |list| list.map { |change| [ change[:context], change[:screen] ] } }
-    ))
+    File.write(dir.join("__flosis/changes.json"), JSON.generate(record))
+    return unless page
+
+    File.write(dir.join("__flosis/changes.html"),
+               Designs::ChangesPage.render(title: page[:title], status: page[:status], own: record[:own],
+                                           through: record[:through], screens: JSON.parse(head.as_json.to_json)))
   end
 
   # The screens of an unpacked, stripped copy, read from the copy itself.

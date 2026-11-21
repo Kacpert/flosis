@@ -48,6 +48,52 @@ class Designs::JiraLinksTest < ActiveSupport::TestCase
     end
   end
 
+  # The overview link opens the list of what changed (2026-11-21), not the
+  # design repo's own overview page.
+  test "the overview link is the clean task link" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      task = thread_task(repo)
+      stub_request(:get, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink").to_return(status: 200, body: "[]")
+      stub_request(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink").to_return(status: 200, body: "{}")
+      assert with_remote_url(remote) { Designs::JiraLinks.new(task).sync! }[:ok]
+      assert_requested(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink") { |req|
+        body = JSON.parse(req.body)
+        body["globalId"] == "flosis-design:#{repo.project.id}:REC-1:index" &&
+          body["object"]["url"] == "https://preview.example/test-workspace/elvium/REC-1/design"
+      }
+    end
+  end
+
+  test "once accepted, the screen links are the accepted screens" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      task = thread_task(repo)
+      DesignMerge.create!(project: repo.project, task: task, design_thread: task.design_thread, sha: "a" * 40, title: "Jobs",
+                          branch: "design/REC-1-jobs", how: "manual", merged_at: Time.current, slot: "accepted/#{task.design_thread.id}")
+      root = Dir.mktmpdir("preview")
+      ENV["DESIGNS_PREVIEW_ROOT"] = root
+      folder = Pathname(root).join("t0k", "accepted/#{task.design_thread.id}/__flosis")
+      FileUtils.mkdir_p(folder)
+      File.write(folder.join("screens.json"), { contexts: [ { id: "admin", name: "Admin" } ],
+                                                screens: [ { id: "plans", context: "admin", name: "Plans" } ] }.to_json)
+      File.write(folder.join("changes.json"), { own: [ [ "admin", "plans", "new" ] ], through: {} }.to_json)
+      stub_request(:get, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink").to_return(status: 200, body: "[]")
+      posts = stub_request(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink").to_return(status: 200, body: "{}")
+
+      assert with_remote_url(remote) { Designs::JiraLinks.new(task).sync! }[:ok]
+      assert_requested posts, times: 2
+      assert_requested(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink") { |req|
+        body = JSON.parse(req.body)
+        body["object"]["url"] == "https://preview.example/test-workspace/elvium/REC-1/design/designs/admin/plans.html" &&
+          body["object"]["title"] == "Design · Admin › Plans"
+      }
+    ensure
+      ENV.delete("DESIGNS_PREVIEW_ROOT")
+      FileUtils.remove_entry(root) if root
+    end
+  end
+
   test "a screen the thread no longer changes loses its link" do
     with_design_remote do |repo, remote|
       seed_master(repo)

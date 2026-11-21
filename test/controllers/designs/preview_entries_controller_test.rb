@@ -42,6 +42,48 @@ class Designs::PreviewEntriesControllerTest < ActionDispatch::IntegrationTest
     assert_granted("design/SP-1051-inline", "designs/candidate/apply.html")
   end
 
+  # Accept designs (2026-11-21): once accepted, a task's link opens the copy of
+  # its merge commit, and with no page, the list of what changed.
+  def accepted_task(key: "SP-1051")
+    task = tasks(:jira_task)
+    task.update!(project: @project, external_reference: key)
+    thread = DesignThread.create!(project: @project, task: task, author: users(:one), title: "x",
+                                  branch: "design/SP-1051-inline", status: "merged")
+    write("design/SP-1051-inline/designs/candidate/apply.html", "<p>work in progress</p>")
+    DesignMerge.create!(project: @project, task: task, design_thread: thread, sha: "a" * 40, title: "x", branch: thread.branch,
+                        how: "manual", merged_at: Time.current, slot: "accepted/#{thread.id}")
+    write("accepted/#{thread.id}/__flosis/changes.html", "<p>what changed</p>")
+    write("accepted/#{thread.id}/designs/candidate/apply.html", "<p>accepted</p>")
+    [ task, thread ]
+  end
+
+  test "a task's link opens its accepted copy once the thread is accepted, and with no page its changes" do
+    _, thread = accepted_task
+    sign_in_as(users(:one))
+
+    get "/test-workspace/elvium/SP-1051/design"
+    assert_granted("accepted/#{thread.id}", "__flosis/changes.html")
+    get "/test-workspace/elvium/SP-1051/design/designs/candidate/apply.html"
+    assert_granted("accepted/#{thread.id}", "designs/candidate/apply.html")
+  end
+
+  test "after the thread is unlinked from its task, the link still opens the accepted copy" do
+    _, thread = accepted_task
+    thread.update!(task: nil, status: "deleted")
+    sign_in_as(users(:one))
+
+    get "/test-workspace/elvium/SP-1051/design/designs/candidate/apply.html"
+    assert_granted("accepted/#{thread.id}", "designs/candidate/apply.html")
+  end
+
+  test "a task with no key links by task-<id>" do
+    task, thread = accepted_task(key: nil)
+    sign_in_as(users(:one))
+
+    get "/test-workspace/elvium/task-#{task.id}/design"
+    assert_granted("accepted/#{thread.id}", "__flosis/changes.html")
+  end
+
   test "the project's link opens master, and a task's opens its last approved version" do
     sign_in_as(users(:one))
     get "/test-workspace/elvium/design/"
