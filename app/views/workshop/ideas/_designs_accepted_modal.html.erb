@@ -5,7 +5,7 @@
 <% link = Designs::Publisher.new(idea.project, nil).url(Designs::BranchNames.slug(idea), nil) %>
 <% changes = Array(merge.description_changes) %>
 <div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="designs-accepted" data-action="click->clar-modal#close">
-  <div class="clar-modal max-w-[520px]" style="padding: 22px;" data-action="click->clar-modal#stopPropagation">
+  <div class="clar-modal max-w-[520px] max-h-[calc(100vh-48px)] overflow-y-auto" style="padding: 22px;" data-action="click->clar-modal#stopPropagation">
     <div class="flex items-center justify-between gap-3 mb-4">
       <div class="flex items-center gap-2.5">
         <span class="w-8 h-8 rounded-full flex items-center justify-center flex-none" style="background: var(--success-soft); color: var(--success);">
