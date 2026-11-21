@@ -3,7 +3,9 @@ module VersionableDocument
 
   included do
     scope :current, -> { where(current: true) }
-    validates :origin, inclusion: { in: %w[user jira ai manual] }
+    # "designs" is the version written when a task's designs are accepted
+    # (Designs::DescribeJob, 2026-11-21).
+    validates :origin, inclusion: { in: %w[user jira ai manual designs] }
   end
 
   # "jira" is a v0 seeded straight from the ticket's own description — calling
@@ -13,6 +15,7 @@ module VersionableDocument
     when "user"   then edited_at? ? "User description (edited)" : "User description"
     when "jira"   then edited_at? ? "Jira description (edited)" : "Jira description"
     when "manual" then "Manual edit"
+    when "designs" then "Designs accepted"
     else "AI drafted"
     end
   end

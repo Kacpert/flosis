@@ -18,8 +18,10 @@ class DesignTurn < ApplicationRecord
   # and changes nothing (Designs::Threads.start_from_task!). "check" follows a
   # thread's design turn that committed: in a session of its own, it looks at
   # the screens that turn changed in a browser and fixes only what broke on
-  # screen (Kacper, 2026-11-21).
-  KINDS = %w[design resolve_conflicts setup components plan check].freeze
+  # screen (Kacper, 2026-11-21). "describe" follows a task's thread's merge: it
+  # writes the task's next description version from the accepted designs
+  # (Designs::DescribeJob, not TurnJob).
+  KINDS = %w[design resolve_conflicts setup components plan check describe].freeze
   # Not finished yet: while a chat has one, the screen keeps polling and the
   # work cannot be approved.
   ACTIVE = %w[queued running].freeze
@@ -81,6 +83,7 @@ class DesignTurn < ApplicationRecord
 
   def plan? = kind == "plan"
   def check? = kind == "check"
+  def describe? = kind == "describe"
 
   # A plan, or a design turn that answered with a proposal: the person answers
   # it, or takes its proposals with "Design with these proposals".
@@ -133,6 +136,10 @@ class DesignTurn < ApplicationRecord
   CHECK_TIMEOUT_SECONDS = 600
   CHECK_BUDGET_USD = 5
   CHECK_EFFORT = "medium"
+  # A describe turn edits one description, with no tools.
+  DESCRIBE_TIMEOUT_SECONDS = 240
+  DESCRIBE_BUDGET_USD = 2
+  DESCRIBE_EFFORT = "medium"
 
   # How long the CLI may run one turn, in seconds: DESIGNS_TURN_TIMEOUT_SECONDS
   # when it is a positive whole number, else forty minutes. stale_after
@@ -184,6 +191,10 @@ class DesignTurn < ApplicationRecord
     CHECK_TIMEOUT_SECONDS.seconds + 5.minutes
   end
 
+  def self.describe_stale_after
+    DESCRIBE_TIMEOUT_SECONDS.seconds + 5.minutes
+  end
+
   # Whether a check (other than except) has the host's browser now: one that
   # runs and is not past its bounds.
   def self.check_running?(except: nil)
@@ -202,10 +213,11 @@ class DesignTurn < ApplicationRecord
   def self.fail_stale!
     now = Time.current
     failed = { status: "failed", error: INTERRUPTED, finished_at: now, updated_at: now }
-    stale = where(status: "running", started_at: ...(now - stale_after)).where.not(kind: %w[setup plan check]).update_all(failed) +
+    stale = where(status: "running", started_at: ...(now - stale_after)).where.not(kind: %w[setup plan check describe]).update_all(failed) +
             where(status: "running", kind: "setup", started_at: ...(now - setup_stale_after)).update_all(failed) +
             where(status: "running", kind: "plan", started_at: ...(now - plan_stale_after)).update_all(failed) +
-            where(status: "running", kind: "check", started_at: ...(now - check_stale_after)).update_all(failed)
+            where(status: "running", kind: "check", started_at: ...(now - check_stale_after)).update_all(failed) +
+            where(status: "running", kind: "describe", started_at: ...(now - describe_stale_after)).update_all(failed)
     stale + where(status: "running", stop_requested_at: ...(now - STOP_GRACE)).count { |turn| turn.fail_stopped! }
   end
 
@@ -229,6 +241,7 @@ class DesignTurn < ApplicationRecord
     bound = if setup? then self.class.setup_stale_after
             elsif plan? then self.class.plan_stale_after
             elsif check? then self.class.check_stale_after
+            elsif describe? then self.class.describe_stale_after
             else self.class.stale_after
             end
     running? && started_at.present? && started_at < bound.ago

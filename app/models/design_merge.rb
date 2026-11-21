@@ -3,6 +3,10 @@
 # ("auto"), the setup's import ("setup"), or one feature of an import landing by
 # itself after it ("import"). The summary is the thread's last
 # reply, and what changed is what people asked for (Designs::Threads.merge!).
+#
+# A thread's merge is also its acceptance (2026-11-21): slot names the preview
+# copy of the merge commit (accepted/<thread id>), and a task's merge records
+# the description version it wrote and when the task's page announced it.
 class DesignMerge < ApplicationRecord
   HOWS = %w[manual auto setup import].freeze
 
@@ -15,6 +19,9 @@ class DesignMerge < ApplicationRecord
   # DesignRequest#links).
   attribute :screens, :json, default: []
   attribute :what_changed, :json, default: []
+  # What the task's description version written from it changed (Designs::
+  # DescribeJob), as up to three short lines for the task's modal.
+  attribute :description_changes, :json, default: []
 
   validates :sha, :title, :branch, :merged_at, presence: true
   validates :how, inclusion: { in: HOWS }

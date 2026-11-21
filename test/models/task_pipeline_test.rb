@@ -19,7 +19,18 @@ class TaskPipelineTest < ActiveSupport::TestCase
 
   test "suggested_branch prefixes the Jira key (downcased) and a slug of the name" do
     t = tasks(:jira_task) # name: "ELV-1 Existing task", external_reference: "ELV-1"
-    assert_equal "feat/elv-1-elv-1-existing-task", t.suggested_branch
+    assert_equal "feat/elv-1-existing-task", t.suggested_branch
+  end
+
+  # Finish creates this branch for real (2026-11-21), so a name that starts
+  # with the key no longer says it twice.
+  test "a suggested branch never repeats the key the name starts with" do
+    t = tasks(:jira_task)
+    t.external_reference = "SCRUM-70"
+    t.name = "SCRUM-70 Add token calculations"
+    assert_equal "feat/scrum-70-add-token-calculations", t.suggested_branch
+    t.name = "Add token calculations"
+    assert_equal "feat/scrum-70-add-token-calculations", t.suggested_branch
   end
 
   test "suggested_branch omits the key for a local (non-Jira) task" do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_010100) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_200100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -234,15 +234,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_010100) do
   end
 
   create_table "design_merges", force: :cascade do |t|
+    t.datetime "announced_at"
     t.string "branch", null: false
     t.integer "commits", default: 1, null: false
     t.datetime "created_at", null: false
+    t.boolean "described_fallback", default: false, null: false
+    t.text "description_changes"
+    t.integer "description_version"
     t.bigint "design_thread_id"
     t.string "how", null: false
     t.datetime "merged_at", null: false
     t.bigint "project_id", null: false
     t.json "screens"
     t.string "sha", null: false
+    t.string "slot"
     t.text "summary"
     t.bigint "task_id"
     t.string "title", null: false
@@ -868,6 +873,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_010100) do
     t.string "assignee_email"
     t.string "assignee_name"
     t.datetime "brief_saved_locally_at"
+    t.string "code_branch"
+    t.text "code_branch_error"
+    t.datetime "code_branch_pushed_at"
+    t.string "code_branch_sha"
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
     t.text "description"

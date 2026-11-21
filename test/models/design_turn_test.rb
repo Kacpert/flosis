@@ -10,6 +10,22 @@ class DesignTurnTest < ActiveSupport::TestCase
 
   def turn(**attrs) = DesignTurn.create!({ chat_session: @session, chat_message: @message }.merge(attrs))
 
+  # The describe turn writes a task's description from its accepted designs
+  # (2026-11-21): four minutes at most, so one a deploy cut off is let go
+  # after nine.
+  test "a describe turn is stale after its own bound" do
+    old = turn(status: "running", kind: "describe", started_at: 9.minutes.ago - 1.second)
+    young = turn(status: "running", kind: "describe", started_at: 8.minutes.ago)
+
+    assert old.describe?
+    assert old.stale?
+    assert_not young.stale?
+    assert_equal 1, DesignTurn.fail_stale!
+    assert_equal DesignTurn::INTERRUPTED, old.reload.error
+    assert young.reload.running?
+    assert_equal [ 240, 2, "medium" ], [ DesignTurn::DESCRIBE_TIMEOUT_SECONDS, DesignTurn::DESCRIBE_BUDGET_USD, DesignTurn::DESCRIBE_EFFORT ]
+  end
+
   test "a new turn is queued" do
     assert_equal "queued", turn.status
   end

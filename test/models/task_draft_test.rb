@@ -3,6 +3,12 @@ require "test_helper"
 class TaskDraftTest < ActiveSupport::TestCase
   setup { @task = tasks(:jira_task) }
 
+  test "a version written when designs are accepted is labelled so" do
+    draft = @task.task_drafts.create!(content: "with designs", source: TaskDraft::REFINE_SOURCE, origin: "designs")
+    assert draft.valid?
+    assert_equal "Designs accepted", draft.label
+  end
+
   test "latest_draft returns only ai-source drafts" do
     @task.task_drafts.create!(content: "refined v1", source: TaskDraft::REFINE_SOURCE)
     @task.task_drafts.create!(content: '{"total_points":3}', source: TaskDraft::BREAKDOWN_SOURCE)
