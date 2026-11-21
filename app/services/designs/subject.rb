@@ -50,6 +50,8 @@ module Designs::Subject
     def preview_slot = @thread.branch
     def base_branch_for_new_worktree = @thread.base_sha.presence || Designs::Repo::MASTER
     def publish_base = @thread.base_sha.presence
+    # Its preview opens on what it changed, as work in progress (2026-11-21).
+    def publish_page = { title: Designs::Threads.page_title(@thread), status: "In progress" }
 
     def checkout!(repo)
       repo.synchronize do
@@ -252,6 +254,7 @@ module Designs::Subject
     def budget_usd = DesignTurn.turn_budget_usd
     def app_copy? = true
     def publish_base = nil
+    def publish_page = nil
     def chips(*, **) = []
     def refresh_base(_repo) = nil
     def after_turn(_repo) = nil
@@ -401,6 +404,7 @@ module Designs::Subject
 
     # A re-import shows its Changes against its thread's base.
     def publish_base = setup.design_thread&.base_sha.presence
+    def publish_page = nil
     def chips(*, **) = []
     def refresh_base(_repo) = nil
     def after_turn(_repo) = nil

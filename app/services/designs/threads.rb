@@ -190,8 +190,10 @@ module Designs::Threads
   # from it, or nil: { from:, to:, lines: [["-" | "+", line]] }.
   def description_change(thread)
     task = thread.task or return
-    now = Designs::CurrentDescription.for(task).to_s
-    before = thread.described_text.to_s
+    # The Designs section is Flosis's own (2026-11-21): writing it is not a
+    # change the designs have to follow.
+    now = Designs::DesignsSection.strip(Designs::CurrentDescription.for(task).to_s)
+    before = Designs::DesignsSection.strip(thread.described_text.to_s)
     return if now.strip == before.strip
 
     { from: thread.described_version.presence || "v1", to: version_label(task), lines: line_diff(before, now) }
@@ -289,7 +291,7 @@ module Designs::Threads
       end
       record_merge!(thread, user, how, sha, commits, screens)
     end
-    after_merge!(thread)
+    after_merge!(thread, merge)
     merge
   rescue Designs::Repo::Busy
     raise Busy, BUSY
@@ -352,6 +354,46 @@ module Designs::Threads
   def components_request(screens)
     list = screens.map { |screen| "- designs/#{screen}.html" }.join("\n")
     "#{COMPONENTS_REQUEST}\n\nThe screens this thread changed:\n#{list.presence || '- (none)'}"
+  end
+
+  # A finished thread back at work (Kacper, 2026-11-21: a task may need its
+  # designs changed again): its branch starts again from master, here and on
+  # GitHub (a fast-forward, since master holds the branch's last commit), and
+  # the conversation goes on. Its accepted copy, and every link to it, stays
+  # until the next acceptance replaces it.
+  def reopen!(thread, user:)
+    raise ArgumentError, "#{thread.branch} is not finished, so there is nothing to reopen." unless thread.merged?
+
+    repo = Designs::Repo.new(thread.project)
+    master = repo.synchronize(wait: false) do
+      refuse_while_turns_run!(thread)
+      repo.ensure_clone!
+      head = repo.head(Designs::Repo::MASTER)
+      # git will not move a branch a worktree has checked out; the next turn
+      # makes a fresh one.
+      path = repo.worktree_path(thread.branch)
+      repo.remove_worktree!(path) if path.exist?
+      repo.push!("#{head}:refs/heads/#{thread.branch}")
+      repo.point!(thread.branch, to: head)
+      head
+    end
+    thread.update!(status: "open", base_sha: master)
+    note(thread, "Reopened by #{user&.name || 'someone'} · branch from master #{short(master)}")
+    publish(thread)
+    thread
+  rescue Designs::Repo::Busy
+    raise Busy, BUSY
+  end
+
+  # The version a task's description gets next from its accepted designs:
+  # the Details version after the last one, v1 when it has none.
+  def next_description_version(task)
+    (task.task_drafts.by_source(TaskDraft::REFINE_SOURCE).maximum(:version) || 0) + 1
+  end
+
+  # What a thread's changes page is called: the task's key and the title.
+  def page_title(thread)
+    thread.task ? "#{Designs::ThreadNames.key(thread.task)} · #{thread.title}" : thread.title
   end
 
   # Deletes a thread nobody wants. Its branch moves to archive/ on GitHub, and
@@ -530,7 +572,8 @@ module Designs::Threads
   end
 
   def publish(thread, branch: thread.branch, slot: thread.branch, base: thread.base_sha)
-    Designs::Publisher.new(thread.project, Designs::Repo.new(thread.project)).publish!(branch, slot, base: base)
+    page = base && { title: page_title(thread), status: "In progress" }
+    Designs::Publisher.new(thread.project, Designs::Repo.new(thread.project)).publish!(branch, slot, base: base, page: page)
   rescue StandardError => e
     Rails.logger.error("[designs] publishing #{branch} failed: #{e.class}: #{e.message}")
   end
@@ -552,8 +595,48 @@ module Designs::Threads
     merge
   end
 
-  def after_merge!(thread)
+  # Master is published; so is the merge commit, as the thread's accepted
+  # copy (2026-11-21); and a task's thread asks for the task's next
+  # description version from it.
+  def after_merge!(thread, merge)
     publish(thread, branch: Designs::Repo::MASTER, slot: "master", base: nil)
+    publish_accepted(thread, merge)
+    queue_describe(thread, merge) if thread.task
     Designs::SyncJiraLinksJob.perform_later(thread.task_id) if thread.task&.external_reference.present?
+  end
+
+  # The merge commit as accepted, under accepted/<thread id>: its changes are
+  # marked against master as it was before the thread's first acceptance, and
+  # only on the screens the thread's merges changed themselves, so a second
+  # acceptance shows the changes of both. A copy that fails to publish leaves
+  # the merge as it is: the link opens the branch until the next acceptance.
+  def publish_accepted(thread, merge)
+    merges = thread.design_merges.order(:merged_at, :id).to_a
+    repo = Designs::Repo.new(thread.project)
+    base = repo.first_parent(merges.first.sha) or return
+    slot = "accepted/#{thread.id}"
+    status = "Accepted #{merge.merged_at.strftime('%-d %b %Y')} · #{merges.map(&:short_sha).join(', ')}"
+    Designs::Publisher.new(thread.project, repo).publish_commit!(
+      merge.sha, slot, base: base, only: merges.flat_map { |each| Array(each.screens) }.uniq,
+                       page: { title: page_title(thread), status: status }
+    )
+    merge.update!(slot: slot)
+  rescue StandardError => e
+    Rails.logger.error("[designs] publishing the accepted copy of #{thread.branch} failed: #{e.class}: #{e.message}")
+  end
+
+  # The turn that writes the task's next description version from the
+  # accepted designs (Designs::DescribeJob), asked in the name of whoever
+  # accepted them, out of sight.
+  def queue_describe(thread, merge)
+    task = thread.task
+    request = "Write #{Designs::ThreadNames.key(task)}'s description v#{next_description_version(task)} from the accepted designs."
+    turn = DesignTurn.transaction do
+      message = thread.chat_session.chat_messages.create!(role: "user", user: merge.user, content: request, kind: "request")
+      DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: "describe")
+    end
+    thread.touch
+    Designs::DescribeJob.perform_later(turn.id)
+    turn
   end
 end

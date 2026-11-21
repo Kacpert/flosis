@@ -333,6 +333,115 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     end
   end
 
+  def accepted_folder(repo, thread)
+    Pathname(@preview_root).join(repo.project.reload.design_preview_token, "accepted/#{thread.id}")
+  end
+
+  # Accept designs (2026-11-21): the merge commit is kept as it was accepted.
+  test "merging publishes the accepted copy, marked against master before the first acceptance" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours on pipeline", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      merge = Designs::Threads.merge!(thread, user: @user)
+      folder = accepted_folder(repo, thread)
+
+      assert_equal "accepted/#{thread.id}", merge.reload.slot
+      assert_equal [ [ "admin", "pipeline", "new" ] ], JSON.parse(folder.join("__flosis/changes.json").read)["own"]
+      assert_includes folder.join("__flosis/changes.html").read, "Accepted #{merge.merged_at.strftime('%-d %b %Y')} · #{merge.short_sha}"
+    end
+  end
+
+  test "a task's merge queues a describe turn out of sight, and a thread without a task does not" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      plain = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      Designs::Threads.merge!(plain, user: @user)
+      assert_not DesignTurn.where(chat_session: plain.chat_session, kind: "describe").exists?
+
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "SP-1051")
+      version = Designs::Threads.next_description_version(task)
+      thread = thread_with_work(repo, "Inline validation", { "designs/admin/editor.html" => "<title>Editor</title>" })
+      thread.update!(task: task)
+      Designs::Threads.merge!(thread, user: @user)
+
+      describe = DesignTurn.where(chat_session: thread.chat_session, kind: "describe").sole
+      assert describe.queued?
+      assert_equal [ "request", @user, "Write SP-1051's description v#{version} from the accepted designs." ],
+                   [ describe.chat_message.kind, describe.chat_message.user, describe.chat_message.content ]
+      assert_enqueued_with(job: Designs::DescribeJob, args: [ describe.id ])
+    end
+  end
+
+  test "the next description version follows the task's Details versions" do
+    task = tasks(:local_task)
+    assert_equal 1, Designs::Threads.next_description_version(task)
+    task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "jira", version: 0, content: "seed")
+    assert_equal 1, Designs::Threads.next_description_version(task)
+    task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, content: "v1")
+    assert_equal 2, Designs::Threads.next_description_version(task)
+  end
+
+  test "Reopen points the branch at master, opens the thread and keeps the accepted copy" do
+    with_threads_remote do |repo, remote|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      merge = Designs::Threads.merge!(thread, user: @user)
+
+      Designs::Threads.reopen!(thread.reload, user: @user)
+      thread.reload
+      master = remote_branch_sha(remote, "master")
+
+      assert thread.open?
+      assert_equal [ master, master, merge.sha ], [ thread.base_sha, remote_branch_sha(remote, thread.branch), thread.merged_sha ]
+      assert_includes system_lines(thread), "Reopened by #{@user.name} · branch from master #{master.first(7)}"
+      assert accepted_folder(repo, thread).join("__flosis/changes.json").file?
+    end
+  end
+
+  test "a second acceptance marks the screens of both rounds" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/a.html" => "<title>A</title>" })
+      first = Designs::Threads.merge!(thread, user: @user)
+      Designs::Threads.reopen!(thread.reload, user: @user)
+      thread.reload
+      commit_files(repo, repo.worktree!(thread.branch, from: thread.base_sha), { "designs/admin/b.html" => "<title>B</title>" })
+      repo.push!(thread.branch)
+      second = Designs::Threads.merge!(thread, user: @user)
+      folder = accepted_folder(repo, thread)
+
+      assert_equal [ [ "admin", "a", "new" ], [ "admin", "b", "new" ] ], JSON.parse(folder.join("__flosis/changes.json").read)["own"]
+      assert_includes folder.join("__flosis/changes.html").read, "#{first.short_sha}, #{second.short_sha}"
+    end
+  end
+
+  test "Reopen is refused while a turn runs, and for a thread that is not finished" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      assert_raises(ArgumentError) { Designs::Threads.reopen!(thread, user: @user) }
+
+      Designs::Threads.merge!(thread, user: @user)
+      message = thread.chat_session.chat_messages.create!(role: "user", content: "x", user: @user)
+      DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, status: "running", started_at: Time.current)
+      assert_raises(Designs::Threads::Busy) { Designs::Threads.reopen!(thread.reload, user: @user) }
+      assert thread.reload.merged?
+    end
+  end
+
+  test "a thread's branch is published with a page of what it changed, as work in progress" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      Designs::Threads.publish(thread)
+      page = Pathname(@preview_root).join(repo.project.reload.design_preview_token, thread.branch, "__flosis/changes.html").read
+
+      assert_includes page, "Stage colours"
+      assert_includes page, "In progress"
+    end
+  end
+
   test "a thread falls behind every merge that lands on master after its base" do
     with_threads_remote do |repo, _|
       seed_master(repo)

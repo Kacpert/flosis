@@ -142,6 +142,8 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     assert_equal "abc1234", subject.base_branch_for_new_worktree
     assert_equal "abc1234", subject.publish_base
     assert_equal "fix-the-header", subject.slug
+    # Its preview opens on what it changed, as work in progress (2026-11-21).
+    assert_equal({ title: "x", status: "In progress" }, subject.publish_page)
   end
 
 
