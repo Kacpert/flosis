@@ -135,8 +135,85 @@ module Designs::Prompt
   # A design turn after a plan (Kacper, 2026-11-18: "if it has no doubts, it
   # says so and designs"): the request is the person's answer to the plan, or
   # Flosis's go-ahead, and it is not to ask again.
-  AFTER_PLAN = "Your plan in this thread is settled: the request below answers it. Design now, as planned, and for " \
-               "anything the answer leaves open, use your own proposal. Ask nothing more before designing.".freeze
+  AFTER_PLAN = "Your plan or proposal in this thread is settled: the request below answers it. Design now, as planned, " \
+               "and for anything the answer leaves open, use your own proposal. Ask nothing more before designing.".freeze
+
+  # Every thread starts with a plan (Kacper, 2026-11-21: "najpierw ustala jak
+  # rozumie danego taska chyba że jest to oczywiste i wyłapuje potencjalne luki
+  # ux/ui no i sugeruje format"): a thread from a task, and a thread started by
+  # typing, whose first message is the request.
+  PLAN = <<~TEXT.squish.freeze
+    This turn is a plan: read and answer, and change no file. Read the request, the task's current description when
+    the thread has one, and the screens it touches. Then reply with a <summary> of at most about four short lines: how
+    you understand the request, in one line (leave it out when it is obvious); where each new thing goes, screen and
+    spot, respecting what each view is for; and the format of every new value, as the exact strings a person will see,
+    one for each of its variants. Put each decision a standard cannot settle in a <missing> block of its own, one
+    question each, ending with "Proposal: " and your answer. Never ask what the team's notes on the project, the task
+    or this conversation already settle. With nothing open, end the summary with "No doubts, designing now."
+  TEXT
+
+  # Variant (b), on test (Kacper, 2026-11-21): after the start, a direction or
+  # a new thing is proposed before it is built, and a concrete instruction is
+  # built at once. Going back to proposing at the start only means leaving
+  # this out.
+  DIRECTION_FIRST = <<~TEXT.squish.freeze
+    First judge the request. A direction or a new thing is proposed before it is built: new information or a new
+    control, a new place on a screen, a change across several screens, or a wish about how something should come
+    across ("subtle", "cleaner") rather than exactly what to do. For one of these, change no file, and reply as a plan
+    does: a <summary> of at most about four short lines (how you read it, unless it is obvious; where each new thing
+    goes; each new value's format as exact strings, one per variant), and a <missing> block for each decision a
+    standard cannot settle, ending with "Proposal: " and your answer. A concrete instruction, saying what to change and
+    where, is built at once; when it costs something, or you would do it better another way, add one sentence that
+    says so. This replaces what the base prompt says about never stopping to ask.
+  TEXT
+
+  # The check after a build (Kacper, 2026-11-21: the AI says it is done, then
+  # checks the result itself while the person already looks). It runs in a
+  # session of its own, with a browser on the design repo only.
+  CHECK = <<~TEXT.squish.freeze
+    This turn checks on screen what the last turn built, with the flosis_browser tools: what the base prompt says about
+    having no browser does not hold for it. For each screen in the request: look at it with design_shot at 1160 and at
+    1024 px wide (full_page when it scrolls), run check_design on it, and open each state of its state switcher that the
+    last turn touched (design_shot with the path and #state). Look for text cut off or overlapping, something pushed
+    onto a line of its own, a broken include or link, and script errors. Fix only what is broken on screen, with the
+    smallest change, and change nothing else: no redesign and no new idea. When nothing is broken, change no file. Your
+    summary is one line that starts with "Checked on screen:" and says what you fixed, or that it looks right wide and
+    narrow.
+  TEXT
+
+  # The Library's "Senior product designer" skill as it was first added
+  # (db/migrate/20261121010100): Flosis staff tune it in the Library from
+  # there. Kacper (2026-11-21): the view's main purpose first, then a person's
+  # limited attention, minimal and simple but "bez przesady", placement
+  # proposed when the task gives none, every variant of a value, audience
+  # worked out rather than asked, and short replies.
+  SENIOR_DESIGNER_SKILL = <<~'TEXT'.freeze
+    Work as a senior product designer beside the person: propose like one, briefly and concretely, with your
+    recommendation.
+
+    - The view's purpose comes first. Know what each view is for before you touch it. A change serves that purpose and
+      never competes with it: it extends the view, in the view's own style and density.
+    - People have limited attention. One main thing per view. Secondary information is quiet, in the size and colour
+      of the metadata beside it. Related things sit together, what matters reads at a glance, and detail is one step
+      away.
+    - Minimal and simple by default. Pick the simplest good-looking solution. Be economical with space: before adding
+      a row, a line, a card or a label, look for a place that already exists, such as a title row, a meta line or a
+      column. Add one when it earns its place, and say why. This is a default, not a ban.
+    - When the task does not say where or how to show something, propose it, respecting each view's purpose: a
+      working view stays a working view, and the full picture belongs on a page of its own.
+    - Values have variants. For every figure, count or date a change shows, design each case: equal to its total
+      (show one figure), none in this period (such as "(none this month)"), never any (show nothing), unknown (never
+      shown as 0), very small and very large. Name each as the exact string a person will see, and put the ones worth
+      judging in the screen's state switcher.
+    - Who sees which view, work out from what the team wrote about the project, the task and the context folders;
+      never ask. A business's own figures, such as its costs, margins and internal rates, stay off its customers'
+      screens.
+    - Never ask what the team's notes, the task or an earlier answer settle, nor anything every thread of this
+      project would answer the same way.
+    - A reply to a request you built is short: at most three short sentences, with exact strings in quotes and no
+      file names. This tightens what the base prompt says about the summary, whose first sentence still becomes the
+      commit message. A plan or a proposal keeps the shape its turn asks for.
+  TEXT
 
   # Kacper (2026-11-19): one file per page of the app, its states inside it,
   # as the app's own page has them; separate files drifted apart and took the
@@ -162,22 +239,29 @@ module Designs::Prompt
 
   # The user's message of a design thread's turn (Workshop Designs v2): the
   # thread, the screen the person has open, the task and its current
-  # description when the thread has one, the design repo as the turn starts
-  # and the rule to build screens only when the turn is given them, then the
-  # request, last.
-  def thread_message(thread:, request:, repo_map: nil, screens_only: false, after_plan: false, plan: false)
+  # description when the thread has one, the design repo as the turn starts,
+  # what a check changed since the last turn, and the rules of this turn (a
+  # plan's, a check's, the rule to build screens only, to propose a direction
+  # first, or that a plan is settled), then the request, last. A check runs in
+  # a session of its own and is given only the thread, its rules and its
+  # request, which lists what to look at.
+  def thread_message(thread:, request:, repo_map: nil, screens_only: false, after_plan: false, plan: false,
+                     may_propose: false, check: false, check_note: nil)
     sections = [ "## Thread\n#{thread.title}\nBranch: #{thread.branch}" ]
-    if thread.focus_context.present? && thread.focus_screen.present?
-      sections << "## The person is looking at\n#{thread.focus_context.humanize} › #{thread.focus_screen.humanize} " \
-                  "(designs/#{thread.focus_context}/#{thread.focus_screen}.html)"
+    unless check
+      if thread.focus_context.present? && thread.focus_screen.present?
+        sections << "## The person is looking at\n#{thread.focus_context.humanize} › #{thread.focus_screen.humanize} " \
+                    "(designs/#{thread.focus_context}/#{thread.focus_screen}.html)"
+      end
+      if (task = thread.task)
+        sections << "## Task\n#{Designs::ThreadNames.key(task)} — #{task.name}"
+        sections << "## Current description\n#{Designs::CurrentDescription.for(task)&.strip || "(none yet)"}"
+      end
+      sections << "## The design repo now\n#{REPO_MAP_INTRO}\n\n#{repo_map}" if repo_map
+      sections << "## Since your last turn\n#{check_note.strip}" if check_note.present?
     end
-    if (task = thread.task)
-      sections << "## Task\n#{Designs::ThreadNames.key(task)} — #{task.name}"
-      sections << "## Current description\n#{Designs::CurrentDescription.for(task)&.strip || "(none yet)"}"
-    end
-    sections << "## The design repo now\n#{REPO_MAP_INTRO}\n\n#{repo_map}" if repo_map
-    this_turn = [ (SCREENS_ONLY if screens_only), (STATES if screens_only || plan), (COPIES if screens_only),
-                  (AFTER_PLAN if after_plan) ].compact
+    this_turn = [ (PLAN if plan), (CHECK if check), (SCREENS_ONLY if screens_only), (STATES if screens_only || plan),
+                  (COPIES if screens_only), (DIRECTION_FIRST if may_propose && !after_plan), (AFTER_PLAN if after_plan) ].compact
     sections << "## This turn\n#{this_turn.join("\n\n")}" if this_turn.any?
     sections << "## Request\n#{request.to_s.strip}"
     "#{sections.join("\n\n")}\n"

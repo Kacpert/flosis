@@ -14,6 +14,11 @@ module Designs::Subject
   # A thread's design turn can copy a file of its repo (flosis_files, Kacper
   # 2026-11-19): a new screen starts from the closest one.
   COPY_TOOL = "mcp__flosis_files__copy_file".freeze
+  # A thread's check (2026-11-21) looks at the screens a turn changed in a
+  # browser on the design repo only (lib/designs_crawler/browser.mjs in its
+  # design-only mode), at the canvas's size.
+  CHECK_TOOLS = %w[design design_shot click_design check_design].map { |name| "mcp__flosis_browser__#{name}" }.freeze
+  CHECK_VIEWPORT = { width: 1160, height: 860 }.freeze
 
   module_function
 
@@ -69,18 +74,42 @@ module Designs::Subject
     # theme and the screen in view whole on its session's first turn, when
     # nothing of the repo is in the conversation yet. A design turn builds
     # screens only; components come in a turn of their own, before merging.
+    # A design turn the person's message started may be answered with a
+    # proposal (variant b), unless it answers a plan or a proposal. A check
+    # runs in a session of its own and is given only what it looks at; the
+    # turn after a check that changed something is told what it changed.
     def turn_message(request, turn: nil, worktree: nil)
-      first = turn && turn.chat_session.design_turns.where.not(id: turn.id).where.not(started_at: nil).none?
+      return Designs::Prompt.thread_message(thread: @thread, request: request, check: true) if turn&.check?
+
+      first = turn && turn.chat_session.design_turns.where.not(id: turn.id).where.not(started_at: nil).where.not(kind: "check").none?
+      after_plan = after_plan?(turn)
       Designs::Prompt.thread_message(thread: @thread, request: request, repo_map: (repo_map(worktree, first) if worktree),
-                                     screens_only: turn&.kind == "design", after_plan: after_plan?(turn), plan: turn&.plan? || false)
+                                     screens_only: turn&.kind == "design", after_plan: after_plan, plan: turn&.plan? || false,
+                                     may_propose: (turn&.kind == "design" && turn.may_propose && !after_plan) || false,
+                                     check_note: check_note(turn))
     end
 
-    # A design turn whose turn before it is a plan that finished: what comes
-    # now answers that plan.
+    # What the check right before this turn changed, as it said it: nil when
+    # there was none, or it changed nothing.
+    def check_note(turn)
+      return unless turn
+
+      last = turn.chat_session.design_turns.where("id < ?", turn.id).order(:id).last
+      return unless last&.check? && last.succeeded? && last.commit_sha.present?
+
+      said = turn.chat_session.chat_messages.where(role: "assistant", kind: "summary").where("id > ?", last.chat_message_id)
+                 .order(:id).detect { |message| message.data&.dig("check") }&.content
+      "An on-screen check after your last turn changed this: #{said}" if said.present?
+    end
+
+    # A design turn whose turn before it is a plan, or a proposal, that
+    # finished: what comes now answers it. Earlier tries at the same message
+    # (Try again) and checks are passed over.
     def after_plan?(turn)
       return false unless turn&.kind == "design"
 
-      turn.chat_session.design_turns.where("id < ?", turn.id).order(:id).last&.then { |last| last.plan? && last.succeeded? } || false
+      turn.chat_session.design_turns.where("id < ?", turn.id).where.not(chat_message_id: turn.chat_message_id)
+          .where.not(kind: "check").order(:id).last&.awaits_answer? || false
     end
 
     # Only a help to Claude: a map that cannot be made is left out, and the
@@ -106,14 +135,33 @@ module Designs::Subject
     def tool_set = Designs::TurnJob::TOOLS
 
     # copy_file, from flosis_files on the turn's worktree; a plan only reads,
-    # so it has none. The CLI's config is a temp file, gone with the turn.
-    def with_mcp(worktree, read_only: false)
+    # so it has none; a check has the design browser instead. The CLI's
+    # config is a temp file, gone with the turn, and so is the browser's.
+    def with_mcp(worktree, read_only: false, browser: false, &block)
       return yield(nil) if read_only
+      return with_browser(worktree, &block) if browser
 
       server = { command: "node", args: [ File.join(Designs::SignIn.crawler_dir, "files.mjs") ],
                  env: Designs::SignIn.node_env.merge("FLOSIS_FILES_ROOT" => worktree.to_s) }
+      mcp_config({ flosis_files: server }, &block)
+    end
+
+    # The browser on the design repo only: no app, no sign-in, nothing it can
+    # reach but the worktree's designs.
+    def with_browser(worktree, &block)
+      Tempfile.create([ "#{Designs::TurnJob::PROMPT_PREFIX}-browser", ".json" ]) do |config|
+        File.chmod(0o600, config.path)
+        config.write(JSON.generate(designOnly: true, worktree: worktree.to_s, viewport: CHECK_VIEWPORT))
+        config.close
+        server = { command: "node", args: [ File.join(Designs::SignIn.crawler_dir, "browser.mjs") ],
+                   env: Designs::SignIn.node_env.merge("FLOSIS_BROWSER_CONFIG" => config.path) }
+        mcp_config({ flosis_browser: server }, &block)
+      end
+    end
+
+    def mcp_config(servers)
       Tempfile.create([ "#{Designs::TurnJob::PROMPT_PREFIX}-mcp", ".json" ]) do |file|
-        file.write(JSON.generate(mcpServers: { flosis_files: server }))
+        file.write(JSON.generate(mcpServers: servers))
         file.close
         yield file.path
       end
@@ -138,8 +186,9 @@ module Designs::Subject
     # The screens the turn changed, from the commit it started on to the one
     # it made, as chips: [screen, context, "M" | "+"]. A screen counts only if
     # it also differs from the thread's base, so what master brought in is not
-    # put down to the turn. The first becomes where the thread opens.
-    def chips(repo, from, to)
+    # put down to the turn. The first becomes where the thread opens, unless
+    # the turn is a check: the person is looking at the preview meanwhile.
+    def chips(repo, from, to, move_focus: true)
       return [] unless to
 
       before = from ? screens_at(repo, from) : Designs::Screens.new(paths: [], reader: ->(_path) { nil })
@@ -149,7 +198,7 @@ module Designs::Subject
       chips = Designs::Changes.new(base: before, head: head).changed.filter_map do |change|
         [ change[:screen], change[:context], change[:kind] == "new" ? "+" : "M" ] if own.include?([ change[:context], change[:screen] ])
       end
-      @thread.update!(focus_screen: chips.first[0], focus_context: chips.first[1]) if chips.any?
+      @thread.update!(focus_screen: chips.first[0], focus_context: chips.first[1]) if chips.any? && move_focus
       chips
     end
 
@@ -203,7 +252,7 @@ module Designs::Subject
     def budget_usd = DesignTurn.turn_budget_usd
     def app_copy? = true
     def publish_base = nil
-    def chips(*) = []
+    def chips(*, **) = []
     def refresh_base(_repo) = nil
     def after_turn(_repo) = nil
   end
@@ -352,7 +401,7 @@ module Designs::Subject
 
     # A re-import shows its Changes against its thread's base.
     def publish_base = setup.design_thread&.base_sha.presence
-    def chips(*) = []
+    def chips(*, **) = []
     def refresh_base(_repo) = nil
     def after_turn(_repo) = nil
 

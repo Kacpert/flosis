@@ -44,6 +44,8 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     thread.reload
     commit_files(repo, repo.worktree!(thread.branch, from: thread.base_sha), files)
     repo.push!(thread.branch)
+    # The first message plans (2026-11-21), and the plan goes on to design.
+    Designs::Threads.design_as_planned!(thread, user: users(:one)) unless task
     DesignTurn.update_all(status: "succeeded")
     Designs::Publisher.new(@project, repo).publish!(thread.branch, thread.branch, base: thread.base_sha)
     thread
@@ -309,6 +311,19 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       Designs::Threads.message!(thread, user: users(:one), text: "In the header, yes")
       get workshop_designs_overview_path(thread: thread.id)
       assert_select "form[action=?]", go_workshop_design_thread_path(thread), count: 0
+    end
+  end
+
+  # A design turn that answered with a proposal waits as a plan that asked.
+  test "a proposal offers Design with these proposals" do
+    with_designs do
+      thread = planned_thread(status: "succeeded")
+      answer = thread.chat_session.chat_messages.create!(role: "user", content: "Make the costs subtle", user: users(:one))
+      DesignTurn.create!(chat_session: thread.chat_session, chat_message: answer, may_propose: true, proposed: true,
+                         status: "succeeded", started_at: 10.seconds.ago, finished_at: Time.current)
+
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_select "form[action=?] button", go_workshop_design_thread_path(thread), text: /Design with these proposals/
     end
   end
 
@@ -600,7 +615,8 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     with_designs do
       thread = Designs::Threads.start!(project: @project, user: users(:one))
       turn = Designs::Threads.message!(thread, user: users(:one), text: "Add a counter")
-      turn.update!(status: "running", started_at: 3.minutes.ago,
+      # A thread's first message plans (2026-11-21); this one is designing.
+      turn.update!(kind: "design", status: "running", started_at: 3.minutes.ago,
                    activity: steps("Reading designs/a.html", "Reading designs/b.html", "Let me check the form.",
                                    "Reading designs/c.html", "Reading designs/d.html", "Reading designs/e.html",
                                    "Reading designs/f.html", "Reading designs/g.html"))
@@ -616,6 +632,26 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       end
       assert_operator body.index("Add a counter"), :<, body.index("Working · 3 min"), "the request, then its turn"
       assert_select "[data-designs-poll-active-value=true]"
+    end
+  end
+
+  # The check runs while the person already looks at the preview: the chat
+  # keeps polling, but the screen is idle, so a check that changes nothing
+  # does not reload what they are looking at.
+  test "a running check reads Checking on screen, and keeps the chat polling with the screen idle" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      design = DesignTurn.where(chat_session: thread.chat_session, kind: "design").last
+      check = Designs::Threads.new_check(thread, after: design, summary: "Added a counter.", chips: [ [ "apply", "candidate", "M" ] ])
+      check.update!(status: "running", started_at: 30.seconds.ago)
+
+      chat(thread)
+      assert_select "[data-turn-id=?]", check.id.to_s, text: /Checking on screen/
+      assert_select "[data-designs-poll-active-value=true][data-designs-poll-busy-value=false]"
+
+      design.update!(status: "running")
+      chat(thread)
+      assert_select "[data-designs-poll-active-value=true][data-designs-poll-busy-value=true]"
     end
   end
 

@@ -135,6 +135,12 @@ class Designs::TurnJob < ApplicationJob
   def run(turn)
     sweep_leftovers
     subject = Designs::Subject.for(turn.chat_session)
+    if turn.check?
+      return stand_down(turn) if superseded?(turn)
+      return skip_check(turn, DesignTurn::CHECK_IMPORTING) if DesignSetup.unit_running?
+      return skip_check(turn, DesignTurn::CHECK_BROWSER_BUSY) if DesignTurn.check_running?(except: turn.id)
+    end
+
     repo = Designs::Repo.new(subject.project)
     key = subject.api_key
     worktree = subject.checkout!(repo)
@@ -149,6 +155,7 @@ class Designs::TurnJob < ApplicationJob
     subject.prepare!
     answer = ask_claude(turn, repo, worktree, key, subject)
     response, capped = answer_text(answer)
+    raise Failure, DesignTurn::CHECK_NO_BROWSER if turn.check? && !looked?
     output = Designs::TurnOutput.parse(response)
     raise Failure, NO_ANSWER if output.summary.blank?
     return plan_done(turn, repo, worktree, output, capped) if turn.plan?
@@ -157,10 +164,77 @@ class Designs::TurnJob < ApplicationJob
     sha, notes = save(turn, repo, subject, worktree, output.summary)
     notes.unshift(CAPPED) if capped
     subject.after_turn(repo)
-    finish(turn, output, sha, notes, subject.chips(repo, start, sha))
-    merge_after(turn) if turn.then_merge.present?
+    chips = subject.chips(repo, start, sha, move_focus: !turn.check?)
+    check = queue = nil
+    if check_follows?(turn, subject, sha, chips)
+      summary = output.summary
+      if DesignSetup.unit_running?
+        notes << DesignTurn::CHECK_IMPORTING
+      else
+        output = Designs::TurnOutput::Result.new(**output.to_h.merge(summary: "#{summary}\n\n#{DesignTurn::CHECKING}"))
+        queue = -> { check = Designs::Threads.new_check(subject.thread, after: turn, summary: summary, chips: chips) }
+      end
+    end
+    finish(turn, output, sha, notes, chips, &queue)
+    self.class.perform_later(check.id) if check
+    # Merge may have been pressed while a check ran (Designs::Threads.
+    # merge_after_check!), so the turn is read again.
+    merge_after(turn) if turn.reload.then_merge.present?
   rescue StandardError => e
     fail_turn(turn, e, repo, worktree)
+    merge_after_failed_check(turn) if turn.check?
+  end
+
+  # A thread's design turn that committed screens is checked on screen next
+  # (Kacper, 2026-11-21); a plan, a components or a resolving turn, and a
+  # check, are not. Nor is one the person wrote during: their turn is next,
+  # and it is checked once it builds.
+  def check_follows?(turn, subject, sha, chips)
+    turn.kind == "design" && sha.present? && chips.any? && subject.is_a?(Designs::Subject::ThreadSubject) &&
+      DesignTurn.where(chat_session_id: turn.chat_session_id).active.where.not(id: turn.id).none?
+  end
+
+  # Another turn came after the build the check follows (a message, Update
+  # designs, master brought in): what it would check is no longer what is
+  # there, and that turn is checked once it builds.
+  def superseded?(turn)
+    after = turn.chat_message.data&.dig("after") or return false
+    DesignTurn.where(chat_session_id: turn.chat_session_id).where("id > ?", after).where.not(kind: "check").exists?
+  end
+
+  def stand_down(turn)
+    DesignTurn.transaction do
+      turn.fail!(DesignTurn::CHECK_STOPPED)
+      messages = turn.chat_session.chat_messages
+      messages.create!(role: "assistant", kind: "system", content: DesignTurn::CHECK_STOPPED)
+      messages.create!(role: "assistant", kind: "system", content: "Not merged: #{DesignTurn::MESSAGE_CAME_FIRST}") if turn.then_merge.present?
+    end
+  end
+
+  # The host's one browser is taken, by an import or another thread's check:
+  # the chat says so, and the check ends without Claude. Merge waiting on it
+  # goes ahead.
+  def skip_check(turn, note)
+    DesignTurn.transaction do
+      turn.chat_session.chat_messages.create!(role: "assistant", kind: "system", content: note)
+      turn.succeed!(commit_sha: nil)
+    end
+    merge_after(turn) if turn.reload.then_merge.present?
+  end
+
+  # A check Merge was waiting on merges its thread whatever stopped it, as the
+  # check only adds fixes and none of its edits were kept; unless a new
+  # message came first, as the person's turn is next. Logged, never raised:
+  # the turn has already failed.
+  def merge_after_failed_check(turn)
+    return unless turn.reload.then_merge.present?
+
+    thread = turn.chat_session.design_thread or return
+    return not_merged(turn, thread, "a new message came first. Merge again once it is done.") if turn.stop_requested_by == DesignTurn::NEW_MESSAGE
+
+    merge_after(turn)
+  rescue StandardError => e
+    log(turn, e, "the thread is not merged")
   end
 
   # A plan only reads. The CLI cannot always be held to that (a project on its
@@ -189,9 +263,14 @@ class Designs::TurnJob < ApplicationJob
   # A components turn that Merge queued (Designs::Threads.merge_or_prepare!)
   # merges its thread once it has succeeded, as Merge would have. What stops
   # the merge is said in the chat, and the turn has succeeded all the same.
+  # A check merges as Merge does, making components first when they are due.
   def merge_after(turn)
     thread = turn.chat_session.design_thread or return
-    Designs::Threads.merge!(thread, user: turn.chat_message.user, how: turn.then_merge)
+    if turn.check?
+      Designs::Threads.merge_or_prepare!(thread, user: turn.chat_message.user)
+    else
+      Designs::Threads.merge!(thread, user: turn.chat_message.user, how: turn.then_merge)
+    end
   rescue Designs::Threads::AlreadyMerged
     nil
   rescue Designs::Repo::Conflict
@@ -281,11 +360,21 @@ class Designs::TurnJob < ApplicationJob
     finish(turn, output, (head unless head == start), notes)
   end
 
+  # The reply, the turn's outcome and what the block adds (the check that
+  # follows a build) go in together: once the reply shows, the check is
+  # already waiting, so the screen keeps polling for it.
   def finish(turn, output, sha, notes, chips = [])
     DesignTurn.transaction do
-      post_reply(turn.chat_session, output, notes, chips)
-      turn.succeed!(commit_sha: sha)
+      post_reply(turn.chat_session, output, notes, chips, check: turn.check?)
+      turn.succeed!(commit_sha: sha, proposed: proposal?(turn, output, sha))
+      yield if block_given?
     end
+  end
+
+  # A design turn that may propose (variant b), changed no file and asked: it
+  # waits for the person, as a plan that asked does.
+  def proposal?(turn, output, sha)
+    turn.kind == "design" && turn.may_propose && sha.nil? && output.missing.any?
   end
 
   # Every file that collided must be free of conflict markers before the
@@ -313,18 +402,16 @@ class Designs::TurnJob < ApplicationJob
     images = !@conflicts && turn.chat_message.images.attached? ? ChatImages.write!(turn.chat_message) : []
     request = "#{request}\n\n#{ChatImages.note(images)}" if images.any?
     prompt = [ earlier_failure(turn), subject.turn_message(request, turn: turn, worktree: worktree) ].compact.join("\n\n")
+    bounds = bounds(turn, subject)
     with_system_prompt(subject) do |system_prompt|
-      with_app(subject) do |app|
-        subject.with_mcp(worktree, read_only: turn.plan?) do |mcp_config|
-          # A plan turn only reads, at a lower effort and on small bounds.
-          plan = turn.plan?
+      with_app(subject, turn) do |app|
+        subject.with_mcp(worktree, read_only: turn.plan?, browser: turn.check?) do |mcp_config|
           cli = self.class.claude_factory.call(
-            codebase_path: worktree.to_s, allowed_tools: plan ? PLAN_TOOLS : subject.tools, restricted: true, api_key: key,
+            codebase_path: worktree.to_s, allowed_tools: bounds[:allowed], restricted: true, api_key: key,
             append_system_prompt_file: system_prompt,
             add_dirs: [ app, *subject.add_dirs, (ChatImages.dir(turn.chat_session) if images.any?) ].compact,
-            max_budget_usd: plan ? DesignTurn::PLAN_BUDGET_USD : subject.budget_usd,
-            timeout: plan ? DesignTurn::PLAN_TIMEOUT_SECONDS : subject.timeout, mcp_config: mcp_config,
-            tools: plan ? PLAN_TOOLS : subject.tool_set, effort: (DesignTurn::PLAN_EFFORT if plan)
+            max_budget_usd: bounds[:budget], timeout: bounds[:timeout], mcp_config: mcp_config,
+            tools: bounds[:tools], effort: bounds[:effort]
           )
           activity = Designs::TurnActivity.new(turn, worktree: worktree, app: app)
           begin
@@ -337,12 +424,31 @@ class Designs::TurnJob < ApplicationJob
     end
   end
 
+  # What the CLI is given for the turn's kind: a plan only reads, at a lower
+  # effort and on small bounds; a check has the design browser, on its own
+  # bounds; every other turn has the subject's.
+  def bounds(turn, subject)
+    if turn.plan?
+      { allowed: PLAN_TOOLS, tools: PLAN_TOOLS, budget: DesignTurn::PLAN_BUDGET_USD, timeout: DesignTurn::PLAN_TIMEOUT_SECONDS,
+        effort: DesignTurn::PLAN_EFFORT }
+    elsif turn.check?
+      { allowed: TOOLS + Designs::Subject::CHECK_TOOLS, tools: TOOLS, budget: DesignTurn::CHECK_BUDGET_USD,
+        timeout: DesignTurn::CHECK_TIMEOUT_SECONDS, effort: DesignTurn::CHECK_EFFORT }
+    else
+      { allowed: subject.tools, tools: subject.tool_set, budget: subject.budget_usd, timeout: subject.timeout, effort: nil }
+    end
+  end
+
   # A note for Claude when the turn before this one started and failed: the
   # session holds that run, but the worktree went back to the branch's last
   # commit, so none of its edits are there. A retry, the same message again,
-  # is told it is one.
+  # is told it is one. A check runs in a session of its own, so it neither
+  # gets such a note nor counts for one.
   def earlier_failure(turn)
-    before = DesignTurn.where(chat_session_id: turn.chat_session_id, id: ...turn.id).where.not(started_at: nil).order(:id).last
+    return if turn.check?
+
+    before = DesignTurn.where(chat_session_id: turn.chat_session_id, id: ...turn.id).where.not(started_at: nil)
+                       .where.not(kind: "check").order(:id).last
     return unless before&.failed?
 
     again = " This turn is another try at the same request: do it again from the start, with what you learned." if before.chat_message_id == turn.chat_message_id
@@ -358,6 +464,7 @@ class Designs::TurnJob < ApplicationJob
   # the CLI is quiet, so the cache would answer every tick as it did the first.
   def follow(turn, activity, event)
     activity.record(event) unless event == :tick
+    watch_browser(event) if turn.check?
     now = self.class.clock.call
     return unless event == :tick || @stop_checked_at.nil? || now - @stop_checked_at >= STOP_CHECK_EVERY
 
@@ -366,10 +473,32 @@ class Designs::TurnJob < ApplicationJob
     raise Stopped, DesignTurn.stopped_by(by) if asked
   end
 
+  # What a check's stream says of its browser: whether its server failed to
+  # start (the CLI's init event), and whether a look through it came back
+  # without an error.
+  def watch_browser(event)
+    return unless event.is_a?(Hash)
+
+    @browser_calls ||= []
+    if event["type"] == "system" && event["subtype"] == "init"
+      @browser_down = Array(event["mcp_servers"]).any? { |server| server.is_a?(Hash) && server["name"] == "flosis_browser" && server["status"] == "failed" }
+    end
+    Array(event.dig("message", "content")).each do |block|
+      next unless block.is_a?(Hash)
+
+      @browser_calls << block["id"] if block["type"] == "tool_use" && block["name"].to_s.start_with?("mcp__flosis_browser__")
+      @browser_worked = true if block["type"] == "tool_result" && @browser_calls.include?(block["tool_use_id"]) && !block["is_error"]
+    end
+  end
+
+  def looked?
+    !@browser_down && @browser_worked == true
+  end
+
   # The app's checkout, copied for the turn, when the subject reads the app
-  # that way; nil otherwise.
-  def with_app(subject, &block)
-    subject.app_copy? ? Designs::AppCopy.open(subject.project, &block) : yield(nil)
+  # that way; nil otherwise, and for a check, which only looks at designs.
+  def with_app(subject, turn, &block)
+    subject.app_copy? && !turn.check? ? Designs::AppCopy.open(subject.project, &block) : yield(nil)
   end
 
   # The chat's first turn starts its Claude session under the id the chat was
@@ -387,9 +516,13 @@ class Designs::TurnJob < ApplicationJob
   #
   # The run streams: each event goes to the block as the CLI prints it.
   def converse(cli, turn, prompt, repo, worktree, &on_event)
+    # A check runs in a session of its own, new each time: its screenshots
+    # never ride along with the thread's later turns.
+    return cli.start_session(prompt: prompt, new_session_id: SecureRandom.uuid, &on_event) if turn.check?
+
     session = turn.chat_session
     started = self.class.clock.call
-    if session.design_turns.where.not(id: turn.id).where.not(started_at: nil).exists?
+    if session.design_turns.where.not(id: turn.id).where.not(started_at: nil).where.not(kind: "check").exists?
       cli.resume_session(session_id: session.claude_session_id, prompt: prompt, &on_event)
     else
       cli.start_session(prompt: prompt, new_session_id: session.claude_session_id, &on_event)
@@ -397,7 +530,9 @@ class Designs::TurnJob < ApplicationJob
   rescue ClaudeCliService::TimeoutError
     raise
   rescue ClaudeCliService::ClaudeCliError => e
-    raise if self.class.clock.call - started > RETRY_WINDOW.to_f
+    # A check starts a session of its own under a new id, so its error is
+    # never one a new session would get past.
+    raise if turn.check? || self.class.clock.call - started > RETRY_WINDOW.to_f
 
     log(turn, e, "starting a new Claude session")
     start_clean(turn, repo, worktree)
@@ -476,7 +611,8 @@ class Designs::TurnJob < ApplicationJob
   # replaces (Designs imports), then Flosis's notes on what did not go out,
   # cut to fit as an error is.
   # A design thread's summary carries the screens the turn changed, as chips.
-  def post_reply(session, output, notes, chips = [])
+  # A check's reply is marked, so a merge is not summed up by it.
+  def post_reply(session, output, notes, chips = [], check: false)
     replies = [ [ "summary", output.summary ] ] +
               output.contexts.map { |text| [ "context", text ] } +
               output.missing.map { |text| [ "missing", text ] } +
@@ -487,6 +623,7 @@ class Designs::TurnJob < ApplicationJob
               notes.map { |note| [ "system", note.truncate(DesignTurn::ERROR_LIMIT) ] }
     replies.each do |kind, text|
       data = { "chips" => chips } if kind == "summary" && chips.any?
+      data = (data || {}).merge("check" => true) if kind == "summary" && check
       session.chat_messages.create!(role: "assistant", kind: kind, content: text, data: data)
     end
   end
@@ -497,7 +634,17 @@ class Designs::TurnJob < ApplicationJob
     log(turn, error) unless error.is_a?(Failure)
     put_back(turn, repo, worktree) if worktree
     turn.fail!(error.message.presence || error.class.name)
-    turn.chat_session.chat_messages.create!(role: "assistant", kind: "error", content: turn.error)
+    if quiet_stop?(turn, error)
+      turn.chat_session.chat_messages.create!(role: "assistant", kind: "system", content: DesignTurn::CHECK_STOPPED)
+    else
+      turn.chat_session.chat_messages.create!(role: "assistant", kind: "error", content: turn.error)
+    end
+  end
+
+  # A check a new message stopped (Designs::Threads.stop_checks!) says so
+  # quietly: the person's turn comes next. One stopped with Stop says who.
+  def quiet_stop?(turn, error)
+    error.is_a?(Stopped) && turn.check? && DesignTurn.where(id: turn.id).pick(:stop_requested_by) == DesignTurn::NEW_MESSAGE
   end
 
   # A worktree that cannot be put back, its link changed (Repo::Tampered) or

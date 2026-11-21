@@ -1253,6 +1253,382 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  # A thread started by typing plans first (2026-11-21), and its plan reads
+  # the images the person sent with the message, as a design turn does.
+  test "a plan turn on a typed thread reads the images sent with its message" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      turn = thread_turn(repo, base)
+      turn.update!(kind: "plan")
+      turn.chat_message.images.attach(Rack::Test::UploadedFile.new(file_fixture("inspiration.png"), "image/png"))
+      Dir.mktmpdir("chat-images") do |dir|
+        with_env("CHAT_IMAGES_DIR" => dir) do
+          opts = nil
+          scripted_claude { |_call, _keywords, o| opts = o; { session_id: "s", response: NO_DOUBTS, is_error: false } }
+
+          run_turn(turn, remote)
+
+          folder = File.join(dir, turn.chat_session_id.to_s)
+          assert_includes opts[:add_dirs], folder
+          assert_includes @calls.first[1][:prompt], "The person attached an image to this message"
+          assert_includes @calls.first[1][:prompt], Designs::Prompt::PLAN
+        end
+      end
+    end
+  end
+
+  # Variant (b): a design turn told it may propose, which changed no file and
+  # asked, is a proposal, and waits for the person as a plan that asked does.
+  test "a design turn that may propose, changes nothing and asks, is a proposal" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      turn = thread_turn(repo, base, "Make the costs subtle")
+      turn.update!(may_propose: true)
+      question = "Costs on the tab's title row, right-aligned? Proposal: yes, in the muted meta size."
+      fake_claude(reply: "<summary>Costs join rows already there.</summary>\n<missing>#{question}</missing>")
+
+      turn = run_turn(turn, remote)
+
+      assert turn.succeeded?, turn.error
+      assert_nil turn.commit_sha
+      assert turn.proposed?
+      assert turn.awaits_answer?
+      assert_equal question, turn.chat_session.chat_messages.find_by!(kind: "missing").content
+      assert_equal [ turn.id ], DesignTurn.where(chat_session: turn.chat_session).pluck(:id), "nothing starts on its own"
+    end
+  end
+
+  test "a design turn that built is no proposal, even with open questions" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      turn = thread_turn(repo, base, "Move the cost next to the title")
+      turn.update!(may_propose: true)
+      fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p>€0.68</p>" },
+                  reply: "<summary>Moved the cost next to the title.</summary>\n<missing>Also on Reports? Proposal: no.</missing>")
+
+      turn = run_turn(turn, remote)
+
+      assert turn.succeeded?, turn.error
+      assert turn.commit_sha.present?
+      assert_not turn.proposed?
+    end
+  end
+
+  # A thread whose design turn built, and the check that follows it
+  # (Designs::Threads.new_check), waiting to run.
+  def check_turn(repo, base, chips: [ [ "apply", "candidate", "M" ] ])
+    design = thread_turn(repo, base, "Move the cost next to the title")
+    design.update!(status: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago, commit_sha: base)
+    Designs::Threads.new_check(design.chat_session.design_thread, after: design, summary: "Moved the cost onto the title row.",
+                               chips: chips)
+  end
+
+  def check_reply(check)
+    assistant_messages(check).where("id > ?", check.chat_message_id)
+  end
+
+  # A check's Claude: it looks at a screen through the browser, the look
+  # works, it edits the worktree, then answers. events_seen gets the CLI's
+  # options, as streaming_claude gives them.
+  def looking_claude(files: {}, reply: "<summary>Checked on screen: looks right wide and narrow.</summary>", seen: nil)
+    streaming_claude(files: files, answer: { response: reply, final_text: reply }, events: lambda { |opts|
+      seen&.call(opts)
+      [ tool("mcp__flosis_browser__design_shot", "path" => "designs/candidate/apply.html", "width" => 1024),
+        { "type" => "user", "message" => { "content" => [ { "type" => "tool_result", "tool_use_id" => "t", "content" => "ok" } ] } } ]
+    })
+  end
+
+  # Kacper, 2026-11-21: the AI says it is done at once, so a person waiting
+  # can look already, and then checks the result itself.
+  test "a design turn that commits ends its reply with the checking sentence and queues a check" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p>€0.68</p>" },
+                  reply: "<summary>Moved the cost onto the title row.</summary>")
+
+      turn = run_turn(thread_turn(repo, base, "Move the cost next to the title"), remote)
+
+      assert turn.succeeded?, turn.error
+      assert_equal "Moved the cost onto the title row.\n\n#{DesignTurn::CHECKING}", assistant_messages(turn).find_by!(kind: "summary").content
+      check = DesignTurn.where(chat_session: turn.chat_session, kind: "check").sole
+      assert check.queued?
+      assert_equal "request", check.chat_message.kind
+      [ "Move the cost next to the title", "Moved the cost onto the title row.", "- designs/candidate/apply.html" ].each do |part|
+        assert_includes check.chat_message.content, part
+      end
+      assert_not_includes check.chat_message.content, DesignTurn::CHECKING
+      assert_enqueued_with(job: Designs::TurnJob, args: [ check.id ])
+      assert_equal "add-a-counter-under: Moved the cost onto the title row.",
+                   GitRunner.run!("log", "-1", "--format=%s", "refs/heads/design/add-a-counter-under", chdir: remote).strip
+    end
+  end
+
+  test "no check follows a plan, a turn that changed nothing, a components turn or a check" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      set_aside = ->(turn) { turn.chat_session.design_thread.update!(branch: "design/done-#{turn.id}") }
+      fake_claude(reply: "<summary>Nothing needed changing.</summary>")
+      quiet = run_turn(thread_turn(repo, base), remote)
+      assert quiet.succeeded?, quiet.error
+      assert_equal "Nothing needed changing.", assistant_messages(quiet).find_by!(kind: "summary").content
+      set_aside.call(quiet)
+
+      fake_claude(files: { "components/cost/cost.html" => "<span>{{title}}</span>" }, reply: "<summary>Made a component.</summary>")
+      components = thread_turn(repo, base)
+      components.update!(kind: "components")
+      assert run_turn(components, remote).succeeded?
+      set_aside.call(components)
+
+      check = check_turn(repo, base)
+      looking_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p>fixed</p>" },
+                     reply: "<summary>Checked on screen: fixed a cut-off.</summary>")
+      assert run_turn(check, remote).succeeded?
+      set_aside.call(check)
+
+      plan = plan_turn(repo, base)
+      fake_claude(reply: NO_DOUBTS)
+      assert run_turn(plan, remote).succeeded?
+
+      assert_equal [ check.id ], DesignTurn.where(kind: "check").pluck(:id)
+    end
+  end
+
+  # A check runs in a session of its own: its screenshots never ride along
+  # with the thread's later turns. It gets a browser on the design repo only,
+  # no copy of the app, and a check's bounds.
+  test "a check runs in a fresh session with the design browser, on the check's bounds" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      check = check_turn(repo, base)
+      session_id = check.chat_session.claude_session_id
+      opts = nil
+      browser = nil
+      looking_claude(seen: lambda { |o|
+        opts = o
+        server = JSON.parse(File.read(o[:mcp_config]))["mcpServers"]["flosis_browser"]
+        browser = [ server["args"].last, JSON.parse(File.read(server["env"]["FLOSIS_BROWSER_CONFIG"])) ]
+      })
+
+      check = run_turn(check, remote)
+
+      assert check.succeeded?, check.error
+      assert_equal :start_session, @calls.sole[0]
+      assert_not_equal session_id, @calls.sole[1][:new_session_id]
+      assert_equal session_id, check.chat_session.reload.claude_session_id
+      assert_equal Designs::TurnJob::TOOLS, opts[:tools]
+      assert_equal Designs::TurnJob::TOOLS + Designs::Subject::CHECK_TOOLS, opts[:allowed_tools]
+      assert_equal [ 600, 5, "medium" ], [ opts[:timeout], opts[:max_budget_usd], opts[:effort] ]
+      assert_empty opts[:add_dirs], "a check reads no copy of the app"
+      assert browser[0].end_with?("browser.mjs")
+      assert_equal [ true, { "width" => 1160, "height" => 860 } ], [ browser[1]["designOnly"], browser[1]["viewport"] ]
+      assert_includes @calls.sole[1][:prompt], Designs::Prompt::CHECK
+      assert_includes @calls.sole[1][:prompt], "- designs/candidate/apply.html"
+      assert_equal [ [ "summary", "Checked on screen: looks right wide and narrow." ] ], check_reply(check).pluck(:kind, :content)
+      assert_nil check.commit_sha
+    end
+  end
+
+  test "a check that fixes something commits it and says what it fixed, without moving the thread's focus" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      check = check_turn(repo, base)
+      thread = check.chat_session.design_thread
+      thread.update!(focus_context: "admin", focus_screen: "home")
+      looking_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p class=\"wrap\">€0.68</p>" },
+                     reply: "<summary>Checked on screen: the cost was cut off at 1024 px; it now wraps.</summary>")
+
+      check = run_turn(check, remote)
+
+      assert check.succeeded?, check.error
+      assert_equal check.commit_sha, remote_branch_sha(remote, "design/add-a-counter-under")
+      reply = check_reply(check).find_by!(kind: "summary")
+      assert_equal "Checked on screen: the cost was cut off at 1024 px; it now wraps.", reply.content
+      assert_equal [ [ "apply", "candidate", "M" ] ], reply.data["chips"]
+      assert_equal [ "admin", "home" ], [ thread.reload.focus_context, thread.focus_screen ]
+      assert_equal [ check.id ], DesignTurn.where(chat_session: check.chat_session, kind: "check").pluck(:id)
+    end
+  end
+
+  # The host has room for one browser: an import's takes most of it.
+  test "a check skipped while an import's unit runs posts the note and starts no Claude" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      check = check_turn(repo, base)
+      DesignSetup.create!(project: repo.project, unit_job_id: "job-c", unit_deadline_at: 1.hour.from_now)
+      fake_claude
+
+      check = run_turn(check, remote)
+
+      assert check.succeeded?, check.error
+      assert_empty @calls
+      assert_equal [ [ "system", DesignTurn::CHECK_IMPORTING ] ], check_reply(check).pluck(:kind, :content)
+    end
+  end
+
+  test "a design turn during an import gets the note instead of the checking sentence" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      DesignSetup.create!(project: repo.project, unit_job_id: "job-c", unit_deadline_at: 1.hour.from_now)
+      fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p>€0.68</p>" },
+                  reply: "<summary>Moved the cost onto the title row.</summary>")
+
+      turn = run_turn(thread_turn(repo, base), remote)
+
+      assert_equal [ [ "summary", "Moved the cost onto the title row." ], [ "system", DesignTurn::CHECK_IMPORTING ] ],
+                   assistant_messages(turn).pluck(:kind, :content)
+      assert_not DesignTurn.where(chat_session: turn.chat_session, kind: "check").exists?
+    end
+  end
+
+  # A new message stops the check: the person's turn runs next and is checked
+  # once it builds. The chat says so quietly, not as an error.
+  test "a stopped check posts the quiet note, not an error" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      check = check_turn(repo, base)
+      streaming_claude(files: { "designs/candidate/apply.html" => "never kept" }, events: lambda { |_opts|
+        check.update_columns(stop_requested_at: Time.current, stop_requested_by: DesignTurn::NEW_MESSAGE)
+        [ :tick, said("Never kept") ]
+      })
+
+      check = run_turn(check, remote)
+
+      assert check.failed?
+      assert_equal [ [ "system", DesignTurn::CHECK_STOPPED ] ], check_reply(check).pluck(:kind, :content)
+      assert_equal base, repo.head("design/add-a-counter-under")
+    end
+  end
+
+  # Final review I1: the CLI's own words reach the chat.
+  test "a check's Claude error is told as it is" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      check = check_turn(repo, base)
+      fake_claude(raise_error: ClaudeCliService::ClaudeCliError.new("Claude CLI ended without an answer"))
+
+      check = run_turn(check, remote)
+
+      assert check.failed?
+      assert_equal [ [ "error", "Claude CLI ended without an answer" ] ], check_reply(check).pluck(:kind, :content)
+    end
+  end
+
+  # Final review I2: the person wrote while the build ran, so their turn is
+  # next, and it is checked once it builds.
+  test "a build the person wrote during queues no check" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      turn = thread_turn(repo, base)
+      waiting = turn.chat_session.chat_messages.create!(role: "user", content: "Make it bolder", user: users(:one))
+      DesignTurn.create!(chat_session: turn.chat_session, chat_message: waiting, may_propose: true)
+      fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p>€0.68</p>" },
+                  reply: "<summary>Moved the cost onto the title row.</summary>")
+
+      turn = run_turn(turn, remote)
+
+      assert_equal "Moved the cost onto the title row.", assistant_messages(turn).find_by!(kind: "summary").content
+      assert_not DesignTurn.where(chat_session: turn.chat_session, kind: "check").exists?
+    end
+  end
+
+  test "a check stands down when another turn came after the build it follows" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      check = check_turn(repo, base)
+      later = check.chat_session.chat_messages.create!(role: "user", content: "Update designs", user: users(:one), kind: "request")
+      DesignTurn.create!(chat_session: check.chat_session, chat_message: later, status: "succeeded")
+      looking_claude
+
+      check = run_turn(check, remote)
+
+      assert_empty @calls
+      assert check.failed?
+      assert_equal [ [ "system", DesignTurn::CHECK_STOPPED ] ], check_reply(check).pluck(:kind, :content)
+    end
+  end
+
+  # Final review I3: the host has room for one browser at a time.
+  test "a check stands down while another thread's check uses the browser" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      check = check_turn(repo, base)
+      other = check.chat_session.chat_messages.create!(role: "user", content: "x", user: users(:one), kind: "request")
+      session = ChatSession.create!(project: repo.project, workspace: repo.project.workspace, user: users(:one), purpose: "designs_thread",
+                                    claude_session_id: SecureRandom.uuid, codebase_path: "/tmp")
+      DesignTurn.create!(chat_session: session, chat_message: session.chat_messages.create!(role: "user", content: other.content, user: users(:one)),
+                         kind: "check", status: "running", started_at: 1.minute.ago)
+      looking_claude
+
+      check = run_turn(check, remote)
+
+      assert_empty @calls
+      assert check.succeeded?
+      assert_equal [ [ "system", DesignTurn::CHECK_BROWSER_BUSY ] ], check_reply(check).pluck(:kind, :content)
+    end
+  end
+
+  # Final review I4: a check that never looked says so, and can be tried again.
+  test "a check whose browser did not start, or never showed a screen, fails" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      check = check_turn(repo, base)
+      streaming_claude(events: lambda { |_opts|
+        [ { "type" => "system", "subtype" => "init", "mcp_servers" => [ { "name" => "flosis_browser", "status" => "failed" } ] } ]
+      })
+
+      check = run_turn(check, remote)
+
+      assert check.failed?
+      assert_equal [ [ "error", DesignTurn::CHECK_NO_BROWSER ] ], check_reply(check).pluck(:kind, :content)
+
+      check.chat_session.design_thread.update!(branch: "design/done")
+      broken = check_turn(repo, base)
+      streaming_claude(events: lambda { |_opts|
+        [ tool("mcp__flosis_browser__design_shot", "path" => "designs/candidate/apply.html"),
+          { "type" => "user", "message" => { "content" => [ { "type" => "tool_result", "tool_use_id" => "t", "is_error" => true,
+                                                              "content" => "Error: Chromium did not start" } ] } } ]
+      })
+      assert_equal DesignTurn::CHECK_NO_BROWSER, run_turn(broken, remote).error
+    end
+  end
+
+  test "a check's steps say what it looks at" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      check = check_turn(repo, base)
+      streaming_claude(events: lambda { |_opts|
+        [ tool("mcp__flosis_browser__design_shot", "path" => "designs/candidate/apply.html", "width" => 1024),
+          { "type" => "user", "message" => { "content" => [ { "type" => "tool_result", "tool_use_id" => "t", "content" => "ok" } ] } },
+          tool("mcp__flosis_browser__design_shot", "path" => "designs/candidate/apply.html#over-limit"),
+          tool("mcp__flosis_browser__check_design", "path" => "designs/candidate/apply.html"),
+          tool("mcp__flosis_browser__design", "path" => "designs/candidate/apply.html"),
+          tool("mcp__flosis_browser__click_design", "ref" => "d3") ]
+      })
+
+      check = run_turn(check, remote)
+
+      assert_equal [ "Looking at designs/candidate/apply.html at 1024 px", "Looking at designs/candidate/apply.html#over-limit",
+                     "Checking designs/candidate/apply.html", "Opening designs/candidate/apply.html", "Clicking through the design" ],
+                   check.activity.map { |step| step["text"] }
+    end
+  end
+
+  test "a failed check does not count as the session's earlier failure" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      check = check_turn(repo, base)
+      check.update!(status: "failed", started_at: 1.minute.ago, finished_at: Time.current, error: "The browser did not start")
+      message = check.chat_session.chat_messages.create!(role: "user", content: "Make it bolder", user: users(:one))
+      turn = DesignTurn.create!(chat_session: check.chat_session, chat_message: message, may_propose: true)
+      fake_claude
+
+      run_turn(turn, remote)
+
+      assert_equal :resume_session, @calls.last[0]
+      assert_not_includes @calls.last[1][:prompt], "Note from Flosis"
+    end
+  end
+
   test "a design turn keeps today's tools and no effort" do
     with_design_remote do |repo, remote|
       base = plan_seed(repo)
@@ -1493,6 +1869,57 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  # The check a build queued, run to its end with nothing to fix.
+  def finish_check(thread, remote)
+    check = DesignTurn.where(chat_session: thread.chat_session, kind: "check").sole
+    looking_claude
+    assert run_turn(check, remote).succeeded?
+  end
+
+  # Merge pressed while the check after a build runs (2026-11-21): the check
+  # merges the thread once it is done, making components first when due.
+  test "Merge while a check runs waits for it, then merges" do
+    with_design_remote do |repo, remote|
+      base = seed_master(repo, { "designs/candidate/apply.html" => "<title>Application form</title>" })
+      repo.project.update!(anthropic_api_key: "sk-ant")
+      fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p>121</p>" }, reply: "<summary>Added a counter.</summary>")
+      assert run_turn(thread_turn(repo, base), remote).succeeded?
+      thread = DesignThread.find_by!(branch: "design/add-a-counter-under")
+
+      check = with_remote_url(remote) { Designs::Threads.merge_or_prepare!(thread, user: users(:one)) }
+      assert_equal [ "check", "manual" ], [ check.kind, check.then_merge ]
+      looking_claude
+      assert run_turn(check, remote).succeeded?
+
+      components = DesignTurn.where(chat_session: thread.chat_session, kind: "components").sole
+      assert_equal [ "manual", "queued" ], [ components.then_merge, components.status ]
+    end
+  end
+
+  test "a check that fails still merges the thread Merge was waiting on, unless a new message stopped it" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      check = check_turn(repo, base)
+      check.update!(then_merge: "manual")
+      fake_claude(raise_error: ClaudeCliService::ClaudeCliError.new("the browser did not start"))
+
+      assert run_turn(check, remote).failed?
+      assert_equal [ "manual" ], DesignTurn.where(chat_session: check.chat_session, kind: "components").pluck(:then_merge)
+
+      check.chat_session.design_thread.update!(branch: "design/done")
+      other = check_turn(repo, base)
+      other.update!(then_merge: "manual")
+      streaming_claude(events: lambda { |_opts|
+        other.update_columns(stop_requested_at: Time.current, stop_requested_by: DesignTurn::NEW_MESSAGE)
+        [ :tick ]
+      })
+      assert run_turn(other, remote).failed?
+      assert_not DesignTurn.where(chat_session: other.chat_session, kind: "components").exists?
+      assert_equal "Not merged: a new message came first. Merge again once it is done.",
+                   other.chat_session.chat_messages.where(kind: "system").order(:id).last.content
+    end
+  end
+
   test "a components turn that Merge queued merges its thread once it succeeds" do
     with_design_remote do |repo, remote|
       base = seed_master(repo, { "designs/candidate/apply.html" => "<title>Application form</title>" })
@@ -1500,6 +1927,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p>121</p>" }, reply: "<summary>Added a counter.</summary>")
       assert run_turn(thread_turn(repo, base), remote).succeeded?
       thread = DesignThread.find_by!(branch: "design/add-a-counter-under")
+      finish_check(thread, remote)
       components = with_remote_url(remote) { Designs::Threads.merge_or_prepare!(thread, user: users(:one)) }
       fake_claude(files: { "components/counter/counter.html" => "<span>{{n}}</span>" }, reply: "<summary>Made the counter a component.</summary>")
 
@@ -1521,6 +1949,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p>121</p>" })
       assert run_turn(thread_turn(repo, base), remote).succeeded?
       thread = DesignThread.find_by!(branch: "design/add-a-counter-under")
+      finish_check(thread, remote)
       components = with_remote_url(remote) { Designs::Threads.merge_or_prepare!(thread, user: users(:one)) }
       waiting = thread.chat_session.chat_messages.create!(role: "user", content: "One more thing", user: users(:one))
       DesignTurn.create!(chat_session: thread.chat_session, chat_message: waiting)

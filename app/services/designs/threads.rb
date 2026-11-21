@@ -34,14 +34,10 @@ module Designs::Threads
   GONE = "This thread's archive is no longer on GitHub, so it can't come back.".freeze
   # A task's thread first plans (Kacper, 2026-11-18): it makes sure of its
   # assumptions in the chat, and designs at once when it has no doubts
-  # (Designs::TurnJob#carry_on), or once the person answers.
-  PLAN_REQUEST = <<~REQUEST.freeze
-    Before you design, make sure you know what to do. Read the task's current description and the screens it
-    touches; change no file in this turn. In the summary, give your plan in at most five short lines: what you
-    will design and where (screen and spot), reusing the screens that already cover it. Ask in a missing block
-    only where a standard answer will not do, one question each, ending with "Proposal: " and your answer. With
-    nothing to ask, end the summary with "No doubts, designing now."
-  REQUEST
+  # (Designs::TurnJob#carry_on), or once the person answers. What a plan does
+  # is in its turn's rules (Designs::Prompt::PLAN), which a thread started by
+  # typing gets too (2026-11-21); this is what the task's plan is asked.
+  PLAN_REQUEST = "Plan the design of this task.".freeze
   DESIGN_AS_PLANNED = "No doubts: design it as planned. Say which screens you changed, and what is left to decide.".freeze
   GO_WITH_PROPOSALS = "Go with your proposals for the open questions, and design it as planned. Say which screens you " \
                       "changed, and what is left to decide.".freeze
@@ -79,7 +75,7 @@ module Designs::Threads
     raise Busy, BUSY if turns.active.exists?
 
     last = turns.order(:id).last
-    raise ArgumentError, NO_PLAN unless last&.plan? && last.succeeded?
+    raise ArgumentError, NO_PLAN unless last&.awaits_answer?
 
     queue_turn(thread, user, GO_WITH_PROPOSALS, visible: false)
   end
@@ -91,7 +87,11 @@ module Designs::Threads
   end
 
   # The person's message, with the screen they have open. A fresh thread's
-  # first message names its branch and becomes its title.
+  # first message names its branch and becomes its title, and is planned
+  # before anything is designed, as a task's thread is (Kacper, 2026-11-21:
+  # the AI first says how it understands the request, the gaps it sees and the
+  # format). A later message may be answered with a proposal instead of a
+  # build (variant b, on test).
   # Images go with the message (Kacper, 2026-11-19), as in a task's chat, and
   # the turn reads them (Designs::TurnJob#ask_claude); none go to the repo.
   def message!(thread, user:, text:, context: nil, screen: nil, images: [])
@@ -101,9 +101,47 @@ module Designs::Threads
     refusal = ChatImages.refusal(images)
     raise ArgumentError, refusal if refusal
 
-    name!(thread, text) if thread.fresh?
+    fresh = thread.fresh?
+    name!(thread, text) if fresh
     thread.update!(focus_context: context, focus_screen: screen) if context.present? && screen.present?
-    queue_turn(thread, user, text, images: images)
+    return queue_turn(thread, user, text, kind: "plan", images: images) if fresh
+
+    stop_checks!(thread)
+    queue_turn(thread, user, text, images: images, may_propose: true)
+  end
+
+  # The most screens a check looks at.
+  CHECK_SCREENS = 6
+
+  # The check that follows a design turn that committed (Kacper, 2026-11-21):
+  # queued out of sight, for Designs::TurnJob to start once the turn's reply
+  # is out. It runs in a session of its own, so its request carries what it
+  # needs: what was asked, what the turn answered, and the screens it changed.
+  def new_check(thread, after:, summary:, chips:)
+    screens = chips.first(CHECK_SCREENS).map { |screen, context, _mark| "- designs/#{context}/#{screen}.html" }
+    request = "The request:\n#{after.chat_message.content.to_s.strip.truncate(2_000)}\n\n" \
+              "What the last turn did:\n#{summary.to_s.strip}\n\nThe screens it changed:\n#{screens.join("\n")}"
+    message = thread.chat_session.chat_messages.create!(role: "user", user: after.chat_message.user, content: request, kind: "request",
+                                                        data: { "after" => after.id })
+    DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: "check")
+  end
+
+  # A new message stops the thread's check: the person's turn runs next, and
+  # is checked once it builds. One that waits never starts; one that runs is
+  # asked to stop, as Stop does, and its job says so quietly
+  # (Designs::TurnJob#fail_turn).
+  def stop_checks!(thread)
+    DesignTurn.where(chat_session_id: thread.chat_session_id, kind: "check").active.find_each do |check|
+      check.with_lock do
+        if check.queued?
+          check.fail!(DesignTurn::CHECK_STOPPED)
+          note(thread, DesignTurn::CHECK_STOPPED)
+          note(thread, "Not merged: #{DesignTurn::MESSAGE_CAME_FIRST}") if check.then_merge.present?
+        elsif check.running? && check.stop_requested_at.nil?
+          check.update!(stop_requested_at: Time.current, stop_requested_by: DesignTurn::NEW_MESSAGE)
+        end
+      end
+    end
   end
 
   # Try again, under the thread's last turn when it failed: its request runs
@@ -123,7 +161,7 @@ module Designs::Threads
 
     note(thread, "Tried again by #{user&.name || 'someone'}")
     turn = DesignTurn.create!(chat_session: thread.chat_session, chat_message: last.chat_message, kind: last.kind,
-                              then_merge: last.then_merge)
+                              then_merge: last.then_merge, may_propose: last.may_propose)
     thread.touch
     Designs::TurnJob.perform_later(turn.id)
     turn
@@ -168,8 +206,11 @@ module Designs::Threads
     )
     thread.update!(described_text: Designs::CurrentDescription.for(thread.task), described_version: change[:to])
     lines = change[:lines].map { |sign, line| "#{sign} #{line}" }.join("\n")
+    # A changed description is how new things most often arrive (SCRUM-70), so
+    # it may be answered with a proposal, as a person's message may.
     queue_turn(thread, user, "#{key}'s description changed (#{change[:from]} → #{change[:to]}):\n#{lines}\n\n" \
-                             "Update the designs to match the new description, and say what you changed.", visible: false)
+                             "Update the designs to match the new description, and say what you changed.", visible: false,
+                             may_propose: true)
   end
 
   # The merges that landed on master since the thread's base, newest first.
@@ -262,6 +303,8 @@ module Designs::Threads
   # (Designs::TurnJob#merge_after): the turn is returned then, and the merge
   # otherwise.
   def merge_or_prepare!(thread, user:)
+    waiting = merge_after_check!(thread, user)
+    return waiting if waiting
     return merge!(thread, user: user) unless components_due?(thread)
     raise AlreadyMerged, "#{thread.branch} is already merged" if thread.merged?
 
@@ -277,6 +320,24 @@ module Designs::Threads
     queue_turn(thread, user, components_request(screens), kind: "components", visible: false, then_merge: "manual")
   rescue Designs::Repo::Busy
     raise Busy, BUSY
+  end
+
+  # Merge while the thread's on-screen check waits or runs (2026-11-21): the
+  # check merges the thread once it is done (Designs::TurnJob#merge_after),
+  # components first when they are due, so what is merged is what it checked.
+  # Nil when no check is under way, or one is already stopping. The row lock
+  # settles it against the check's job finishing at the same moment: a check
+  # that has finished is merged here as any thread is.
+  def merge_after_check!(thread, user)
+    check = DesignTurn.where(chat_session_id: thread.chat_session_id, kind: "check").active.order(:id).last or return
+
+    check.with_lock do
+      next unless (check.queued? || check.running?) && check.stop_requested_at.nil?
+
+      check.update!(then_merge: "manual")
+      note(thread, "Merging once the on-screen check is done · #{user&.name || 'someone'}")
+      check
+    end
   end
 
   # A design turn committed since the thread's last components turn, or the
@@ -384,11 +445,12 @@ module Designs::Threads
     note(thread, "Branch #{thread.branch} created from master #{short(base)}")
   end
 
-  def queue_turn(thread, user, text, kind: "design", visible: true, then_merge: nil, images: [])
+  def queue_turn(thread, user, text, kind: "design", visible: true, then_merge: nil, images: [], may_propose: false)
     turn = DesignTurn.transaction do
       message = thread.chat_session.chat_messages.create!(role: "user", user: user, content: text, kind: (visible ? nil : "request"),
                                                           images: images)
-      DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: kind, then_merge: then_merge)
+      DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: kind, then_merge: then_merge,
+                         may_propose: may_propose)
     end
     thread.touch
     Designs::TurnJob.perform_later(turn.id)
@@ -475,7 +537,9 @@ module Designs::Threads
 
   def record_merge!(thread, user, how, sha, commits, screens)
     messages = thread.chat_session.chat_messages
-    summary = messages.where(role: "assistant", kind: "summary").ordered.last&.content.presence || thread.title
+    # A check's one line says how the screens looked, not what the thread did.
+    summary = messages.where(role: "assistant", kind: "summary").ordered.reject { |message| message.data&.dig("check") }
+                      .last&.content.presence || thread.title
     asked = messages.where(role: "user", kind: nil).ordered.pluck(:content) + messages.where(kind: "diff").ordered.pluck(:content)
     merge = DesignMerge.create!(
       project: thread.project, design_thread: thread, task: thread.task, user: (user if how == "manual"), sha: sha,

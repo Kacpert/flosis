@@ -36,6 +36,8 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
     thread.reload
     commit_files(repo, repo.worktree!(thread.branch, from: thread.base_sha), { "designs/candidate/apply.html" => "<title>Application form</title><p>1</p>" })
     repo.push!(thread.branch)
+    # The first message plans (2026-11-21), and the plan goes on to design.
+    Designs::Threads.design_as_planned!(thread, user: users(:one))
     DesignTurn.update_all(status: "succeeded")
     thread
   end
@@ -314,6 +316,20 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
 
       assert_redirected_to workshop_designs_overview_path(thread: thread.id)
       assert_equal users(:one).name, turn.reload.stop_requested_by
+    end
+  end
+
+  test "Merge during the check after a build says it merges once the check is done" do
+    with_designs do |repo, _|
+      thread = thread_with_work(repo, "Add a counter")
+      design = DesignTurn.where(chat_session: thread.chat_session, kind: "design").last
+      Designs::Threads.new_check(thread, after: design, summary: "Added a counter.", chips: [ [ "apply", "candidate", "M" ] ])
+
+      post merge_workshop_design_thread_path(thread)
+
+      assert_redirected_to workshop_designs_overview_path(thread: thread.id)
+      assert_equal "Checking on screen first · it merges when that's done", flash[:clar_toast]
+      assert_not thread.reload.merged?
     end
   end
 

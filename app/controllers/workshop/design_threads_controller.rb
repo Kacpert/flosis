@@ -48,7 +48,7 @@ class Workshop::DesignThreadsController < Workshop::BaseController
   def merge
     result = Designs::Threads.merge_or_prepare!(@thread, user: current_user)
     if result.is_a?(DesignTurn)
-      flash[:clar_toast] = "Making components first · it merges when they're done"
+      flash[:clar_toast] = result.check? ? "Checking on screen first · it merges when that's done" : "Making components first · it merges when they're done"
       return redirect_to(workshop_designs_overview_path(thread: @thread.id))
     end
 

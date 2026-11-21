@@ -34,6 +34,8 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     thread.reload
     commit_files(repo, repo.worktree!(thread.branch, from: thread.base_sha), files)
     repo.push!(thread.branch)
+    # The first message plans (2026-11-21), and the plan goes on to design.
+    Designs::Threads.design_as_planned!(thread, user: @user)
     DesignTurn.where(chat_session: thread.chat_session).update_all(status: "succeeded")
     thread
   end
@@ -86,6 +88,151 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
       assert_equal "plan", turn.kind
       assert_equal Designs::Threads::PLAN_REQUEST, turn.chat_message.content
       assert_equal "request", turn.chat_message.kind
+    end
+  end
+
+  # Kacper, 2026-11-21: a thread started by typing starts with a proposal too.
+  # The plan's request is the person's own message, images and all.
+  test "a fresh thread's first message plans before it designs" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = Designs::Threads.start!(project: repo.project, user: @user)
+      image = Rack::Test::UploadedFile.new(file_fixture("inspiration.png"), "image/png")
+
+      turn = Designs::Threads.message!(thread, user: @user, text: "Show AI costs, subtly", images: [ image ])
+
+      assert_equal "plan", turn.kind
+      assert_not turn.may_propose?
+      assert_nil turn.chat_message.kind, "the person's own message stays in the chat"
+      assert_equal "Show AI costs, subtly", turn.chat_message.content
+      assert turn.chat_message.images.attached?
+      assert_enqueued_with(job: Designs::TurnJob, args: [ turn.id ])
+    end
+  end
+
+  # Variant (b): after the start, a message may be answered with a proposal.
+  test "a later message may propose" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Add a counter", { "designs/admin/home.html" => "<title>Home</title>" })
+
+      turn = Designs::Threads.message!(thread, user: @user, text: "Make the costs subtle")
+
+      assert_equal "design", turn.kind
+      assert turn.may_propose?
+    end
+  end
+
+  test "Try again keeps whether the turn may propose" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Add a counter", { "designs/admin/home.html" => "<title>Home</title>" })
+      failed = Designs::Threads.message!(thread, user: @user, text: "Make the costs subtle")
+      failed.update!(status: "failed", started_at: 1.minute.ago, finished_at: Time.current, error: "boom")
+
+      again = Designs::Threads.retry!(thread, user: @user)
+
+      assert_equal [ "design", true ], [ again.kind, again.may_propose ]
+    end
+  end
+
+  # A new message stops the check that follows a build (2026-11-21): the
+  # person's turn runs next and is checked once it builds.
+  def thread_with_check(repo)
+    thread = thread_with_work(repo, "Add a counter", { "designs/admin/home.html" => "<title>Home</title>" })
+    design = DesignTurn.where(chat_session: thread.chat_session, kind: "design").last
+    [ thread, Designs::Threads.new_check(thread, after: design, summary: "Added a counter.", chips: [ [ "home", "admin", "M" ] ]) ]
+  end
+
+  # A check's reply says how the screens looked, not what the thread did, so
+  # a merge is summed up by the thread's last design reply.
+  test "a merge's summary is the thread's last design reply, not a check's line" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread, check = thread_with_check(repo)
+      messages = thread.chat_session.chat_messages
+      messages.create!(role: "assistant", kind: "summary", content: "Added a counter under long answers.")
+      check.update!(status: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+      messages.create!(role: "assistant", kind: "summary", content: "Checked on screen: looks right wide and narrow.", data: { "check" => true })
+
+      merge = Designs::Threads.merge!(thread, user: @user)
+
+      assert_equal "Added a counter under long answers.", merge.summary
+    end
+  end
+
+  # Merge pressed while the check after a build runs or waits: the check
+  # merges the thread once it is done (Designs::TurnJob#merge_after).
+  test "Merge during a check hands the merge to the check" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread, check = thread_with_check(repo)
+
+      turn = Designs::Threads.merge_or_prepare!(thread, user: @user)
+
+      assert_equal [ check.id, "manual" ], [ turn.id, check.reload.then_merge ]
+      assert_equal "Merging once the on-screen check is done · #{@user.name}", system_lines(thread).last
+      assert_not thread.reload.merged?
+    end
+  end
+
+  test "a person's message stops a waiting check quietly" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread, check = thread_with_check(repo)
+
+      Designs::Threads.message!(thread, user: @user, text: "Make it bolder")
+
+      assert check.reload.failed?
+      assert_includes system_lines(thread), DesignTurn::CHECK_STOPPED
+      assert_not thread.chat_session.chat_messages.where(kind: "error").exists?
+    end
+  end
+
+  # Final review M5: Merge was waiting on the check a new message stopped.
+  test "a new message after Merge during a waiting check says it did not merge" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread, _check = thread_with_check(repo)
+      Designs::Threads.merge_or_prepare!(thread, user: @user)
+
+      Designs::Threads.message!(thread, user: @user, text: "Make it bolder")
+
+      assert_equal "Not merged: a new message came first. Merge again once it is done.", system_lines(thread).last
+      assert_not thread.reload.merged?
+    end
+  end
+
+  test "a person's message asks a running check to stop" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread, check = thread_with_check(repo)
+      check.update!(status: "running", started_at: 10.seconds.ago)
+
+      Designs::Threads.message!(thread, user: @user, text: "Make it bolder")
+
+      check.reload
+      assert check.running?
+      assert check.stop_requested_at.present?
+      assert_equal DesignTurn::NEW_MESSAGE, check.stop_requested_by
+    end
+  end
+
+  # A design turn that changed nothing and asked waits as a plan that asked:
+  # its proposals can be taken with one click.
+  test "Design with these proposals starts the design after a proposal" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Add a counter", { "designs/admin/home.html" => "<title>Home</title>" })
+      proposal = Designs::Threads.message!(thread, user: @user, text: "Make the costs subtle")
+      proposal.update!(status: "succeeded", started_at: 1.minute.ago, finished_at: Time.current, proposed: true)
+      clear_enqueued_jobs
+
+      turn = Designs::Threads.go!(thread, user: @user)
+
+      assert_equal Designs::Threads::GO_WITH_PROPOSALS, turn.chat_message.content
+      assert_not turn.may_propose?
+      assert_enqueued_jobs 1, only: Designs::TurnJob
     end
   end
 
@@ -151,6 +298,22 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
       assert_equal [ [ "+", "Show a counter under long answers" ] ], diff.data["lines"]
       assert_nil Designs::Threads.description_change(thread.reload)
       assert_enqueued_jobs 1, only: Designs::TurnJob
+    end
+  end
+
+  # A description change is how new things most often arrive (SCRUM-70), so
+  # Update designs follows rule (b) as a person's message does.
+  test "Update designs may propose" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "SP-1051", description: "Validate on blur")
+      thread = Designs::Threads.start_from_task!(task, user: @user)
+      task.update!(description: "Validate on blur\nShow the AI cost of each answer")
+
+      turn = Designs::Threads.update_description!(thread, user: @user)
+
+      assert_equal [ "design", true ], [ turn.kind, turn.may_propose ]
     end
   end
 

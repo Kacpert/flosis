@@ -5,9 +5,12 @@ import { Controller } from "@hotwired/stimulus"
 // clar_document_refresh_controller does. Each reload replaces this element, so
 // the state last seen is kept on the frame, which stays.
 //
-// When a reload shows the turn has ended — nothing active any more, or a new
+// When a reload shows the turn has ended — nothing busy any more, or a new
 // commit — the whole screen refreshes (Ruling P2-R27): a turn changes the
-// count, Approve, the context pills and the preview, not only the chat.
+// count, Approve, the context pills and the preview, not only the chat. A
+// check that follows a build (2026-11-21) keeps the chat polling but leaves
+// the screen idle: the person is looking at the preview meanwhile, and only
+// a fix it commits reloads it.
 //
 // A reload keeps what the reader had: where the chat was scrolled to (the
 // bottom, when they were there, so each new step of the turn comes into view)
@@ -16,14 +19,14 @@ import { Controller } from "@hotwired/stimulus"
 // controller, so the chat is scrolled once they have: on the next frame,
 // still before it is painted.
 export default class extends Controller {
-  static values = { active: Boolean, commit: String, url: String }
+  static values = { active: Boolean, busy: Boolean, commit: String, url: String }
 
   connect() {
     const frame = this.element.closest("turbo-frame")
     const before = frame.dataset.designsSeen && JSON.parse(frame.dataset.designsSeen)
-    frame.dataset.designsSeen = JSON.stringify({ active: this.activeValue, commit: this.commitValue })
+    frame.dataset.designsSeen = JSON.stringify({ busy: this.busyValue, commit: this.commitValue })
 
-    if (before && ((before.active && !this.activeValue) || before.commit !== this.commitValue)) {
+    if (before && ((before.busy && !this.busyValue) || before.commit !== this.commitValue)) {
       window.Turbo.visit(window.location.href, { action: "replace" })
       return
     }

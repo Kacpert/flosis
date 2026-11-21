@@ -51,6 +51,43 @@ class DesignTurnTest < ActiveSupport::TestCase
     assert design.reload.running?
   end
 
+  # A check looks at a thread's screens for ten minutes at most: one a deploy
+  # cut off is let go after fifteen, not after a design turn's forty-five.
+  test "a check turn goes stale after its own bound" do
+    old = turn(status: "running", kind: "check", started_at: 16.minutes.ago)
+    young = turn(status: "running", kind: "check", started_at: 9.minutes.ago)
+    design = turn(status: "running", started_at: 16.minutes.ago)
+
+    assert old.check?
+    assert old.stale?
+    assert_not young.stale?
+    assert_equal 1, DesignTurn.fail_stale!
+    assert old.reload.failed?
+    assert young.reload.running?
+    assert design.reload.running?
+    assert_equal [ 600, 5, "medium" ], [ DesignTurn::CHECK_TIMEOUT_SECONDS, DesignTurn::CHECK_BUDGET_USD, DesignTurn::CHECK_EFFORT ]
+  end
+
+  # A design turn that changed nothing and asked is a proposal (Kacper,
+  # 2026-11-21): it waits for an answer, as a plan that asked does.
+  test "a proposal awaits an answer, a design that built does not" do
+    proposal = turn(may_propose: true)
+    proposal.succeed!(commit_sha: nil, proposed: true)
+    built = turn
+    built.succeed!(commit_sha: "abc123")
+    plan = turn(kind: "plan")
+    plan.succeed!(commit_sha: nil)
+    running = turn(kind: "plan", status: "running")
+
+    assert proposal.reload.proposed?
+    assert proposal.awaits_answer?
+    assert_not built.reload.proposed?
+    assert_not built.awaits_answer?
+    assert plan.awaits_answer?
+    assert_not running.awaits_answer?
+    assert_not turn.may_propose?
+  end
+
   # A setup turn builds a whole feature: its bounds are a setup turn's, so it
   # is not taken for cut off once a thread turn would be.
   test "a long setup turn is not stale, a design turn as old is" do
