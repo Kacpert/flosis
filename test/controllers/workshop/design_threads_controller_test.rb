@@ -347,4 +347,31 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
       assert_not thread.reload.merged?
     end
   end
+  # Accept designs (2026-11-21): on a task's thread the person stays on the
+  # thread, which shows the acceptance, and goes to the task when it is done.
+  test "Accept on a task's thread stays on the thread" do
+    with_designs do |repo, _|
+      thread = thread_with_work(repo, "Add a counter")
+      task = tasks(:jira_task)
+      task.update!(project: @project, external_reference: "SP-1051")
+      thread.update!(task: task)
+
+      post merge_workshop_design_thread_path(thread)
+      assert_redirected_to workshop_designs_overview_path(thread: thread.id)
+      assert_match(/\AAccepting · /, flash[:clar_toast])
+    end
+  end
+
+  test "Reopen opens a finished thread again" do
+    with_designs do |repo, remote|
+      thread = thread_with_work(repo, "Add a counter")
+      Designs::Threads.merge!(thread, user: users(:one))
+
+      post reopen_workshop_design_thread_path(thread)
+      assert_redirected_to workshop_designs_overview_path(thread: thread.id)
+      assert_equal "Reopened · new branch from master", flash[:clar_toast]
+      assert thread.reload.open?
+      assert_equal remote_branch_sha(remote, "master"), remote_branch_sha(remote, thread.branch)
+    end
+  end
 end

@@ -33,7 +33,8 @@
       <span class="inline-flex items-center gap-1 clar-mono text-[11px] clar-text-ai bg-[var(--ai-soft)] px-1.5 py-0.5 rounded-md max-w-full truncate"><%= designs_icon(:branch, 11) %><%= thread.branch %></span>
     <% end %>
     <% if merged %>
-      <span class="clar-badge clar-badge-success !py-0.5 !px-2"><%= designs_icon(:merge, 11) %>Merged · <%= thread.merged_sha.to_s.first(7) %></span>
+      <span class="clar-badge clar-badge-success !py-0.5 !px-2"><%= thread.task ? "✓ Accepted" : "Merged" %> · <%= thread.merged_sha.to_s.first(7) %></span>
+      <% if thread.merged_at %><span class="text-[11.5px] clar-text-faint"><%= thread.merged_at.strftime("%-d %b") %></span><% end %>
     <% elsif thread.fresh? %>
       <span class="text-[11.5px] clar-text-faint">No changes yet</span>
     <% else %>
@@ -41,6 +42,16 @@
     <% end %>
   </div>
 </div>
+
+<% if merged %>
+  <%# A finished thread: its designs in a new tab, and Reopen (2026-11-21). %>
+  <div class="flex items-center gap-2 px-3.5 pt-2.5">
+    <% if thread.task %>
+      <a href="<%= Designs::Publisher.new(thread.project, nil).url(key, nil) %>" target="_blank" rel="noopener noreferrer" class="clar-btn !text-[12px] !py-1 !px-2.5 no-underline"><%= designs_icon(:external, 12) %>Open designs</a>
+    <% end %>
+    <%= button_to reopen_workshop_design_thread_path(thread), class: "clar-btn !text-[12px] !py-1 !px-2.5", form: { class: "contents" } do %><%= designs_icon(:reload, 12) %>Reopen<% end %>
+  </div>
+<% end %>
 
 <% if @description_change && !merged %>
   <div class="mx-3 mt-3 px-3 py-2.5 rounded-[10px] bg-[var(--warn-soft)] border border-[color:var(--border)] flex items-center gap-2.5 flex-wrap">
@@ -78,7 +89,11 @@
 
 <div class="p-3 border-t border-[color:var(--border)]">
   <% if merged %>
-    <div class="text-[12.5px] clar-text-muted leading-[1.5] py-1 px-0.5">Merged into master as <span class="clar-mono"><%= thread.merged_sha.to_s.first(7) %></span>. Start a new thread for further changes.</div>
+    <% if thread.task %>
+      <div class="text-[12.5px] clar-text-muted leading-[1.5] py-1 px-0.5">Accepted into master as <%= thread.merged_sha.to_s.first(7) %>. Reopen to change the designs again. Until you accept again, the link and <%= key %> show this version.</div>
+    <% else %>
+      <div class="text-[12.5px] clar-text-muted leading-[1.5] py-1 px-0.5">Merged into master as <%= thread.merged_sha.to_s.first(7) %>. Reopen to change it again.</div>
+    <% end %>
   <% elsif Designs::Threads.importing?(thread) %>
     <div class="text-[12.5px] clar-text-muted leading-[1.5] py-1 px-0.5"><%= Designs::Threads::IMPORTING %></div>
   <% else %>

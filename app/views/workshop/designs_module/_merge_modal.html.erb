@@ -1,9 +1,16 @@
+<%# On a task's thread, Merge is Accept designs (Kacper, 2026-11-21, mockups
+    v2): what follows is said in his words, without the mechanics. %>
+<% task = @thread.task %>
+<% key = task && Designs::ThreadNames.key(task) %>
 <div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="merge-thread" data-action="click->clar-modal#close">
   <div class="clar-modal p-5.5 max-w-[520px]" data-action="click->clar-modal#stopPropagation">
-    <div class="flex items-center justify-between gap-3 mb-1"><h2 class="m-0 text-[18px] font-bold clar-text-text">Merge into master?</h2><button type="button" class="bg-transparent border-0 cursor-pointer clar-text-faint flex p-1" data-action="clar-modal#close"><%= designs_icon(:close, 18) %></button></div>
+    <div class="flex items-center justify-between gap-3 mb-1"><h2 class="m-0 text-[18px] font-bold clar-text-text"><%= task ? "Accept designs?" : "Merge into master?" %></h2><button type="button" class="bg-transparent border-0 cursor-pointer clar-text-faint flex p-1" data-action="clar-modal#close"><%= designs_icon(:close, 18) %></button></div>
     <div class="flex items-center gap-2 flex-wrap mt-1.5 mb-4"><span class="clar-mono text-[11.5px] clar-text-ai bg-[var(--ai-soft)] px-2 py-0.5 rounded-md"><%= @thread.branch %></span><span class="clar-text-faint">→</span><span class="clar-mono text-[11.5px] clar-text-success bg-[var(--success-soft)] px-2 py-0.5 rounded-md">master</span></div>
     <% if @behind.any? %>
       <div class="mb-3.5 px-3 py-2.5 rounded-[9px] bg-[var(--warn-soft)] text-[12.5px] clar-text-text leading-[1.5]"><b class="clar-text-warn">master changed</b> since this thread branched. Update from master first to see the result before it lands.</div>
+    <% end %>
+    <% if task && @description_change %>
+      <div class="mb-3.5 px-3 py-2.5 rounded-[9px] bg-[var(--warn-soft)] text-[12.5px] clar-text-text leading-[1.5]"><%= key %>'s description changed since the designs were last updated (<%= @description_change[:from] %> → <%= @description_change[:to] %>). Update the designs first to see it in the screens.</div>
     <% end %>
     <label class="clar-field-label">CHANGED SCREENS</label>
     <div class="border border-[color:var(--border)] rounded-[11px] overflow-hidden mb-3.5">
@@ -15,13 +22,26 @@
         <div class="px-3 py-2 border-t border-[color:var(--border)] text-[12px] clar-text-muted">+<%= designs_through_count(@changed_through) %> through <%= @changed_through.keys.map { |name| designs_component_name(name) }.to_sentence %></div>
       <% end %>
     </div>
-    <% if Designs::Threads.components_due?(@thread) %>
-      <p class="mt-0 mb-3 text-[12.5px] clar-text-text leading-[1.55]">Flosis first makes components from the UI this thread’s screens repeat, in a turn of its own (a few minutes), then merges.</p>
+    <% if task %>
+      <div class="rounded-[10px] bg-[var(--surface-2)] px-3.5 py-3 mb-5 text-[12.5px] leading-[1.6] clar-text-text">
+        <div class="text-[10.5px] font-bold tracking-[.4px] clar-text-faint mb-1.5">THEN</div>
+        <div>1 · Main designs will be updated</div>
+        <div>2 · <%= key %>'s description gets <b>v<%= Designs::Threads.next_description_version(task) %></b>: the designs' link, the merge commit, the changed screens, and small fixes where the designs settled something new</div>
+        <div>3 · You will be moved back to <%= key %></div>
+      </div>
+    <% else %>
+      <% if Designs::Threads.components_due?(@thread) %>
+        <p class="mt-0 mb-3 text-[12.5px] clar-text-text leading-[1.55]">Flosis first makes components from the UI this thread’s screens repeat, in a turn of its own (a few minutes), then merges.</p>
+      <% end %>
+      <p class="mt-0 mb-5 text-[12.5px] clar-text-muted leading-[1.55]">After merging, the thread is finished. Reopen it for further changes.</p>
     <% end %>
-    <p class="mt-0 mb-5 text-[12.5px] clar-text-muted leading-[1.55]">After merging, master stays read-only and further changes need a new thread.</p>
     <div class="flex gap-2 justify-end">
       <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
-      <%= button_to merge_workshop_design_thread_path(@thread), class: "clar-btn clar-btn-primary", form: { class: "contents" } do %><%= designs_icon(:merge, 14) %>Merge into master<% end %>
+      <% if task %>
+        <%= button_to merge_workshop_design_thread_path(@thread), class: "clar-btn clar-btn-primary", form: { class: "contents" } do %><%= designs_icon(:check, 14) %>Accept designs<% end %>
+      <% else %>
+        <%= button_to merge_workshop_design_thread_path(@thread), class: "clar-btn clar-btn-primary", form: { class: "contents" } do %><%= designs_icon(:merge, 14) %>Merge into master<% end %>
+      <% end %>
     </div>
   </div>
 </div>
