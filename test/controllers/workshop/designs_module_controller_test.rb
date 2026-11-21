@@ -898,4 +898,24 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       assert_select "form[action=?] button", retry_workshop_design_thread_path(thread), text: /Try again/
     end
   end
+
+  # Kacper, 2026-11-21: with SCRUM-70's 21 screens the dialog ran past the
+  # window and its buttons could not be reached. It lists five, says how many
+  # more, and scrolls inside the window whatever its height.
+  test "the accept dialog lists five changed screens, says how many more, and fits the window" do
+    with_designs do |repo|
+      task = tasks(:jira_task)
+      task.update!(project: @project, external_reference: "SP-1051", in_pipeline: true, workshop_stage: "details")
+      screens = (1..7).to_h { |n| [ "designs/candidate/step-#{n}.html", SCREEN.("Step #{n}") ] }
+      thread = thread_with_work(repo, "Steps", screens, task: task)
+      get workshop_designs_overview_path(thread: thread.id)
+
+      dialog = css_select("[data-clar-modal-panel-id-value=merge-thread] .clar-modal").sole
+      assert_includes dialog["class"], "overflow-y-auto"
+      assert_includes dialog["class"], "max-h-[calc(100vh-48px)]"
+      rows = css_select("[data-clar-modal-panel-id-value=merge-thread] [data-changed-screen]")
+      assert_equal 5, rows.size
+      assert_includes dialog.text.squish, "and 2 more"
+    end
+  end
 end

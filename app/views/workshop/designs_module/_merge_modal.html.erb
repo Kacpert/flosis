@@ -3,7 +3,9 @@
 <% task = @thread.task %>
 <% key = task && Designs::ThreadNames.key(task) %>
 <div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="merge-thread" data-action="click->clar-modal#close">
-  <div class="clar-modal p-5.5 max-w-[520px]" data-action="click->clar-modal#stopPropagation">
+  <%# Fits the window and scrolls inside it (Kacper, 2026-11-21: SCRUM-70's 21
+      screens pushed the buttons out of reach). %>
+  <div class="clar-modal p-5.5 max-w-[520px] max-h-[calc(100vh-48px)] overflow-y-auto" data-action="click->clar-modal#stopPropagation">
     <div class="flex items-center justify-between gap-3 mb-1"><h2 class="m-0 text-[18px] font-bold clar-text-text"><%= task ? "Accept designs?" : "Merge into master?" %></h2><button type="button" class="bg-transparent border-0 cursor-pointer clar-text-faint flex p-1" data-action="clar-modal#close"><%= designs_icon(:close, 18) %></button></div>
     <div class="flex items-center gap-2 flex-wrap mt-1.5 mb-4"><span class="clar-mono text-[11.5px] clar-text-ai bg-[var(--ai-soft)] px-2 py-0.5 rounded-md"><%= @thread.branch %></span><span class="clar-text-faint">→</span><span class="clar-mono text-[11.5px] clar-text-success bg-[var(--success-soft)] px-2 py-0.5 rounded-md">master</span></div>
     <% if @behind.any? %>
@@ -14,8 +16,12 @@
     <% end %>
     <label class="clar-field-label">CHANGED SCREENS</label>
     <div class="border border-[color:var(--border)] rounded-[11px] overflow-hidden mb-3.5">
-      <% @changed_own.each_with_index do |(context, screen), i| %>
-        <div class="flex items-center justify-between gap-3 px-3 py-2 flex-wrap <%= 'border-t border-[color:var(--border)]' if i.positive? %>"><span class="text-[13px] font-semibold clar-text-text"><%= designs_context_name(@contexts, context) %> › <%= designs_screen_name(@screens, context, screen) %></span><span class="clar-mono text-[11px] clar-text-faint">designs/<%= context %>/<%= screen %>.html</span></div>
+      <%# Five, then how many more, as the mockup has it. %>
+      <% @changed_own.first(5).each_with_index do |(context, screen), i| %>
+        <div data-changed-screen class="flex items-center justify-between gap-3 px-3 py-2 flex-wrap <%= 'border-t border-[color:var(--border)]' if i.positive? %>"><span class="text-[13px] font-semibold clar-text-text"><%= designs_context_name(@contexts, context) %> › <%= designs_screen_name(@screens, context, screen) %></span><span class="clar-mono text-[11px] clar-text-faint">designs/<%= context %>/<%= screen %>.html</span></div>
+      <% end %>
+      <% if @changed_own.size > 5 %>
+        <div class="px-3 py-2 border-t border-[color:var(--border)] text-[12px] clar-text-muted">and <%= @changed_own.size - 5 %> more</div>
       <% end %>
       <% if @changed_own.empty? %><div class="px-3 py-2 text-[12.5px] clar-text-faint">No screen differs from master yet.</div><% end %>
       <% if @changed_through.any? %>
