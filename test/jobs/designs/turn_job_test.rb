@@ -1253,6 +1253,67 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  # A thread started by typing plans first (2026-11-21), and its plan reads
+  # the images the person sent with the message, as a design turn does.
+  test "a plan turn on a typed thread reads the images sent with its message" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      turn = thread_turn(repo, base)
+      turn.update!(kind: "plan")
+      turn.chat_message.images.attach(Rack::Test::UploadedFile.new(file_fixture("inspiration.png"), "image/png"))
+      Dir.mktmpdir("chat-images") do |dir|
+        with_env("CHAT_IMAGES_DIR" => dir) do
+          opts = nil
+          scripted_claude { |_call, _keywords, o| opts = o; { session_id: "s", response: NO_DOUBTS, is_error: false } }
+
+          run_turn(turn, remote)
+
+          folder = File.join(dir, turn.chat_session_id.to_s)
+          assert_includes opts[:add_dirs], folder
+          assert_includes @calls.first[1][:prompt], "The person attached an image to this message"
+          assert_includes @calls.first[1][:prompt], Designs::Prompt::PLAN
+        end
+      end
+    end
+  end
+
+  # Variant (b): a design turn told it may propose, which changed no file and
+  # asked, is a proposal, and waits for the person as a plan that asked does.
+  test "a design turn that may propose, changes nothing and asks, is a proposal" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      turn = thread_turn(repo, base, "Make the costs subtle")
+      turn.update!(may_propose: true)
+      question = "Costs on the tab's title row, right-aligned? Proposal: yes, in the muted meta size."
+      fake_claude(reply: "<summary>Costs join rows already there.</summary>\n<missing>#{question}</missing>")
+
+      turn = run_turn(turn, remote)
+
+      assert turn.succeeded?, turn.error
+      assert_nil turn.commit_sha
+      assert turn.proposed?
+      assert turn.awaits_answer?
+      assert_equal question, turn.chat_session.chat_messages.find_by!(kind: "missing").content
+      assert_equal [ turn.id ], DesignTurn.where(chat_session: turn.chat_session).pluck(:id), "nothing starts on its own"
+    end
+  end
+
+  test "a design turn that built is no proposal, even with open questions" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      turn = thread_turn(repo, base, "Move the cost next to the title")
+      turn.update!(may_propose: true)
+      fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p>€0.68</p>" },
+                  reply: "<summary>Moved the cost next to the title.</summary>\n<missing>Also on Reports? Proposal: no.</missing>")
+
+      turn = run_turn(turn, remote)
+
+      assert turn.succeeded?, turn.error
+      assert turn.commit_sha.present?
+      assert_not turn.proposed?
+    end
+  end
+
   test "a design turn keeps today's tools and no effort" do
     with_design_remote do |repo, remote|
       base = plan_seed(repo)

@@ -44,6 +44,8 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     thread.reload
     commit_files(repo, repo.worktree!(thread.branch, from: thread.base_sha), files)
     repo.push!(thread.branch)
+    # The first message plans (2026-11-21), and the plan goes on to design.
+    Designs::Threads.design_as_planned!(thread, user: users(:one)) unless task
     DesignTurn.update_all(status: "succeeded")
     Designs::Publisher.new(@project, repo).publish!(thread.branch, thread.branch, base: thread.base_sha)
     thread
@@ -309,6 +311,19 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       Designs::Threads.message!(thread, user: users(:one), text: "In the header, yes")
       get workshop_designs_overview_path(thread: thread.id)
       assert_select "form[action=?]", go_workshop_design_thread_path(thread), count: 0
+    end
+  end
+
+  # A design turn that answered with a proposal waits as a plan that asked.
+  test "a proposal offers Design with these proposals" do
+    with_designs do
+      thread = planned_thread(status: "succeeded")
+      answer = thread.chat_session.chat_messages.create!(role: "user", content: "Make the costs subtle", user: users(:one))
+      DesignTurn.create!(chat_session: thread.chat_session, chat_message: answer, may_propose: true, proposed: true,
+                         status: "succeeded", started_at: 10.seconds.ago, finished_at: Time.current)
+
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_select "form[action=?] button", go_workshop_design_thread_path(thread), text: /Design with these proposals/
     end
   end
 
@@ -600,7 +615,8 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     with_designs do
       thread = Designs::Threads.start!(project: @project, user: users(:one))
       turn = Designs::Threads.message!(thread, user: users(:one), text: "Add a counter")
-      turn.update!(status: "running", started_at: 3.minutes.ago,
+      # A thread's first message plans (2026-11-21); this one is designing.
+      turn.update!(kind: "design", status: "running", started_at: 3.minutes.ago,
                    activity: steps("Reading designs/a.html", "Reading designs/b.html", "Let me check the form.",
                                    "Reading designs/c.html", "Reading designs/d.html", "Reading designs/e.html",
                                    "Reading designs/f.html", "Reading designs/g.html"))

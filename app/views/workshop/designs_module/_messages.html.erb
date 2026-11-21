@@ -3,8 +3,8 @@
     and its reply, as they came: a turn where it started (never before its
     request), so one queued behind another comes after that one's reply. A
     request Flosis made on the person's behalf is not shown; its turn is.
-    When the last turn failed, Try again ends it; when it is a plan that
-    asked, Design with these proposals does. %>
+    When the last turn failed, Try again ends it; when it is a plan or a
+    proposal waiting for an answer, Design with these proposals does. %>
 <% session = thread.chat_session %>
 <% messages = session ? session.chat_messages.ordered.where("kind IS NULL OR kind <> ?", "request").to_a : [] %>
 <% turns = session ? session.design_turns.order(:id).to_a : [] %>
@@ -33,7 +33,7 @@
         <span class="text-[11.5px] clar-text-faint leading-[1.45] min-w-0">Runs the request again. Claude is told nothing of the last try was kept.</span>
       </div>
     <% end %>
-    <% if turns.last&.plan? && turns.last.succeeded? && !active && thread.open? && !Designs::Threads.importing?(thread) %>
+    <% if turns.last&.awaits_answer? && !active && thread.open? && !Designs::Threads.importing?(thread) %>
       <div class="flex items-center gap-2 flex-wrap pl-6">
         <%= button_to go_workshop_design_thread_path(thread), class: "clar-btn clar-btn-primary !py-1.5 !px-2.5 !text-[12px] flex-none",
                       form: { class: "contents", data: { turbo_frame: "_top" } } do %>

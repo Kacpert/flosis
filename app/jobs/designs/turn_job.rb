@@ -284,8 +284,14 @@ class Designs::TurnJob < ApplicationJob
   def finish(turn, output, sha, notes, chips = [])
     DesignTurn.transaction do
       post_reply(turn.chat_session, output, notes, chips)
-      turn.succeed!(commit_sha: sha)
+      turn.succeed!(commit_sha: sha, proposed: proposal?(turn, output, sha))
     end
+  end
+
+  # A design turn that may propose (variant b), changed no file and asked: it
+  # waits for the person, as a plan that asked does.
+  def proposal?(turn, output, sha)
+    turn.kind == "design" && turn.may_propose && sha.nil? && output.missing.any?
   end
 
   # Every file that collided must be free of conflict markers before the

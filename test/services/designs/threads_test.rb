@@ -34,6 +34,8 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
     thread.reload
     commit_files(repo, repo.worktree!(thread.branch, from: thread.base_sha), files)
     repo.push!(thread.branch)
+    # The first message plans (2026-11-21), and the plan goes on to design.
+    Designs::Threads.design_as_planned!(thread, user: @user)
     DesignTurn.where(chat_session: thread.chat_session).update_all(status: "succeeded")
     thread
   end
@@ -86,6 +88,69 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
       assert_equal "plan", turn.kind
       assert_equal Designs::Threads::PLAN_REQUEST, turn.chat_message.content
       assert_equal "request", turn.chat_message.kind
+    end
+  end
+
+  # Kacper, 2026-11-21: a thread started by typing starts with a proposal too.
+  # The plan's request is the person's own message, images and all.
+  test "a fresh thread's first message plans before it designs" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = Designs::Threads.start!(project: repo.project, user: @user)
+      image = Rack::Test::UploadedFile.new(file_fixture("inspiration.png"), "image/png")
+
+      turn = Designs::Threads.message!(thread, user: @user, text: "Show AI costs, subtly", images: [ image ])
+
+      assert_equal "plan", turn.kind
+      assert_not turn.may_propose?
+      assert_nil turn.chat_message.kind, "the person's own message stays in the chat"
+      assert_equal "Show AI costs, subtly", turn.chat_message.content
+      assert turn.chat_message.images.attached?
+      assert_enqueued_with(job: Designs::TurnJob, args: [ turn.id ])
+    end
+  end
+
+  # Variant (b): after the start, a message may be answered with a proposal.
+  test "a later message may propose" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Add a counter", { "designs/admin/home.html" => "<title>Home</title>" })
+
+      turn = Designs::Threads.message!(thread, user: @user, text: "Make the costs subtle")
+
+      assert_equal "design", turn.kind
+      assert turn.may_propose?
+    end
+  end
+
+  test "Try again keeps whether the turn may propose" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Add a counter", { "designs/admin/home.html" => "<title>Home</title>" })
+      failed = Designs::Threads.message!(thread, user: @user, text: "Make the costs subtle")
+      failed.update!(status: "failed", started_at: 1.minute.ago, finished_at: Time.current, error: "boom")
+
+      again = Designs::Threads.retry!(thread, user: @user)
+
+      assert_equal [ "design", true ], [ again.kind, again.may_propose ]
+    end
+  end
+
+  # A design turn that changed nothing and asked waits as a plan that asked:
+  # its proposals can be taken with one click.
+  test "Design with these proposals starts the design after a proposal" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Add a counter", { "designs/admin/home.html" => "<title>Home</title>" })
+      proposal = Designs::Threads.message!(thread, user: @user, text: "Make the costs subtle")
+      proposal.update!(status: "succeeded", started_at: 1.minute.ago, finished_at: Time.current, proposed: true)
+      clear_enqueued_jobs
+
+      turn = Designs::Threads.go!(thread, user: @user)
+
+      assert_equal Designs::Threads::GO_WITH_PROPOSALS, turn.chat_message.content
+      assert_not turn.may_propose?
+      assert_enqueued_jobs 1, only: Designs::TurnJob
     end
   end
 
@@ -151,6 +216,22 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
       assert_equal [ [ "+", "Show a counter under long answers" ] ], diff.data["lines"]
       assert_nil Designs::Threads.description_change(thread.reload)
       assert_enqueued_jobs 1, only: Designs::TurnJob
+    end
+  end
+
+  # A description change is how new things most often arrive (SCRUM-70), so
+  # Update designs follows rule (b) as a person's message does.
+  test "Update designs may propose" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "SP-1051", description: "Validate on blur")
+      thread = Designs::Threads.start_from_task!(task, user: @user)
+      task.update!(description: "Validate on blur\nShow the AI cost of each answer")
+
+      turn = Designs::Threads.update_description!(thread, user: @user)
+
+      assert_equal [ "design", true ], [ turn.kind, turn.may_propose ]
     end
   end
 

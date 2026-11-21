@@ -75,7 +75,7 @@ module Designs::Threads
     raise Busy, BUSY if turns.active.exists?
 
     last = turns.order(:id).last
-    raise ArgumentError, NO_PLAN unless last&.plan? && last.succeeded?
+    raise ArgumentError, NO_PLAN unless last&.awaits_answer?
 
     queue_turn(thread, user, GO_WITH_PROPOSALS, visible: false)
   end
@@ -87,7 +87,11 @@ module Designs::Threads
   end
 
   # The person's message, with the screen they have open. A fresh thread's
-  # first message names its branch and becomes its title.
+  # first message names its branch and becomes its title, and is planned
+  # before anything is designed, as a task's thread is (Kacper, 2026-11-21:
+  # the AI first says how it understands the request, the gaps it sees and the
+  # format). A later message may be answered with a proposal instead of a
+  # build (variant b, on test).
   # Images go with the message (Kacper, 2026-11-19), as in a task's chat, and
   # the turn reads them (Designs::TurnJob#ask_claude); none go to the repo.
   def message!(thread, user:, text:, context: nil, screen: nil, images: [])
@@ -97,9 +101,12 @@ module Designs::Threads
     refusal = ChatImages.refusal(images)
     raise ArgumentError, refusal if refusal
 
-    name!(thread, text) if thread.fresh?
+    fresh = thread.fresh?
+    name!(thread, text) if fresh
     thread.update!(focus_context: context, focus_screen: screen) if context.present? && screen.present?
-    queue_turn(thread, user, text, images: images)
+    return queue_turn(thread, user, text, kind: "plan", images: images) if fresh
+
+    queue_turn(thread, user, text, images: images, may_propose: true)
   end
 
   # Try again, under the thread's last turn when it failed: its request runs
@@ -119,7 +126,7 @@ module Designs::Threads
 
     note(thread, "Tried again by #{user&.name || 'someone'}")
     turn = DesignTurn.create!(chat_session: thread.chat_session, chat_message: last.chat_message, kind: last.kind,
-                              then_merge: last.then_merge)
+                              then_merge: last.then_merge, may_propose: last.may_propose)
     thread.touch
     Designs::TurnJob.perform_later(turn.id)
     turn
@@ -164,8 +171,11 @@ module Designs::Threads
     )
     thread.update!(described_text: Designs::CurrentDescription.for(thread.task), described_version: change[:to])
     lines = change[:lines].map { |sign, line| "#{sign} #{line}" }.join("\n")
+    # A changed description is how new things most often arrive (SCRUM-70), so
+    # it may be answered with a proposal, as a person's message may.
     queue_turn(thread, user, "#{key}'s description changed (#{change[:from]} → #{change[:to]}):\n#{lines}\n\n" \
-                             "Update the designs to match the new description, and say what you changed.", visible: false)
+                             "Update the designs to match the new description, and say what you changed.", visible: false,
+                             may_propose: true)
   end
 
   # The merges that landed on master since the thread's base, newest first.
@@ -380,11 +390,12 @@ module Designs::Threads
     note(thread, "Branch #{thread.branch} created from master #{short(base)}")
   end
 
-  def queue_turn(thread, user, text, kind: "design", visible: true, then_merge: nil, images: [])
+  def queue_turn(thread, user, text, kind: "design", visible: true, then_merge: nil, images: [], may_propose: false)
     turn = DesignTurn.transaction do
       message = thread.chat_session.chat_messages.create!(role: "user", user: user, content: text, kind: (visible ? nil : "request"),
                                                           images: images)
-      DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: kind, then_merge: then_merge)
+      DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: kind, then_merge: then_merge,
+                         may_propose: may_propose)
     end
     thread.touch
     Designs::TurnJob.perform_later(turn.id)

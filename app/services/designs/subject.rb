@@ -69,18 +69,22 @@ module Designs::Subject
     # theme and the screen in view whole on its session's first turn, when
     # nothing of the repo is in the conversation yet. A design turn builds
     # screens only; components come in a turn of their own, before merging.
+    # A design turn the person's message started may be answered with a
+    # proposal (variant b), unless it answers a plan or a proposal.
     def turn_message(request, turn: nil, worktree: nil)
       first = turn && turn.chat_session.design_turns.where.not(id: turn.id).where.not(started_at: nil).none?
+      after_plan = after_plan?(turn)
       Designs::Prompt.thread_message(thread: @thread, request: request, repo_map: (repo_map(worktree, first) if worktree),
-                                     screens_only: turn&.kind == "design", after_plan: after_plan?(turn), plan: turn&.plan? || false)
+                                     screens_only: turn&.kind == "design", after_plan: after_plan, plan: turn&.plan? || false,
+                                     may_propose: (turn&.kind == "design" && turn.may_propose && !after_plan) || false)
     end
 
-    # A design turn whose turn before it is a plan that finished: what comes
-    # now answers that plan.
+    # A design turn whose turn before it is a plan, or a proposal, that
+    # finished: what comes now answers it.
     def after_plan?(turn)
       return false unless turn&.kind == "design"
 
-      turn.chat_session.design_turns.where("id < ?", turn.id).order(:id).last&.then { |last| last.plan? && last.succeeded? } || false
+      turn.chat_session.design_turns.where("id < ?", turn.id).order(:id).last&.awaits_answer? || false
     end
 
     # Only a help to Claude: a map that cannot be made is left out, and the

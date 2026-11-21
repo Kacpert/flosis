@@ -36,6 +36,8 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
     thread.reload
     commit_files(repo, repo.worktree!(thread.branch, from: thread.base_sha), { "designs/candidate/apply.html" => "<title>Application form</title><p>1</p>" })
     repo.push!(thread.branch)
+    # The first message plans (2026-11-21), and the plan goes on to design.
+    Designs::Threads.design_as_planned!(thread, user: users(:one))
     DesignTurn.update_all(status: "succeeded")
     thread
   end
