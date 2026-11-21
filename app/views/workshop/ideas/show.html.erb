@@ -1,7 +1,7 @@
 <% content_for :title, "#{@idea.name} · Flosis" %>
 <% content_for :clar_full_bleed, true %>
 
-<div class="flex flex-col h-full" data-controller="clar-modal">
+<div class="flex flex-col h-full" data-controller="clar-modal"<% if @announce %> data-clar-modal-open-value="designs-accepted"<% end %>>
   <%= render "workshop/ideas/workspace_header", idea: @idea, stage: @stage %>
 
   <% if @stage == "ready" %>
@@ -67,6 +67,11 @@
       instead. Only needed on details/ready, where designs are relevant. %>
   <% if %w[details ready].include?(@stage) && @idea.design_request.nil? %>
     <%= render "workshop/ideas/request_designs_modal", idea: @idea, design_request: nil %>
+  <% end %>
+
+  <%# Designs accepted (2026-11-21): once per acceptance, opening on its own. %>
+  <% if @announce %>
+    <%= render "workshop/ideas/designs_accepted_modal", idea: @idea, merge: @announce %>
   <% end %>
 
   <%# Brief history modal (Task 5.1) — details stage only; shares the same

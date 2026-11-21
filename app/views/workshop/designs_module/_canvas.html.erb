@@ -2,7 +2,8 @@
     size its frame's edges were dragged to, scaled to fit, with View as, the
     thread's modes and its changed screens. %>
 <% live = @thread&.open? && !@thread.fresh? %>
-<% params_for = ->(extra = {}) { { thread: @thread&.id, ctx: @context, screen: @screen, mode: (@mode unless @mode == "master" || !live) }.merge(extra).compact } %>
+<% finished = @thread&.merged? %>
+<% params_for = ->(extra = {}) { { thread: @thread&.id, ctx: @context, screen: @screen, mode: (@mode unless @mode == "master" || !(live || finished)) }.merge(extra).compact } %>
 <div class="flex items-center gap-2.5 px-3 py-2 border-b border-[color:var(--border)] bg-[var(--surface)] flex-wrap relative z-[5]">
   <span class="text-[12px] clar-text-faint">View as</span>
   <div class="clar-seg">
@@ -16,9 +17,10 @@
     <% end %>
   </div>
   <div class="flex-1"></div>
-  <% if live %>
+  <% if live || finished %>
+    <%# A finished thread shows its accepted copy (2026-11-21). %>
     <div class="clar-seg">
-      <% [ [ "branch", "This branch" ], [ "master", "Master" ], [ "changes", "Changes" ] ].each do |mode, label| %>
+      <% (live ? [ [ "branch", "This branch" ], [ "master", "Master" ], [ "changes", "Changes" ] ] : [ [ "accepted", "Accepted" ], [ "changes", "Changes" ] ]).each do |mode, label| %>
         <%= link_to label, workshop_designs_overview_path(params_for.call(mode: mode)), class: "clar-seg-item no-underline #{'clar-seg-item-active' if @mode == mode}" %>
       <% end %>
     </div>
@@ -28,13 +30,18 @@
        data-action="designs-canvas#toast" data-designs-canvas-message-param="Opened in new tab · <%= @frame_src.sub(%r{\Ahttps?://}, "") %>"><%= designs_icon(:external, 14) %>Open in new tab</a>
   <% end %>
   <% if live && @ahead.positive? %>
-    <button type="button" class="clar-btn clar-btn-primary" data-action="clar-modal#open" data-clar-modal-id-param="merge-thread"><%= designs_icon(:merge, 14) %>Merge to master</button>
+    <%# A task's thread is accepted into its task (Kacper, 2026-11-21). %>
+    <% if @thread.task %>
+      <button type="button" class="clar-btn clar-btn-primary" data-action="clar-modal#open" data-clar-modal-id-param="merge-thread"><%= designs_icon(:check, 14) %>Accept designs</button>
+    <% else %>
+      <button type="button" class="clar-btn clar-btn-primary" data-action="clar-modal#open" data-clar-modal-id-param="merge-thread"><%= designs_icon(:merge, 14) %>Merge to master</button>
+    <% end %>
   <% elsif @thread.nil? %>
     <span class="text-[12px] clar-text-faint">Read-only · start a thread to change it</span>
   <% end %>
 </div>
 
-<% if live && @mode == "changes" %>
+<% if (live || finished) && @mode == "changes" %>
   <%# The screens the thread changed itself, stepped through with ‹ ›; all of
       them, and those only a changed shared component reached, in a dialog
       (_changes_modal). Kacper, 2026-11-19: a list of every screen pushed the
@@ -81,7 +88,9 @@
         <% if @master_for_branch %>
           <span class="text-[11.5px] clar-text-faint flex-none">Nothing on this branch yet · showing master</span>
         <% end %>
-        <% if @mode == "master" || !live || @master_for_branch %>
+        <% if finished && @slot.to_s.start_with?("accepted/") %>
+          <span class="clar-badge clar-badge-success !py-0.5 !px-2"><%= designs_icon(:check, 11) %>accepted</span>
+        <% elsif @mode == "master" || !live || @master_for_branch %>
           <span class="clar-badge clar-badge-success !py-0.5 !px-2"><%= designs_icon(:lock, 11) %>master</span>
         <% else %>
           <span class="clar-badge clar-badge-ai !py-0.5 !px-2 max-w-[50%] truncate"><%= designs_icon(:branch, 11) %><%= @thread.branch %></span>

@@ -5,12 +5,21 @@
 <% open = thread&.open? && !thread.fresh? %>
 <% described = open && Designs::Threads.description_change(thread) %>
 <% behind = open ? Designs::Threads.behind(thread) : [] %>
+<%# Accepted designs open in a new tab (2026-11-21), through the task's merges. %>
+<% accepted = thread && Designs::AcceptedScreens.new(idea) %>
+<% designs_link = accepted&.any? && Designs::Publisher.new(idea.project, nil).url(Designs::BranchNames.slug(idea), nil) %>
 <div class="inline-flex items-center justify-end gap-2 flex-wrap max-w-full">
   <span class="inline-flex items-center gap-1.5 text-[12px] font-semibold clar-text-muted"><%= designs_icon(:pen, 13) %>Designs</span>
   <% if open %>
-    <span class="inline-flex items-center gap-2 text-[12px] clar-text-muted flex-wrap"><span class="clar-mono text-[11.5px] clar-text-ai bg-[var(--ai-soft)] px-1.5 py-0.5 rounded-[5px]"><%= thread.branch %></span><%= "merges on Done" if idea.external_type == "jira" %></span>
+    <span class="inline-flex items-center gap-2 text-[12px] clar-text-muted flex-wrap"><span class="clar-mono text-[11.5px] clar-text-ai bg-[var(--ai-soft)] px-1.5 py-0.5 rounded-[5px]"><%= thread.branch %></span></span>
+    <% if designs_link %>
+      <a href="<%= designs_link %>" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-[12px] clar-text-success no-underline"><%= designs_icon(:check, 12) %>Accepted · <%= accepted.merges.last.short_sha %></a>
+    <% end %>
   <% elsif thread&.merged? %>
-    <span class="inline-flex items-center gap-1.5 text-[12px] font-semibold clar-text-success"><%= designs_icon(:check, 13) %>Merged into master · <%= thread.merged_sha.to_s.first(7) %></span>
+    <span class="inline-flex items-center gap-1.5 text-[12px] font-semibold clar-text-success"><%= designs_icon(:check, 13) %>Accepted · <%= thread.merged_sha.to_s.first(7) %></span>
+    <% if designs_link %>
+      <a href="<%= designs_link %>" target="_blank" rel="noopener noreferrer" class="clar-btn !text-[12px] !py-1 !px-2.5 no-underline"><%= designs_icon(:external, 12) %>Open designs</a>
+    <% end %>
   <% end %>
   <% if described %>
     <span class="inline-flex items-center gap-1.5 text-[12px] font-semibold clar-text-warn"><span class="w-1.5 h-1.5 rounded-full bg-current"></span>Description changed since the last design update</span>

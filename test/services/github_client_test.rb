@@ -51,4 +51,56 @@ class GithubClientTest < ActiveSupport::TestCase
     assert_not client.health_check[:ok]
   end
 
+  # Finish writes a task's branch through the Git Data API (2026-11-21).
+  test "the default branch and a branch's head, with none for a branch GitHub does not have" do
+    stub_request(:get, "https://api.github.com/repos/acme/widgets").to_return(status: 200, body: { default_branch: "main" }.to_json)
+    stub_request(:get, "https://api.github.com/repos/acme/widgets/git/ref/heads/feat/x-1")
+      .to_return(status: 200, body: { object: { sha: "abc" } }.to_json)
+    stub_request(:get, "https://api.github.com/repos/acme/widgets/git/ref/heads/feat/none").to_return(status: 404, body: { message: "Not Found" }.to_json)
+
+    assert_equal "main", client.default_branch
+    assert_equal "abc", client.branch_sha("feat/x-1")
+    assert_nil client.branch_sha("feat/none")
+  end
+
+  test "a commit's tree, a folder's files, and none for a folder that is not there" do
+    stub_request(:get, "https://api.github.com/repos/acme/widgets/git/commits/abc").to_return(status: 200, body: { tree: { sha: "t1" } }.to_json)
+    stub_request(:get, "https://api.github.com/repos/acme/widgets/contents/tasks/X-1/attachments?ref=feat/x-1")
+      .to_return(status: 200, body: [ { type: "file", path: "tasks/X-1/attachments/a.png", sha: "s1" },
+                                      { type: "dir", path: "tasks/X-1/attachments/d", sha: "s2" } ].to_json)
+    stub_request(:get, "https://api.github.com/repos/acme/widgets/contents/tasks/X-2/attachments?ref=feat/x-2").to_return(status: 404, body: "{}")
+
+    assert_equal "t1", client.commit_tree_sha("abc")
+    assert_equal({ "tasks/X-1/attachments/a.png" => "s1" }, client.folder_files("tasks/X-1/attachments", ref: "feat/x-1"))
+    assert_equal({}, client.folder_files("tasks/X-2/attachments", ref: "feat/x-2"))
+  end
+
+  test "blobs, trees, commits and refs are written, and a ref is moved without force" do
+    blob = stub_request(:post, "https://api.github.com/repos/acme/widgets/git/blobs")
+           .with(body: { content: Base64.strict_encode64("hi"), encoding: "base64" }.to_json).to_return(status: 201, body: { sha: "b1" }.to_json)
+    tree = stub_request(:post, "https://api.github.com/repos/acme/widgets/git/trees")
+           .with(body: hash_including("base_tree" => "t0")).to_return(status: 201, body: { sha: "t1" }.to_json)
+    commit = stub_request(:post, "https://api.github.com/repos/acme/widgets/git/commits")
+             .with(body: hash_including("message" => "X-1: task", "parents" => [ "p0" ])).to_return(status: 201, body: { sha: "c1" }.to_json)
+    create = stub_request(:post, "https://api.github.com/repos/acme/widgets/git/refs")
+             .with(body: { ref: "refs/heads/feat/x-1", sha: "c1" }.to_json).to_return(status: 201, body: "{}")
+    move = stub_request(:patch, "https://api.github.com/repos/acme/widgets/git/refs/heads/feat/x-1")
+           .with(body: { sha: "c2", force: false }.to_json).to_return(status: 200, body: "{}")
+
+    assert_equal "b1", client.create_blob("hi")
+    assert_equal "t1", client.create_tree(base_tree: "t0", entries: [ { path: "a", mode: "100644", type: "blob", sha: "b1" } ])
+    assert_equal "c1", client.create_commit(message: "X-1: task", tree: "t1", parents: [ "p0" ])
+    client.create_ref("feat/x-1", "c1")
+    client.update_ref("feat/x-1", "c2")
+    [ blob, tree, commit, create, move ].each { |stub| assert_requested stub }
+  end
+
+  test "a refusal raises with GitHub's status and reason" do
+    stub_request(:post, "https://api.github.com/repos/acme/widgets/git/refs")
+      .to_return(status: 403, body: { message: "Resource not accessible by personal access token" }.to_json)
+
+    error = assert_raises(GithubClient::Error) { client.create_ref("feat/x-1", "c1") }
+    assert_equal 403, error.status
+    assert_match(/Resource not accessible/, error.message)
+  end
 end

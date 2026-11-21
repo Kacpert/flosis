@@ -99,7 +99,7 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       assert_response :success
       [ thread.branch, "1 commit ahead", "This branch", "Master", "Changes", "Merge to master", "Describe a change…",
         "AI sees Candidate › Application form", "Merge into master?",
-        "After merging, master stays read-only and further changes need a new thread.",
+        "After merging, the thread is finished. Reopen it for further changes.",
         "Create task · start Details Gathering", "Linked to #{thread.branch}.",
         "Scope, from design thread #{thread.branch}:" ].each do |copy|
         assert_includes response.body, CGI.escapeHTML(copy), copy
@@ -477,7 +477,8 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       task.enter_pipeline!(author: users(:one), stage: "briefing")
       thread = thread_with_work(repo, "x", { "designs/candidate/apply.html" => SCREEN.("Application form", "<em>1</em>") }, task: task)
       get workshop_designs_overview_path(thread: thread.id)
-      assert_includes response.body, "After merging, master stays read-only and further changes need a new thread."
+      # A task's thread is accepted into it (2026-11-21).
+      assert_includes response.body, "You will be moved back to #{Designs::ThreadNames.key(task)}"
       assert_no_match(/This thread merges when you merge it|This thread has no task/, response.body)
     end
   end
@@ -777,6 +778,124 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       at = ->(text) { body.index(text) or flunk("#{text} is not in the chat") }
       assert_equal [ "Add a counter", "data-turn-id=\"#{first.id}\"", "And a search box", "Added a counter.", "data-turn-id=\"#{second.id}\"" ],
                    [ "Add a counter", "data-turn-id=\"#{first.id}\"", "And a search box", "Added a counter.", "data-turn-id=\"#{second.id}\"" ].sort_by(&at)
+    end
+  end
+  # Accept designs (Kacper, 2026-11-21, mockups v2).
+  def dialog_text = css_select("[data-clar-modal-panel-id-value=merge-thread]").text.squish
+
+  def task_thread(repo)
+    task = tasks(:jira_task)
+    task.update!(project: @project, external_reference: "SP-1051", in_pipeline: true, workshop_stage: "details")
+    [ task, thread_with_work(repo, task: task) ]
+  end
+
+  test "a task's thread offers Accept designs, with the three steps" do
+    with_designs do |repo|
+      task, thread = task_thread(repo)
+      version = Designs::Threads.next_description_version(task)
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_select "button[data-clar-modal-id-param=merge-thread]", text: /Accept designs/
+      [ "Accept designs?", "1 · Main designs will be updated",
+        "2 · SP-1051's description gets v#{version}: the designs' link, the merge commit, the changed screens, and small fixes where " \
+        "the designs settled something new",
+        "3 · You will be moved back to SP-1051" ].each { |copy| assert_includes dialog_text, copy }
+      assert_not_includes response.body, "Merge to master"
+      assert_not_includes response.body, "Flosis first makes components"
+    end
+  end
+
+  test "a thread without a task keeps Merge to master" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_select "button[data-clar-modal-id-param=merge-thread]", text: /Merge to master/
+      assert_not_includes response.body, "Accept designs"
+    end
+  end
+
+  test "the accept dialog warns when the description changed since the designs were last updated" do
+    with_designs do |repo|
+      task, thread = task_thread(repo)
+      task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "A newer description.").make_current!
+      change = Designs::Threads.description_change(thread)
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_includes dialog_text, "SP-1051's description changed since the designs were last updated " \
+                                   "(#{change[:from]} → #{change[:to]}). Update the designs first to see it in the screens."
+    end
+  end
+
+  test "finished threads list greyed under Finished, after the open ones" do
+    with_designs do |repo|
+      open = thread_with_work(repo, "Add a counter")
+      task, finished = task_thread(repo)
+      merge = Designs::Threads.merge!(finished, user: users(:one))
+      get workshop_designs_overview_path
+
+      assert_includes response.body, "FINISHED · 1"
+      rows = css_select("[data-designs-finished]")
+      assert_equal 1, rows.size
+      assert_includes rows.first.text, "SP-1051"
+      assert_includes rows.first.text, "· #{merge.short_sha}"
+      assert_match(/Accepted/, rows.first.text)
+      assert response.body.index(open.title) < response.body.index("FINISHED · 1")
+      assert task
+    end
+  end
+
+  test "a finished thread shows its accepted copy with Accepted and Changes, Open designs and Reopen" do
+    with_designs do |repo|
+      task, thread = task_thread(repo)
+      merge = Designs::Threads.merge!(thread, user: users(:one))
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_select ".clar-seg-item", text: "Accepted"
+      assert_select ".clar-seg-item", text: "Changes"
+      assert_select "a[target=_blank][href=?]", Designs::Publisher.new(@project, nil).url("SP-1051", nil), text: /Open designs/
+      assert_select "form[action=?]", reopen_workshop_design_thread_path(thread)
+      assert_includes response.body, "✓ Accepted · #{merge.short_sha}"
+      assert_includes response.body, CGI.escapeHTML("Accepted into master as #{merge.short_sha}. Reopen to change the designs again. " \
+                                                    "Until you accept again, the link and SP-1051 show this version.")
+      frame = css_select("iframe[data-designs-canvas-target=frame]").sole
+      assert_includes frame["src"], "accepted~#{thread.id}"
+      assert task
+    end
+  end
+
+  test "once the description is written, the person who accepted is sent to the task" do
+    with_designs do |repo|
+      task, thread = task_thread(repo)
+      merge = Designs::Threads.merge!(thread, user: users(:one))
+      describe = DesignTurn.where(chat_session: thread.chat_session, kind: "describe").sole
+      describe.update!(status: "succeeded")
+      merge.update!(description_version: 2)
+      hook = "[data-controller=designs-go][data-designs-go-url-value=?]"
+
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_select hook, workshop_idea_path(task, stage: "details")
+
+      describe.chat_message.update!(user: users(:two))
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_select hook, workshop_idea_path(task, stage: "details"), count: 0
+
+      describe.chat_message.update!(user: users(:one))
+      merge.update!(announced_at: Time.current)
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_select hook, workshop_idea_path(task, stage: "details"), count: 0
+    end
+  end
+  # Review I1: a finished thread whose description turn failed offers Try
+  # again, which the describe job runs.
+  test "a finished thread whose describe turn failed offers Try again" do
+    with_designs do |repo|
+      _, thread = task_thread(repo)
+      Designs::Threads.merge!(thread, user: users(:one))
+      DesignTurn.where(chat_session: thread.chat_session, kind: "describe").update_all(status: "failed", error: DesignTurn::INTERRUPTED)
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_select "form[action=?] button", retry_workshop_design_thread_path(thread), text: /Try again/
     end
   end
 end

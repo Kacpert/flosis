@@ -225,7 +225,39 @@ module Designs::Prompt
   COPIES = "To start a new page, copy the closest existing screen with the copy_file tool and edit the copy; never " \
            "write a near-copy of a screen out from scratch.".freeze
 
+  # Accept designs (Kacper, 2026-11-21): the task's next description version
+  # from its accepted designs, with small changes so the task keeps its shape
+  # ("małe zmiany żeby struktura taska pozostała taka jaka jest"); the
+  # developer sees what changed in the designs anyway. Flosis, not the AI,
+  # writes the Designs section with its links (Designs::DesignsSection).
+  DESCRIBE = <<~TEXT.freeze
+    The designs for this task were just accepted. Write the task's description again with the smallest changes that make it say what the design conversation settled.
+    - Keep its structure, its order and its wording. Change a sentence only where the conversation changed or settled it: a value, an example, a rule, where something shows, its copy.
+    - Where the designs added something the description does not say, add one short line in the section it belongs to.
+    - An open question the conversation answered is settled: put the answer where it belongs and take the question out.
+    - Never mention the designs, the conversation or these changes in the text, and add no section about the designs: Flosis adds it.
+    - Write in the description's own language, in Markdown (turn HTML into Markdown).
+    Answer with the whole description between <description> and </description>. Then, between <changes> and </changes>, write up to three lines starting with "- ", each at most 12 words, saying what changed in the text. If nothing needed changing, give the description as it is and leave <changes></changes> empty.
+  TEXT
+
   module_function
+
+  # What a describe turn asks (Designs::DescribeJob): the task, its description
+  # without the Designs section, the design conversation, the screens the
+  # accepted designs changed, a note when the description moved on after the
+  # designs last followed it, and DESCRIBE, last.
+  def describe_message(task:, description:, conversation:, screens:, ahead:)
+    parts = [ "# The task\n\n#{Designs::ThreadNames.key(task)} · #{task.name}",
+              "# Its description now\n\n#{description.to_s.strip.presence || '(empty)'}",
+              "# The design conversation, in order\n\n#{conversation.to_s.strip.presence || '(nothing was said)'}",
+              "# The screens the accepted designs changed\n\n#{screens.to_s.strip.presence || '(none recorded)'}" ]
+    if ahead
+      parts << "# Note\n\nThe description changed after the designs were last updated (#{ahead[:from]} → #{ahead[:to]}). " \
+               "Where its newer text differs from the conversation, keep the newer text."
+    end
+    parts << "# What to do\n\n#{DESCRIBE}"
+    parts.join("\n\n")
+  end
 
   # BASE, then the project: its name and the context the team wrote for it.
   # The library's composition for the project (Designs::Library), then the

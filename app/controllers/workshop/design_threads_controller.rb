@@ -47,6 +47,12 @@ class Workshop::DesignThreadsController < Workshop::BaseController
   # (Designs::Threads.merge_or_prepare!): that turn merges when it is done.
   def merge
     result = Designs::Threads.merge_or_prepare!(@thread, user: current_user)
+    # Accept designs (2026-11-21): a task's thread shows the acceptance, and
+    # sends whoever accepted to the task once its description is written.
+    if @thread.task
+      flash[:clar_toast] = accepting(result)
+      return redirect_to(workshop_designs_overview_path(thread: @thread.id))
+    end
     if result.is_a?(DesignTurn)
       flash[:clar_toast] = result.check? ? "Checking on screen first · it merges when that's done" : "Making components first · it merges when they're done"
       return redirect_to(workshop_designs_overview_path(thread: @thread.id))
@@ -63,6 +69,19 @@ class Workshop::DesignThreadsController < Workshop::BaseController
   rescue GitRunner::Error => e
     redirect_to workshop_designs_overview_path(thread: @thread.id),
                 alert: "The merge did not reach GitHub, so master stays as it was: #{e.message.to_s.lines.first.to_s.strip.truncate(200)}"
+  end
+
+  # Reopen on a finished thread (2026-11-21): a new branch from master, the
+  # same conversation.
+  def reopen
+    Designs::Threads.reopen!(@thread, user: current_user)
+    flash[:clar_toast] = "Reopened · new branch from master"
+    redirect_to workshop_designs_overview_path(thread: @thread.id)
+  rescue Designs::Threads::Busy, ArgumentError => e
+    redirect_to workshop_designs_overview_path(thread: @thread.id), alert: e.message
+  rescue GitRunner::Error => e
+    redirect_to workshop_designs_overview_path(thread: @thread.id),
+                alert: "The branch could not be moved on GitHub, so the thread stays finished: #{e.message.to_s.lines.first.to_s.strip.truncate(200)}"
   end
 
   # Delete on a thread's row: the thread waits under Deleted, its branch in
@@ -136,6 +155,12 @@ class Workshop::DesignThreadsController < Workshop::BaseController
   end
 
   private
+
+  def accepting(result)
+    return "Accepting · writing #{Designs::ThreadNames.key(@thread.task)}'s description" unless result.is_a?(DesignTurn)
+
+    result.check? ? "Accepting · the on-screen check finishes first" : "Accepting · components first, then the description"
+  end
 
   # A deleted thread only comes back; nothing else reaches it.
   def set_thread

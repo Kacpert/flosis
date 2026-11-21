@@ -15,6 +15,7 @@
       <% doing = if turn.kind == "components" then "Making components#{' before merging' if turn.then_merge.present?}"
                  elsif turn.plan? then "Planning"
                  elsif turn.check? then "Checking on screen"
+                 elsif turn.describe? then "Writing #{thread.task ? Designs::ThreadNames.key(thread.task) : 'the task'}'s description"
                  else "Working"
                  end %>
       <div class="flex items-center gap-1.5 text-[12px] font-bold clar-text-text">

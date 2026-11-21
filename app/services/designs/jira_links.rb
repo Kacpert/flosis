@@ -66,9 +66,15 @@ class Designs::JiraLinks
     { ok: true, error: nil }
   end
 
-  # The thread's link and one per screen it changed, from its branch as this
-  # clone has it after a fetch, else as origin has it; nil without a thread.
+  # The task's link and one per screen its designs changed: once accepted
+  # (2026-11-21), the accepted copy's screens, whatever became of the thread;
+  # before, its thread's branch as this clone has it after a fetch, else as
+  # origin has it. nil without either. The task's link has no page, so it
+  # opens the list of what changed.
   def build_links
+    accepted = Designs::AcceptedScreens.new(@task)
+    return accepted_links(accepted) if accepted.any?
+
     thread = @task.design_thread
     return if thread.nil? || thread.fresh?
 
@@ -84,13 +90,24 @@ class Designs::JiraLinks
     at = ->(at_ref) { Designs::Screens.new(paths: repo.ls_files(at_ref, "designs/"), reader: ->(path) { repo.read_file(at_ref, path) }) }
     head = at.call(ref)
     publisher = Designs::Publisher.new(@project, nil)
-    overview = Link.new(global_id: "#{prefix}index", url: publisher.url(slug), title: "Designs · #{thread.branch}")
+    overview = Link.new(global_id: "#{prefix}index", url: publisher.url(slug, nil), title: "Designs · #{thread.branch}")
     # Only the screens the thread changed itself: a shared component it changed
     # reaches every screen using it, and those would bury the ticket in links.
     screens = Designs::Changes.new(base: at.call(thread.base_sha.presence || Designs::Repo::MASTER), head: head).own.map do |change|
       screen = head.find(change[:context], change[:screen])
       Link.new(global_id: "#{prefix}#{screen[:path]}", url: publisher.url(slug, screen[:path]),
                title: "Design · #{change[:context].humanize} › #{screen[:name]}")
+    end
+    [ overview, *screens ]
+  end
+
+  def accepted_links(accepted)
+    publisher = Designs::Publisher.new(@project, nil)
+    branch = @task.design_thread&.branch || accepted.merges.last.branch
+    overview = Link.new(global_id: "#{prefix}index", url: publisher.url(slug, nil), title: "Designs · #{branch}")
+    screens = accepted.own.map do |screen|
+      path = "designs/#{screen[:context]}/#{screen[:screen]}.html"
+      Link.new(global_id: "#{prefix}#{path}", url: publisher.url(slug, path), title: "Design · #{screen[:context_name]} › #{screen[:name]}")
     end
     [ overview, *screens ]
   end

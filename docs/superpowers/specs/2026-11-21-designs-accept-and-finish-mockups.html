@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Accept designs · makiety v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../../app/assets/builds/tailwind.css">
+<style>
+  html, body { margin: 0; }
+  .sb { max-width: 1240px; margin: 0 auto; padding: 26px 24px 90px; }
+  .sb-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .sb-title { font-size: 22px; font-weight: 700; letter-spacing: -.3px; margin: 0; flex: 1; }
+  .sb-sub { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; line-height: 1.55; }
+  .sb-step { margin-top: 40px; }
+  .sb-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+  .sb-num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--primary); color: #fff;
+            display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; margin-top: 1px; }
+  .sb-cap { font-size: 14px; line-height: 1.6; margin: 0; max-width: 940px; color: var(--text); }
+  .sb-cap b { font-weight: 700; }
+  .sb-cap code { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+  .sb-frame { position: relative; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--bg);
+              box-shadow: var(--shadow-lg); }
+  .sb-overlay { position: absolute; inset: 0; background: rgba(10,12,16,.5); display: flex; align-items: center;
+                justify-content: center; padding: 24px; z-index: 20; }
+  .sb-overlay .clar-modal { box-shadow: var(--shadow-lg); }
+  .sb-mark { background: color-mix(in srgb, var(--ai) 18%, transparent); border-radius: 4px; padding: 0 2px;
+             box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  .sb-tag { display: inline-block; font-size: 9.5px; font-weight: 700; letter-spacing: .4px; color: var(--ai);
+            border: 1px solid var(--ai); border-radius: 4px; padding: 0 4px; margin-left: 4px; vertical-align: 1px; }
+  .sb-screen { background: repeating-linear-gradient(135deg, var(--surface-2) 0 14px, var(--surface) 14px 28px); }
+  .sb-link { color: var(--primary-2); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+  .sb-desc p { margin: 0 0 9px; font-size: 13px; line-height: 1.6; }
+  .sb-desc h2 { font-size: 15px; margin: 0 0 8px; font-weight: 700; }
+  .sb-pill { font-size: 10.5px; font-weight: 700; letter-spacing: .3px; }
+  .sb-finished { opacity: .55; }
+  .sb-finished:hover { opacity: .8; }
+  .sb-md { font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.65; white-space: pre-wrap; margin: 0;
+           padding: 18px 20px; color: var(--text); background: var(--surface); }
+  .sb-md .c { color: var(--faint); }
+  .sb-md .h { color: var(--primary-2); font-weight: 600; }
+  .sb-md .l { color: var(--ai); }
+  .sb-theme { font-size: 12px; }
+  .sb-step-dot { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex: none; }
+  @keyframes sb-spin { to { transform: rotate(360deg); } }
+  .sb-spin { animation: sb-spin 1s linear infinite; }
+</style>
+</head>
+<body>
+<div class="clar-app" data-clar-theme="dark" id="app" style="min-height: 100vh;">
+<div class="sb">
+
+  <div class="sb-top">
+    <h1 class="sb-title clar-text-text">Accept designs → Finish · makiety na danych SCRUM-70 · v2</h1>
+    <button type="button" class="clar-btn sb-theme" onclick="var a=document.getElementById('app');a.dataset.clarTheme=a.dataset.clarTheme==='dark'?'light':'dark'">Jasny / ciemny</button>
+  </div>
+  <p class="sb-sub">Prawdziwy wątek 4: 21 ekranów zmienionych w wątku (11 nowych, 10 zmienionych) i jego ustalenia. Commit <span class="clar-mono">9f3c2a1</span> jest przykładowy. Fioletowe zaznaczenia w opisie pokazują Ci, co AI poprawiło; w aplikacji ich nie będzie.</p>
+
+  <!-- ============ 1. Accept designs in the thread ============ -->
+  <div class="sb-step">
+    <div class="sb-head"><span class="sb-num">1</span>
+      <p class="sb-cap">W wątku taska <b>„Merge to master” zmienia się w „Accept designs”</b>. Okno potwierdzenia mówi, co stanie się po kliknięciu. Wątek bez taska zostaje przy Merge, bo nie ma opisu do zmiany.</p>
+    </div>
+    <div class="sb-frame" style="height: 600px;">
+      <div class="h-full grid" style="grid-template-columns: 330px minmax(0,1fr);">
+        <!-- left: thread panel -->
+        <div class="flex flex-col min-h-0 border-r border-[color:var(--border)] bg-[var(--surface)]">
+          <div class="px-3.5 py-3 border-b border-[color:var(--border)]">
+            <div class="flex items-center justify-between gap-2.5 mb-2">
+              <span class="inline-flex items-center gap-2 text-[12.5px] font-semibold clar-text-muted"><span class="w-6 h-6 rounded-[7px] border border-[color:var(--border)] bg-[var(--surface)] flex items-center justify-center clar-text-text"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></span>Threads</span>
+              <span class="clar-btn !py-1 !px-2 !text-[12px]"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg><span class="clar-mono text-[11px] clar-text-primary">SCRUM-70</span></span>
+            </div>
+            <div class="text-[15px] font-bold tracking-[-.2px] clar-text-text leading-[1.35]">SCRUM-70 Add token calculations</div>
+            <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
+              <span class="inline-flex items-center gap-1 clar-mono text-[11px] clar-text-ai bg-[var(--ai-soft)] px-1.5 py-0.5 rounded-md">design/SCRUM-70-scrum-70-add-token</span>
+              <span class="text-[11.5px] clar-text-faint">8 commits ahead</span>
+            </div>
+          </div>
+          <div class="flex-1 overflow-hidden px-3.5 py-3 flex flex-col gap-3">
+            <div class="self-end max-w-[85%] text-[12.5px] leading-[1.5] px-3 py-2 rounded-xl bg-[var(--primary-soft)] clar-text-text">We don't need to show this margin 30% here users, will see that on the plan page…</div>
+            <div class="text-[12.5px] leading-[1.55] clar-text-text"><b>Drop the margin from the organization's Consumption screens.</b> No “margin 30%” under the plan name, and no sentence explaining that price is cost plus a margin…</div>
+            <div class="text-[12px] clar-text-muted leading-[1.5]">Checked on screen: Consumption at 1160 and 1024 px, nothing broke.</div>
+          </div>
+          <div class="p-3 border-t border-[color:var(--border)]">
+            <div class="border border-[color:var(--border)] rounded-xl bg-[var(--bg)] px-3 py-2 text-[13px] clar-text-faint">Describe a change…</div>
+          </div>
+        </div>
+        <!-- right: canvas -->
+        <div class="flex flex-col min-h-0 min-w-0">
+          <div class="flex items-center gap-2.5 px-3 py-2 border-b border-[color:var(--border)] bg-[var(--surface)] flex-wrap">
+            <span class="text-[12px] clar-text-faint">View as</span>
+            <div class="clar-seg"><span class="clar-seg-item clar-seg-item-active">Admin</span><span class="clar-seg-item">Flosis admin</span></div>
+            <div class="flex-1"></div>
+            <div class="clar-seg"><span class="clar-seg-item clar-seg-item-active">This branch</span><span class="clar-seg-item">Master</span><span class="clar-seg-item">Changes</span></div>
+            <span class="clar-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>Open in new tab</span>
+            <span class="clar-btn clar-btn-primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Accept designs</span>
+          </div>
+          <div class="flex-1 sb-screen flex items-center justify-center"><span class="clar-text-faint text-[13px]">Consumption — this month</span></div>
+        </div>
+      </div>
+      <!-- modal -->
+      <div class="sb-overlay">
+        <div class="clar-modal p-5.5 max-w-[540px]" style="padding: 22px;">
+          <div class="flex items-center justify-between gap-3 mb-1"><h2 class="m-0 text-[18px] font-bold clar-text-text">Accept designs?</h2><span class="clar-text-faint flex p-1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></span></div>
+          <div class="flex items-center gap-2 flex-wrap mt-1.5 mb-4"><span class="clar-mono text-[11.5px] clar-text-ai bg-[var(--ai-soft)] px-2 py-0.5 rounded-md">design/SCRUM-70-scrum-70-add-token</span><span class="clar-text-faint">→</span><span class="clar-mono text-[11.5px] clar-text-success bg-[var(--success-soft)] px-2 py-0.5 rounded-md">master</span></div>
+          <label class="clar-field-label">CHANGED SCREENS · 21</label>
+          <div class="border border-[color:var(--border)] rounded-[11px] overflow-hidden mb-3.5">
+            <div class="flex items-center justify-between gap-3 px-3 py-2"><span class="text-[13px] font-semibold clar-text-text">Admin › Consumption — this month</span><span class="text-[11px] font-bold clar-text-success">NEW</span></div>
+            <div class="flex items-center justify-between gap-3 px-3 py-2 border-t border-[color:var(--border)]"><span class="text-[13px] font-semibold clar-text-text">Admin › Configuration — AI</span><span class="text-[11px] font-bold clar-text-muted">UPDATED</span></div>
+            <div class="flex items-center justify-between gap-3 px-3 py-2 border-t border-[color:var(--border)]"><span class="text-[13px] font-semibold clar-text-text">Flosis admin › Plans</span><span class="text-[11px] font-bold clar-text-success">NEW</span></div>
+            <div class="px-3 py-2 border-t border-[color:var(--border)] text-[12px] clar-text-muted">and 18 more · +176 through the sidebar and 8 other components</div>
+          </div>
+          <div class="rounded-[10px] bg-[var(--surface-2)] px-3.5 py-3 mb-5 text-[12.5px] leading-[1.6] clar-text-text">
+            <div class="text-[10.5px] font-bold tracking-[.4px] clar-text-faint mb-1.5">THEN</div>
+            <div>1 · Main designs will be updated</div>
+            <div>2 · SCRUM-70's description gets <b>v5</b>: the designs' link, the merge commit, the changed screens, and small fixes where the designs settled something new</div>
+            <div>3 · You will be moved back to SCRUM-70</div>
+          </div>
+          <div class="flex gap-2 justify-end">
+            <span class="clar-btn">Cancel</span>
+            <span class="clar-btn clar-btn-primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Accept designs</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 2. While accepting ============ -->
+  <div class="sb-step">
+    <div class="sb-head"><span class="sb-num">2</span>
+      <p class="sb-cap"><b>W trakcie akceptacji</b> postęp widać w czacie wątku. Gdy wszystko jest gotowe, strona sama przenosi do SCRUM-70. Jeśli wyjdziesz wcześniej, modal z kroku 3 pokaże się przy następnym wejściu w task.</p>
+    </div>
+    <div class="sb-frame" style="height: 330px; max-width: 420px;">
+      <div class="h-full flex flex-col bg-[var(--surface)]">
+        <div class="px-3.5 py-3 border-b border-[color:var(--border)]">
+          <div class="text-[15px] font-bold clar-text-text">SCRUM-70 Add token calculations</div>
+          <div class="flex items-center gap-1.5 mt-1.5"><span class="clar-mono text-[11px] clar-text-ai bg-[var(--ai-soft)] px-1.5 py-0.5 rounded-md">design/SCRUM-70-scrum-70-add-token</span><span class="clar-badge clar-badge-primary !py-0.5 !px-2">Accepting</span></div>
+        </div>
+        <div class="flex-1 px-3.5 py-3.5 flex flex-col gap-2.5">
+          <div class="text-[12px] clar-text-faint">Accepting the designs · Kacper Tarchała</div>
+          <div class="flex items-center gap-2.5 text-[13px] clar-text-text"><span class="sb-step-dot" style="background: var(--success-soft); color: var(--success);"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>Components made from the thread's screens <span class="clar-text-faint text-[12px]">· 3 min</span></div>
+          <div class="flex items-center gap-2.5 text-[13px] clar-text-text"><span class="sb-step-dot" style="background: var(--success-soft); color: var(--success);"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>Merged into master as <span class="clar-mono text-[12px]">9f3c2a1</span></div>
+          <div class="flex items-center gap-2.5 text-[13px] clar-text-text"><span class="sb-step-dot" style="color: var(--ai);"><svg class="sb-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg></span>Writing SCRUM-70's description v5…</div>
+          <div class="flex items-center gap-2.5 text-[13px] clar-text-faint"><span class="sb-step-dot" style="border: 1.5px solid var(--border);"></span>Back to SCRUM-70</div>
+        </div>
+        <div class="p-3 border-t border-[color:var(--border)] text-[12.5px] clar-text-muted leading-[1.5]">You'll be taken back to SCRUM-70 when it's done. You can leave this page.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3. Back on the task, with the modal ============ -->
+  <div class="sb-step">
+    <div class="sb-head"><span class="sb-num">3</span>
+      <p class="sb-cap"><b>Powrót na czat taska z modalem.</b> Modal mówi, co AI zmieniło w opisie (małe poprawki, struktura bez zmian), gdzie jest link i co jeszcze zostało. „Later” zamyka okno, a Finish zostaje w panelu opisu (krok 4).</p>
+    </div>
+    <div class="sb-frame" style="height: 640px;">
+      <div class="h-full flex flex-col">
+        <!-- task header -->
+        <div class="px-7 py-3 border-b clar-divider bg-[var(--surface)]">
+          <div class="flex items-center gap-3 flex-wrap mb-2">
+            <span class="inline-flex items-center gap-1.5 clar-text-muted text-[12.5px]"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>All tasks</span>
+            <div class="flex-1"></div>
+            <div class="inline-flex items-center justify-end gap-2 flex-wrap">
+              <span class="inline-flex items-center gap-1.5 text-[12px] font-semibold clar-text-muted"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>Designs</span>
+              <span class="inline-flex items-center gap-1.5 text-[12px] font-semibold clar-text-success"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Accepted · 9f3c2a1</span>
+              <span class="clar-btn !text-[12px] !py-1 !px-2.5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>Open designs</span>
+              <span class="clar-btn !text-[12px] !py-1 !px-2.5">Open in Designs</span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between gap-5">
+            <div class="flex items-center gap-2.5 min-w-0"><span class="clar-key flex-none">SCRUM-70</span><h1 class="clar-h1 text-[19px] truncate m-0">SCRUM-70 Add token calculations</h1></div>
+            <div class="flex items-center gap-3 text-[12px] font-semibold">
+              <span class="flex items-center gap-1.5 clar-text-success"><span class="w-[21px] h-[21px] rounded-full flex items-center justify-center text-[11px] font-bold bg-[var(--success)] text-white">✓</span>Briefing</span>
+              <span class="flex items-center gap-1.5 clar-text-primary"><span class="w-[21px] h-[21px] rounded-full flex items-center justify-center text-[11px] font-bold bg-[var(--primary)] text-white">2</span>Details</span>
+              <span class="flex items-center gap-1.5 clar-text-faint"><span class="w-[21px] h-[21px] rounded-full flex items-center justify-center text-[11px] font-bold bg-[var(--surface-2)] border clar-divider">3</span>Ready</span>
+            </div>
+          </div>
+        </div>
+        <!-- chat + document -->
+        <div class="flex-1 grid min-h-0" style="grid-template-columns: minmax(0,1fr) 400px;">
+          <div class="border-r clar-divider flex flex-col">
+            <div class="px-4 py-3 flex items-center gap-2 border-b clar-divider"><span class="clar-badge clar-badge-ai">Details Gathering · senior partner</span></div>
+            <div class="flex-1 px-5 py-4 text-[13px] leading-[1.6] clar-text-muted">…</div>
+          </div>
+          <div class="bg-[var(--surface)] px-[22px] py-4">
+            <div class="text-[13px] font-bold clar-text-text mb-3">Description</div>
+            <div class="h-3 rounded bg-[var(--surface-2)] mb-2.5 w-[80%]"></div>
+            <div class="h-3 rounded bg-[var(--surface-2)] mb-2.5 w-[95%]"></div>
+            <div class="h-3 rounded bg-[var(--surface-2)] mb-2.5 w-[70%]"></div>
+          </div>
+        </div>
+      </div>
+      <!-- modal -->
+      <div class="sb-overlay">
+        <div class="clar-modal max-w-[520px]" style="padding: 22px;">
+          <div class="flex items-center justify-between gap-3 mb-4">
+            <div class="flex items-center gap-2.5"><span class="w-8 h-8 rounded-full flex items-center justify-center" style="background: var(--success-soft); color: var(--success);"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><h2 class="m-0 text-[18px] font-bold clar-text-text">Designs accepted</h2></div>
+            <span class="clar-text-faint flex p-1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+          </div>
+          <div class="flex flex-col gap-3.5 mb-4">
+            <div>
+              <div class="text-[13.5px] font-semibold clar-text-text">Description updated · v5</div>
+              <div class="text-[12.5px] clar-text-muted leading-[1.55] mt-0.5">Added Designs: the link, the merge commit and the 21 changed screens. Changed to match the designs:</div>
+              <ul class="m-0 mt-1 pl-4 text-[12.5px] clar-text-text leading-[1.6]" style="list-style: disc;">
+                <li>Costs in €, with the month in brackets only when it differs, or “(none this month)”.</li>
+                <li>Consumption is a tab in Configuration.</li>
+                <li>The organization sees prices, never the margin.</li>
+              </ul>
+            </div>
+            <div>
+              <div class="text-[13.5px] font-semibold clar-text-text">Designs linked</div>
+              <div class="text-[12.5px] leading-[1.55] mt-0.5"><span class="sb-link clar-mono text-[11.5px]">app.flosis.com/flosis/flosis/SCRUM-70/design</span> <span class="clar-text-muted">· the accepted version, in a new tab</span></div>
+            </div>
+          </div>
+          <div class="rounded-[10px] px-3.5 py-3 mb-5 bg-[var(--primary-soft)]">
+            <div class="text-[13px] font-semibold clar-text-text">What's left</div>
+            <div class="text-[12.5px] clar-text-muted leading-[1.55] mt-0.5">A branch with the task for the developer to take over, and the Jira ticket updated with the new description.</div>
+            <div class="clar-mono text-[11.5px] clar-text-text mt-1.5">feat/scrum-70-add-token-calculations · tasks/SCRUM-70/scrum-70.md</div>
+          </div>
+          <div class="flex gap-2 justify-end">
+            <span class="clar-btn">Later</span>
+            <span class="clar-btn clar-btn-primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>Finish · Update Jira &amp; Create branch</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-4 mt-4">
+      <div class="clar-card px-4 py-3.5" style="max-width: 520px;">
+        <div class="text-[11px] font-bold tracking-[.4px] clar-text-faint mb-2">WARIANT · TASK BEZ TICKETU W JIRZE</div>
+        <div class="rounded-[10px] px-3.5 py-3 mb-3 bg-[var(--primary-soft)]">
+          <div class="text-[13px] font-semibold clar-text-text">What's left</div>
+          <div class="text-[12.5px] clar-text-muted leading-[1.55] mt-0.5">A branch with the task for the developer to take over, and a Jira ticket created with the new description.</div>
+          <div class="clar-mono text-[11.5px] clar-text-text mt-1.5">feat/&lt;key&gt;-add-token-calculations · tasks/&lt;KEY&gt;/&lt;key&gt;.md</div>
+        </div>
+        <div class="flex gap-2 justify-end"><span class="clar-btn">Later</span><span class="clar-btn clar-btn-primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>Finish · Create Jira ticket &amp; branch</span></div>
+      </div>
+      <div class="clar-card px-4 py-3.5 text-[12.5px] leading-[1.7] clar-text-text" style="max-width: 520px;">
+        <div class="text-[11px] font-bold tracking-[.4px] clar-text-faint mb-2">PRZYCISK FINISH W ZALEŻNOŚCI OD PROJEKTU</div>
+        <div>Ticket w Jirze + GitHub → <b>Finish · Update Jira &amp; Create branch</b></div>
+        <div>Bez ticketu + GitHub → <b>Finish · Create Jira ticket &amp; branch</b></div>
+        <div>Branch już jest (po Reopen) → <b>Finish · Update Jira &amp; branch</b></div>
+        <div>Projekt bez GitHuba → <b>Finish · Update Jira</b> / <b>Finish · Create Jira ticket</b></div>
+        <div>Bez Jiry i GitHuba → <b>Finish · go to Ready</b> (jak dziś)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 4. The description, v5 ============ -->
+  <div class="sb-step">
+    <div class="sb-head"><span class="sb-num">4</span>
+      <p class="sb-cap"><b>Opis v5</b> ma w historii wersji etykietę „Designs accepted”. <b>Sekcja Designs stoi na górze, pod wstępem</b>: link do designów, merge commit oraz ekrany nowe i zmienione, a każda nazwa to link do ekranu. Reszta to tylko małe poprawki (zaznaczone). <b>Finish</b> zastępuje „Finish · go to Ready”. Gdy projekt nie ma GitHuba, przycisk mówi tylko „Finish · Update Jira”.</p>
+    </div>
+    <div class="sb-frame" style="max-width: 620px;">
+      <div class="flex flex-col bg-[var(--surface)]">
+        <div class="px-[22px] py-3 flex items-center justify-between border-b clar-divider">
+          <span class="text-[13px] font-bold clar-text-text">Description</span>
+          <div class="flex items-center gap-2">
+            <div class="flex gap-[5px]"><span class="clar-chip">v0</span><span class="clar-chip">v1</span><span class="clar-chip">v2</span><span class="clar-chip">v3</span><span class="clar-chip">v4</span><span class="clar-chip clar-chip-active"><span class="clar-dot bg-[var(--success)]"></span>v5</span></div>
+            <span class="clar-btn !py-[5px] !px-[10px] !text-[12px]">Edit</span>
+          </div>
+        </div>
+        <div class="px-[22px] py-5 sb-desc clar-text-text">
+          <div class="flex items-center gap-2 mb-4 flex-wrap">
+            <span class="text-[11px] clar-text-faint">v5 · just now</span>
+            <span class="clar-badge clar-badge-muted">DESIGNS ACCEPTED</span>
+            <span class="clar-badge clar-badge-success">✓ CURRENT</span>
+          </div>
+          <h2>AI usage and cost per organization</h2>
+          <p>Flosis runs Claude in many places (task conversations, PR reviews, estimates, agents, Designs, bug analysis), but nothing about those runs is saved, so we can't say what an organization, a project or a single run cost. We're moving to billing by token usage… Invoicing and payments are the next ticket.</p>
+
+          <div class="sb-mark" style="display:block; padding: 10px 12px; border-radius: 10px; margin: 12px 0 14px;">
+            <p style="margin-bottom: 6px;"><b>Designs</b> · <span class="sb-link">Open the designs</span> · merge commit <span class="sb-link clar-mono text-[12px]">9f3c2a1</span><span class="sb-tag">NEW</span></p>
+            <p style="margin-bottom: 4px;">- New (11): Admin › <span class="sb-link">Configuration — AI costs hidden for everyone</span>, <span class="sb-link">Consumption — this month</span>, <span class="sb-link">all time</span>, <span class="sb-link">no plan</span>, <span class="sb-link">over the limit</span>, <span class="sb-link">Profile Settings — costs off for everyone</span> · Flosis admin › <span class="sb-link">Models &amp; prices</span>, <span class="sb-link">Organizations</span>, <span class="sb-link">Flosis Sp. z o.o. — cost and price</span>, <span class="sb-link">Plans</span>, <span class="sb-link">New plan</span></p>
+            <p style="margin-bottom: 4px;">- Updated (10): Admin › <span class="sb-link">Bug Reporting</span>, <span class="sb-link">Configuration — AI</span>, <span class="sb-link">Create Tasks</span>, <span class="sb-link">AI PR Reviews</span>, <span class="sb-link">AI Agents &amp; Alerts</span>, <span class="sb-link">AI Estimate</span>, <span class="sb-link">Profile Settings</span> (+3 states)</p>
+            <p style="margin-bottom: 0;">- Through shared components: sidebar, chat panel, pipeline header, process header and 5 more</p>
+          </div>
+
+          <p><b>Two amounts</b></p>
+          <p>- Cost: what the provider reports the run cost (not calculated from the price list). Visible to Flosis admin only.</p>
+          <p>- Price: cost + the plan's margin (e.g. cost <span class="sb-mark">€10</span>, margin 30% → price <span class="sb-mark">€13</span>). This is what the organization sees and what counts toward its limit. <span class="sb-mark">The organization never sees the margin.</span><span class="sb-tag">CHANGED</span></p>
+          <p><b>Cost of a single item</b></p>
+          <p>Shown on the item itself: <span class="sb-mark">the total so far, e.g. “€12”. The month goes in brackets only when it differs: “€12 (€3.23 this month)”, or “€12 (none this month)”.</span><span class="sb-tag">CHANGED</span></p>
+          <p><b>Display</b></p>
+          <p>- Light and minimal: small, muted text that doesn't compete with the content<span class="sb-mark">, on a row that's already there, never a line of its own</span>.<span class="sb-tag">CHANGED</span></p>
+          <p><b><span class="sb-mark">Configuration</span> → Consumption (organization admins only)</b><span class="sb-tag">CHANGED</span></p>
+          <p class="clar-text-faint">… Rules, Out of scope, Acceptance criteria and Open questions as they were, with the € and bracket rule in the matching criterion …</p>
+        </div>
+        <div class="px-[22px] pt-3.5 pb-[18px] border-t clar-divider flex flex-col gap-2.5">
+          <span class="clar-btn clar-btn-ai clar-btn-block justify-center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>Update Jira Ticket</span>
+          <span class="clar-btn clar-btn-primary clar-btn-block justify-center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>Finish · Update Jira &amp; Create branch</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 5. Ready, after Finish ============ -->
+  <div class="sb-step">
+    <div class="sb-head"><span class="sb-num">5</span>
+      <p class="sb-cap"><b>Po Finish</b> opis v5 idzie do Jiry („Detailed”). W repo aplikacji (<code>RubyOnSaas-wiki/clar</code>) powstaje branch z <code>tasks/SCRUM-70/scrum-70.md</code> i <code>attachments/</code>, a task przechodzi do Ready. Karta brancha, która dziś tylko obiecuje, pokazuje prawdziwy branch. Drugi Finish, np. po ponownym otwarciu, dokłada commit na tym samym branchu.</p>
+    </div>
+    <div class="sb-frame" style="max-width: 700px;">
+      <div class="px-10 py-9 flex justify-center bg-[var(--bg)]">
+        <div class="w-full max-w-[620px] text-center">
+          <div class="w-[56px] h-[56px] rounded-full bg-[var(--success)] flex items-center justify-center mx-auto mb-4 text-white"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></div>
+          <h2 class="m-0 text-[22px] font-bold clar-text-text">Ready for the team</h2>
+          <p class="mt-2.5 mb-6 clar-text-muted text-sm leading-[1.5]">The description is in Jira and on its own branch. A developer checks it out and tells their AI to read the task file.</p>
+          <div class="clar-card p-1.5 text-left">
+            <div class="flex items-center gap-2.5 px-4 py-3.5 border-b clar-divider"><span class="clar-key">SCRUM-70</span><span class="font-semibold text-sm clar-text-text flex-1">SCRUM-70 Add token calculations</span><span class="clar-badge clar-badge-primary">IN JIRA</span></div>
+            <div class="grid grid-cols-2 gap-px bg-[var(--border)]">
+              <div class="bg-[var(--surface)] px-4 py-3.5"><div class="text-[11px] clar-text-faint mb-0.5">AI actions</div><div class="font-semibold text-[13px] clar-text-success">Detailed</div></div>
+              <div class="bg-[var(--surface)] px-4 py-3.5"><div class="text-[11px] clar-text-faint mb-0.5">AI estimation · auto</div><div class="font-semibold text-[13px] clar-text-text">—</div></div>
+              <div class="bg-[var(--surface)] px-4 py-3.5"><div class="text-[11px] clar-text-faint mb-0.5">Designs</div><div class="font-semibold text-[13px] clar-text-text"><span class="sb-link">Accepted · 21 screens</span></div></div>
+              <div class="bg-[var(--surface)] px-4 py-3.5"><div class="text-[11px] clar-text-faint mb-0.5">Versions saved</div><div class="font-semibold text-[13px] clar-text-text">6</div></div>
+            </div>
+          </div>
+          <div class="bg-[var(--ai-soft)] border clar-divider rounded-[14px] p-4 text-left mt-3.5">
+            <div class="flex items-center gap-2 mb-2.5">
+              <span class="clar-text-ai flex"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v12M18 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a9 9 0 0 0 9-9"/></svg></span>
+              <span class="text-[12.5px] font-bold clar-text-text">Branch created</span><span class="clar-badge clar-badge-success">ON GITHUB</span>
+              <span class="flex-1"></span>
+              <span class="clar-btn !text-xs !py-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>Open on GitHub</span>
+            </div>
+            <div class="flex items-center gap-2.5">
+              <code class="clar-mono flex-1 text-xs clar-text-text bg-[var(--surface)] border clar-divider rounded-lg px-2.5 py-2">git checkout feat/scrum-70-add-token-calculations</code>
+              <span class="clar-btn flex-none !text-xs">Copy</span>
+            </div>
+            <div class="text-[11.5px] clar-text-muted leading-[1.5] mt-2">In it: <span class="clar-mono clar-text-text">tasks/SCRUM-70/scrum-70.md</span> (description v5 with the designs' links). Tell your AI: “read tasks/SCRUM-70/scrum-70.md”.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 6. Finished threads ============ -->
+  <div class="sb-step">
+    <div class="sb-head"><span class="sb-num">6</span>
+      <p class="sb-cap"><b>Zaakceptowane wątki nie znikają.</b> Spadają na dół listy, wyszarzone, do sekcji Finished. Otwarty taki wątek pokazuje zaakceptowaną wersję i ma <b>Reopen</b>: nowy branch od mastera i ta sama rozmowa. Do kolejnej akceptacji link i task pokazują wersję zaakceptowaną. Po drugiej akceptacji widać designy z najnowszego merge commita i zmiany z obu.</p>
+    </div>
+    <div class="sb-frame" style="height: 560px;">
+      <div class="h-full grid" style="grid-template-columns: 330px 360px minmax(0,1fr);">
+        <!-- list -->
+        <div class="flex flex-col min-h-0 border-r border-[color:var(--border)] bg-[var(--surface)]">
+          <div class="px-2 pt-3 pb-1.5 flex items-center gap-2"><span class="clar-section-label flex-1 pl-2">BRANCHES · 3</span></div>
+          <div class="flex-1 overflow-hidden px-2 pb-2.5">
+            <div class="flex items-start gap-2.5 w-full px-2.5 py-2 rounded-lg">
+              <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-none" style="background: var(--success-soft); color: var(--success);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+              <div class="flex-1 min-w-0"><div class="flex items-center gap-1.5"><span class="clar-mono text-[13px] font-semibold clar-text-text">master</span><span class="clar-badge clar-badge-success !py-0.5 !px-1.5">Read-only</span></div><div class="text-[11.5px] clar-text-faint mt-0.5">Last merge 9f3c2a1 · just now</div></div>
+            </div>
+            <div class="flex items-start gap-2.5 w-full px-2.5 py-2 rounded-lg mt-0.5">
+              <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-none" style="background: var(--ai-soft); color: var(--ai);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+              <div class="flex-1 min-w-0"><div class="text-[13px] font-semibold clar-text-text leading-[1.35]">Invoice emails</div><div class="flex items-center gap-1.5 mt-1"><span class="clar-mono text-[10.5px] font-semibold clar-text-primary bg-[var(--primary-soft)] px-1.5 rounded">SCRUM-74</span><span class="text-[10.5px] font-bold clar-text-warn">Master changed</span><span class="text-[11px] clar-text-faint">2 hours ago</span></div></div>
+            </div>
+            <div class="flex items-start gap-2.5 w-full px-2.5 py-2 rounded-lg mt-0.5">
+              <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-none" style="background: var(--ai-soft); color: var(--ai);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+              <div class="flex-1 min-w-0"><div class="text-[13px] font-semibold clar-text-text leading-[1.35]">Darker sidebar in dark mode</div><div class="flex items-center gap-1.5 mt-1"><span class="text-[9.5px] font-bold tracking-[.3px] clar-text-muted bg-[var(--surface-2)] border border-[color:var(--border)] px-1.5 rounded">NO TASK</span><span class="text-[11px] clar-text-faint">yesterday</span></div></div>
+            </div>
+
+            <div class="px-2.5 pt-3.5 pb-1"><span class="clar-section-label">FINISHED · 3</span></div>
+            <div class="sb-finished flex items-start gap-2.5 w-full px-2.5 py-2 rounded-lg">
+              <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-none bg-[var(--surface-2)] clar-text-success"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+              <div class="flex-1 min-w-0"><div class="text-[13px] font-semibold clar-text-text leading-[1.35]">SCRUM-70 Add token calculations</div><div class="flex items-center gap-1.5 mt-1"><span class="clar-mono text-[10.5px] font-semibold clar-text-primary bg-[var(--primary-soft)] px-1.5 rounded">SCRUM-70</span><span class="text-[11px] clar-text-faint">Accepted just now · 9f3c2a1</span></div></div>
+            </div>
+            <div class="sb-finished flex items-start gap-2.5 w-full px-2.5 py-2 rounded-lg">
+              <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-none bg-[var(--surface-2)] clar-text-success"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+              <div class="flex-1 min-w-0"><div class="text-[13px] font-semibold clar-text-text leading-[1.35]">Profile settings</div><div class="flex items-center gap-1.5 mt-1"><span class="clar-mono text-[10.5px] font-semibold clar-text-primary bg-[var(--primary-soft)] px-1.5 rounded">SCRUM-61</span><span class="text-[11px] clar-text-faint">Accepted 14 Nov · 4be09d2</span></div></div>
+            </div>
+            <div class="sb-finished flex items-start gap-2.5 w-full px-2.5 py-2 rounded-lg">
+              <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-none bg-[var(--surface-2)] clar-text-success"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+              <div class="flex-1 min-w-0"><div class="text-[13px] font-semibold clar-text-text leading-[1.35]">Bug list filters</div><div class="flex items-center gap-1.5 mt-1"><span class="text-[9.5px] font-bold tracking-[.3px] clar-text-muted bg-[var(--surface-2)] border border-[color:var(--border)] px-1.5 rounded">NO TASK</span><span class="text-[11px] clar-text-faint">Merged 12 Nov · 7aa31c0</span></div></div>
+            </div>
+            <div class="flex items-center gap-1.5 px-2.5 py-1.5 mt-1.5 text-[12px] font-semibold clar-text-muted"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>Deleted · 1</div>
+          </div>
+        </div>
+        <!-- finished thread -->
+        <div class="flex flex-col min-h-0 border-r border-[color:var(--border)] bg-[var(--surface)]">
+          <div class="px-3.5 py-3 border-b border-[color:var(--border)]">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <span class="inline-flex items-center gap-2 text-[12.5px] font-semibold clar-text-muted"><span class="w-6 h-6 rounded-[7px] border border-[color:var(--border)] flex items-center justify-center clar-text-text"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></span>Threads</span>
+              <span class="clar-btn !py-1 !px-2 !text-[12px]"><span class="clar-mono text-[11px] clar-text-primary">SCRUM-70</span></span>
+            </div>
+            <div class="text-[15px] font-bold clar-text-text leading-[1.35]">SCRUM-70 Add token calculations</div>
+            <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
+              <span class="clar-badge clar-badge-success !py-0.5 !px-2">✓ Accepted · 9f3c2a1</span>
+              <span class="text-[11.5px] clar-text-faint">21 Nov</span>
+            </div>
+            <div class="flex items-center gap-2 mt-2.5">
+              <span class="clar-btn !text-[12px] !py-1 !px-2.5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>Open designs</span>
+              <span class="clar-btn !text-[12px] !py-1 !px-2.5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/></svg>Reopen</span>
+            </div>
+          </div>
+          <div class="flex-1 px-3.5 py-3 flex flex-col gap-2.5 overflow-hidden">
+            <div class="text-[12px] clar-text-faint">Merged into master as 9f3c2a1 by Kacper Tarchała</div>
+            <div class="text-[12px] clar-text-faint">SCRUM-70's description is now v5 · designs linked</div>
+          </div>
+          <div class="p-3 border-t border-[color:var(--border)] text-[12.5px] clar-text-muted leading-[1.5]">Accepted into master as <span class="clar-mono">9f3c2a1</span>. Reopen to change the designs again. Until you accept again, the link and SCRUM-70 show this version.</div>
+        </div>
+        <!-- canvas of the accepted version -->
+        <div class="flex flex-col min-h-0 min-w-0">
+          <div class="flex items-center gap-2.5 px-3 py-2 border-b border-[color:var(--border)] bg-[var(--surface)] flex-wrap">
+            <div class="clar-seg"><span class="clar-seg-item clar-seg-item-active">Admin</span><span class="clar-seg-item">Flosis admin</span></div>
+            <div class="flex-1"></div>
+            <div class="clar-seg"><span class="clar-seg-item clar-seg-item-active">Accepted</span><span class="clar-seg-item">Changes</span></div>
+          </div>
+          <div class="flex-1 sb-screen flex items-center justify-center"><span class="clar-text-faint text-[13px] text-center px-6">Consumption — this month<br>as accepted in 9f3c2a1</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 7. The task file ============ -->
+  <div class="sb-step">
+    <div class="sb-head"><span class="sb-num">7</span>
+      <p class="sb-cap"><b>Plik dla AI-developera</b>, czyli <code>tasks/SCRUM-70/scrum-70.md</code>. Na górze są linki: Jira, designy i merge commit, a dla AI też ścieżki zmienionych plików w repo designów. Pod spodem opis v5 w Markdownie, a obok folder <code>attachments/</code> z załącznikami z Jiry (SCRUM-70 ich nie ma). Wystarczy napisać „przeczytaj tasks/SCRUM-70/scrum-70.md”.</p>
+    </div>
+    <div class="sb-frame" style="max-width: 860px;">
+<pre class="sb-md"><span class="h"># SCRUM-70 Add token calculations</span>
+
+<span class="c">Description v5 · 21 Nov 2026 · from Flosis</span>
+- Jira: <span class="l">https://…atlassian.net/browse/SCRUM-70</span>
+- Designs (sign in to Flosis): <span class="l">https://app.flosis.com/flosis/flosis/SCRUM-70/design</span>
+- Design code: <span class="l">https://github.com/RubyOnSaas-wiki/flosis-app-design/commit/9f3c2a1</span>
+  The screens this task changed, in that repo: designs/admin/consumption.html, designs/admin/configuration.html,
+  designs/flosis-admin/plans.html … (21; the full list is under Designs below)
+
+<span class="h">## AI usage and cost per organization</span>
+
+Flosis runs Claude in many places (task conversations, PR reviews, estimates, agents, Designs, bug analysis), …
+
+<span class="h">**Designs**</span> · [Open the designs](https://app.flosis.com/flosis/flosis/SCRUM-70/design) · merge commit [9f3c2a1](https://github.com/…/commit/9f3c2a1)
+- New (11): Admin › [Consumption — this month](…/design/designs/admin/consumption.html) <span class="c">designs/admin/consumption.html</span>, …
+- Updated (10): Admin › [Bug Reporting](…/design/designs/admin/bugs.html) <span class="c">designs/admin/bugs.html</span>, …
+
+<span class="h">**Plans (Flosis admin)**</span>
+…
+</pre>
+    </div>
+  </div>
+
+</div>
+</div>
+</body>
+</html>

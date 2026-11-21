@@ -590,7 +590,8 @@ class Designs::TurnJob < ApplicationJob
     begin
       if repo.commits_ahead(wip).positive?
         subject.refresh_base(repo)
-        Designs::Publisher.new(subject.project, repo).publish!(wip, subject.preview_slot, base: subject.publish_base)
+        Designs::Publisher.new(subject.project, repo).publish!(wip, subject.preview_slot, base: subject.publish_base,
+                                                                                     page: subject.publish_page)
       end
     rescue StandardError => e
       log(turn, e, "the preview shows the last turn it took")

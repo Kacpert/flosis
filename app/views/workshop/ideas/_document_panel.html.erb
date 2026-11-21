@@ -250,7 +250,16 @@
             advances to Details, then becomes "Continue to Details" (just navigate).
             DETAILS: "Finish · go to Ready" saves locally + advances to Ready, no
             Jira write. %>
-        <% if is_details %>
+        <% if is_details && !finish_locally?(idea) %>
+          <%# Finish (Kacper, 2026-11-21): Jira, then the task's branch with its
+              file for the developer, then Ready (TaskFinish). %>
+          <%= button_to finish_workshop_idea_path(idea), method: :post,
+                form: { data: { turbo_frame: "_top" } },
+                class: "clar-btn clar-btn-primary clar-btn-block" do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            <%= finish_label(idea) %>
+          <% end %>
+        <% elsif is_details %>
           <%# Send the stage this panel is showing: the action must not read it
               back off the task, which may already have moved on. %>
           <%# The button's name reads like it might publish something. Its (i) says

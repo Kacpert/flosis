@@ -29,7 +29,8 @@
         <%= render "message", message: item %>
       <% end %>
     <% end %>
-    <% if turns.last&.failed? && !active && thread.open? && !Designs::Threads.importing?(thread) %>
+    <%# A finished thread's describe turn is tried again too (review I1). %>
+    <% if turns.last&.failed? && !active && (thread.open? || (turns.last.describe? && thread.merged?)) && !Designs::Threads.importing?(thread) %>
       <div class="flex items-center gap-2 flex-wrap pl-6">
         <%= button_to retry_workshop_design_thread_path(thread), class: "clar-btn !py-1.5 !px-2.5 !text-[12px] flex-none",
                       form: { class: "contents", data: { turbo_frame: "_top" } } do %>
@@ -37,6 +38,16 @@
         <% end %>
         <span class="text-[11.5px] clar-text-faint leading-[1.45] min-w-0">Runs the request again. Claude is told nothing of the last try was kept.</span>
       </div>
+    <% end %>
+    <%# Accept designs (2026-11-21): once the task's description is written, the
+        person who accepted goes to the task, where its modal says what
+        changed; only until the modal has been shown. %>
+    <% last = turns.last %>
+    <% if last&.describe? && last.succeeded? && thread.task&.in_pipeline? && last.chat_message&.user_id == current_user&.id %>
+      <% accepted = thread.design_merges.newest_first.first %>
+      <% if accepted&.description_version && accepted.announced_at.nil? %>
+        <div data-controller="designs-go" data-designs-go-url-value="<%= workshop_idea_path(thread.task, stage: "details") %>" hidden></div>
+      <% end %>
     <% end %>
     <% if turns.last&.awaits_answer? && !active && thread.open? && !Designs::Threads.importing?(thread) %>
       <div class="flex items-center gap-2 flex-wrap pl-6">

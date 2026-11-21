@@ -12,6 +12,9 @@ class Task < ApplicationRecord
   has_one :design_request, dependent: :destroy
   # Each time this task's designs were approved into master (Workshop Designs).
   has_one :design_thread, dependent: :nullify
+  # Its designs' acceptances, which outlive the thread: the task's lasting link
+  # resolves through them (Designs::AcceptedScreens).
+  has_many :design_merges, dependent: :nullify
   has_many_attached :attachments
   # A task started from another task's conversation (the chat's "New task"):
   # where it came from, and the conversation its handoff is read from.
@@ -128,11 +131,15 @@ class Task < ApplicationRecord
             pipeline_author: pipeline_author || author)
   end
 
-  # A suggested (informational-only) branch name for the Ready screen (Task
-  # 5.4). Nothing is created server-side — this is copy, not a git operation.
+  # The branch Finish creates in the app's repo (TaskBranch), named from the
+  # key and the name; a name that starts with the key does not say it twice.
+  # A task without a Jira key is named by its id, so two with the same words
+  # never share a branch (review I7).
   def suggested_branch
-    slug = name.parameterize[0, 32].delete_suffix("-")
-    key  = external_reference&.downcase
-    "feat/#{[key, slug].compact.join("-")}"
+    key = external_reference.presence&.downcase || (id && "task-#{id}")
+    words = name.to_s.parameterize
+    words = words.delete_prefix(key).delete_prefix("-") if key.present? && words.start_with?("#{key}-")
+    slug = words[0, 32].delete_suffix("-")
+    "feat/#{[ key, slug.presence ].compact.join("-")}"
   end
 end

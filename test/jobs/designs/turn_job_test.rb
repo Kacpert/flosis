@@ -1942,6 +1942,31 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  # Accept designs (2026-11-21): however the merge comes about, a task's
+  # thread asks for its description once it lands.
+  test "a task's merge that waited on components queues the describe turn when it lands" do
+    with_design_remote do |repo, remote|
+      base = seed_master(repo, { "designs/candidate/apply.html" => "<title>Application form</title>" })
+      repo.project.update!(anthropic_api_key: "sk-ant")
+      fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title><p>121</p>" }, reply: "<summary>Added a counter.</summary>")
+      assert run_turn(thread_turn(repo, base), remote).succeeded?
+      thread = DesignThread.find_by!(branch: "design/add-a-counter-under")
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "SP-1051")
+      thread.update!(task: task)
+      finish_check(thread, remote)
+      components = with_remote_url(remote) { Designs::Threads.merge_or_prepare!(thread, user: users(:one)) }
+      fake_claude(files: { "components/counter/counter.html" => "<span>{{n}}</span>" }, reply: "<summary>Made the counter a component.</summary>")
+
+      assert run_turn(components, remote).succeeded?
+
+      assert thread.reload.merged?
+      describe = DesignTurn.where(chat_session: thread.chat_session, kind: "describe").sole
+      assert describe.queued?
+      assert_equal users(:one), describe.chat_message.user
+    end
+  end
+
   test "a components turn whose merge cannot go through says why in the chat, and leaves the thread open" do
     with_design_remote do |repo, remote|
       base = seed_master(repo, { "designs/candidate/apply.html" => "<title>Application form</title>" })

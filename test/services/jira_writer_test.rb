@@ -119,6 +119,24 @@ class JiraWriterTest < ActiveSupport::TestCase
     assert_equal "customfield_project", c.calls[:action][:field_id]
   end
 
+  # The editor saves HTML (2026-11-21): stripping its tags lost every link's
+  # address on the way to Jira.
+  test "an HTML version reaches Jira as Markdown with its links" do
+    task = @project.tasks.create!(name: "JW-31 Existing", external_type: "jira", external_reference: "JW-31")
+    draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "manual",
+                                     content: %(<p>See <a href="https://x.test/d">designs</a></p>))
+    c = fake_client
+    sent = nil
+    c.define_singleton_method(:update_issue_description) { |**k| sent = k[:description_text]; { ok: true } }
+
+    assert JiraWriter.new(client: c).commit_detail(draft)[:ok]
+    assert_equal "See [designs](https://x.test/d)", sent
+  end
+
+  test "Markdown and plain text pass to Jira as they are" do
+    assert_equal "## Title\n\n- a [link](https://x.test)", JiraWriter.plain_text("## Title\n\n- a [link](https://x.test)")
+  end
+
   test "commit_detail reads the field id off the task's project too" do
     @project.update!(jira_ai_actions_field_id: "customfield_project")
     task = @project.tasks.create!(name: "JW-22 Existing", external_type: "jira", external_reference: "JW-22")
@@ -225,7 +243,8 @@ class JiraWriterTest < ActiveSupport::TestCase
     assert_no_match(/<[^>]+>/, text, "description_text must have no HTML tags: #{text.inspect}")
     assert_no_match(/alert\(1\)/, text, "script contents must not leak into the plain text")
     assert_match(/Summary/, text)
-    assert_match(/Hello world/, text)
+    # Markdown since 2026-11-21: the editor's bold and lists reach Jira.
+    assert_match(/Hello \*\*world\*\*/, text)
   end
 
   test "commit_brief strips HTML tags before creating a new issue's description in Jira" do
@@ -238,7 +257,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     assert res[:ok], res.inspect
     text = c.captured[:create][:description_text]
     assert_no_match(/<[^>]+>/, text)
-    assert_match(/Some rich concept/, text)
+    assert_match(/Some _rich_ concept/, text)
   end
 
   test "commit_detail strips HTML tags before pushing the draft's description to Jira" do
@@ -251,7 +270,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     assert res[:ok], res.inspect
     text = c.captured[:update][:description_text]
     assert_no_match(/<[^>]+>/, text)
-    assert_match(/Detailed plan/, text)
+    assert_match(/Detailed \*\*plan\*\*/, text)
   end
 
   test "plain-text/markdown content passes through the strip helper unchanged (aside from blank-line squeeze)" do
@@ -357,5 +376,30 @@ class JiraWriterTest < ActiveSupport::TestCase
     assert_not res[:ok]
     assert_equal "403 Forbidden", res[:error]
     assert_match(/--- Designs ---/, task.reload.description)
+  end
+  # Accept designs (2026-11-21): what leaves for Jira carries the Designs
+  # section, even when a later version lost it.
+  test "commit_detail puts the Designs section back when a later version lacks it" do
+    root = Dir.mktmpdir("preview")
+    ENV["DESIGNS_PREVIEW_ROOT"] = root
+    @project.update!(design_preview_token: "t0k")
+    task = @project.tasks.create!(name: "JW-40 Existing", external_type: "jira", external_reference: "JW-40")
+    DesignMerge.create!(project: @project, task: task, sha: "a" * 40, title: "t", branch: "design/x", how: "manual",
+                        merged_at: Time.current, slot: "accepted/9")
+    folder = Pathname(root).join("t0k", "accepted/9/__flosis")
+    FileUtils.mkdir_p(folder)
+    File.write(folder.join("screens.json"), { contexts: [ { id: "admin", name: "Admin" } ], screens: [ { id: "plans", context: "admin", name: "Plans" } ] }.to_json)
+    File.write(folder.join("changes.json"), { own: [ [ "admin", "plans", "new" ] ], through: {} }.to_json)
+    draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "Intro.\n\n## Rules")
+    c = fake_client
+    sent = nil
+    c.define_singleton_method(:update_issue_description) { |**k| sent = k[:description_text]; { ok: true } }
+
+    assert JiraWriter.new(client: c).commit_detail(draft)[:ok]
+    assert_match(/\AIntro\.\n\n\*\*Designs\*\* · \[Open the designs\]\(http.*JW-40\/design\)/, sent)
+    assert_includes sent, "## Rules"
+  ensure
+    ENV.delete("DESIGNS_PREVIEW_ROOT")
+    FileUtils.remove_entry(root) if root
   end
 end

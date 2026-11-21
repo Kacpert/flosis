@@ -19,18 +19,33 @@ class TaskPipelineTest < ActiveSupport::TestCase
 
   test "suggested_branch prefixes the Jira key (downcased) and a slug of the name" do
     t = tasks(:jira_task) # name: "ELV-1 Existing task", external_reference: "ELV-1"
-    assert_equal "feat/elv-1-elv-1-existing-task", t.suggested_branch
+    assert_equal "feat/elv-1-existing-task", t.suggested_branch
   end
 
-  test "suggested_branch omits the key for a local (non-Jira) task" do
+  # Finish creates this branch for real (2026-11-21), so a name that starts
+  # with the key no longer says it twice.
+  test "a suggested branch never repeats the key the name starts with" do
+    t = tasks(:jira_task)
+    t.external_reference = "SCRUM-70"
+    t.name = "SCRUM-70 Add token calculations"
+    assert_equal "feat/scrum-70-add-token-calculations", t.suggested_branch
+    t.name = "Add token calculations"
+    assert_equal "feat/scrum-70-add-token-calculations", t.suggested_branch
+  end
+
+  # Review I7: Finish creates the branch, so a task without a key is named by
+  # its id: two tasks with the same words never share one.
+  test "suggested_branch names a local (non-Jira) task by its id" do
     t = tasks(:local_task) # name: "Daily standup", no external_reference
-    assert_equal "feat/daily-standup", t.suggested_branch
+    assert_equal "feat/task-#{t.id}-daily-standup", t.suggested_branch
+    t.name = "日本語"
+    assert_equal "feat/task-#{t.id}", t.suggested_branch
   end
 
   test "suggested_branch truncates a long slug to 32 chars and strips a trailing dash" do
     t = tasks(:local_task)
     t.name = "A very very very long idea name that goes on and on and on"
-    assert_equal "feat/a-very-very-very-long-idea-name", t.suggested_branch
+    assert_equal "feat/task-#{t.id}-a-very-very-very-long-idea-name", t.suggested_branch
   end
 
   # Create Tasks → Setup can switch Briefing off for a project. New tasks then

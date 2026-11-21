@@ -207,6 +207,8 @@ class ChatSessionsController < ApplicationController
       dependencies (API endpoints, credentials, docs links, rate limits) get a
       section of their own only when the ticket has them.
 
+      If the description has a Designs section (a line starting with **Designs** ·), keep it exactly as it is, where it is.
+
       The `<draft>` and `</draft>` markers are **mandatory** — the system uses them to save the draft as a versioned record the user can copy into Jira.
 
       IMPORTANT: the block is REMOVED from the chat and rendered in the **Description panel on the right**. So the reader never sees the ticket where you wrote it, and a lead-in like "Here's the refined ticket:" leaves them staring at a sentence with nothing after it. Outside the tags write one short line that says WHERE it went and how to compare versions — e.g. "The refined description is in the Description panel on the right; use the version selector at the top of that panel to switch between versions." Vary the wording, keep it to one sentence, and never write as though the ticket were in the chat.

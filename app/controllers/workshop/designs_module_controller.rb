@@ -10,6 +10,8 @@ class Workshop::DesignsModuleController < Workshop::BaseController
 
   TABS = %w[system components history imports].freeze
   MODES = %w[branch master changes].freeze
+  # A finished thread shows its accepted copy (2026-11-21).
+  FINISHED_MODES = %w[accepted changes].freeze
 
   def show
     @project = current_workshop_project
@@ -25,6 +27,8 @@ class Workshop::DesignsModuleController < Workshop::BaseController
 
     @way_back = way_back
     @threads = @project.design_threads.open.includes(:task).order(updated_at: :desc)
+    # Finished threads stay, at the bottom, greyed (Kacper, 2026-11-21).
+    @finished = @project.design_threads.merged.includes(:task).order(merged_at: :desc, id: :desc)
     @deleted = @project.design_threads.deleted.order(deleted_at: :desc)
     @merges = @project.design_merges.newest_first.includes(:user, :task)
     @tab = params[:tab].presence_in(TABS) || "canvas"
@@ -58,9 +62,15 @@ class Workshop::DesignsModuleController < Workshop::BaseController
 
   def load_canvas
     live = @thread&.open? && !@thread.fresh?
+    finished = @thread&.merged?
     @ahead = live && @repo.head(@thread.branch, lock: false) ? @repo.commits_ahead(@thread.branch, lock: false) : 0
-    @mode = live ? (params[:mode].presence_in(MODES) || "branch") : "master"
-    @slot = @mode == "master" ? Designs::Repo::MASTER : @thread.branch
+    if finished
+      @mode = params[:mode].presence_in(FINISHED_MODES) || "accepted"
+      @slot = finished_slot(@thread)
+    else
+      @mode = live ? (params[:mode].presence_in(MODES) || "branch") : "master"
+      @slot = @mode == "master" ? Designs::Repo::MASTER : @thread.branch
+    end
     # A branch is published once a turn commits to it. Until then it is master
     # as it was, so its canvas shows master's screens.
     @master_for_branch = @slot != Designs::Repo::MASTER && @ahead.zero? && !@publisher.published?(@slot)
@@ -69,7 +79,11 @@ class Workshop::DesignsModuleController < Workshop::BaseController
     @contexts = screens[:contexts]
     @screens = screens[:screens]
     @context, @screen = pick_screen
-    @changed, @changed_own, @changed_through = live ? changed_screens(@thread.branch) : [ [], [], {} ]
+    @changed, @changed_own, @changed_through =
+      if live then changed_screens(@thread.branch)
+      elsif finished && @slot != Designs::Repo::MASTER then changed_screens(@slot)
+      else [ [], [], {} ]
+      end
     @current = @screens.find { |s| s[:context] == @context && s[:id] == @screen }
     return unless @current
 
@@ -78,6 +92,14 @@ class Workshop::DesignsModuleController < Workshop::BaseController
     @frame_src = @publisher.grant_url(@slot, @frame_path)
   rescue Designs::Publisher::Error, ArgumentError
     @frame_src = nil
+  end
+
+  # A finished thread's copy: its accepted copy, else (merged before those
+  # existed) its branch's, else master.
+  def finished_slot(thread)
+    [ "accepted/#{thread.id}", thread.branch ].find { |slot| slot.present? && @publisher.published?(slot) } || Designs::Repo::MASTER
+  rescue ArgumentError
+    Designs::Repo::MASTER
   end
 
   # The screens a published slot lists (__flosis/screens.json), as

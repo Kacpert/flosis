@@ -266,4 +266,30 @@ class Workshop::VersionsControllerTest < ActionDispatch::IntegrationTest
     end
     assert_nil TaskDraft.find_by(id: d1.id)
   end
+  # Accept designs (2026-11-21): an older Details version made current reaches
+  # Jira with the Designs section.
+  test "making an older Details version current sends it with the Designs section" do
+    root = Dir.mktmpdir("preview")
+    ENV["DESIGNS_PREVIEW_ROOT"] = root
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "details", pipeline_entered_at: 1.hour.ago)
+    idea.project.update!(design_preview_token: "t0k")
+    DesignMerge.create!(project: idea.project, task: idea, sha: "a" * 40, title: "t", branch: "design/x", how: "manual",
+                        merged_at: Time.current, slot: "accepted/9")
+    folder = Pathname(root).join("t0k", "accepted/9/__flosis")
+    FileUtils.mkdir_p(folder)
+    File.write(folder.join("screens.json"), { contexts: [], screens: [] }.to_json)
+    File.write(folder.join("changes.json"), { own: [], through: {} }.to_json)
+    older = idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "ai", content: "Older text.")
+    idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "designs", content: "Newer.").make_current!
+
+    stub_update_description do |calls|
+      post make_current_workshop_idea_version_path(idea, older)
+      assert_equal 1, calls.size
+      assert_match(/\AOlder text\.\n\n\*\*Designs\*\* · \[Open the designs\]/, calls.first[:description_text])
+    end
+  ensure
+    ENV.delete("DESIGNS_PREVIEW_ROOT")
+    FileUtils.remove_entry(root) if root
+  end
 end

@@ -129,7 +129,7 @@ class Workshop::VersionsController < Workshop::BaseController
 
     if @idea.external_reference.present?
       result = JiraClient.for(@idea.project).update_issue_description(
-        issue_key: @idea.external_reference, description_text: JiraWriter.plain_text(draft.content)
+        issue_key: @idea.external_reference, description_text: JiraWriter.detail_text(draft)
       )
       unless result[:ok]
         flash[:clar_toast] = "v#{draft.version} set as current locally · Jira update failed: #{result[:error]}"

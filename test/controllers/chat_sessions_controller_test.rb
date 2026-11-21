@@ -96,6 +96,8 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Description panel on the right/, prompt)
     assert_match(/version selector/, prompt)
     assert_match(/never write as though the ticket were in the chat/, prompt)
+    # Accept designs (2026-11-21): Flosis's Designs section stays as it is.
+    assert_includes prompt, "If the description has a Designs section (a line starting with **Designs** ·), keep it exactly as it is, where it is."
   end
 
   test "build_initial_prompt appends the refine_current paragraph and current brief when mode=refine_current" do
