@@ -233,4 +233,22 @@ class Designs::PromptTest < ActiveSupport::TestCase
     assert_includes message, Designs::Prompt::SCREENS_ONLY
     assert message.rstrip.end_with?("Do it")
   end
+  # Accept designs (2026-11-21): the task's next description version keeps
+  # the task as it is and changes only what the designs settled.
+  test "the describe message keeps the structure rule and says when the description is newer" do
+    task = tasks(:jira_task)
+    message = Designs::Prompt.describe_message(task: task, description: "## Costs\n\nShown as $12.",
+                                               conversation: "The person: use euro", ahead: { from: "v3", to: "v4" },
+                                               screens: "- New · Admin › Plans (designs/admin/plans.html)")
+
+    assert_includes message, Designs::Prompt::DESCRIBE
+    assert_includes message, "Keep its structure, its order and its wording"
+    assert_includes message, "## Costs\n\nShown as $12."
+    assert_includes message, "The person: use euro"
+    assert_includes message, "- New · Admin › Plans (designs/admin/plans.html)"
+    assert_includes message, "changed after the designs were last updated (v3 → v4)"
+    assert_includes message, "<description>"
+    assert_not_includes Designs::Prompt.describe_message(task: task, description: "x", conversation: "", screens: "", ahead: nil),
+                        "last updated"
+  end
 end
