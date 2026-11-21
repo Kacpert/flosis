@@ -133,11 +133,13 @@ class Task < ApplicationRecord
 
   # The branch Finish creates in the app's repo (TaskBranch), named from the
   # key and the name; a name that starts with the key does not say it twice.
+  # A task without a Jira key is named by its id, so two with the same words
+  # never share a branch (review I7).
   def suggested_branch
-    key  = external_reference&.downcase
+    key = external_reference.presence&.downcase || (id && "task-#{id}")
     words = name.to_s.parameterize
     words = words.delete_prefix(key).delete_prefix("-") if key.present? && words.start_with?("#{key}-")
     slug = words[0, 32].delete_suffix("-")
-    "feat/#{[key, slug.presence].compact.join("-")}"
+    "feat/#{[ key, slug.presence ].compact.join("-")}"
   end
 end

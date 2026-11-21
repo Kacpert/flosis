@@ -55,7 +55,8 @@ class TaskBranchTest < ActiveSupport::TestCase
   test "Finish again adds a commit on top, drops attachments the task no longer has, and never forces" do
     @task.update!(code_branch: BRANCH)
     stub_base(branch_sha: "c1", tree_after: "t2")
-    stub_json(:get, "/contents/tasks/SCRUM-70/attachments?ref=#{BRANCH}", [ { type: "file", path: "tasks/SCRUM-70/attachments/old.png" } ])
+    stub_json(:get, "/contents/tasks/SCRUM-70?ref=#{BRANCH}", [])
+    stub_json(:get, "/contents/tasks/SCRUM-70/attachments?ref=#{BRANCH}", [ { type: "file", path: "tasks/SCRUM-70/attachments/old.png", sha: "o1" } ])
     stub_request(:post, "#{API}/git/commits").with(body: hash_including("parents" => [ "c1" ])).to_return(status: 201, body: { sha: "c2" }.to_json)
     move = stub_request(:patch, "#{API}/git/refs/heads/#{BRANCH}").with(body: { sha: "c2", force: false }.to_json).to_return(status: 200, body: "{}")
 
@@ -71,6 +72,7 @@ class TaskBranchTest < ActiveSupport::TestCase
   test "nothing changed, nothing committed" do
     @task.update!(code_branch: BRANCH)
     stub_base(branch_sha: "c1", tree_after: "t1")
+    stub_json(:get, "/contents/tasks/SCRUM-70?ref=#{BRANCH}", [])
     stub_json(:get, "/contents/tasks/SCRUM-70/attachments?ref=#{BRANCH}", [])
 
     assert_equal [ true, "c1" ], TaskBranch.new(@task).push!.values_at(:ok, :sha)
@@ -98,5 +100,41 @@ class TaskBranchTest < ActiveSupport::TestCase
     result = TaskBranch.new(@task.reload).push!
     assert_not result[:ok]
     assert_match(/no GitHub repository/, result[:error])
+  end
+
+  # Review I4: whatever goes wrong on the way to GitHub is recorded, never a
+  # 500 after Jira was written; a file the branch already holds is not sent
+  # again.
+  test "a dropped connection is recorded, not raised" do
+    stub_base
+    stub_request(:post, "#{API}/git/blobs").to_raise(Errno::ECONNRESET)
+
+    result = TaskBranch.new(@task).push!
+    assert_not result[:ok]
+    assert_match(/Connection reset/, @task.reload.code_branch_error)
+  end
+
+  test "a file the branch already holds is not uploaded again" do
+    @task.update!(code_branch: BRANCH)
+    stub_base(branch_sha: "c1", tree_after: "t1")
+    markdown = TaskFile.new(@task).markdown
+    held = Digest::SHA1.hexdigest("blob #{markdown.bytesize}\0#{markdown}")
+    stub_json(:get, "/contents/tasks/SCRUM-70?ref=#{BRANCH}", [ { type: "file", path: "tasks/SCRUM-70/scrum-70.md", sha: held } ])
+    stub_json(:get, "/contents/tasks/SCRUM-70/attachments?ref=#{BRANCH}", [])
+
+    assert TaskBranch.new(@task).push![:ok]
+    assert_not_requested :post, "#{API}/git/blobs"
+    assert_requested(:post, "#{API}/git/trees") { |req| JSON.parse(req.body)["tree"].first["sha"] == held }
+  end
+
+  # Review (re-graded): a new branch is created even when the base already
+  # holds the same files, instead of saying so and creating nothing.
+  test "a new branch whose files the base already holds is still created" do
+    stub_base(tree_after: "t0")
+    ref = stub_request(:post, "#{API}/git/refs").with(body: { ref: "refs/heads/#{BRANCH}", sha: "p0" }.to_json).to_return(status: 201, body: "{}")
+
+    assert_equal [ true, "p0" ], TaskBranch.new(@task).push!.values_at(:ok, :sha)
+    assert_requested ref
+    assert_not_requested :post, "#{API}/git/commits"
   end
 end

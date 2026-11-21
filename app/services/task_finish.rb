@@ -6,6 +6,15 @@
 # written by then: Ready says why and offers to try again. A project with
 # neither finishes locally, as before.
 class TaskFinish
+  # [jira, github] for a project. Jira only for a project linked to it: the
+  # server's own Jira login (.env) makes every project's credentials look
+  # configured (review C1; ProjectMcpConfig and IntegrationHealthJob ask the
+  # same).
+  def self.integrations(project)
+    credentials = ProjectCredentials.new(project)
+    [ project.jira_connected? && credentials.jira_configured?, credentials.github_configured? ]
+  end
+
   def initialize(task, writer: JiraWriter.for(task.project), branch: ->(task) { TaskBranch.new(task) })
     @task = task
     @writer = writer
@@ -14,9 +23,7 @@ class TaskFinish
 
   # { ok:, error:, toast: }
   def run!
-    credentials = ProjectCredentials.new(@task.project)
-    jira = credentials.jira_configured?
-    github = credentials.github_configured?
+    jira, github = self.class.integrations(@task.project)
     return finish_locally unless jira || github
 
     had_key = @task.external_reference.present?

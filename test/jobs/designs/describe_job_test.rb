@@ -6,20 +6,25 @@ class Designs::DescribeJobTest < ActiveSupport::TestCase
   LINK = "https://preview.example/test-workspace/elvium/SCRUM-70/design".freeze
   CURRENT = "## AI usage\n\nIntro paragraph.\n\n**Display**\n\n- Costs show as \"$12 ($3.23 this month)\".".freeze
 
-  # Claude as the CLI streams it: one result event with the text given.
+  # Claude as a streaming session gives it (ClaudeCliService#start_session with
+  # a block, which keeps the timeout): a tick, then the answer. during runs at
+  # the tick, as something else happens while Claude works.
   class FakeCli
     attr_reader :prompt
 
-    def initialize(text: nil, error: nil)
+    def initialize(text: nil, error: nil, during: nil)
       @text = text
       @error = error
+      @during = during
     end
 
-    def send_initial_streaming(prompt:)
+    def start_session(prompt:, new_session_id: nil)
       @prompt = prompt
       raise @error if @error
 
-      yield({ type: "result", is_error: false, result: @text }.to_json)
+      @during&.call
+      yield :tick
+      { session_id: "s", response: @text.to_s, is_error: false }
     end
   end
 
@@ -94,7 +99,8 @@ class Designs::DescribeJobTest < ActiveSupport::TestCase
     assert_includes cli.prompt, "Costs show in euro now."
     assert_not_includes cli.prompt, "Checked on screen"
     assert_includes cli.prompt, "- New · Admin › Plans (designs/admin/plans.html)"
-    assert_equal [ [], nil, 240, 2, "medium" ], @options.values_at(:allowed_tools, :api_key, :timeout, :max_budget_usd, :effort)
+    # No tools at all (review I3): --tools "" as well as nothing pre-approved.
+    assert_equal [ [], [], nil, 240, 2, "medium" ], @options.values_at(:tools, :allowed_tools, :api_key, :timeout, :max_budget_usd, :effort)
   end
 
   test "when Claude fails, the version still comes with the section only, and says so" do
@@ -149,6 +155,27 @@ class Designs::DescribeJobTest < ActiveSupport::TestCase
     turn.update!(status: "succeeded")
 
     Designs::DescribeJob.perform_now(turn.id)
+    assert_equal 4, @task.reload.current_detail_draft.version
+  end
+
+  # Review I1: Stop is honoured, and a turn failed meanwhile (stale, or
+  # stopped by the screen) is never brought back by a late answer.
+  test "a describe turn stopped while Claude works keeps nothing" do
+    claude(FakeCli.new(text: "<description>x</description>",
+                       during: -> { turn.update_columns(stop_requested_at: Time.current, stop_requested_by: "Kacper") }))
+
+    assert run_job.failed?
+    assert_equal DesignTurn.stopped_by("Kacper"), turn.error
+    assert_equal 4, @task.reload.current_detail_draft.version
+    assert_nil @merge.reload.description_version
+  end
+
+  test "a describe turn failed meanwhile is not brought back by a late answer" do
+    claude(FakeCli.new(text: "<description>x</description>",
+                       during: -> { turn.update_columns(status: "failed", error: DesignTurn::INTERRUPTED) }))
+
+    Designs::DescribeJob.perform_now(turn.id)
+    assert turn.reload.failed?
     assert_equal 4, @task.reload.current_detail_draft.version
   end
 end

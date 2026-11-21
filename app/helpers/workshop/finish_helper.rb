@@ -42,7 +42,6 @@ module Workshop::FinishHelper
   private
 
   def finish_integrations(task)
-    credentials = ProjectCredentials.new(task.project)
-    [ credentials.jira_configured?, credentials.github_configured? ]
+    TaskFinish.integrations(task.project)
   end
 end

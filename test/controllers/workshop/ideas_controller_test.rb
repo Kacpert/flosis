@@ -1167,4 +1167,34 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, CGI.escapeHTML("The project's GitHub token can't write to acme/app (403).")
     assert_select "form[action=?] button", create_branch_workshop_idea_path(idea), text: /Create branch/
   end
+  # Review I5: Turbo prefetches a link on hover; that is not the person
+  # opening the task, so it does not use up the modal.
+  test "a hover prefetch does not use up the modal" do
+    idea = details_idea
+    merge = DesignMerge.create!(project: idea.project, task: idea, sha: "a" * 40, title: "t", branch: "design/x", how: "manual",
+                                merged_at: Time.current, slot: "accepted/1", description_version: 5)
+
+    get workshop_idea_path(idea, stage: "details"), headers: { "X-Sec-Purpose" => "prefetch" }
+    assert_nil merge.reload.announced_at
+
+    get workshop_idea_path(idea, stage: "details")
+    assert_select "[data-clar-modal-open-value=designs-accepted]"
+    assert merge.reload.announced_at
+  end
+
+  # Review I8: a later Finish whose branch update failed says so, with the
+  # retry, even though an earlier one created the branch.
+  test "Ready shows a failed branch update with Create branch after an earlier one succeeded" do
+    idea = tasks(:jira_task)
+    idea.update!(in_pipeline: true, workshop_stage: "ready", pipeline_entered_at: 1.hour.ago,
+                 code_branch: "feat/elv-1-existing-task", code_branch_sha: "c1", code_branch_pushed_at: 1.day.ago,
+                 code_branch_error: "GitHub refused the branch: 422 Update is not a fast forward")
+    idea.task_drafts.create!(source: "ai", origin: "ai", content: "d", pushed_at: 1.minute.ago).make_current!
+    configure_jira_and_github(idea.project)
+
+    get workshop_idea_path(idea, stage: "ready")
+    assert_includes response.body, "GitHub refused the branch: 422 Update is not a fast forward"
+    assert_select "form[action=?] button", create_branch_workshop_idea_path(idea), text: /Update branch/
+    assert_not_includes response.body, "Tell your AI"
+  end
 end

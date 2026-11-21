@@ -51,4 +51,13 @@ class Workshop::FinishHelperTest < ActionView::TestCase
     assert_equal "The Jira ticket updated with the new description.", finish_whats_left(@task.reload)
     assert_nil finish_target(@task)
   end
+  test "with the server's Jira login set, a project not linked to Jira keeps the local Finish" do
+    ENV["JIRA_DOMAIN"] = "server.atlassian.net"
+    ENV["JIRA_EMAIL"] = "bot@server.test"
+    ENV["JIRA_API_TOKEN"] = "server-token"
+    task = projects(:plain_project).tasks.create!(name: "Local idea")
+
+    assert_equal "Finish · go to Ready", finish_label(task)
+    assert finish_locally?(task)
+  end
 end

@@ -87,4 +87,21 @@ class TaskFinishTest < ActiveSupport::TestCase
     assert @task.reload.stage_ready?
     assert @task.detail_saved_locally_at
   end
+  # Review C1: the server's own Jira login (.env) makes every project look
+  # configured; only a project linked to Jira writes there.
+  test "with the server's Jira login set, a project not linked to Jira still finishes locally" do
+    ENV["JIRA_DOMAIN"] = "server.atlassian.net"
+    ENV["JIRA_EMAIL"] = "bot@server.test"
+    ENV["JIRA_API_TOKEN"] = "server-token"
+    project = projects(:plain_project)
+    project.update!(github_repo: nil)
+    task = project.tasks.create!(name: "Local idea", in_pipeline: true, workshop_stage: "details")
+
+    result = TaskFinish.new(task, writer: writer, branch: branch).run!
+    assert result[:ok]
+    assert_equal [], @calls
+    assert task.reload.stage_ready?
+    assert_equal [ false, false ], TaskFinish.integrations(project)
+    assert_equal [ true, true ], TaskFinish.integrations(@project)
+  end
 end

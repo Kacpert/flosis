@@ -29,7 +29,8 @@
         <%= render "message", message: item %>
       <% end %>
     <% end %>
-    <% if turns.last&.failed? && !active && thread.open? && !Designs::Threads.importing?(thread) %>
+    <%# A finished thread's describe turn is tried again too (review I1). %>
+    <% if turns.last&.failed? && !active && (thread.open? || (turns.last.describe? && thread.merged?)) && !Designs::Threads.importing?(thread) %>
       <div class="flex items-center gap-2 flex-wrap pl-6">
         <%= button_to retry_workshop_design_thread_path(thread), class: "clar-btn !py-1.5 !px-2.5 !text-[12px] flex-none",
                       form: { class: "contents", data: { turbo_frame: "_top" } } do %>

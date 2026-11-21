@@ -414,9 +414,16 @@ class Workshop::IdeasController < Workshop::BaseController
     params.require(:idea).permit(:title, :description)
   end
 
+  def prefetch?
+    [ request.headers["X-Sec-Purpose"], request.headers["Sec-Purpose"], request.headers["Purpose"] ].compact.any? { |value| value.include?("prefetch") }
+  end
+
   # The modal after a task's designs are accepted (2026-11-21): once per
-  # acceptance, to whoever opens the task first, stamped as it renders.
+  # acceptance, to whoever opens the task first, stamped as it renders. Turbo
+  # prefetching the page on hover is not someone opening it (review I5).
   def announce_acceptance
+    return if prefetch?
+
     merge = @idea.design_merges.where.not(description_version: nil).where(announced_at: nil).newest_first.first or return
     merge.update_column(:announced_at, Time.current)
     merge

@@ -25,7 +25,13 @@ class TaskFile
 
   # { path => contents }: the file, then each attachment that is copied.
   def files
-    { path => markdown }.merge(attachments.to_h { |name, attachment| [ "#{folder}/attachments/#{name}", attachment.download ] })
+    entries.to_h { |file, contents| [ file, contents.call ] }
+  end
+
+  # [[path, -> contents]]: what files has, each read only when asked, so a
+  # branch takes them one at a time (TaskBranch).
+  def entries
+    [ [ path, -> { markdown } ] ] + attachments.map { |name, attachment| [ "#{folder}/attachments/#{name}", -> { attachment.download } ] }
   end
 
   def markdown

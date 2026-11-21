@@ -66,12 +66,13 @@ class GithubClientTest < ActiveSupport::TestCase
   test "a commit's tree, a folder's files, and none for a folder that is not there" do
     stub_request(:get, "https://api.github.com/repos/acme/widgets/git/commits/abc").to_return(status: 200, body: { tree: { sha: "t1" } }.to_json)
     stub_request(:get, "https://api.github.com/repos/acme/widgets/contents/tasks/X-1/attachments?ref=feat/x-1")
-      .to_return(status: 200, body: [ { type: "file", path: "tasks/X-1/attachments/a.png" }, { type: "dir", path: "tasks/X-1/attachments/d" } ].to_json)
+      .to_return(status: 200, body: [ { type: "file", path: "tasks/X-1/attachments/a.png", sha: "s1" },
+                                      { type: "dir", path: "tasks/X-1/attachments/d", sha: "s2" } ].to_json)
     stub_request(:get, "https://api.github.com/repos/acme/widgets/contents/tasks/X-2/attachments?ref=feat/x-2").to_return(status: 404, body: "{}")
 
     assert_equal "t1", client.commit_tree_sha("abc")
-    assert_equal [ "tasks/X-1/attachments/a.png" ], client.folder_paths("tasks/X-1/attachments", ref: "feat/x-1")
-    assert_equal [], client.folder_paths("tasks/X-2/attachments", ref: "feat/x-2")
+    assert_equal({ "tasks/X-1/attachments/a.png" => "s1" }, client.folder_files("tasks/X-1/attachments", ref: "feat/x-1"))
+    assert_equal({}, client.folder_files("tasks/X-2/attachments", ref: "feat/x-2"))
   end
 
   test "blobs, trees, commits and refs are written, and a ref is moved without force" do

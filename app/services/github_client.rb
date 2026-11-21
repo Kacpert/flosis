@@ -92,10 +92,13 @@ class GithubClient
     request!(:get, "/repos/#{@repo}/git/commits/#{sha}").dig("tree", "sha")
   end
 
-  # The files directly in a folder of a branch, [] when there is none.
-  def folder_paths(path, ref:)
+  # The files directly in a folder of a branch, as { path => git blob sha },
+  # empty when there is no such folder.
+  def folder_files(path, ref:)
     data = request!(:get, "/repos/#{@repo}/contents/#{path}?ref=#{CGI.escape(ref).gsub('%2F', '/')}", allow_missing: true)
-    data.is_a?(Array) ? data.select { |entry| entry["type"] == "file" }.map { |entry| entry["path"] } : []
+    return {} unless data.is_a?(Array)
+
+    data.select { |entry| entry["type"] == "file" }.to_h { |entry| [ entry["path"], entry["sha"] ] }
   end
 
   def create_blob(bytes)

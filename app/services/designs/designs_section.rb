@@ -15,9 +15,12 @@
 module Designs::DesignsSection
   module_function
 
-  # The section: its first line, then its list lines, with a blank line after
-  # the first one allowed (the editor's HTML, converted, puts one there).
-  BLOCK = /^\*\*Designs\*\* ·[^\n]*(?:\n\n?- [^\n]*(?:\n- [^\n]*)*)?/
+  # The section: its first line, then its own list lines (New, Updated,
+  # Through shared components), with a blank line after the first one allowed
+  # (the editor's HTML, converted, puts one there). Only its own lines: the
+  # description's list after a section with none is not part of it.
+  OWN_LINE = "- (?:New \\(|Updated \\(|Through shared components:)[^\\n]*"
+  BLOCK = /^\*\*Designs\*\* ·[^\n]*(?:\n\n?#{OWN_LINE}(?:\n#{OWN_LINE})*)?/
   KINDS = { "new" => "New", "updated" => "Updated" }.freeze
   # How many shared components the last line names before "and n more".
   SHOWN = 4

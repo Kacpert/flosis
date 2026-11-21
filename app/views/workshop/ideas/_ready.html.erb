@@ -91,14 +91,14 @@
         <span class="clar-text-ai flex">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v12M18 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a9 9 0 0 0 9-9"/></svg>
         </span>
-        <% if branched %>
+        <% if branched && idea.code_branch_error.blank? %>
           <span class="text-[12.5px] font-bold clar-text-text">Branch created</span>
           <span class="clar-badge clar-badge-success">ON GITHUB</span>
           <span class="flex-1"></span>
           <a href="https://github.com/<%= ProjectCredentials.new(idea.project).github_repo %>/tree/<%= branch %>" target="_blank" rel="noopener noreferrer" class="clar-btn !text-xs !py-1 no-underline">Open on GitHub</a>
         <% elsif github %>
           <span class="text-[12.5px] font-bold clar-text-text">Branch</span>
-          <span class="clar-badge clar-badge-warn">NOT CREATED</span>
+          <span class="clar-badge clar-badge-warn"><%= branched ? "NOT UPDATED" : "NOT CREATED" %></span>
         <% else %>
           <span class="text-[12.5px] font-bold clar-text-text">Suggested branch</span>
         <% end %>
@@ -110,14 +110,15 @@
           Copy
         </button>
       </div>
-      <% if branched %>
+      <% if branched && idea.code_branch_error.blank? %>
         <div class="text-[11.5px] clar-text-muted leading-[1.5] mt-2">In it: <span class="clar-mono clar-text-text"><%= task_file.path %></span> (description <%= task_file.version %> with the designs' links). Tell your AI: “read <%= task_file.path %>”.</div>
       <% elsif github %>
         <% if idea.code_branch_error.present? %>
           <div class="text-[11.5px] clar-text-warn leading-[1.5] mt-2"><%= idea.code_branch_error %></div>
         <% end %>
         <div class="flex items-center gap-2.5 mt-2.5">
-          <%= button_to create_branch_workshop_idea_path(idea), method: :post, class: "clar-btn clar-btn-primary !text-xs !py-1.5" do %>Create branch<% end %>
+          <%# A branch made before whose update failed says so (review I8). %>
+          <%= button_to create_branch_workshop_idea_path(idea), method: :post, class: "clar-btn clar-btn-primary !text-xs !py-1.5" do %><%= branched ? "Update branch" : "Create branch" %><% end %>
           <span class="text-[11.5px] clar-text-muted leading-[1.5]">With <span class="clar-mono"><%= task_file.path %></span> for the developer.</span>
         </div>
       <% else %>

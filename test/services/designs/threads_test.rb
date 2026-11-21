@@ -902,4 +902,41 @@ class Designs::ThreadsTest < ActiveSupport::TestCase
       assert_empty DesignTurn.where(chat_session: thread.chat_session).active
     end
   end
+  # Review I1: a describe turn that failed is tried again by the describe job,
+  # on the finished thread it belongs to.
+  test "a failed describe turn on a finished thread can be tried again, by the describe job" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      task = tasks(:jira_task)
+      task.update!(project: repo.project, external_reference: "SP-1051")
+      thread = thread_with_work(repo, "Inline validation", { "designs/admin/editor.html" => "<title>Editor</title>" })
+      thread.update!(task: task)
+      Designs::Threads.merge!(thread, user: @user)
+      DesignTurn.where(chat_session: thread.chat_session, kind: "describe").update_all(status: "failed", error: DesignTurn::INTERRUPTED)
+      clear_enqueued_jobs
+
+      turn = Designs::Threads.retry!(thread.reload, user: @user)
+
+      assert_equal [ "describe", "queued" ], [ turn.kind, turn.status ]
+      assert_enqueued_with(job: Designs::DescribeJob, args: [ turn.id ])
+      assert_no_enqueued_jobs(only: Designs::TurnJob)
+    end
+  end
+
+  # Review I6: a thread merged before accepted copies existed gets one from its
+  # last merge when reopened, so the task's link never shows the new work.
+  test "Reopen of a thread merged before accepted copies keeps the link on what was accepted" do
+    with_threads_remote do |repo, _|
+      seed_master(repo)
+      thread = thread_with_work(repo, "Stage colours", { "designs/admin/pipeline.html" => "<title>Pipeline</title>" })
+      merge = Designs::Threads.merge!(thread, user: @user)
+      merge.update!(slot: nil)
+      FileUtils.rm_rf(accepted_folder(repo, thread))
+
+      Designs::Threads.reopen!(thread.reload, user: @user)
+
+      assert_equal "accepted/#{thread.id}", merge.reload.slot
+      assert accepted_folder(repo, thread).join("__flosis/changes.json").file?
+    end
+  end
 end

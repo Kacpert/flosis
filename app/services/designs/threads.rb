@@ -148,22 +148,24 @@ module Designs::Threads
   # once more, as a new turn of its kind, so the failed one keeps what it did.
   # Claude resumes the session the failed run is in, and is told that none of
   # its edits were kept (Designs::TurnJob#earlier_failure).
+  #
+  # A describe turn (Accept designs, 2026-11-21) is tried again by its own job,
+  # on the finished thread it belongs to (review I1).
   def retry!(thread, user:)
-    raise ArgumentError, "#{thread.branch} is already merged." unless thread.open?
     raise Busy, IMPORTING if importing?(thread)
 
     DesignTurn.fail_stale!
     turns = DesignTurn.where(chat_session_id: thread.chat_session_id)
-    raise Busy, BUSY if turns.active.exists?
-
     last = turns.order(:id).last
+    raise ArgumentError, "#{thread.branch} is already merged." unless thread.open? || (last&.describe? && thread.merged?)
+    raise Busy, BUSY if turns.active.exists?
     raise ArgumentError, NOTHING_TO_RETRY unless last&.failed?
 
     note(thread, "Tried again by #{user&.name || 'someone'}")
     turn = DesignTurn.create!(chat_session: thread.chat_session, chat_message: last.chat_message, kind: last.kind,
                               then_merge: last.then_merge, may_propose: last.may_propose)
     thread.touch
-    Designs::TurnJob.perform_later(turn.id)
+    (turn.describe? ? Designs::DescribeJob : Designs::TurnJob).perform_later(turn.id)
     turn
   end
 
@@ -377,12 +379,23 @@ module Designs::Threads
       repo.point!(thread.branch, to: head)
       head
     end
+    keep_accepted_copy(thread)
     thread.update!(status: "open", base_sha: master)
     note(thread, "Reopened by #{user&.name || 'someone'} · branch from master #{short(master)}")
     publish(thread)
     thread
   rescue Designs::Repo::Busy
     raise Busy, BUSY
+  end
+
+  # A thread merged before accepted copies existed (or whose copy failed to
+  # publish) gets one from its last merge before it is reopened, so its task's
+  # link keeps showing what was accepted rather than the new work (review I6).
+  def keep_accepted_copy(thread)
+    last = thread.design_merges.newest_first.first or return
+    return if last.slot.present? && Designs::Publisher.new(thread.project, nil).published?(last.slot)
+
+    publish_accepted(thread, last)
   end
 
   # The version a task's description gets next from its accepted designs:

@@ -886,4 +886,16 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       assert_select hook, workshop_idea_path(task, stage: "details"), count: 0
     end
   end
+  # Review I1: a finished thread whose description turn failed offers Try
+  # again, which the describe job runs.
+  test "a finished thread whose describe turn failed offers Try again" do
+    with_designs do |repo|
+      _, thread = task_thread(repo)
+      Designs::Threads.merge!(thread, user: users(:one))
+      DesignTurn.where(chat_session: thread.chat_session, kind: "describe").update_all(status: "failed", error: DesignTurn::INTERRUPTED)
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_select "form[action=?] button", retry_workshop_design_thread_path(thread), text: /Try again/
+    end
+  end
 end

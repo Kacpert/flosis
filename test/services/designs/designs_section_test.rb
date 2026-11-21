@@ -115,4 +115,12 @@ class Designs::DesignsSectionTest < ActiveSupport::TestCase
     assert_equal "<p>Intro.</p>", Designs::DesignsSection.with_section(@project.tasks.create!(name: "Other"), "<p>Intro.</p>")
     assert_equal "Intro.\n\n#{section}", Designs::DesignsSection.with_section(@task, "<p>Intro.</p>")
   end
+  # Review (re-graded): a section with no screens is its first line alone; the
+  # description's own list after it is not part of it.
+  test "a section with only its first line never swallows the list after it" do
+    text = "Intro.\n\n**Designs** · [Open the designs](https://x.test/d) · merge commit [a](https://x.test/c)\n\n- one\n- two"
+
+    assert_equal "Intro.\n\n- one\n- two", Designs::DesignsSection.strip(text)
+    assert_equal "Intro.\n\n#{SECTION}\n\n- one\n- two", Designs::DesignsSection.insert(text, SECTION)
+  end
 end

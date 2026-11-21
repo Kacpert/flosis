@@ -18,6 +18,9 @@ class Designs::DescribeJob < ApplicationJob
   limits_concurrency to: 1, group: Designs::TurnJob::CONCURRENCY_GROUP, duration: 2.hours,
                      key: ->(turn_id) { Designs::TurnJob.concurrency_key_for_session(DesignTurn.find(turn_id).chat_session) }
 
+  # Stop (the turn's button) reaches the job between ticks.
+  class Stopped < StandardError; end
+
   BLOCK = %r{<description>(.*?)</description>}m
   CHANGES = %r{<changes>(.*?)</changes>}m
   # The most of the conversation the prompt carries: its latest messages.
@@ -39,6 +42,8 @@ class Designs::DescribeJob < ApplicationJob
     return unless turn && claim(turn)
 
     describe(turn)
+  rescue Stopped
+    fail_turn(turn, DesignTurn.stopped_by(turn.reload.stop_requested_by))
   rescue StandardError => e
     Rails.logger.error("[#{self.class.name}] turn #{turn_id}: #{e.class}: #{e.message}")
     fail_turn(turn, "The description could not be written: #{e.message.to_s.truncate(300)}") if turn
@@ -63,12 +68,18 @@ class Designs::DescribeJob < ApplicationJob
     merge = thread.design_merges.newest_first.first
     ahead = Designs::Threads.description_change(thread)
     current = Designs::CurrentDescription.for(task).to_s
-    body, changes, fell_back = written(task, thread, current, ahead)
+    body, changes, fell_back = written(turn, task, thread, current, ahead)
     section = Designs::DesignsSection.build(task)
     text = section ? Designs::DesignsSection.insert(body, section) : body
     key = Designs::ThreadNames.key(task)
 
     TaskDraft.transaction do
+      # A turn failed meanwhile (stale, or stopped by the screen) stays failed:
+      # a late answer never brings it back (review I1).
+      turn.lock!
+      return unless turn.running?
+      raise Stopped if turn.stop_requested_at
+
       version = Designs::Threads.next_description_version(task)
       draft = task.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "designs", version: version, content: text)
       draft.make_current!
@@ -87,35 +98,36 @@ class Designs::DescribeJob < ApplicationJob
   # [markdown, changes, fell_back]: Claude's description without any Designs
   # section it wrote anyway, and up to three lines of what changed; or, when
   # Claude gave none, the description as it was, as Markdown.
-  def written(task, thread, current, ahead)
+  def written(turn, task, thread, current, ahead)
     prompt = Designs::Prompt.describe_message(task: task, description: Designs::DesignsSection.strip(current),
                                               conversation: conversation(thread), screens: screens(task), ahead: ahead)
-    answer = ask(task, prompt)
+    answer = ask(turn, task, prompt)
     body = answer.to_s[BLOCK, 1].to_s.strip
     return [ Designs::DesignsSection.markdown(current), [], true ] if body.empty?
 
     lines = answer[CHANGES, 1].to_s.lines.map(&:strip).select { |line| line.start_with?("- ") }
     [ Designs::DesignsSection.strip(body), lines.map { |line| line.delete_prefix("- ").strip }.reject(&:empty?).first(3), false ]
+  rescue Stopped
+    raise
   rescue StandardError => e
     Rails.logger.warn("[#{self.class.name}] task #{task.id}: Claude gave no description: #{e.class}: #{e.message}")
     [ Designs::DesignsSection.markdown(current), [], true ]
   end
 
-  def ask(task, prompt)
+  # One streaming session, which keeps the timeout (review I2), with no tools
+  # at all (review I3: --tools "" as well as nothing pre-approved). Between
+  # events the job looks whether Stop was pressed.
+  def ask(turn, task, prompt)
     FileUtils.mkdir_p(ChatStreaming::NO_CODEBASE_DIR)
     cli = self.class.claude_factory.call(
-      codebase_path: ChatStreaming::NO_CODEBASE_DIR.to_s, allowed_tools: [],
+      codebase_path: ChatStreaming::NO_CODEBASE_DIR.to_s, tools: [], allowed_tools: [],
       api_key: ProjectCredentials.new(task.project).designs_api_key, max_budget_usd: DesignTurn::DESCRIBE_BUDGET_USD,
       timeout: DesignTurn::DESCRIBE_TIMEOUT_SECONDS, effort: DesignTurn::DESCRIBE_EFFORT
     )
-    result = nil
-    cli.send_initial_streaming(prompt: prompt) do |line|
-      next if line == :keepalive
-
-      data = JSON.parse(line) rescue nil
-      result = data if data.is_a?(Hash) && data["type"] == "result"
+    result = cli.start_session(prompt: prompt) do |event|
+      raise Stopped if event == :tick && DesignTurn.where(id: turn.id).where.not(stop_requested_at: nil).exists?
     end
-    result && !result["is_error"] ? result["result"].to_s : nil
+    result[:is_error] ? nil : result[:response].to_s
   end
 
   # What the person asked, how the description changed, and what the design
