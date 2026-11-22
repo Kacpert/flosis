@@ -45,4 +45,14 @@ class Designs::SetupFormTest < ActiveSupport::TestCase
     refute saving.save
     assert_includes saving.error, "Design repo must be a different repository from the app's"
   end
+
+  # Kacper, 2026-11-22: a context with no login is built from the code.
+  test "a context with No login is saved code-only, without URL, login or password" do
+    params = FORM.merge(contexts: FORM[:contexts].merge("1" => { name: "Flosis staff", url: "", login: "", password: "", code_only: "1" }))
+    assert form(params).save
+    staff = @project.design_setup_roles.find_by!(name: "Flosis staff")
+    assert staff.code_only?
+    assert_equal [ nil, nil ], [ staff.login_url.presence, staff.username.presence ]
+    assert_equal "https://staging.acme.test", @project.reload.design_app_url
+  end
 end

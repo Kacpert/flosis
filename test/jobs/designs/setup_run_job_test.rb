@@ -254,4 +254,23 @@ class Designs::SetupRunJobTest < ActiveSupport::TestCase
     assert_no_enqueued_jobs(only: Designs::SetupRunJob) { Designs::SetupRunJob.new(setup.id).send(:pause, setup.reload, 1.hour.from_now) }
     assert_nil setup.reload.paused_until
   end
+
+  # Kacper, 2026-11-22: what the browser cannot reach is built from the code,
+  # and the feature says for which contexts.
+  test "a feature records the contexts it was built from the code for" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        setup = new_setup(repo.project)
+        repo.project.design_setup_roles.create!(name: "Staff", code_only: true, position: 1)
+        Designs::SetupRunJob.sign_in = ->(_setup) { { "1-admin" => true, "2-staff" => false } }
+        features = FEATURES.map { |row| row.merge("contexts" => %w[1-admin 2-staff]) }
+        Designs::SetupRunJob.turn_runner = fake_turns(repo, setup, features: features)
+        run_to_the_end(setup)
+
+        assert_equal "approved", setup.status, setup.error
+        assert_equal [ %w[2-staff] ], setup.features.map(&:from_code).uniq
+      end
+    end
+  end
 end

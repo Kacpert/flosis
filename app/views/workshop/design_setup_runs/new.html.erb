@@ -79,8 +79,8 @@
 
     <div class="clar-card p-5 mb-3.5">
       <div class="flex gap-3 mb-4"><span class="w-6 h-6 rounded-full bg-[var(--primary-soft)] clar-text-primary text-[12px] font-bold flex items-center justify-center flex-none"><%= @import_mode ? 2 : 3 %></span><div><div class="font-bold text-[14.5px] clar-text-text">Test environment and contexts</div><div class="text-[12.5px] clar-text-muted mt-0.5 leading-[1.45]">The AI signs in as each context and uses the app on test data: it may create, change and delete what it needs. Use a test environment (staging, or a test workspace on production) and a test account per context. Each context can have its own login page.</div></div></div>
-      <div class="grid gap-2 items-center" style="grid-template-columns: minmax(0, .7fr) minmax(0, 1.5fr) minmax(0, 1.1fr) minmax(0, .8fr) 34px;" data-designs-setup-form-target="contexts">
-        <span class="clar-field-label !m-0">CONTEXT</span><span class="clar-field-label !m-0">LOGIN URL</span><span class="clar-field-label !m-0">LOGIN</span><span class="clar-field-label !m-0">PASSWORD</span><span></span>
+      <div class="grid gap-2 items-center" style="grid-template-columns: minmax(0, .7fr) minmax(0, 1.5fr) minmax(0, 1.1fr) minmax(0, .8fr) auto 34px;" data-designs-setup-form-target="contexts">
+        <span class="clar-field-label !m-0">CONTEXT</span><span class="clar-field-label !m-0">LOGIN URL</span><span class="clar-field-label !m-0">LOGIN</span><span class="clar-field-label !m-0">PASSWORD</span><span></span><span></span>
         <% (roles.presence || [ nil, nil, nil ]).each_with_index do |role, i| %>
           <%= render "workshop/design_setup_runs/context_row", index: i, role: role %>
         <% end %>

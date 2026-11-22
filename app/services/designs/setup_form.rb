@@ -10,7 +10,7 @@
 # password stays when the form leaves it blank; a new context needs one.
 class Designs::SetupForm
   SUPPORTED = %w[html tailwind custom].freeze
-  INCOMPLETE = "Fill in the designs repository, at least one app repository and one context with URL and login.".freeze
+  INCOMPLETE = "Fill in the designs repository, at least one app repository and one context: its URL and login, or No login.".freeze
   REPO = %r{\A[\w.-]+/[\w.-]+(@[\w./-]+)?\z}
 
   # Why the form was refused: INCOMPLETE, or what the record refused.
@@ -28,10 +28,10 @@ class Designs::SetupForm
       name = repo_name(row[:url])
       { "role" => row[:role].to_s.strip.presence || "Repository", "repo" => name } if name&.match?(REPO)
     end
-    contexts = rows(@params[:contexts]).select { |row| row[:name].present? && row[:url].present? && row[:login].present? }
+    contexts = rows(@params[:contexts]).select { |row| row[:name].present? && (code_only?(row) || (row[:url].present? && row[:login].present?)) }
     roles = @project.design_setup_roles.index_by { |role| role.id.to_s }
     return incomplete unless repo&.match?(REPO) && repos.any? && contexts.any?
-    return incomplete if contexts.any? { |row| row[:password].blank? && !roles.key?(row[:id].to_s) }
+    return incomplete if contexts.any? { |row| !code_only?(row) && row[:password].blank? && !(roles[row[:id].to_s]&.password.present?) }
 
     save!(repo, repos, contexts, roles)
     true
@@ -51,12 +51,18 @@ class Designs::SetupForm
       @project.update!(designs_framework: framework, designs_framework_version: @params[:framework_version].presence,
                        designs_ui_system: ui, designs_ui_version: @params[:ui_version].presence, design_repo: repo,
                        design_app_repos: repos, design_base_kit: ui == "custom" ? "plain" : "tailwind4",
-                       design_app_url: origin(contexts.first[:url]), designs_enabled: true)
+                       design_app_url: origin(contexts.find { |row| row[:url].present? }&.dig(:url)) || @project.design_app_url, designs_enabled: true)
       @project.update!(design_repo_token: @params[:repo_token]) if @params[:repo_token].present?
       kept = contexts.each_with_index.map do |row, position|
         role = roles[row[:id].to_s] || @project.design_setup_roles.new
-        role.assign_attributes(name: row[:name].strip, login_url: row[:url].strip, username: row[:login].strip, position: position)
-        role.password = row[:password] if row[:password].present?
+        if code_only?(row)
+          # No login (Kacper, 2026-11-22): built from the code; whatever
+          # login it had goes.
+          role.assign_attributes(name: row[:name].strip, code_only: true, login_url: nil, username: nil, password: nil, position: position)
+        else
+          role.assign_attributes(name: row[:name].strip, code_only: false, login_url: row[:url].strip, username: row[:login].strip, position: position)
+          role.password = row[:password] if row[:password].present?
+        end
         role.save!
         role.id
       end
@@ -68,6 +74,8 @@ class Designs::SetupForm
     @error = INCOMPLETE
     false
   end
+
+  def code_only?(row) = ActiveModel::Type::Boolean.new.cast(row[:code_only]) || false
 
   def repo_name(value)
     Project.normalize_value_for(:github_repo, value.to_s).presence

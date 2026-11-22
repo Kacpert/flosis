@@ -14,6 +14,8 @@ require "open3"
 # afresh: a session may not last a run of many hours.
 class Designs::SignIn
   class Failure < StandardError; end
+  # Nobody passed the sign-in: its message is their reasons.
+  class Nobody < Failure; end
 
   TIMEOUT = 5.minutes
   # A sign-in nobody passes is tried this many times, a minute apart, before
@@ -89,27 +91,41 @@ class Designs::SignIn
     @project = setup.project
   end
 
-  # Signs in as every context and returns { slug => signed in? }. Only the
-  # last attempt's failures are noted.
+  # Signs in as every context that has a login, and returns { slug => signed
+  # in? } for every context: a code-only one is false. Only the last
+  # attempt's failures are noted. Nobody signing in, or a sign-in that cannot
+  # run, no longer stops the run (Kacper, 2026-11-22: the import imports what
+  # it can): every context is built from the code then, and a note says why.
   def call
     roles = @project.design_setup_roles.to_a
-    raise Failure, "The setup has no context to sign in as." if roles.empty?
+    signing = roles.select(&:signs_in?)
+    results = signing.any? ? sign_in(signing) : {}
+    roles.to_h { |role| slug = self.class.slug(role); [ slug, results.fetch(slug, false) ] }
+  end
 
+  private
+
+  def sign_in(roles)
     prepare
     attempt = 0
     begin
       attempt += 1
-      results = sign_in_once(roles)
-    rescue Failure
-      raise if attempt >= ATTEMPTS
-
-      sleep self.class.pause
-      retry
+      rows = sign_in_once(roles)
+    rescue Failure => e
+      if attempt < ATTEMPTS
+        sleep self.class.pause
+        retry
+      end
+      nobody!(e)
+      return {}
     end
-    results.to_h { |row| [ row["slug"], row["ok"] == true ] }
+    rows.to_h { |row| [ row["slug"], row["ok"] == true ] }
   end
 
-  private
+  def nobody!(error)
+    why = error.is_a?(Nobody) ? "Nobody could sign in to the test environment: #{error.message}." : "#{error.message.delete_suffix('.')}."
+    @setup.note!("Signing in", "#{why} Every context is built from the code.")
+  end
 
   def sign_in_once(roles)
     out, errors, status = self.class.runner.call(argv: [ "node", File.join(self.class.crawler_dir, "sign_in.mjs"), auth.to_s ],
@@ -121,7 +137,7 @@ class Designs::SignIn
     failures = results.reject { |row| row["ok"] }
     failures.each { |row| FileUtils.rm_f(auth.join("#{row['slug']}.json")) }
     messages = failures.map { |row| scrub(row["error"].to_s.presence || "it did not say why").delete_suffix(".") }
-    raise Failure, "No context could sign in to the test environment: #{messages.uniq.join('; ')}." if results.none? { |row| row["ok"] }
+    raise Nobody, messages.uniq.join("; ") if results.none? { |row| row["ok"] }
 
     names = roles.to_h { |role| [ self.class.slug(role), role.name ] }
     failures.zip(messages).each do |row, message|

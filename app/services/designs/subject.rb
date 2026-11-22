@@ -352,9 +352,30 @@ module Designs::Subject
     # A resync's look at what changed: code and history only.
     def code_only? = setup.phase == "resync"
 
+    # A context without a login, or one that could not sign in this time
+    # (no state of its own now), is built from the code (Kacper, 2026-11-22).
+    CODE_CONTEXTS_NOTE = <<~TEXT.freeze
+      # Contexts built from the code
+
+      A context with no browser is built from the app's code: its routes, permissions, navigation, views and components, with fake data of the kind its views show. Say in a <missing> note that its screens were built from the code and not checked against the app.
+    TEXT
+
+    def browser?(role) = role.signs_in? && setup.run_dir.join("auth", "#{Designs::SignIn.slug(role)}.json").file?
+
+    def context_line(role)
+      folder = "designs/#{self.class.folder_for(role)}/"
+      return "#{role.name}: #{folder}#{' (no login)' if role.code_only?}" if code_only?
+      return "#{role.name}: browser #{Designs::SignIn.slug(role)}, #{folder}" if browser?(role)
+
+      "#{role.name}: no browser (#{role.code_only? ? 'no login' : 'could not sign in'}): build it from the code, #{folder}"
+    end
+
+    def from_code_contexts? = !code_only? && project.design_setup_roles.any? { |role| !browser?(role) }
+
     def system_text
       "#{Designs::Prompt.system_text(project: project, composition: composition)}\n#{readable}\n#{code_only? ? CODE_ONLY_NOTE : BROWSER_NOTE}" \
         "#{"\n#{GIT_NOTE}" if history?}" \
+        "#{"\n#{CODE_CONTEXTS_NOTE}" if from_code_contexts?}" \
         "#{"\n#{BLOCKED_NOTE}" if setup.phase == 'feature' && !setup.reimport?}"
     end
 
@@ -367,9 +388,7 @@ module Designs::Subject
       ui = Workshop::DesignsModuleController::UI_SYSTEMS.fetch(project.designs_ui_system, project.designs_ui_system.to_s.humanize)
       framework = Workshop::DesignsModuleController::FRAMEWORKS.fetch(project.designs_framework, project.designs_framework.to_s.humanize)
       repos = Array(project.design_app_repos).filter_map { |row| "#{row['role']}: #{row['repo']}" if row.is_a?(Hash) }
-      contexts = project.design_setup_roles.map do |role|
-        "#{role.name}: browser #{Designs::SignIn.slug(role)}, designs/#{self.class.folder_for(role)}/"
-      end
+      contexts = project.design_setup_roles.map { |role| context_line(role) }
       <<~MESSAGE
         ## Setup run
         This turn: #{PHASE_TITLES.fetch(setup.phase, setup.phase.humanize.downcase)}

@@ -334,4 +334,15 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
       assert_includes css_select("[data-import-entry='#{running.id}']").first.text.squish, "Stopped"
     end
   end
+
+  test "Built says which contexts were built from the code" do
+    with_designs do
+      @project.design_setup_roles.create!(name: "Admin", login_url: "https://s.test/login", username: "a", password: "p", position: 0)
+      @project.design_setup_roles.create!(name: "Flosis staff", code_only: true, position: 1)
+      import = first_import([ [ "Library", "done", { from_code: %w[2-flosis-staff] } ] ])
+
+      get workshop_designs_overview_path(tab: "imports", import: import.id)
+      assert_includes response.body, "From code: Flosis staff"
+    end
+  end
 end

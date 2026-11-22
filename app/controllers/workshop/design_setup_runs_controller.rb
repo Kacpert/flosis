@@ -142,7 +142,7 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
 
   def form_params
     params.permit(:framework, :framework_version, :ui, :ui_version, :repo, :repo_token,
-                  repos: %i[role url], contexts: %i[id name url login password])
+                  repos: %i[role url], contexts: %i[id name url login password code_only])
   end
 
   def save_form

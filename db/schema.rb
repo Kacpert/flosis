@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_110100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -370,6 +370,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_110000) do
     t.bigint "design_turn_id"
     t.text "error"
     t.datetime "finished_at"
+    t.json "from_code"
     t.string "key", null: false
     t.string "name", null: false
     t.json "notes"
@@ -391,15 +392,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_110000) do
   end
 
   create_table "design_setup_roles", force: :cascade do |t|
+    t.boolean "code_only", default: false, null: false
     t.datetime "created_at", null: false
-    t.string "login_url", null: false
+    t.string "login_url"
     t.string "name", null: false
     t.text "notes"
-    t.text "password", null: false
+    t.text "password"
     t.integer "position", default: 0, null: false
     t.bigint "project_id", null: false
     t.datetime "updated_at", null: false
-    t.string "username", null: false
+    t.string "username"
     t.index ["project_id"], name: "index_design_setup_roles_on_project_id"
   end
 

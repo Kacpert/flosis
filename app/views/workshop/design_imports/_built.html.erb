@@ -1,13 +1,14 @@
 <%# Built: a line per finished feature, its screens, components and notes,
     the notes behind a toggle, and Open on master's canvas. %>
 <div class="text-[11px] tracking-[.06em] font-bold clar-text-muted mt-1 mb-2">BUILT · <%= built.size %></div>
+<% names = setup.project.design_setup_roles.to_h { |role| [ Designs::SignIn.slug(role), role.name ] } %>
 <div class="clar-card overflow-hidden mb-5">
   <% built.each_with_index do |feature, i| %>
     <% line = import_built_line(feature) %>
     <% open = import_open_path(repo, feature) if repo %>
     <div class="px-4 py-2.5 <%= 'border-t border-[color:var(--border)]' if i.positive? %>">
       <div class="flex items-center justify-between gap-3 text-[13px]">
-        <span class="min-w-0"><b class="clar-text-text"><%= feature.name %></b><% if line.present? %> <span class="clar-text-muted">· <%= line %></span><% end %></span>
+        <span class="min-w-0"><b class="clar-text-text"><%= feature.name %></b><% if line.present? %> <span class="clar-text-muted">· <%= line %></span><% end %><% if feature.from_code.present? %> <span class="clar-tip clar-text-warn text-[12px]" data-tip="Built from the app's code, not checked against the app: no login, or the sign-in failed">· From code: <%= feature.from_code.map { |slug| names.fetch(slug, slug) }.join(", ") %></span><% end %></span>
         <% if open %><%= link_to "Open", open, class: "clar-text-primary text-[12.5px] font-semibold no-underline whitespace-nowrap" %><% end %>
       </div>
       <% if feature.notes.any? %>

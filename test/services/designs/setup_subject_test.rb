@@ -57,4 +57,19 @@ class Designs::SetupSubjectTest < ActiveSupport::TestCase
     assert_includes @subject.system_text, "# This turn reads code only"
     refute_includes @subject.system_text, "# This turn's browser"
   end
+
+  # Kacper, 2026-11-22: a context without a login, or one that could not sign
+  # in, is built from the code.
+  test "the contexts list says which are built from the code" do
+    @project.design_setup_roles.create!(name: "Flosis staff", code_only: true, position: 1)
+    @project.design_setup_roles.create!(name: "Manager", login_url: "https://staging.acme.test/login", username: "m", password: "p", position: 2)
+    FileUtils.mkdir_p(@setup.run_dir.join("auth"))
+    File.write(@setup.run_dir.join("auth", "1-admin.json"), "{}")
+
+    message = @subject.turn_message("Build it.")
+    assert_includes message, "Admin: browser 1-admin, designs/admin/"
+    assert_includes message, "Flosis staff: no browser (no login): build it from the code, designs/flosis-staff/"
+    assert_includes message, "Manager: no browser (could not sign in): build it from the code, designs/manager/"
+    assert_includes @subject.system_text, "# Contexts built from the code"
+  end
 end

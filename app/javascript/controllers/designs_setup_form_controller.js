@@ -10,13 +10,14 @@ export default class extends Controller {
   }
 
   // The footer says what is missing until the designs repository, one app
-  // repository and one context with its URL and login are filled in.
+  // repository and one context (its URL and login, or No login) are filled in.
   check() {
     if (!this.hasHintTarget) return
     const value = (name) => this.element.querySelector(`[name="${name}"]`)?.value.trim()
     const any = (pattern) => [...this.element.querySelectorAll("input")].some((input) => pattern.test(input.name) && input.value.trim())
+    const filled = (row, field) => row.querySelector(`[name$="[${field}]"]`)?.value.trim()
     const contexts = [...this.contextsTarget.querySelectorAll("[data-designs-setup-form-row]")].some((row) =>
-      ["name", "url", "login"].every((field) => row.querySelector(`[name$="[${field}]"]`)?.value.trim()))
+      filled(row, "name") && (row.querySelector('[name$="[code_only]"]')?.checked || (filled(row, "url") && filled(row, "login"))))
     const ready = !!value("repo") && any(/^repos\[[^\]]+\]\[url\]$/) && contexts
     this.hintTarget.textContent = ready ? this.hintTarget.dataset.ready : this.hintTarget.dataset.incomplete
   }

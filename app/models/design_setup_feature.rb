@@ -31,6 +31,9 @@ class DesignSetupFeature < ApplicationRecord
   # A proposal waiting for review: { "comes_in", "kept", "replaced",
   # "threads", "paths" }.
   attribute :review, :json, default: {}
+  # The contexts (slugs) its last build had no browser for, built from the
+  # app's code instead (Kacper, 2026-11-22).
+  attribute :from_code, :json, default: []
 
   validates :name, :key, :position, presence: true
   validates :status, inclusion: { in: STATUSES }

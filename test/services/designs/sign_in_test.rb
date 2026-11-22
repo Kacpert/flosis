@@ -90,18 +90,37 @@ class Designs::SignInTest < ActiveSupport::TestCase
     assert_equal 3, attempts
   end
 
-  test "a run nobody can sign in to stops, with the reason" do
+  # Kacper, 2026-11-22: the import imports what it can. Nobody signing in no
+  # longer stops it: every context is built from the code, and it says so.
+  test "a run nobody can sign in to goes on from the code, with the reason" do
     Designs::SignIn.runner = runner(ok: [])
-    error = assert_raises(Designs::SignIn::Failure) { Designs::SignIn.new(@setup).call }
+    assert_equal({ "1-admin" => false, "2-hiring-manager" => false }, Designs::SignIn.new(@setup).call)
     assert_equal Designs::SignIn::ATTEMPTS, @calls.size
-    assert_match(/No context could sign in to the test environment/, error.message)
-    assert_match(/login failed/, error.message)
+    note = @setup.reload.notes.last
+    assert_equal "Signing in", note["label"]
+    assert_match(/Nobody could sign in to the test environment: login failed/, note["text"])
+    assert_match(/built from the code/, note["text"])
   end
 
-  test "a sign-in that breaks stops the run without the passwords" do
+  test "a sign-in that breaks goes on from the code without the passwords" do
     Designs::SignIn.runner = ->(**) { [ "", "Error: admin-secret was refused", 1 ] }
-    error = assert_raises(Designs::SignIn::Failure) { Designs::SignIn.new(@setup).call }
-    assert_no_match(/admin-secret/, error.message)
+    assert_equal [ false ], Designs::SignIn.new(@setup).call.values.uniq
+    assert_no_match(/admin-secret/, @setup.reload.notes.last["text"])
+  end
+
+  test "code-only contexts are not signed in" do
+    @project.design_setup_roles.create!(name: "Flosis staff", code_only: true, position: 2)
+    Designs::SignIn.runner = runner
+    result = Designs::SignIn.new(@setup).call
+    assert_equal %w[1-admin 2-hiring-manager], JSON.parse(@calls.sole[:stdin])["roles"].map { |role| role["slug"] }
+    assert_equal [ true, true, false ], result.values_at("1-admin", "2-hiring-manager", "3-flosis-staff")
+  end
+
+  test "with only code-only contexts nothing runs" do
+    @project.design_setup_roles.destroy_all
+    @project.design_setup_roles.create!(name: "Flosis staff", code_only: true, position: 0)
+    Designs::SignIn.runner = ->(**) { flunk "nobody to sign in" }
+    assert_equal({ "1-flosis-staff" => false }, Designs::SignIn.new(@setup).call)
   end
 
   test "a state an earlier sign-in left for a context that now fails is removed" do

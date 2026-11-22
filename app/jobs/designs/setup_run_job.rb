@@ -389,8 +389,9 @@ class Designs::SetupRunJob < ApplicationJob
     feature = setup.features.pending.first
     return setup.finish_step! unless feature
 
-    self.class.sign_in.call(setup)
-    feature.update!(status: "running", stage: "building", started_at: feature.started_at || Time.current, error: nil, resets_at: nil)
+    signed_in = self.class.sign_in.call(setup)
+    feature.update!(status: "running", stage: "building", started_at: feature.started_at || Time.current, error: nil, resets_at: nil,
+                    from_code: from_code(feature, signed_in))
     FileUtils.rm_f(setup.run_dir.join("progress.json"))
     setup.update!(phase: "feature")
     repo = Designs::Repo.new(setup.project)
@@ -511,7 +512,8 @@ class Designs::SetupRunJob < ApplicationJob
     feature = setup.features.where(status: "todo").reorder(:queued_at, :position).first or return
 
     feature.update!(status: "running", stage: "building", started_at: Time.current, error: nil, resets_at: nil)
-    self.class.sign_in.call(setup)
+    signed_in = self.class.sign_in.call(setup)
+    feature.update!(from_code: from_code(feature, signed_in))
     self.class.app_repos.call(setup) if Designs::AppRepos.new(setup).dirs.empty?
     self.class.app_history.call(setup) if Designs::AppHistory.new(setup.project).clones.empty?
     repo = Designs::Repo.new(setup.project)
@@ -627,4 +629,12 @@ class Designs::SetupRunJob < ApplicationJob
   end
 
   def branch(setup) = setup.design_thread&.branch || Designs::BranchNames::SETUP
+
+  # The feature's contexts (every context when it names none) that did not
+  # sign in now: its turn builds them from the code (Kacper, 2026-11-22).
+  def from_code(feature, signed_in)
+    return [] unless signed_in.is_a?(Hash)
+
+    (feature.contexts.presence || signed_in.keys).reject { |slug| signed_in[slug] }
+  end
 end
