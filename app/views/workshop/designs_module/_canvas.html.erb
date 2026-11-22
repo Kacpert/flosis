@@ -5,15 +5,14 @@
 <% finished = @thread&.merged? %>
 <% params_for = ->(extra = {}) { { thread: @thread&.id, ctx: @context, screen: @screen, mode: (@mode unless @mode == "master" || !(live || finished)) }.merge(extra).compact } %>
 <div class="flex items-center gap-2.5 px-3 py-2 border-b border-[color:var(--border)] bg-[var(--surface)] flex-wrap relative z-[5]">
+  <%# Every role opens: at this screen when it has it, else at its closest
+      (Kacper, 2026-11-22). The links follow the screen the preview shows
+      (designs-canvas). %>
   <span class="text-[12px] clar-text-faint">View as</span>
-  <div class="clar-seg">
+  <div class="clar-seg" data-designs-view-as>
     <% @contexts.each do |context| %>
-      <% here = @screens.any? { |s| s[:context] == context[:id] && s[:id] == @screen } %>
-      <% if here %>
-        <%= link_to context[:name], workshop_designs_overview_path(params_for.call(ctx: context[:id])), class: "clar-seg-item no-underline #{'clar-seg-item-active' if context[:id] == @context}" %>
-      <% else %>
-        <span class="clar-seg-item opacity-40 cursor-default" title="Not available for <%= context[:name] %>"><%= context[:name] %></span>
-      <% end %>
+      <%= link_to context[:name], workshop_designs_overview_path(params_for.call(ctx: context[:id])), class: "clar-seg-item no-underline #{'clar-seg-item-active' if context[:id] == @context}",
+                  data: { designs_canvas_target: "viewAs", context: context[:id] } %>
     <% end %>
   </div>
   <div class="flex-1"></div>
@@ -21,7 +20,8 @@
     <%# A finished thread shows its accepted copy (2026-11-21). %>
     <div class="clar-seg">
       <% (live ? [ [ "branch", "This branch" ], [ "master", "Master" ], [ "changes", "Changes" ] ] : [ [ "accepted", "Accepted" ], [ "changes", "Changes" ] ]).each do |mode, label| %>
-        <%= link_to label, workshop_designs_overview_path(params_for.call(mode: mode)), class: "clar-seg-item no-underline #{'clar-seg-item-active' if @mode == mode}" %>
+        <%= link_to label, workshop_designs_overview_path(params_for.call(mode: mode)), class: "clar-seg-item no-underline #{'clar-seg-item-active' if @mode == mode}",
+                    data: { designs_canvas_target: "mode" } %>
       <% end %>
     </div>
   <% end %>

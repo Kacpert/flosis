@@ -23,13 +23,13 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     FileUtils.remove_entry(@preview_root)
   end
 
-  def with_designs
+  def with_designs(more = {})
     with_design_remote(@project) do |repo, remote|
       with_remote_url(remote) do
         seed_master(repo, { "designs/candidate/apply.html" => SCREEN.("Application form"),
                             "designs/recruiter/pipeline.html" => SCREEN.("Pipeline"),
                             "design-system/theme.css" => "@theme { --color-primary: #1779ba; --radius-card: 4px; }",
-                            "components/button/button.html" => "<button>{{label}}</button>" })
+                            "components/button/button.html" => "<button>{{label}}</button>" }.merge(more))
         @project.reload.update!(design_repo_status: "ready")
         Designs::Publisher.new(@project, repo).publish!("master", "master")
         yield repo
@@ -87,8 +87,65 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       frame = css_select("iframe[data-designs-canvas-target=frame]").sole
       assert_equal "allow-scripts allow-forms allow-popups allow-modals", frame["sandbox"]
       assert_match %r{/design/designs/candidate/apply\.html\z}, frame["src"]
-      assert_select ".clar-seg-item[title=?]", "Not available for Recruiter"
       assert_select "[data-action='designs-immersive#peekNav']", count: 1
+    end
+  end
+
+  def frame_src = css_select("iframe[data-designs-canvas-target=frame]").sole["src"]
+  def toast = css_select("[data-clar-toast-initial-value]").sole["data-clar-toast-initial-value"]
+
+  # Kacper (2026-11-22): a role without the screen on the canvas was greyed
+  # out, so a role with no screen in common with the others (Flosis staff's)
+  # could not be opened at all. Every role opens, at this screen when it has
+  # it, else at one of its own, and the canvas says which.
+  test "View as opens every role, one without this screen at a screen of its own" do
+    with_designs do
+      get workshop_designs_overview_path
+
+      roles = css_select("[data-designs-view-as] .clar-seg-item").to_h { |item| [ item.text.strip, item ] }
+      assert_equal %w[Candidate Recruiter], roles.keys
+      assert roles.values.all? { |item| item.name == "a" }, "every role is a link"
+
+      get roles["Recruiter"]["href"]
+      assert_match %r{/design/designs/recruiter/pipeline\.html\z}, frame_src
+      assert_equal "Application form is not available as Recruiter · showing Pipeline", toast
+
+      # A screen no role has (a new one, not on master yet) opens the role's own quietly.
+      get workshop_designs_overview_path(ctx: "recruiter", screen: "offer-letter")
+      assert_match %r{/design/designs/recruiter/pipeline\.html\z}, frame_src
+      assert_equal "", toast
+    end
+  end
+
+  # The screen a role opens instead: the one of the same area (the longest run
+  # of leading words its name shares with the screen asked for, the plainest
+  # of those), else the role's overview, else its first.
+  test "a role without this screen opens its closest one, else its overview, else its first" do
+    with_designs("designs/admin/bugs.html" => SCREEN.("Bugs"),
+                 "designs/admin/configuration-jira.html" => SCREEN.("Jira settings"),
+                 "designs/owner/bugs-a-list.html" => SCREEN.("Bug list"),
+                 "designs/owner/bugs-empty.html" => SCREEN.("No bugs"),
+                 "designs/owner/configuration.html" => SCREEN.("Configuration"),
+                 "designs/staff/models.html" => SCREEN.("Models"),
+                 "designs/staff/overview.html" => SCREEN.("Overview"),
+                 "designs/recruiter/offers.html" => SCREEN.("Offers")) do
+      { %w[owner configuration-jira] => "owner/configuration", %w[owner bugs] => "owner/bugs-empty",
+        %w[staff bugs] => "staff/overview", %w[recruiter bugs] => "recruiter/offers" }.each do |(role, screen), shown|
+        get workshop_designs_overview_path(ctx: role, screen: screen)
+        assert_match %r{/design/designs/#{shown}\.html\z}, frame_src, "#{role} for #{screen}"
+      end
+      assert_equal "Bugs is not available as Recruiter · showing Offers", toast
+    end
+  end
+
+  # The preview moves on when a link inside it is clicked; View as and the
+  # modes go on from the screen it shows then (designs-canvas).
+  test "View as and the modes are marked to follow the screen the preview shows" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_select "[data-designs-view-as] a[data-designs-canvas-target=viewAs]", count: 2
+      assert_select "a[data-designs-canvas-target=mode]", count: 3
     end
   end
 
