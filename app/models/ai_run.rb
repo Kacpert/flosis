@@ -33,6 +33,9 @@ class AiRun < ApplicationRecord
   belongs_to :unknown_reviewed_by, class_name: "User", optional: true
   belongs_to :item, polymorphic: true, optional: true
 
+  # MariaDB keeps a json column as text: cast it, as every json column here is.
+  attribute :model_usage, :json
+
   validates :area, inclusion: { in: AREAS.keys }
   validates :status, inclusion: { in: STATUSES }
   validates :ran_at, presence: true
@@ -45,10 +48,19 @@ class AiRun < ApplicationRecord
   scope :unknown_cost, -> { finished.where(cost_usd: nil) }
   scope :unreviewed_unknown, -> { unknown_cost.where(unknown_reviewed_at: nil) }
 
+  DEFAULT_MARGIN = BigDecimal("30")
+
   # The margin of an organization without a plan: the "no plan" screens still
-  # show a price.
+  # show a price. FLOSIS_DEFAULT_MARGIN_PERCENT may say "30" or "30%"; a value
+  # that is no number falls back to 30 rather than breaking every run's price.
   def self.default_margin_percent
-    BigDecimal(ENV.fetch("FLOSIS_DEFAULT_MARGIN_PERCENT", "30"))
+    raw = ENV["FLOSIS_DEFAULT_MARGIN_PERCENT"].to_s.strip.delete_suffix("%").strip
+    return DEFAULT_MARGIN if raw.empty?
+
+    BigDecimal(raw)
+  rescue ArgumentError
+    Rails.logger.warn("[AiRun] FLOSIS_DEFAULT_MARGIN_PERCENT=#{ENV['FLOSIS_DEFAULT_MARGIN_PERCENT'].inspect} is no number; using #{DEFAULT_MARGIN.to_i}%")
+    DEFAULT_MARGIN
   end
 
   def item_deleted?

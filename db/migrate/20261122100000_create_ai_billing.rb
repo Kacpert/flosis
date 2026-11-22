@@ -1,7 +1,8 @@
 # SCRUM-70: every Claude run is recorded and priced (ai_runs), against plans
 # Flosis staff make (ai_plans, ai_plan_models), with a reference price list
 # (ai_models) and each month's limit frozen once it closes (ai_month_limits).
-# All money is in US dollars.
+# All money is in US dollars. Production is MariaDB: json, not jsonb, and no
+# partial indexes.
 class CreateAiBilling < ActiveRecord::Migration[8.1]
   def change
     create_table :ai_plans do |t|
@@ -55,7 +56,7 @@ class CreateAiBilling < ActiveRecord::Migration[8.1]
       t.string :automation
       t.string :status, null: false, default: "running"
       t.string :model
-      t.jsonb :model_usage
+      t.json :model_usage
       t.bigint :input_tokens, null: false, default: 0
       t.bigint :output_tokens, null: false, default: 0
       t.bigint :cache_write_tokens, null: false, default: 0
@@ -76,8 +77,7 @@ class CreateAiBilling < ActiveRecord::Migration[8.1]
       t.index [ :workspace_id, :area, :ran_at ]
       t.index [ :project_id, :ran_at ]
       t.index [ :item_type, :item_id ]
-      t.index :workspace_id, where: "cost_usd IS NULL", name: "index_ai_runs_unknown_cost"
-      t.index :ran_at, where: "status = 'running'", name: "index_ai_runs_running"
+      t.index [ :status, :ran_at ]
     end
 
     create_table :ai_month_limits do |t|

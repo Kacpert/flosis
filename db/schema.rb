@@ -102,7 +102,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
     t.string "item_type"
     t.decimal "margin_percent", precision: 6, scale: 2
     t.string "model"
-    t.jsonb "model_usage"
+    t.json "model_usage"
     t.bigint "output_tokens", default: 0, null: false
     t.boolean "own_key", default: false, null: false
     t.decimal "price_usd", precision: 14, scale: 6
@@ -117,11 +117,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
     t.bigint "workspace_id", null: false
     t.index ["item_type", "item_id"], name: "index_ai_runs_on_item_type_and_item_id"
     t.index ["project_id", "ran_at"], name: "index_ai_runs_on_project_id_and_ran_at"
-    t.index ["ran_at"], name: "index_ai_runs_running", where: "((status)::text = 'running'::text)"
     t.index ["started_by_id"], name: "index_ai_runs_on_started_by_id"
+    t.index ["status", "ran_at"], name: "index_ai_runs_on_status_and_ran_at"
     t.index ["workspace_id", "area", "ran_at"], name: "index_ai_runs_on_workspace_id_and_area_and_ran_at"
     t.index ["workspace_id", "ran_at"], name: "index_ai_runs_on_workspace_id_and_ran_at"
-    t.index ["workspace_id"], name: "index_ai_runs_unknown_cost", where: "(cost_usd IS NULL)"
   end
 
   create_table "alert_rule_prompt_versions", force: :cascade do |t|

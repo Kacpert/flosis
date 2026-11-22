@@ -56,4 +56,18 @@ class AiRunTest < ActiveSupport::TestCase
   test "cache tokens are reads and writes together" do
     assert_equal 30, run_row(cache_read_tokens: 10, cache_write_tokens: 20).cache_tokens
   end
+
+  # Kacper, 2026-11-22: the env is set as "30%"; a value that is no number
+  # falls back to 30 rather than breaking every run's price.
+  test "the default margin reads 30% and ignores a value that is no number" do
+    ENV["FLOSIS_DEFAULT_MARGIN_PERCENT"] = "30%"
+    assert_equal BigDecimal("30"), AiRun.default_margin_percent
+    ENV["FLOSIS_DEFAULT_MARGIN_PERCENT"] = " 25 % "
+    assert_equal BigDecimal("25"), AiRun.default_margin_percent
+    ENV["FLOSIS_DEFAULT_MARGIN_PERCENT"] = "lots"
+    assert_equal BigDecimal("30"), AiRun.default_margin_percent
+  ensure
+    ENV.delete("FLOSIS_DEFAULT_MARGIN_PERCENT")
+  end
+
 end

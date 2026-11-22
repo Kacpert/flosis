@@ -6,6 +6,11 @@
 # reported cost is counted apart and never as $0 (SUM skips NULL); own-key
 # runs are in no total, no limit and no area figure, only on their own line.
 # Months are calendar months in the app's time zone (Warsaw).
+#
+# Production is MariaDB and the tests PostgreSQL, so the SQL here is what both
+# understand: CASE WHEN, never FILTER, date_trunc or AT TIME ZONE. A run's
+# month is told by comparing ran_at (stored in UTC) with each month's bounds,
+# worked out in Ruby (AiSqlPortabilityTest).
 class AiCosts
   Figure = Data.define(:total, :this_month, :priced_runs, :runs)
   # priced: how many of the month's runs reported a cost; none → "unknown".
@@ -27,7 +32,7 @@ class AiCosts
     return {} if items.empty?
 
     month = Date.current.in_time_zone.all_month
-    this_month = AiRun.sanitize_sql_array([ "COALESCE(SUM(price_usd) FILTER (WHERE ran_at BETWEEN ? AND ?), 0)", month.begin, month.end ])
+    this_month = AiRun.sanitize_sql_array([ "COALESCE(SUM(CASE WHEN ai_runs.ran_at BETWEEN ? AND ? THEN price_usd END), 0)", month.begin, month.end ])
     workspace_runs.finished.in_area(area)
         .where(item_type: items.map { |item| item.class.polymorphic_name }.uniq, item_id: items.map(&:id))
         .group(:item_type, :item_id)
@@ -39,10 +44,13 @@ class AiCosts
   # The area's billable spend by month, newest first, the current month always
   # first even with nothing in it.
   def area_months(area, limit: 12)
-    by_month = workspace_runs.billable.in_area(area).group(Arel.sql(month_sql))
-                             .pluck(Arel.sql(month_sql), Arel.sql("COALESCE(SUM(price_usd), 0)"), Arel.sql("COUNT(*)"), Arel.sql("COUNT(price_usd)"))
-                             .to_h { |month, amount, count, priced| [ month.to_date, [ amount, count, priced ] ] }
     current = Date.current.beginning_of_month
+    span = (0...limit).map { |back| current << back }
+    month = month_case(span)
+    by_month = workspace_runs.billable.in_area(area).where(ran_at: span.last.in_time_zone..)
+                             .group(Arel.sql(month))
+                             .pluck(Arel.sql(month), Arel.sql("COALESCE(SUM(price_usd), 0)"), Arel.sql("COUNT(*)"), Arel.sql("COUNT(price_usd)"))
+                             .to_h { |at, amount, count, priced| [ at.to_date, [ amount, count, priced ] ] }
     by_month[current] ||= [ BigDecimal("0"), 0, 0 ]
     by_month.sort_by { |month, _| month }.reverse.first(limit)
             .map { |month, (amount, count, priced)| Month.new(month: month, amount: amount, runs: count, priced: priced) }
@@ -51,7 +59,8 @@ class AiCosts
   # The months with finished runs, newest first, the current month always
   # first: what Consumption's period picker offers.
   def months
-    found = workspace_runs.finished.distinct.pluck(Arel.sql(month_sql)).map(&:to_date)
+    span = months_since_first_run
+    found = span.empty? ? [] : workspace_runs.finished.distinct.pluck(Arel.sql(month_case(span))).compact.map(&:to_date)
     ([ Date.current.beginning_of_month ] | found).sort.reverse
   end
 
@@ -62,8 +71,11 @@ class AiCosts
 
   def all_time
     limits = @workspace.ai_month_limits.index_by(&:month)
-    months = workspace_runs.billable.group(Arel.sql(month_sql)).pluck(Arel.sql(month_sql), Arel.sql("COALESCE(SUM(price_usd), 0)"))
-                 .map { |month, amount| [ month.to_date, amount, limits[month.to_date] || AiMonthLimit.for(@workspace, month.to_date) ] }
+    span = months_since_first_run
+    month = span.empty? ? nil : month_case(span)
+    rows = month ? workspace_runs.billable.group(Arel.sql(month)).pluck(Arel.sql(month), Arel.sql("COALESCE(SUM(price_usd), 0)")) : []
+    months = rows.reject { |at, _| at.nil? }
+                 .map { |at, amount| [ at.to_date, amount, limits[at.to_date] || AiMonthLimit.for(@workspace, at.to_date) ] }
                  .sort_by(&:first).reverse
     summarize(workspace_runs, limit: nil, months: months)
   end
@@ -110,9 +122,29 @@ class AiCosts
         .sort_by { |_, _, amount, _| -amount }
   end
 
-  # A run's calendar month in the app's time zone (ran_at is stored in UTC).
-  def month_sql
-    zone = Time.zone.tzinfo.name
-    "date_trunc('month', (ai_runs.ran_at AT TIME ZONE 'UTC') AT TIME ZONE #{AiRun.connection.quote(zone)})"
+  # Every calendar month from the first finished run's to this one, oldest first.
+  def months_since_first_run
+    first = workspace_runs.finished.minimum(:ran_at)
+    return [] unless first
+
+    month = first.in_time_zone.to_date.beginning_of_month
+    current = Date.current.beginning_of_month
+    span = []
+    while month <= current
+      span << month
+      month = month.next_month
+    end
+    span
+  end
+
+  # A run's calendar month (as "YYYY-MM-01") among the given months, in SQL any
+  # database reads: ran_at is stored in UTC, and each month's bounds are worked
+  # out here in the app's time zone (Warsaw, summer time included).
+  def month_case(months)
+    branches = months.map do |month|
+      AiRun.sanitize_sql_array([ "WHEN ai_runs.ran_at >= ? AND ai_runs.ran_at < ? THEN ?",
+                                 month.in_time_zone, month.next_month.in_time_zone, month.iso8601 ])
+    end
+    "CASE #{branches.join(' ')} END"
   end
 end
