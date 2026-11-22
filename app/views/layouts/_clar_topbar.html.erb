@@ -152,6 +152,14 @@
         <div class="my-1.5 border-t" style="border-color: var(--border);"></div>
       <% end %>
 
+      <%# The person's own settings, the AI costs switch among them (SCRUM-70). %>
+      <%= link_to profile_path,
+            class: "flex items-center gap-2.5 w-full px-2.5 py-2.5 rounded-lg border-0 text-left clar-btn no-underline",
+            style: "background: transparent; color: var(--text);" do %>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="clar-text-faint flex-none"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>
+        <span class="font-semibold text-[13px]">Profile settings</span>
+      <% end %>
+
       <%= button_to session_path, method: :delete,
             class: "flex items-center gap-2.5 w-full px-2.5 py-2.5 rounded-lg border-0 text-left clar-btn",
             style: "background: transparent;" do %>
