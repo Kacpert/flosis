@@ -1,2 +1,82 @@
 <% content_for :title, "Models & prices · Flosis admin" %>
-<h1 class="clar-h1">Models &amp; prices</h1>
+<%# Models & prices (SCRUM-70, flosis-admin/models.html), in dollars. %>
+<% by_hand = @models.select { |m| m.price_source == "hand" || (m.read_failed_at && (m.read_at.nil? || m.read_failed_at > m.read_at)) } %>
+<% read_on_last = @last_read ? @models.count { |m| m.read_at && m.read_at.to_date == @last_read.to_date } : 0 %>
+<div class="max-w-[1000px]">
+  <h1 class="clar-h1">Models &amp; prices</h1>
+  <p class="clar-text-muted text-[13px] mt-1 mb-5">
+    What Anthropic charges per 1M tokens, in dollars. Read once a day; where the read fails, the price is typed in here
+    and stands until the next one succeeds.
+  </p>
+
+  <div class="clar-card mb-4.5 flex flex-wrap items-center gap-3.5 px-4.5 py-3.5">
+    <span class="text-[13px] clar-text-text">
+      <% if @last_read %>
+        Read <%= @last_read.to_date == Date.current ? "today" : @last_read.strftime("%-d %b") %> at <b><%= @last_read.strftime("%H:%M") %></b>
+        &middot; <%= read_on_last %> of <%= @models.size %> prices updated
+      <% else %>
+        Not read yet
+      <% end %>
+    </span>
+    <span class="text-[12px] clar-text-faint">Next read tomorrow at 06:00</span>
+    <span class="flex-1"></span>
+    <%= button_to "Read now", read_hidmin_ai_models_path, class: "clar-btn !py-1.5 !px-3.5 !text-[12.5px]" %>
+  </div>
+
+  <% if by_hand.any? %>
+    <div class="mb-4.5 rounded-[12px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4.5 py-3 text-[12.5px] leading-[1.5] clar-text-text">
+      <% by_hand.each do |model| %>
+        <div>
+          <b><%= model.name %></b>
+          <%= model.read_failed_at ? "could not be read on #{model.read_failed_at.strftime('%-d %B')}" : "has a typed price" %><%= ", and the price below was typed by hand#{model.hand_set_at ? " on #{model.hand_set_at.strftime('%-d %B')}" : ''}" if model.price_source == "hand" %>.
+        </div>
+      <% end %>
+      <div class="mt-1 clar-text-muted">It changes nothing already recorded: a run is priced from the cost Anthropic reported for it, not from this list.</div>
+    </div>
+  <% end %>
+
+  <section class="clar-card overflow-hidden" data-controller="price-field">
+    <div class="flex items-baseline justify-between border-b border-[color:var(--border)] px-4.5 py-3.5">
+      <div class="font-bold text-[14px] clar-text-text">Anthropic</div>
+      <span class="text-[11.5px] clar-text-faint">Dollars per 1M tokens</span>
+    </div>
+    <div class="clar-table-head">
+      <span class="flex-1">MODEL</span>
+      <span class="w-28 text-right">INPUT</span>
+      <span class="w-28 text-right">OUTPUT</span>
+      <span class="w-28 text-right">CACHE WRITE</span>
+      <span class="w-28 text-right">CACHE READ</span>
+      <span class="w-32 text-right">LAST READ</span>
+    </div>
+    <% @models.each do |model| %>
+      <div class="flex items-center px-5 py-3 border-t border-[color:var(--border)] text-[13px]" data-model-row="<%= model.model_id %>">
+        <span class="flex-1 min-w-0 flex items-center gap-2">
+          <span class="font-semibold clar-text-text"><%= model.name %></span>
+          <% if model.ai_plan_models.any? %><span class="clar-badge clar-badge-primary !py-[2px] !px-1.5 !text-[10px]">IN USE</span><% end %>
+          <% if model.price_source == "hand" %><span class="clar-badge clar-badge-warn !py-[2px] !px-1.5 !text-[10px]">BY HAND</span><% end %>
+        </span>
+        <% Hidmin::AiModelsController::PRICE_FIELDS.each do |field| %>
+          <span class="w-28 flex justify-end">
+            <input type="number" step="0.0001" min="0" name="<%= field %>" value="<%= model[field] %>"
+                   aria-label="<%= model.name %> <%= field.delete_suffix('_usd_per_mtok').tr('_', ' ') %> price per 1M tokens"
+                   class="clar-input !w-24 !py-1.5 !text-right clar-mono !text-[12.5px]"
+                   data-url="<%= hidmin_ai_model_path(model) %>" data-action="blur->price-field#save focus->price-field#remember">
+          </span>
+        <% end %>
+        <span class="w-32 text-right text-[12px] <%= model.read_failed_at && (model.read_at.nil? || model.read_failed_at > model.read_at) ? 'clar-text-warn' : 'clar-text-faint' %>">
+          <% if model.read_failed_at && (model.read_at.nil? || model.read_failed_at > model.read_at) %>
+            failed &middot; <%= model.read_failed_at.strftime("%-d %b") %>
+          <% elsif model.read_at %>
+            <%= model.read_at.to_date == Date.current ? "today #{model.read_at.strftime('%H:%M')}" : model.read_at.strftime("%-d %b %H:%M") %>
+          <% else %>
+            &mdash;
+          <% end %>
+        </span>
+      </div>
+    <% end %>
+    <div class="flex items-center justify-between border-t border-[color:var(--border)] bg-[var(--surface-2)] px-5 py-3 text-[11.5px] clar-text-faint">
+      <span>A typed price is saved as soon as the field is left, and marked by hand until a read succeeds.</span>
+      <span><%= pluralize(@models.size, "model") %> &middot; <%= @models.count { |m| m.ai_plan_models.any? } %> in use by a plan</span>
+    </div>
+  </section>
+</div>
