@@ -169,6 +169,32 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Kacper (2026-11-22, task 551): the AI wrote the Stripe keys and the KSeF
+  # authorization into the ticket but never said so in the chat, and answered
+  # "is everything clear?" with "Yes, it's clear enough to build". What only
+  # the owner can arrange is said in the chat as soon as it is settled,
+  # checked against the provider's rules today (a KSeF token stops working at
+  # the end of 2026), and keys never go through the chat.
+  test "the details AI tells the owner in the chat what only they can arrange, as soon as it is settled" do
+    prompt = details_prompt.squish
+    assert_includes prompt, "What only the owner can arrange is never a proposal: tell them."
+    assert_includes prompt, "say so in the chat as soon as it's settled, in a paragraph of its own"
+    assert_includes prompt, "what to get, who has to do it, about how long it takes"
+    assert_includes prompt, "Check the provider's current requirements with WebSearch first"
+    assert_includes prompt, "Never ask for keys, passwords or certificates in the chat"
+    refute_includes prompt, "ask for what only the owner has"
+  end
+
+  test "the draft opens with what the owner arranges, and the AI never calls it clear to build while that is open" do
+    prompt = details_prompt.squish
+    assert_includes prompt, "## Before development starts"
+    assert_operator prompt.index("## Before development starts"), :<, prompt.index("## <Feature or place on screen>")
+    assert_includes prompt, "through a password manager, never in the ticket"
+    refute_includes prompt, "External dependencies"
+    assert_includes prompt, "never say it's ready or clear to build while something on that list is open"
+    assert_includes prompt, "add one more short sentence that names what is still with them"
+  end
+
   # With the Briefing step off, Step 0 settles who and why with a question:
   # the first message's proposal does not override it.
   test "the first message ends with a proposal, or with Step 0's question when it applies" do
