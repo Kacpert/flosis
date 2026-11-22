@@ -195,11 +195,21 @@ Rails.application.routes.draw do
   namespace :hidmin do
     root "dashboard#show"
     resources :workspaces, path: "organizations", only: %i[index show new create update] do
+      member { patch :assign_plan }
       resources :memberships, only: %i[create update destroy] do
         member { post :resend_invitation }
       end
     end
     resources :users, path: "people", only: %i[index show update]
+    # SCRUM-70: billing — plans, the model price list, and unknown-cost runs
+    # staff have looked at.
+    resources :plans, only: %i[index new create edit update]
+    resources :ai_models, path: "models", only: %i[index update] do
+      collection { post :read }
+    end
+    resources :ai_runs, only: [] do
+      member { patch :looked_at }
+    end
   end
 
   get "up" => "rails/health#show", as: :rails_health_check

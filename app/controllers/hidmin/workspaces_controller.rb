@@ -44,6 +44,11 @@ class Hidmin::WorkspacesController < Hidmin::BaseController
     end
   end
 
+  # SCRUM-70: assigning a plan. Filled in by Task 15.
+  def assign_plan
+    head :not_implemented
+  end
+
   private
 
   def set_workspace
