@@ -46,6 +46,8 @@ class Designs::AppRepos
     rescue GitRunner::Error, SystemCallError => e
       last = reason(e)
       @setup.note!("Reading the repositories", "#{name}#{" @ #{branch}" if branch} could not be read: #{last}.")
+      DesignImportSuggestion.record!(@setup, kind: "other", title: "#{name} could not be read",
+                                     detail: "#{last}. Check that the project's GitHub token can read it.")
       nil
     end
     raise Failure, "No app repository could be read#{": #{last}" if last}." if fetched.empty?
@@ -59,13 +61,15 @@ class Designs::AppRepos
   end
 
   # [role, "owner/name", branch or nil] for each row the form saved.
-  def repos
-    Array(@project.design_app_repos).filter_map do |row|
+  def self.repos_of(project)
+    Array(project.design_app_repos).filter_map do |row|
       next unless row.is_a?(Hash) && (match = NAME.match(row["repo"].to_s.strip))
 
       [ row["role"].presence || "Repository", match[1], match[2] ]
     end
   end
+
+  def repos = self.class.repos_of(@project)
 
   private
 

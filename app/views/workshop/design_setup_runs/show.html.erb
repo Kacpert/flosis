@@ -10,11 +10,14 @@
 <% notes = setup_notes(@setup, @features, @up_next) %>
 <div class="max-w-[860px] mx-auto pt-2" <% unless @setup.failed? %>data-controller="designs-refresh" data-designs-refresh-interval-value="15000"<% end %>>
   <% if @setup.failed? %>
-    <div class="flex items-center gap-2 text-[12.5px] font-bold clar-text-danger mb-2">The build stopped</div>
+    <div class="flex items-center gap-2 text-[12.5px] font-bold clar-text-danger mb-2"><%= @setup.stopped? ? "Stopped#{" by #{@setup.stopped_by.name}" if @setup.stopped_by} at #{@setup.stopped_at.in_time_zone.strftime('%H:%M')}" : "The build stopped" %></div>
   <% else %>
     <div class="flex items-center gap-2 text-[12.5px] font-bold clar-text-ai mb-2"><%= blink %>Running in the background</div>
   <% end %>
-  <h1 class="m-0 text-[23px] font-bold tracking-[-.5px] clar-text-text">Building designs for <%= @project.name %></h1>
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <h1 class="m-0 text-[23px] font-bold tracking-[-.5px] clar-text-text">Building designs for <%= @project.name %></h1>
+    <%= render "workshop/design_imports/stop_button", setup: @setup %>
+  </div>
   <p class="mt-1.5 mb-1.5 clar-text-muted text-[14px] leading-[1.55]">This takes several hours: the features are built one by one, and each is checked against the app before the next one starts. You can leave this page and keep working. We’ll notify you when master is ready.</p>
   <p class="mt-0 mb-5 clar-text-faint text-[12.5px]"><%= @where %></p>
 

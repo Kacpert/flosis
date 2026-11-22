@@ -50,11 +50,20 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     other.with_mcp("/tmp/worktree", read_only: true) { |path| assert_nil path }
   end
 
+  # Since 2026-11-22 a context has a browser when it signed in (its state is
+  # in the run's folder); else it is built from the code.
   test "a setup turn is told the contexts by the names the browser knows them by" do
+    dir = Dir.mktmpdir("subject-contexts")
+    @project.update!(workspace_dir: dir)
     @project.design_setup_roles.create!(name: "Hiring manager", login_url: "https://s.test/login", username: "h", password: "p", position: 1)
+    FileUtils.mkdir_p(@setup.run_dir.join("auth"))
+    File.write(@setup.run_dir.join("auth", "2-hiring-manager.json"), "{}")
+
     message = Designs::Subject.for(@session).turn_message("Build the timesheet")
     assert_includes message, "Hiring manager: browser 2-hiring-manager, designs/hiring-manager/"
     assert message.rstrip.end_with?("Build the timesheet")
+  ensure
+    FileUtils.remove_entry(dir) if dir
   end
 
   # The base prompt says a turn has no browser: a setup turn is told that

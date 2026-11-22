@@ -116,10 +116,13 @@ Rails.application.routes.draw do
     end
     # Designs imports: an import's page lives in Designs (tab=imports); what
     # the person does there posts here.
-    resources :design_imports, only: :create, path: "designs/imports" do
-      member { post :retry_all; post :add_feature }
+    resources :design_imports, only: %i[new create destroy], path: "designs/imports" do
+      member { post :retry_all; post :add_feature; post :stop }
       resources :features, only: [], controller: "design_import_features" do
         member { post :retry; post :reply; post :set_aside; post :accept; post :reject; post :revise }
+      end
+      resources :suggestions, only: [], controller: "design_import_suggestions" do
+        member { post :add_login; post :from_code; post :fix_login; post :dismiss }
       end
     end
     resources :design_threads, only: %i[create destroy], path: "designs/threads" do

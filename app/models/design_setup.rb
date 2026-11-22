@@ -24,6 +24,9 @@ class DesignSetup < ApplicationRecord
   STATUSES = %w[active approved failed].freeze
   KINDS = %w[first reimport resync].freeze
   THREAD_DELETED = "Its thread was deleted, so there is nothing to retry. Start a new import instead.".freeze
+  # What a feature or a turn the person's Stop cut short says (Kacper,
+  # 2026-11-22), with their name.
+  STOPPED = "Stopped by %s.".freeze
   STEPS = %i[read_repos sign_in map_features design_system features commit].freeze
   STEP_MINUTES = [ 10, 2, 20, 30, nil, 3 ].freeze
   FEATURES_STEP = STEPS.index(:features)
@@ -40,11 +43,15 @@ class DesignSetup < ApplicationRecord
 
   belongs_to :project
   belongs_to :started_by, class_name: "User", optional: true
+  # Who stopped it from its page (Designs::ImportStop), and when (stopped_at).
+  belongs_to :stopped_by, class_name: "User", optional: true
   belongs_to :design_thread, optional: true
   # A resync's: the import whose app commits it starts from.
   belongs_to :since_setup, class_name: "DesignSetup", optional: true
   has_many :features, -> { order(:position) }, class_name: "DesignSetupFeature", dependent: :destroy
   has_many :views, class_name: "DesignImportView", dependent: :delete_all
+  # What it needs from the person (Feedback, Kacper 2026-11-22).
+  has_many :suggestions, class_name: "DesignImportSuggestion", dependent: :delete_all
 
   # Production is MariaDB: the columns read as text unless typed here.
   attribute :notes, :json, default: []
@@ -180,6 +187,8 @@ class DesignSetup < ApplicationRecord
   def failed? = status == "failed"
   def done? = status == "approved"
   def running? = status == "active" && finished_at.nil?
+  # Stopped by a person from its page: failed, and resumed by Retry.
+  def stopped? = stopped_at.present?
   # A re-import works on a thread of its own: once someone deleted that
   # thread, there is nothing left to retry it on.
   def thread_deleted? = reimport? && (design_thread.nil? || design_thread.deleted?)
@@ -214,10 +223,22 @@ class DesignSetup < ApplicationRecord
     features.needs_you
   end
 
-  # Running, or with a feature queued or under way after it was over.
-  def busy?
-    running? || features.pending.exists?
+  # A resync that stopped or failed before any of it reached master (Kacper,
+  # 2026-11-22): it can be deleted, branches, chats and all
+  # (Designs::ImportDeletion). A first import or a re-import stays.
+  def deletable?
+    resync? && failed? && !busy? && !unit_live? && !features.where(status: "done").exists?
   end
+
+  # Running, or over with a feature queued or under way: a job works on it.
+  # A failed import is not busy, whatever it had to do (final review C3).
+  def busy?
+    running? || follow_up?
+  end
+
+  # A job holds the import's unit now: after a Stop, until the job has ended
+  # the step it was on, nothing may resume or delete it.
+  def unit_live? = unit_job_id.present? && unit_deadline_at.present? && unit_deadline_at.future?
 
   def settle!
     update!(settled_at: Time.current)

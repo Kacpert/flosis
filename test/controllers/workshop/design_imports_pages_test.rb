@@ -206,7 +206,7 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
       get workshop_designs_overview_path(tab: "imports")
       assert_response :success
       assert_includes response.body, "Changes since Nov 3"
-      assert_select "form[action=?]", workshop_design_imports_path, false, "not while one runs"
+      assert_select "a[href=?]", new_workshop_design_import_path, false, "not while one runs"
     end
   end
 
@@ -214,7 +214,7 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
     with_designs do
       first_import([ [ "Bug Reporting", "done" ] ])
       get workshop_designs_overview_path(tab: "imports")
-      assert_select "form[action=?]", workshop_design_imports_path, text: /New import/
+      assert_select "a[href=?]", new_workshop_design_import_path, text: "New import"
     end
   end
 
@@ -314,4 +314,59 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Kacper, 2026-11-22: a running import can be stopped from its page; a
+  # stopped one says who stopped it, and can be resumed.
+  test "a running import shows Stop, a stopped one says who stopped it" do
+    with_designs do
+      since = first_import([ [ "App shell", "done" ] ])
+      running = @project.design_setups.create!(kind: "resync", since_setup: since, status: "active", phase: "feature", step: 3, started_by: users(:one))
+
+      get workshop_designs_overview_path(tab: "imports", import: running.id)
+      assert_select "form[action='#{stop_workshop_design_import_path(running)}'] button", text: "Stop"
+
+      running.update!(status: "failed", stopped_at: Time.zone.local(2026, 11, 22, 2, 47), stopped_by: users(:one))
+      get workshop_designs_overview_path(tab: "imports", import: running.id)
+      assert_includes CGI.unescapeHTML(response.body), "Stopped by Kacper at 02:47. What is on master stays."
+      assert_select "form[action='#{stop_workshop_design_import_path(running)}']", false
+      assert_select "button", text: "Resume"
+
+      get workshop_designs_overview_path(tab: "imports")
+      assert_includes css_select("[data-import-entry='#{running.id}']").first.text.squish, "Stopped"
+    end
+  end
+
+  test "Built says which contexts were built from the code" do
+    with_designs do
+      @project.design_setup_roles.create!(name: "Admin", login_url: "https://s.test/login", username: "a", password: "p", position: 0)
+      @project.design_setup_roles.create!(name: "Flosis staff", code_only: true, position: 1)
+      import = first_import([ [ "Library", "done", { from_code: %w[2-flosis-staff] } ] ])
+
+      get workshop_designs_overview_path(tab: "imports", import: import.id)
+      assert_includes response.body, "From code: Flosis staff"
+    end
+  end
+
+  # Kacper, 2026-11-22: the import ends with what it needs from the person.
+  test "Feedback shows the open suggestions once the import is over" do
+    with_designs do
+      import = first_import([ [ "Library", "done" ] ])
+      role = @project.design_setup_roles.create!(name: "PO", login_url: "https://s.test/login", username: "po", password: "p", position: 0)
+      DesignImportSuggestion.record!(import, kind: "context", title: "Flosis staff sees the Library", context_name: "Flosis staff", features: %w[library])
+      DesignImportSuggestion.record!(import, kind: "sign_in", title: "PO could not sign in", detail: "Wrong password.", role: role)
+
+      get workshop_designs_overview_path(tab: "imports", import: import.id)
+      page = CGI.unescapeHTML(response.body)
+      assert_includes page, "FEEDBACK · 2"
+      assert_includes page, "Flosis staff sees the Library"
+      [ "Build from code", "Add login", "Fix login", "Dismiss" ].each { |label| assert_includes page, label, label }
+
+      get workshop_designs_overview_path(tab: "imports")
+      assert_includes css_select("[data-import-entry='#{import.id}']").first.text.squish, "2 suggestions"
+
+      running = @project.design_setups.create!(kind: "resync", since_setup: import, status: "active", phase: "feature", step: 3, started_by: users(:one))
+      DesignImportSuggestion.record!(running, kind: "other", title: "No invoices on staging")
+      get workshop_designs_overview_path(tab: "imports", import: running.id)
+      refute_includes response.body, "FEEDBACK"
+    end
+  end
 end

@@ -19,11 +19,9 @@ class Designs::ImportResyncTest < ActiveSupport::TestCase
     Designs::SetupRunJob.sign_in = ->(_setup) { { "1-admin" => true } }
     Designs::SetupRunJob.app_repos = ->(_setup) { [ { "role" => "Frontend", "repo" => "acme/app", "branch" => nil, "dir" => "/tmp/app", "sha" => "b" * 40 } ] }
     Designs::SetupRunJob.killer = ->(_session_id) {}
-    @changes_path = nil
-    Designs::SetupRunJob.app_changes = lambda do |setup|
-      FileUtils.mkdir_p(setup.run_dir.join("changes"))
-      @changes_path = setup.run_dir.join("changes", "1-acme-app.diff").tap { |path| File.write(path, "+<form class=\"filter\"></form>\n") }.to_s
-      [ { "repo" => "acme/app", "branch" => nil, "from" => "a" * 40, "to" => "b" * 40, "path" => @changes_path } ]
+    Designs::SetupRunJob.app_changes = lambda do |_setup|
+      [ { "repo" => "acme/app", "branch" => nil, "from" => "a" * 40, "to" => "b" * 40, "commits" => 3, "new" => false,
+          "stat" => " app/views/bugs/index.html.erb | 1 +\n 1 file changed, 1 insertion(+)" } ]
     end
   end
 
@@ -91,7 +89,9 @@ class Designs::ImportResyncTest < ActiveSupport::TestCase
         assert_includes files, "designs/admin/release-notes.html"
         analysis = @requests.first
         assert_includes analysis, "- bug-reporting · Bug Reporting"
-        assert_includes analysis, @changes_path
+        assert_includes analysis, "- acme/app: aaaaaaa..bbbbbbb (3 commits)"
+        assert_includes analysis, "git log --stat #{'a' * 40}..#{'b' * 40}"
+        assert_includes analysis, " app/views/bugs/index.html.erb | 1 +"
         assert_includes @requests.second, "Update the feature \"Bug Reporting\""
         assert_includes @requests.second, "What changed in its code since the last import:\nA filter by status above the list."
         assert_includes @requests.third, "It is new in the app since the last import."
@@ -106,7 +106,7 @@ class Designs::ImportResyncTest < ActiveSupport::TestCase
       with_remote_url(remote) do
         seed_master(repo)
         resync = resync_of(first_import(repo))
-        Designs::SetupRunJob.app_changes = ->(_setup) { [ { "repo" => "acme/app", "branch" => nil, "from" => "a" * 40, "to" => "a" * 40, "path" => nil } ] }
+        Designs::SetupRunJob.app_changes = ->(_setup) { [ { "repo" => "acme/app", "branch" => nil, "from" => "a" * 40, "to" => "a" * 40, "commits" => 0, "stat" => nil, "new" => false } ] }
         Designs::SetupRunJob.turn_runner = ->(_turn_id) { flunk "nothing to ask Claude" }
         run_to_the_end(resync)
 
@@ -134,6 +134,83 @@ class Designs::ImportResyncTest < ActiveSupport::TestCase
         waiting.reload
         assert_equal [ "set_aside", "Replaced by “Changes since #{older.created_at.strftime('%b %-d')}”" ], [ waiting.status, waiting.review["rejected"] ]
         assert_nil remote_branch_sha(remote, "wip/import-#{older.id}-bug-reporting")
+      end
+    end
+  end
+
+  # Kacper, 2026-11-22: what changed is found from the code and its history,
+  # with no browser: nobody signs in for it.
+  test "finding what changed signs nobody in" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        resync = resync_of(first_import(repo))
+        steps = []
+        Designs::SetupRunJob.sign_in = ->(setup) { steps << setup.reload.step; { "1-admin" => true } }
+        Designs::SetupRunJob.turn_runner = fake_turns(repo, resync)
+        run_to_the_end(resync)
+
+        assert_equal "approved", resync.status, resync.error
+        refute_includes steps, DesignSetup::RESYNC_STEPS.index(:find_changes)
+      end
+    end
+  end
+
+  # Builder check (2026-11-22): a context added since the last import (no
+  # folder of its own on master) has its screens built; a repository the last
+  # import did not read is read whole.
+  test "a context new since the last import and a repository new to the designs are named for the turn" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo, { "designs/admin/bug-reporting.html" => "<h1>Bugs</h1>" })
+        resync = resync_of(first_import(repo))
+        repo.project.design_setup_roles.create!(name: "Flosis staff", login_url: "https://s.test/login", username: "s", password: "p", position: 1)
+        Designs::SetupRunJob.app_changes = lambda do |_setup|
+          [ { "repo" => "acme/app", "branch" => nil, "from" => "a" * 40, "to" => "a" * 40, "commits" => 0, "stat" => nil, "new" => false },
+            { "repo" => "acme/api", "branch" => nil, "from" => nil, "to" => "c" * 40, "commits" => nil, "stat" => nil, "new" => true } ]
+        end
+        Designs::SetupRunJob.turn_runner = fake_turns(repo, resync, analysis: [])
+        run_to_the_end(resync)
+
+        analysis = @requests.first
+        assert_includes analysis, "## Contexts new since the last import"
+        assert_includes analysis, "- Flosis staff (2-flosis-staff): designs/flosis-staff/"
+        refute_includes analysis, "- Admin (1-admin): designs/admin/"
+        assert_includes analysis, "- acme/api: new to the designs"
+      end
+    end
+  end
+
+  # Final review I5 (2026-11-22): a history that cannot be read is not
+  # "nothing changed".
+  test "a resync whose history cannot be read at all stops instead of finding nothing changed" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        resync = resync_of(first_import(repo))
+        Designs::SetupRunJob.app_changes = ->(_setup) { [ { "repo" => "acme/app", "branch" => nil, "unreadable" => true, "error" => "disk quota exceeded" } ] }
+        Designs::SetupRunJob.turn_runner = ->(_turn_id) { flunk "nothing to ask Claude" }
+        run_to_the_end(resync)
+
+        assert_equal "failed", resync.status
+        assert_match(/acme\/app's history could not be read: disk quota exceeded/, resync.error)
+      end
+    end
+  end
+
+  test "a repository whose history cannot be read is named for the turn" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        resync = resync_of(first_import(repo))
+        Designs::SetupRunJob.app_changes = lambda do |_setup|
+          [ { "repo" => "acme/app", "branch" => nil, "from" => "a" * 40, "to" => "b" * 40, "commits" => 3, "new" => false, "stat" => " a | 1 +" },
+            { "repo" => "acme/api", "branch" => nil, "unreadable" => true, "error" => "disk quota exceeded" } ]
+        end
+        Designs::SetupRunJob.turn_runner = fake_turns(repo, resync, analysis: [])
+        run_to_the_end(resync)
+
+        assert_includes @requests.first, "- acme/api: its history could not be read now (disk quota exceeded)"
       end
     end
   end

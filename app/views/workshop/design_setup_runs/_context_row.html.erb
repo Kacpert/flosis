@@ -3,6 +3,9 @@
   <input name="contexts[<%= index %>][name]" value="<%= role&.name %>" placeholder="e.g. Hiring manager" class="clar-input">
   <input name="contexts[<%= index %>][url]" value="<%= role&.login_url %>" placeholder="https://staging.example.com/login" class="clar-input">
   <input name="contexts[<%= index %>][login]" value="<%= role&.username %>" placeholder="name@staging.test" class="clar-input">
-  <input type="password" name="contexts[<%= index %>][password]" autocomplete="new-password" placeholder="<%= role ? '••••••••' : 'Password' %>" class="clar-input">
+  <input type="password" name="contexts[<%= index %>][password]" autocomplete="new-password" placeholder="<%= role && !role.code_only? ? '••••••••' : 'Password' %>" class="clar-input">
+  <label class="clar-tip inline-flex items-center gap-1.5 text-[12px] clar-text-muted whitespace-nowrap cursor-pointer" data-tip="No login: the AI builds this context from the app's code, without signing in">
+    <input type="checkbox" name="contexts[<%= index %>][code_only]" value="1" <%= "checked" if role&.code_only? %>>No login
+  </label>
   <button type="button" class="clar-btn !p-0 w-[34px] h-[34px] justify-center" title="Remove context" data-action="designs-setup-form#remove"><%= designs_icon(:close, 14) %></button>
 </div>

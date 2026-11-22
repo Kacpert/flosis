@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_110200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -304,6 +304,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
     t.index ["user_id"], name: "index_design_approvals_on_user_id"
   end
 
+  create_table "design_import_suggestions", force: :cascade do |t|
+    t.datetime "acted_at"
+    t.bigint "acted_by_id"
+    t.string "context_name"
+    t.datetime "created_at", null: false
+    t.bigint "design_setup_id", null: false
+    t.bigint "design_setup_role_id"
+    t.text "detail"
+    t.json "features"
+    t.string "key", null: false
+    t.string "kind", null: false
+    t.string "status", default: "open", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["acted_by_id"], name: "index_design_import_suggestions_on_acted_by_id"
+    t.index ["design_setup_id", "key"], name: "index_design_import_suggestions_on_design_setup_id_and_key", unique: true
+    t.index ["design_setup_id"], name: "index_design_import_suggestions_on_design_setup_id"
+    t.index ["design_setup_role_id"], name: "index_design_import_suggestions_on_design_setup_role_id"
+  end
+
   create_table "design_import_views", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "design_setup_id", null: false
@@ -370,6 +390,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
     t.bigint "design_turn_id"
     t.text "error"
     t.datetime "finished_at"
+    t.json "from_code"
     t.string "key", null: false
     t.string "name", null: false
     t.json "notes"
@@ -391,15 +412,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
   end
 
   create_table "design_setup_roles", force: :cascade do |t|
+    t.boolean "code_only", default: false, null: false
     t.datetime "created_at", null: false
-    t.string "login_url", null: false
+    t.string "login_url"
     t.string "name", null: false
     t.text "notes"
-    t.text "password", null: false
+    t.text "password"
     t.integer "position", default: 0, null: false
     t.bigint "project_id", null: false
     t.datetime "updated_at", null: false
-    t.string "username", null: false
+    t.string "username"
     t.index ["project_id"], name: "index_design_setup_roles_on_project_id"
   end
 
@@ -428,12 +450,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
     t.integer "step", default: 0, null: false
     t.json "step_seconds"
     t.datetime "step_started_at"
+    t.datetime "stopped_at"
+    t.bigint "stopped_by_id"
     t.datetime "unit_deadline_at"
     t.string "unit_job_id"
     t.datetime "updated_at", null: false
     t.index ["design_thread_id"], name: "index_design_setups_on_design_thread_id"
     t.index ["project_id"], name: "index_design_setups_on_project_id"
     t.index ["started_by_id"], name: "index_design_setups_on_started_by_id"
+    t.index ["stopped_by_id"], name: "index_design_setups_on_stopped_by_id"
   end
 
   create_table "design_threads", force: :cascade do |t|
@@ -1101,6 +1126,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
   add_foreign_key "delivered_issues", "projects"
   add_foreign_key "design_approvals", "tasks"
   add_foreign_key "design_approvals", "users"
+  add_foreign_key "design_import_suggestions", "design_setup_roles", on_delete: :nullify
+  add_foreign_key "design_import_suggestions", "design_setups", on_delete: :cascade
+  add_foreign_key "design_import_suggestions", "users", column: "acted_by_id", on_delete: :nullify
   add_foreign_key "design_import_views", "design_setups", on_delete: :cascade
   add_foreign_key "design_import_views", "users", on_delete: :cascade
   add_foreign_key "design_merges", "design_threads", on_delete: :nullify
@@ -1116,6 +1144,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
   add_foreign_key "design_setups", "design_threads", on_delete: :nullify
   add_foreign_key "design_setups", "projects"
   add_foreign_key "design_setups", "users", column: "started_by_id", on_delete: :nullify
+  add_foreign_key "design_setups", "users", column: "stopped_by_id", on_delete: :nullify
   add_foreign_key "design_threads", "chat_sessions", on_delete: :nullify
   add_foreign_key "design_threads", "projects"
   add_foreign_key "design_threads", "tasks", on_delete: :nullify

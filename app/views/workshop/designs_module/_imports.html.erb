@@ -27,7 +27,7 @@
         <% since = import_resync_from(@project) %>
         <% if can?(:configuration) && since && @imports.none?(&:busy?) %>
           <div class="flex flex-col items-end gap-1">
-            <%= button_to "New import", workshop_design_imports_path, class: "clar-btn clar-btn-primary !py-1.5 !px-3.5 !text-[12.5px]", form: { class: "contents" } %>
+            <%= link_to "New import", new_workshop_design_import_path, class: "clar-btn clar-btn-primary !py-1.5 !px-3.5 !text-[12.5px] no-underline" %>
             <span class="text-[11.5px] clar-text-faint">What developers built since <%= since.created_at.in_time_zone.strftime("%b %-d") %></span>
           </div>
         <% end %>
@@ -39,10 +39,14 @@
               style: (setup.lit_for?(current_user) ? "border-color: var(--warn);" : nil), data: { import_entry: setup.id } do %>
           <div class="flex items-center justify-between gap-3 text-[13.5px]">
             <b class="clar-text-text min-w-0" data-import-title><%= setup.title %></b>
-            <% if waiting.positive? %><span class="text-[12px] font-semibold clar-text-warn whitespace-nowrap"><%= waiting %> need you</span><% end %>
+            <% suggested = setup.suggestions.open.count %>
+            <span class="flex items-center gap-2 whitespace-nowrap">
+              <% if waiting.positive? %><span class="text-[12px] font-semibold clar-text-warn"><%= waiting %> need you</span><% end %>
+              <% if suggested.positive? && !setup.running? %><span class="text-[12px] font-semibold clar-text-warn"><%= pluralize(suggested, "suggestion") %></span><% end %>
+            </span>
           </div>
           <div class="text-[12px] clar-text-muted mt-1">
-            <%= [ import_when(setup, range: true), (setup.running? ? "Running in the background" : setup.summary), import_contexts(@project) ].compact.join(" · ") %>
+            <%= [ import_when(setup, range: true), (setup.stopped? ? "Stopped" : setup.running? ? "Running in the background" : setup.summary), import_contexts(@project) ].compact.join(" · ") %>
             <%= render "workshop/shared/ai_cost", cost: ai_item_cost(import_costs, setup), dot: true,
                        tip: "AI cost of this import · total, this month in brackets" %>
           </div>

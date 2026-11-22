@@ -111,7 +111,10 @@ class Workshop::DesignImportActionsTest < ActionDispatch::IntegrationTest
   end
 
   test "New import starts a resync from the last import" do
-    post workshop_design_imports_path
+    post workshop_design_imports_path, params: {
+      repo: "github.com/acme/app-designs", repos: { "0" => { role: "Frontend", url: "github.com/acme/app" } },
+      contexts: { "0" => { name: "Admin", url: "https://staging.acme.test/login", login: "admin@staging.test", password: "p" } }
+    }
     resync = @project.design_setups.order(:id).last
     assert_equal [ "resync", @import, "active", users(:one) ], [ resync.kind, resync.since_setup, resync.status, resync.started_by ]
     assert_redirected_to workshop_designs_overview_path(tab: "imports", import: resync.id)
@@ -134,6 +137,125 @@ class Workshop::DesignImportActionsTest < ActionDispatch::IntegrationTest
 
     post retry_workshop_design_import_feature_path(@import, @unreadable)
     assert_equal "failed", @unreadable.reload.status
+    assert_no_enqueued_jobs only: Designs::SetupRunJob
+  end
+
+  # Kacper, 2026-11-22: "nie ma przycisku stop".
+  test "Stop stops a running import and says so" do
+    running = @project.design_setups.create!(kind: "resync", since_setup: @import, status: "active", phase: "feature", step: 3, started_by: users(:one))
+    Designs::SetupRunJob.killer = ->(_id) {}
+
+    post stop_workshop_design_import_path(running)
+    assert_redirected_to workshop_designs_overview_path(tab: "imports", import: running.id)
+    assert_equal "Import stopped", flash[:clar_toast]
+    assert running.reload.stopped?
+  ensure
+    Designs::SetupRunJob.killer = nil
+  end
+
+  test "Stop needs the configuration permission" do
+    running = @project.design_setups.create!(kind: "resync", since_setup: @import, status: "active", phase: "feature", step: 3, started_by: users(:one))
+    project_memberships(:two_elvium).update!(designs: true, configuration: false)
+    sign_in_as(users(:two))
+    post switch_product_path, params: { product: "workshop" }
+    post switch_workshop_project_path, params: { project_id: @project.id }
+
+    post stop_workshop_design_import_path(running)
+    refute running.reload.stopped?
+    assert_equal "active", running.status
+  end
+
+  test "Resume goes on with the feature the stop interrupted" do
+    stopped = @project.design_setups.create!(kind: "resync", since_setup: @import, status: "failed", phase: "feature", step: 3,
+                                             started_by: users(:one), stopped_at: 5.minutes.ago, stopped_by: users(:one))
+    interrupted = stopped.features.create!(name: "Designs", key: "designs", position: 1, status: "failed", finished_at: 4.minutes.ago, error: "Stopped by Kacper.")
+    earlier = stopped.features.create!(name: "Library", key: "library", position: 2, status: "failed", finished_at: 1.hour.ago, error: "Couldn't sign in")
+
+    post retry_workshop_design_setup_run_path(import: stopped.id)
+    stopped.reload
+    assert_equal [ "active", nil, nil ], [ stopped.status, stopped.stopped_at, stopped.stopped_by ]
+    assert_equal [ "todo", nil ], [ interrupted.reload.status, interrupted.error ]
+    assert_equal "failed", earlier.reload.status
+    assert_enqueued_with(job: Designs::SetupRunJob, args: [ stopped.id ])
+  end
+
+  # Kacper, 2026-11-22: "ten najnowszy trzeba zatrzymać i usunąć".
+  test "Delete removes a stopped import and goes back to the list" do
+    stopped = @project.design_setups.create!(kind: "resync", since_setup: @import, status: "failed", phase: "feature", step: 3,
+                                             started_by: users(:one), stopped_at: 5.minutes.ago, stopped_by: users(:one))
+
+    delete workshop_design_import_path(stopped)
+    assert_redirected_to workshop_designs_overview_path(tab: "imports")
+    assert_equal "Import deleted", flash[:clar_toast]
+    refute DesignSetup.exists?(stopped.id)
+  end
+
+  test "Delete refuses an import whose work is on master" do
+    stopped = @project.design_setups.create!(kind: "resync", since_setup: @import, status: "failed", phase: "feature", step: 3,
+                                             started_by: users(:one), stopped_at: 5.minutes.ago, stopped_by: users(:one))
+    stopped.features.create!(name: "Library", key: "library", position: 1, status: "done")
+
+    delete workshop_design_import_path(stopped)
+    assert_equal "This import has work on master, so it stays.", flash[:clar_toast]
+    assert DesignSetup.exists?(stopped.id)
+  end
+
+  # Kacper, 2026-11-22: "button New import nie powinien od razu odpalać
+  # import tylko dać formularz - może będę chciał zmienić linki albo dodać
+  # nowy kontekst".
+  test "New import opens the form filled in" do
+    @project.update!(design_repo: "acme/app-designs", design_app_repos: [ { "role" => "Frontend", "repo" => "acme/app@production" } ])
+    @project.design_setup_roles.create!(name: "Admin", login_url: "https://staging.acme.test/login", username: "admin@staging.test", password: "p", position: 0)
+
+    get new_workshop_design_import_path
+    assert_response :success
+    assert_select "h1", text: "New import"
+    assert_select "form[action='#{workshop_design_imports_path}'][method='post']"
+    assert_select "input[name='repos[0][url]'][value='github.com/acme/app@production']"
+    assert_select "input[name='contexts[0][name]'][value='Admin']"
+    assert_select "input[type='hidden'][name='repo'][value='github.com/acme/app-designs']"
+    assert_select "input[name='framework'][type='radio']", false
+    assert_select "button", text: "Start import"
+  end
+
+  test "Start import saves the form and starts the import" do
+    @project.update!(design_repo: "acme/app-designs", designs_framework: "html", designs_ui_system: "tailwind")
+    post workshop_design_imports_path, params: {
+      framework: "html", ui: "tailwind", repo: "github.com/acme/app-designs",
+      repos: { "0" => { role: "Frontend", url: "github.com/acme/app@production" } },
+      contexts: { "0" => { name: "Admin", url: "https://staging.acme.test/login", login: "admin@staging.test", password: "p" },
+                  "1" => { name: "Flosis staff", url: "https://staging.acme.test/login", login: "staff@staging.test", password: "s" } }
+    }
+
+    resync = @project.design_setups.find_by!(kind: "resync")
+    assert_equal [ "Admin", "Flosis staff" ], @project.design_setup_roles.order(:position).pluck(:name)
+    assert_enqueued_with(job: Designs::SetupRunJob, args: [ resync.id ])
+    assert_redirected_to workshop_designs_overview_path(tab: "imports", import: resync.id)
+  end
+
+  test "Start import with no context shows the form again and starts nothing" do
+    @project.update!(design_repo: "acme/app-designs")
+    post workshop_design_imports_path, params: { repo: "github.com/acme/app-designs", repos: { "0" => { role: "Frontend", url: "github.com/acme/app" } } }
+
+    assert_response :unprocessable_entity
+    assert_select "h1", text: "New import"
+    assert_includes response.body, Designs::SetupForm::INCOMPLETE
+    refute @project.design_setups.exists?(kind: "resync")
+  end
+
+  # Final review C2 (2026-11-22): while the stopped import's job still ends
+  # the step it was on, neither Delete nor Resume may start.
+  test "Delete and Resume wait for the step a stopped import was on" do
+    stopped = @project.design_setups.create!(kind: "resync", since_setup: @import, status: "failed", phase: "feature", step: 3, started_by: users(:one),
+                                             stopped_at: 1.minute.ago, stopped_by: users(:one), unit_job_id: "job-1", unit_deadline_at: 10.minutes.from_now)
+
+    delete workshop_design_import_path(stopped)
+    assert_equal "The import is still stopping. Try again in a minute.", flash[:clar_toast]
+    assert DesignSetup.exists?(stopped.id)
+
+    post retry_workshop_design_setup_run_path(import: stopped.id)
+    assert_equal "The import is still stopping. Try again in a minute.", flash[:clar_toast]
+    assert_equal "failed", stopped.reload.status
     assert_no_enqueued_jobs only: Designs::SetupRunJob
   end
 end

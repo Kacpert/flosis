@@ -8,7 +8,7 @@
 <% aside = features.select { |feature| feature.status == "set_aside" } %>
 <% running = features.find(&:running?) %>
 <% queued = features.select { |feature| feature.status == "todo" && feature.resets_at.nil? } %>
-<div <% if setup.busy? %>data-controller="designs-refresh" data-designs-refresh-interval-value="15000"<% end %>>
+<div <% if setup.busy? || setup.unit_live? %>data-controller="designs-refresh" data-designs-refresh-interval-value="15000"<% end %>>
   <div class="flex items-start justify-between gap-4 mb-4 flex-wrap">
     <div class="min-w-0">
       <h2 class="m-0 text-[21px] font-bold tracking-[-.4px] clar-text-text"><%= setup.title %></h2>
@@ -19,20 +19,34 @@
                    tip: "AI cost of this import · total, this month in brackets" %>
       </div>
     </div>
-    <% retryable = cards.count(&:retryable?) %>
-    <% if import_actions?(setup) && retryable > 1 %>
-      <%= button_to "Retry all #{retryable}", retry_all_workshop_design_import_path(setup), class: "clar-btn clar-btn-primary !py-1.5 !px-3.5 !text-[12.5px]", form: { class: "contents" } %>
-    <% end %>
+    <div class="flex items-center gap-2">
+      <%= render "workshop/design_imports/stop_button", setup: setup %>
+      <% retryable = cards.count(&:retryable?) %>
+      <% if import_actions?(setup) && retryable > 1 %>
+        <%= button_to "Retry all #{retryable}", retry_all_workshop_design_import_path(setup), class: "clar-btn clar-btn-primary !py-1.5 !px-3.5 !text-[12.5px]", form: { class: "contents" } %>
+      <% end %>
+    </div>
   </div>
 
   <% if setup.failed? %>
-    <div class="clar-card px-4.5 py-3.5 mb-4" style="border-color: var(--danger);">
-      <div class="text-[12.5px] font-bold clar-text-danger mb-1">The import stopped</div>
-      <div class="text-[13px] clar-text-muted leading-[1.5] whitespace-pre-line"><%= setup.error %></div>
+    <div class="clar-card px-4.5 py-3.5 mb-4" style="border-color: var(<%= setup.stopped? ? '--border' : '--danger' %>);" data-import-stopped="<%= setup.stopped? %>">
+      <% if setup.stopped? %>
+        <div class="text-[12.5px] font-bold clar-text-text mb-1">Stopped</div>
+        <div class="text-[13px] clar-text-muted leading-[1.5]"><%= ["Stopped", ("by #{setup.stopped_by.name}" if setup.stopped_by)].compact.join(" ") %> at <%= setup.stopped_at.in_time_zone.strftime("%H:%M") %>. What is on master stays.<% if setup.unit_live? %> It is ending the step it was on; Resume and Delete come back in a moment.<% end %></div>
+      <% else %>
+        <div class="text-[12.5px] font-bold clar-text-danger mb-1">The import stopped</div>
+        <div class="text-[13px] clar-text-muted leading-[1.5] whitespace-pre-line"><%= setup.error %></div>
+      <% end %>
       <% if setup.thread_deleted? %>
         <div class="text-[12.5px] clar-text-faint mt-2"><%= DesignSetup::THREAD_DELETED %></div>
-      <% elsif can?(:configuration) %>
-        <div class="mt-3"><%= button_to "Retry", retry_workshop_design_setup_run_path(import: setup.id), class: "clar-btn", form: { class: "contents" } %></div>
+      <% elsif can?(:configuration) && !(setup.stopped? && setup.unit_live?) %>
+        <div class="mt-3 flex items-center gap-2">
+          <%= button_to setup.stopped? ? "Resume" : "Retry", retry_workshop_design_setup_run_path(import: setup.id), class: "clar-btn", form: { class: "contents" } %>
+          <% if setup.deletable? %>
+            <%= button_to "Delete", workshop_design_import_path(setup), method: :delete, class: "clar-btn clar-text-danger", form: { class: "contents" },
+                  data: { turbo_confirm: "Delete this import? Its branches and chats go; nothing on master changes." } %>
+          <% end %>
+        </div>
       <% end %>
     </div>
   <% elsif setup.running? %>
@@ -65,6 +79,8 @@
   <% end %>
 
   <%= render "workshop/design_imports/cards", setup: setup, cards: cards if cards.any? %>
+  <% suggestions = setup.running? ? [] : setup.suggestions.open.order(:id).to_a %>
+  <%= render "workshop/design_imports/feedback", setup: setup, suggestions: suggestions if suggestions.any? %>
   <%= render "workshop/design_imports/built", setup: setup, built: built, repo: @repo if built.any? %>
 
   <% if aside.any? %>

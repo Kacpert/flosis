@@ -280,6 +280,32 @@ module Designs::Subject
       If the feature cannot be built honestly because of something only the person can fix on the test account (an integration that is not connected, data you cannot create there, a context that cannot reach the feature), stop building it. Keep what you built so far, and end the turn with one <blocked> block: a single question for the person, saying what to fix and where. They will answer, and a later turn goes on from where you stopped. A gap you can build around from the code is a <missing> note, not a <blocked> block.
     TEXT
     MAP_TOOLS = %w[mcp__flosis_browser__save_features].freeze
+    # A resync's look at what changed works from the code and its history
+    # alone (Kacper, 2026-11-22): no browser tools, and this note instead of
+    # the browser's.
+    # What a turn needs from the person (Kacper, 2026-11-22): the suggest
+    # tool, for every setup turn, and when to use it.
+    SUGGEST_TOOL = "mcp__flosis_browser__suggest".freeze
+    SUGGEST_NOTE = <<~TEXT.freeze
+      # When you need something from the person
+
+      If something keeps you from importing the app as it is, and only the person can give it, leave a suggestion with the suggest tool, once per thing, and go on with what you can: a role the run's contexts do not cover (kind context: name the role and the map's features it has), data or an integration the test environment lacks, or a repository you could not read (kind other). Never ask for a password. Nothing else is a suggestion.
+    TEXT
+    CODE_ONLY_NOTE = <<~TEXT.freeze
+      # This turn reads code only
+
+      This turn has no browser: it works from the app's code and its history alone. What the base prompt says about a browser does not apply to it.
+    TEXT
+    # Read-only git on the app's history (Kacper, 2026-11-22: "dobrze żeby
+    # miał po prostu dostęp do gita"): lib/designs_crawler/git.mjs on the
+    # project's clones (Designs::AppHistory), for every setup turn once they
+    # exist. Turns have no shell: this is their only git.
+    GIT_TOOL = "mcp__flosis_git__git".freeze
+    GIT_NOTE = <<~TEXT.freeze
+      # The app's history
+
+      The git tool runs read-only git on the app's repositories, with their whole history: log, show, diff, blame, grep and the like. Use it to see what changed in the app and why: git log --stat <from>..<to>, then git diff <from> <to> -- <path> for the paths that matter, as a developer reviewing the changes would. Read the files themselves in the read-only copies.
+    TEXT
     PHASE_TITLES = { "map" => "the feature map", "design_system" => "the design system", "feature" => "one feature",
                      "resync" => "what changed in the app" }.freeze
     # The phases whose turn saves features: the map, and a resync's look at
@@ -309,11 +335,14 @@ module Designs::Subject
       @setup ||= @session.design_setup || project.design_setups.active.order(:id).last || raise(Designs::TurnJob::Failure, NO_SETUP)
     end
 
-    # The feature the run is building, if any.
+    # The feature the turn is for: the one its turn was started for (even
+    # once a Stop failed it, so that it keeps to its own branch: final review
+    # C2), else the one the run is building, if any.
     def feature
       return @feature if defined?(@feature)
 
-      @feature = setup.features.find_by(status: "running")
+      @feature = setup.features.find_by(design_turn_id: DesignTurn.where(chat_session_id: @session.id).select(:id)) ||
+                 setup.features.find_by(status: "running")
     end
 
     # wip/setup, made off master when neither this clone nor origin has it.
@@ -328,8 +357,46 @@ module Designs::Subject
       @composition ||= Designs::Library.compose_setup(setup.phase)
     end
 
+    # The designs folder a context's screens go in.
+    def self.folder_for(role) = role.name.parameterize.presence || "context-#{role.position.to_i + 1}"
+
+    # A resync's look at what changed: code and history only.
+    def code_only? = setup.phase == "resync"
+
+    # A context without a login, or one that could not sign in this time
+    # (no state of its own now), is built from the code (Kacper, 2026-11-22).
+    CODE_CONTEXTS_NOTE = <<~TEXT.freeze
+      # Contexts built from the code
+
+      A context with no browser is built from the app's code: its routes, permissions, navigation, views and components, with fake data of the kind its views show. Say in a <missing> note that its screens were built from the code and not checked against the app.
+    TEXT
+
+    def browser?(role) = role.signs_in? && setup.run_dir.join("auth", "#{Designs::SignIn.slug(role)}.json").file?
+
+    # Every line names the context's slug, which the map's features and the
+    # saved features name contexts by (final review I4).
+    def context_line(role)
+      folder = "designs/#{self.class.folder_for(role)}/"
+      slug = Designs::SignIn.slug(role)
+      return "#{role.name} (#{slug}): #{folder}#{' (no login)' if role.code_only?}" if code_only?
+      return "#{role.name}: browser #{slug}, #{folder}" if browser?(role)
+
+      "#{role.name} (#{slug}): no browser (#{role.code_only? ? 'no login' : 'could not sign in'}): build it from the code, #{folder}"
+    end
+
+    def from_code_contexts? = !code_only? && project.design_setup_roles.any? { |role| !browser?(role) }
+
+    # The roles the person dismissed before, so that no turn raises them again.
+    def dismissed_line
+      names = DesignImportSuggestion.dismissed_contexts(project)
+      "\nRoles the person said not to import: #{names.join(', ')}." if names.any?
+    end
+
     def system_text
-      "#{Designs::Prompt.system_text(project: project, composition: composition)}\n#{readable}\n#{BROWSER_NOTE}" \
+      "#{Designs::Prompt.system_text(project: project, composition: composition)}\n#{readable}\n#{code_only? ? CODE_ONLY_NOTE : BROWSER_NOTE}" \
+        "#{"\n#{GIT_NOTE}" if history?}" \
+        "\n#{SUGGEST_NOTE}" \
+        "#{"\n#{CODE_CONTEXTS_NOTE}" if from_code_contexts?}" \
         "#{"\n#{BLOCKED_NOTE}" if setup.phase == 'feature' && !setup.reimport?}"
     end
 
@@ -342,9 +409,7 @@ module Designs::Subject
       ui = Workshop::DesignsModuleController::UI_SYSTEMS.fetch(project.designs_ui_system, project.designs_ui_system.to_s.humanize)
       framework = Workshop::DesignsModuleController::FRAMEWORKS.fetch(project.designs_framework, project.designs_framework.to_s.humanize)
       repos = Array(project.design_app_repos).filter_map { |row| "#{row['role']}: #{row['repo']}" if row.is_a?(Hash) }
-      contexts = project.design_setup_roles.map do |role|
-        "#{role.name}: browser #{Designs::SignIn.slug(role)}, designs/#{role.name.parameterize.presence || "context-#{role.position.to_i + 1}"}/"
-      end
+      contexts = project.design_setup_roles.map { |role| context_line(role) }
       <<~MESSAGE
         ## Setup run
         This turn: #{PHASE_TITLES.fetch(setup.phase, setup.phase.humanize.downcase)}
@@ -356,14 +421,17 @@ module Designs::Subject
         #{repos.join("\n").presence || "(the project's own repository)"}
 
         ## Contexts
-        #{contexts.join("\n").presence || "(none)"}
+        #{contexts.join("\n").presence || "(none)"}#{dismissed_line}
 
         ## Request
         #{request.to_s.strip}
       MESSAGE
     end
 
-    def tools = Designs::TurnJob::TOOLS + BROWSER_TOOLS + (SAVING.include?(setup.phase) ? MAP_TOOLS : [])
+    def tools
+      Designs::TurnJob::TOOLS + (code_only? ? [] : BROWSER_TOOLS) + (SAVING.include?(setup.phase) ? MAP_TOOLS : []) + [ SUGGEST_TOOL ] +
+        (history? ? [ GIT_TOOL ] : [])
+    end
     # The CLI's own set of tools, beside the browser's.
     def tool_set = nil
     def timeout = DesignTurn.setup_timeout
@@ -381,8 +449,13 @@ module Designs::Subject
       File.write(config, JSON.generate(browser_config(worktree)), perm: 0o600)
       server = { command: "node", args: [ File.join(Designs::SignIn.crawler_dir, "browser.mjs") ],
                  env: Designs::SignIn.node_env.merge("FLOSIS_BROWSER_CONFIG" => config.to_s) }
+      servers = { flosis_browser: server }
+      if history?
+        servers[:flosis_git] = { command: "node", args: [ File.join(Designs::SignIn.crawler_dir, "git.mjs") ],
+                                 env: Designs::SignIn.node_env.merge("FLOSIS_GIT_REPOS" => JSON.generate(clones)) }
+      end
       Tempfile.create([ "#{Designs::TurnJob::PROMPT_PREFIX}-mcp", ".json" ]) do |file|
-        file.write(JSON.generate(mcpServers: { flosis_browser: server }))
+        file.write(JSON.generate(mcpServers: servers))
         file.close
         yield file.path
       end
@@ -394,8 +467,12 @@ module Designs::Subject
 
     # The app's repositories the run cloned and the materials, all read-only.
     def add_dirs
-      [ *Designs::AppRepos.new(setup).dirs, materials_dir.to_s, changes_dir.to_s ].select { |dir| File.directory?(dir) }
+      [ *Designs::AppRepos.new(setup).dirs, materials_dir.to_s ].select { |dir| File.directory?(dir) }
     end
+
+    # The app's history clones the git tool reads, { "owner/name" => path }.
+    def clones = @clones ||= Designs::AppHistory.new(project).clones
+    def history? = clones.any?
 
     # Every credential of the project, and every role's password.
     def secrets
@@ -432,9 +509,6 @@ module Designs::Subject
       Pathname(project.designs_dir).join("design-materials")
     end
 
-    # A resync's diffs of the app since the import it starts from.
-    def changes_dir = setup.run_dir.join("changes")
-
     # What the browser is given: the test environment, each context that
     # signed in (its state, never its password), the worktree its designs are
     # served from, and where it writes the feature's progress and the map.
@@ -447,14 +521,13 @@ module Designs::Subject
       { baseUrl: project.design_app_url, contexts: contexts, worktree: worktree.to_s,
         progressPath: setup.run_dir.join("progress.json").to_s,
         featuresPath: (setup.run_dir.join("features.json").to_s if SAVING.include?(setup.phase)),
-        featureKey: feature&.key, viewport: VIEWPORT }
+        featureKey: feature&.key, viewport: VIEWPORT, suggestionsPath: setup.run_dir.join("suggestions.jsonl").to_s }
     end
 
     def readable
       lines = []
       Designs::AppRepos.new(setup).dirs.each { |dir| lines << "- The app's code: #{dir}" }
       lines << "- Materials the team uploaded: #{materials_dir}" if project.design_materials.attached?
-      lines << "- What changed in the app since the last import: #{changes_dir}" if changes_dir.directory?
       Array(project.design_figma_urls).each { |url| lines << "- Figma: #{url}" }
       return "" if lines.empty?
 
