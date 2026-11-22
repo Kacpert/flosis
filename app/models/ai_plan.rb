@@ -9,4 +9,15 @@ class AiPlan < ApplicationRecord
   validates :name, presence: true
   validates :monthly_price_usd, presence: true, numericality: { greater_than_or_equal_to: 0 }
   validates :margin_percent, presence: true, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1000 }
+
+  # A plan renamed or repriced moves this month's limit for everyone on it;
+  # a closed month keeps the one it had (AiMonthLimit). A margin change needs
+  # nothing: each run keeps the margin it was priced with.
+  after_update_commit :refresh_month_limits, if: -> { saved_change_to_name? || saved_change_to_monthly_price_usd? }
+
+  private
+
+  def refresh_month_limits
+    workspaces.find_each { |workspace| AiMonthLimit.refresh_current!(workspace) }
+  end
 end
