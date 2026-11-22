@@ -118,4 +118,14 @@ class BreakdownChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes prompt, "You have no access to this project's code; reason from the brief and ask."
     assert_not_includes prompt, "Investigate the code FIRST"
   end
+
+  # SCRUM-70: refining a breakdown counts under AI estimates.
+  test "the breakdown chat counts as an AI estimate" do
+    with_fake_cli do |captured|
+      post jira_task_breakdown_chat_session_path(@task)
+      assert_equal "estimates", captured[:attribution].area
+      assert_equal "ELV-1 · Breakdown", captured[:attribution].item_label
+    end
+  end
+
 end

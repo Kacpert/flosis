@@ -84,7 +84,8 @@ module ChatStreaming
 
     write_sse_headers
 
-    service = ClaudeCliService.new(codebase_path: chat_codebase_path, allowed_tools: chat_tools)
+    service = ClaudeCliService.new(codebase_path: chat_codebase_path, allowed_tools: chat_tools,
+                                   attribution: chat_attribution)
     full_response = ""
     @stream_session_id = nil
 
@@ -172,7 +173,8 @@ module ChatStreaming
     write_sse_headers
 
     service = ClaudeCliService.new(codebase_path: @chat_session.codebase_path, allowed_tools: tools,
-                                   add_dirs: paths.any? ? [ ChatImages.dir(@chat_session) ] : [])
+                                   add_dirs: paths.any? ? [ ChatImages.dir(@chat_session) ] : [],
+                                   attribution: chat_attribution)
     full_response = ""
 
     begin
@@ -199,6 +201,13 @@ module ChatStreaming
   end
 
   private
+
+  # Whose AI run this chat's turn is (SCRUM-70): the task's, in the area its
+  # purpose and the task's place in the pipeline make it, started by whoever
+  # is in the chat.
+  def chat_attribution
+    AiRun::Attribution.for_task_chat(@task, purpose: chat_purpose, user: current_user)
+  end
 
   # What Claude is sent for the person's message, and what the stored message
   # keeps about that (its data). The chat shows the message as typed.
@@ -233,7 +242,7 @@ module ChatStreaming
     @streamed_any_assistant = true
     yield note if block_given?
     write_sse_safe(note)
-    TaskHandoff.new(@task).write! { keepalive_safe }
+    TaskHandoff.new(@task, user: current_user).write! { keepalive_safe }
   end
 
   # What was handed over, for every chat on the task to read: "" when the

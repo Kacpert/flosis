@@ -19,7 +19,7 @@ class TaskHandoffTest < ActiveSupport::TestCase
 
   test "the AI reads the conversation for the new task, and what it hands over is kept" do
     with_scripted_cli("Done.\n<handoff>\n- Billed monthly, prorated on joining\n</handoff>") do |runs|
-      TaskHandoff.new(@task).write!
+      TaskHandoff.new(@task, user: users(:one)).write!
 
       prompt = runs.first[:prompt]
       assert_includes prompt, "Billing"
@@ -36,7 +36,7 @@ class TaskHandoffTest < ActiveSupport::TestCase
 
   test "the AI gets no tools and no code" do
     with_scripted_cli("<handoff>- Billed monthly</handoff>") do |runs|
-      TaskHandoff.new(@task).write!
+      TaskHandoff.new(@task, user: users(:one)).write!
 
       assert_equal [], runs.first[:keywords][:allowed_tools]
       assert_equal ChatStreaming::NO_CODEBASE_DIR.to_s, runs.first[:keywords][:codebase_path]
@@ -44,14 +44,14 @@ class TaskHandoffTest < ActiveSupport::TestCase
   end
 
   test "a conversation that says nothing about the new task hands over nothing" do
-    with_scripted_cli("<handoff>\n</handoff>") { TaskHandoff.new(@task).write! }
+    with_scripted_cli("<handoff>\n</handoff>") { TaskHandoff.new(@task, user: users(:one)).write! }
 
     assert_equal "", @task.reload.handoff
     assert_not @task.handoff_pending?
   end
 
   test "a run that fails hands over the conversation as it was" do
-    with_scripted_cli(ClaudeCliService::ClaudeCliError.new("Claude CLI not found")) { TaskHandoff.new(@task).write! }
+    with_scripted_cli(ClaudeCliService::ClaudeCliError.new("Claude CLI not found")) { TaskHandoff.new(@task, user: users(:one)).write! }
 
     handoff = @task.reload.handoff
     assert_includes handoff, "could not be summarized"
@@ -59,7 +59,7 @@ class TaskHandoffTest < ActiveSupport::TestCase
   end
 
   test "a run that ends in an error hands over the conversation as it was" do
-    with_scripted_cli({ "is_error" => true, "result" => "API Error: Overloaded" }) { TaskHandoff.new(@task).write! }
+    with_scripted_cli({ "is_error" => true, "result" => "API Error: Overloaded" }) { TaskHandoff.new(@task, user: users(:one)).write! }
 
     handoff = @task.reload.handoff
     assert_includes handoff, "could not be summarized"
@@ -68,7 +68,7 @@ class TaskHandoffTest < ActiveSupport::TestCase
 
   test "the caller hears keepalives while the AI works" do
     beats = 0
-    with_scripted_cli("<handoff>- Billed monthly</handoff>") { TaskHandoff.new(@task).write! { beats += 1 } }
+    with_scripted_cli("<handoff>- Billed monthly</handoff>") { TaskHandoff.new(@task, user: users(:one)).write! { beats += 1 } }
 
     assert_equal 1, beats
   end
@@ -77,7 +77,7 @@ class TaskHandoffTest < ActiveSupport::TestCase
     @task.update!(handoff: "- Already handed over")
 
     with_scripted_cli do |runs|
-      TaskHandoff.new(@task).write!
+      TaskHandoff.new(@task, user: users(:one)).write!
       assert_empty runs
     end
     assert_equal "- Already handed over", @task.reload.handoff
@@ -88,9 +88,23 @@ class TaskHandoffTest < ActiveSupport::TestCase
 
     assert_not @task.reload.handoff_pending?
     with_scripted_cli do |runs|
-      TaskHandoff.new(@task).write!
+      TaskHandoff.new(@task, user: users(:one)).write!
       assert_empty runs
     end
     assert_nil @task.reload.handoff
   end
+
+  # SCRUM-70: the handoff's run is the new task's, started by whoever opened
+  # its first chat.
+  test "a handoff is attributed to the new task and the person who opened its chat" do
+    with_scripted_cli("<handoff>- Billed monthly</handoff>") do |runs|
+      TaskHandoff.new(@task, user: users(:one)).write!
+      attribution = runs.first[:keywords][:attribution]
+      assert_equal @task, attribution.item
+      assert_equal "task_conversations", attribution.area
+      assert_equal users(:one), attribution.started_by
+      assert attribution.item_label.end_with?("· Handoff")
+    end
+  end
+
 end
