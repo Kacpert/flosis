@@ -387,8 +387,11 @@ class Designs::SetupRunJob < ApplicationJob
     setup = feature.design_setup
     DesignSetupFeature.joins(:design_setup).where(design_setups: { project_id: setup.project_id }).where.not(design_setup_id: setup.id)
                       .where(key: feature.key, status: "review").find_each do |older|
+      # Set aside first, as Reject does: one accepted meanwhile lands instead.
+      next unless older.leave_review!(status: "set_aside")
+
       Designs::ImportLanding.new(older).discard!
-      older.update!(status: "set_aside", branch: nil, review: older.review.merge("rejected" => "Replaced by “#{setup.title}”"))
+      older.update!(branch: nil, review: older.review.merge("rejected" => "Replaced by “#{setup.title}”"))
     end
   end
 

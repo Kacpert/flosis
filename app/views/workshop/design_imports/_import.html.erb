@@ -8,7 +8,8 @@
 <% aside = features.select { |feature| feature.status == "set_aside" } %>
 <% running = features.find(&:running?) %>
 <% queued = features.select { |feature| feature.status == "todo" && feature.resets_at.nil? } %>
-<div <% if setup.busy? || setup.unit_live? %>data-controller="designs-refresh" data-designs-refresh-interval-value="15000"<% end %>>
+<% landing = features.select { |feature| feature.status == "landing" }.sort_by { |feature| [ feature.queued_at || feature.updated_at, feature.id ] } %>
+<div <% if setup.busy? || setup.unit_live? || landing.any? %>data-controller="designs-refresh" data-designs-refresh-interval-value="15000"<% end %>>
   <div class="flex items-start justify-between gap-4 mb-4 flex-wrap">
     <div class="min-w-0">
       <h2 class="m-0 text-[21px] font-bold tracking-[-.4px] clar-text-text"><%= setup.title %></h2>
@@ -81,6 +82,19 @@
   <%= render "workshop/design_imports/cards", setup: setup, cards: cards if cards.any? %>
   <% suggestions = setup.running? ? [] : setup.suggestions.open.order(:id).to_a %>
   <%= render "workshop/design_imports/feedback", setup: setup, suggestions: suggestions if suggestions.any? %>
+  <%# Accepted, on their way to master (Designs::ImportAcceptJob), in the
+      order accepted. %>
+  <% if landing.any? %>
+    <div class="text-[11px] tracking-[.06em] font-bold clar-text-muted mt-1 mb-2">LANDING ON MASTER · <%= landing.size %></div>
+    <div class="clar-card overflow-hidden mb-5">
+      <% landing.each_with_index do |feature, i| %>
+        <div class="px-4 py-2.5 text-[13px] flex items-center gap-2 <%= 'border-t border-[color:var(--border)]' if i.positive? %>" data-import-landing="<%= feature.key %>">
+          <span class="w-[7px] h-[7px] rounded-full clar-blink shrink-0" style="background: var(--ai);"></span>
+          <span class="min-w-0"><b class="clar-text-text"><%= feature.name %></b> <span class="clar-text-muted">· accepted <%= (feature.queued_at || feature.updated_at).in_time_zone.strftime("%H:%M") %></span></span>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
   <%= render "workshop/design_imports/built", setup: setup, built: built, repo: @repo if built.any? %>
 
   <% if aside.any? %>

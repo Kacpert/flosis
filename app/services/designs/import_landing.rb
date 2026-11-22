@@ -83,6 +83,16 @@ class Designs::ImportLanding
     Designs::Publisher.new(@project, @repo).unpublish!(branch)
   end
 
+  # Master's preview, published again. A landing cut off after its push
+  # (Designs::ImportAcceptJob) has nothing left to merge when it runs again,
+  # and publishes master this way. A failure is logged, never raised: master
+  # is already landed.
+  def publish_master!
+    Designs::Publisher.new(@project, @repo).publish!(Designs::Repo::MASTER, Designs::Repo::MASTER)
+  rescue StandardError => e
+    Rails.logger.error("[#{self.class.name}] project #{@project.id}: landed, but master was not published: #{e.class}: #{e.message}")
+  end
+
   private
 
   def changed_screens(branch)
@@ -111,9 +121,4 @@ class Designs::ImportLanding
     Rails.logger.warn("[#{self.class.name}] #{branch}: could not tidy up after landing: #{e.class}: #{e.message}")
   end
 
-  def publish_master!
-    Designs::Publisher.new(@project, @repo).publish!(Designs::Repo::MASTER, Designs::Repo::MASTER)
-  rescue StandardError => e
-    Rails.logger.error("[#{self.class.name}] project #{@project.id}: landed, but master was not published: #{e.class}: #{e.message}")
-  end
 end

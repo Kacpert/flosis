@@ -125,15 +125,137 @@ class Designs::ImportReviewsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "Accept lands it" do
+  # Kacper, 2026-11-22 ("czy możemy odpalać accept w tle … tak żeby ktoś mógł
+  # szybko zaakceptować zmiany a nie czekał"): each Accept took 14–19 s on
+  # import 4, so the request only marks the card and a job lands it.
+  test "Accept answers at once, and the landing goes on in the background" do
     with_a_thread_on_master do |repo, remote|
       review_it(repo)
-      post accept_workshop_design_import_feature_path(@import, @feature)
+      master = remote_branch_sha(remote, "master")
+      assert_enqueued_with(job: Designs::ImportAcceptJob, args: [ @import.id ]) do
+        post accept_workshop_design_import_feature_path(@import, @feature)
+      end
       assert_redirected_to page_path
+      assert_equal "Accepted · Bug Reporting lands on master in a moment", flash[:clar_toast]
+      assert_equal "landing", @feature.reload.status
+      assert_equal master, remote_branch_sha(remote, "master"), "nothing lands in the request"
+      assert_equal "default", Designs::ImportAcceptJob.new.queue_name, "never behind an import's unit on the designs queue"
 
-      assert_equal [ "done", nil ], [ @feature.reload.status, @feature.branch ]
+      perform_enqueued_jobs(only: Designs::ImportAcceptJob)
+      assert_equal [ "done", nil, true ], [ @feature.reload.status, @feature.branch, @feature.review["accepted"] ]
       assert_equal %w[manual import], @project.design_merges.order(:id).pluck(:how)
       assert_includes GitRunner.run!("show", "master:designs/admin/bugs.html", chdir: remote), "the app's card"
+    end
+  end
+
+  test "a second click on Accept, or Reject after it, changes nothing" do
+    with_a_thread_on_master do |repo, remote|
+      branch = review_it(repo).branch
+      2.times { post accept_workshop_design_import_feature_path(@import, @feature) }
+      post reject_workshop_design_import_feature_path(@import, @feature)
+
+      assert_equal 1, enqueued_jobs.count { _1["job_class"] == "Designs::ImportAcceptJob" }
+      assert_equal "landing", @feature.reload.status
+      assert remote_branch_sha(remote, branch), "the proposal is still on its way"
+
+      perform_enqueued_jobs(only: Designs::ImportAcceptJob)
+      assert_equal "done", @feature.reload.status, "and it lands"
+    end
+  end
+
+  # Final review (2026-11-22): Reject takes seconds (a fetch and a push), and
+  # an Accept sent meanwhile must find the card decided, not land nothing and
+  # call it built.
+  test "Accept sent while Reject is under way is refused, and the card stays rejected" do
+    with_a_thread_on_master do |repo, _remote|
+      review_it(repo)
+      accepted_meanwhile = nil
+      new_landing = Designs::ImportLanding.method(:new)
+      Designs::ImportLanding.define_singleton_method(:new) do |feature|
+        new_landing.call(feature).tap do |landing|
+          landing.define_singleton_method(:discard!) do
+            accepted_meanwhile = DesignSetupFeature.find(feature.id).accept!
+            super()
+          end
+        end
+      end
+      begin
+        post reject_workshop_design_import_feature_path(@import, @feature)
+      ensure
+        Designs::ImportLanding.singleton_class.remove_method(:new)
+      end
+
+      assert_equal false, accepted_meanwhile
+      assert_equal [ "set_aside", nil ], [ @feature.reload.status, @feature.branch ]
+      assert_equal "Rejected · not brought in: The card as the app has it.", @feature.review["rejected"]
+    end
+  end
+
+  test "proposals accepted one after another land in that order" do
+    with_a_thread_on_master do |repo, _remote|
+      review_it(repo)
+      settings = @import.features.create!(name: "Settings", key: "settings", position: 2, status: "review", contexts: %w[1-admin],
+                                          branch: "wip/import-#{@import.id}-settings", review: { "comes_in" => [ "Settings as the app has them." ] })
+      commit_files(repo, repo.worktree!(settings.branch, from: "master"), { "designs/admin/settings.html" => "<h1>Settings</h1>\n" })
+      repo.push!(settings.branch)
+
+      post accept_workshop_design_import_feature_path(@import, settings)
+      post accept_workshop_design_import_feature_path(@import, @feature)
+      perform_enqueued_jobs(only: Designs::ImportAcceptJob)
+
+      assert_equal %w[done done], [ settings.reload.status, @feature.reload.status ]
+      assert_equal [ "Bug card v2", "Settings", "Bug Reporting" ], @project.design_merges.order(:id).pluck(:title)
+    end
+  end
+
+  # A deploy cut the landing's job off after its push: run again, it is done,
+  # and master is not merged twice.
+  test "a landing run again after its push is done, and master is merged once" do
+    with_a_thread_on_master do |repo, _remote|
+      review_it(repo)
+      Designs::ImportLanding.new(@feature).land!(accepted: true)
+      @feature.update!(status: "landing", queued_at: 10.minutes.ago)
+      perform_enqueued_jobs(only: Designs::ImportAcceptJob) { Designs::ImportAcceptJob.perform_later(@import.id) }
+
+      assert_equal [ "done", nil ], [ @feature.reload.status, @feature.error ]
+      assert_equal %w[manual import], @project.design_merges.order(:id).pluck(:how)
+    end
+  end
+
+  # Final review (2026-11-22): a deploy gives a job 5 s and a landing takes
+  # 14–19 s, its push in the middle. Cut after the push, the landing run
+  # again has nothing left to merge, and still publishes master.
+  test "a landing cut off after its push publishes master when it runs again" do
+    with_a_thread_on_master do |repo, _remote|
+      review_it(repo)
+      publisher = Designs::Publisher.new(@project, repo)
+      publisher.publish!("master", "master")
+      repo.merge_into_master!(@feature.branch, message: "Import: Bug Reporting")
+      repo.push!("master", ":refs/heads/#{@feature.branch}", atomic: true)
+
+      post accept_workshop_design_import_feature_path(@import, @feature)
+      perform_enqueued_jobs(only: Designs::ImportAcceptJob)
+
+      assert_equal "done", @feature.reload.status
+      assert_includes publisher.slot_folder("master").join("designs/admin/bugs.html").read, "the app's card"
+    end
+  end
+
+  test "a landing GitHub refuses brings the card back with the reason" do
+    with_a_thread_on_master do |repo, remote|
+      review_it(repo)
+      hook = File.join(remote, "hooks", "pre-receive")
+      File.write(hook, "#!/bin/sh\necho \"protected branch hook declined\" >&2\nexit 1\n")
+      File.chmod(0o755, hook)
+      post accept_workshop_design_import_feature_path(@import, @feature)
+      perform_enqueued_jobs(only: Designs::ImportAcceptJob)
+
+      @feature.reload
+      assert_equal :review, @feature.problem
+      assert_match(/\ACouldn't land on master: .+\.\z/, @feature.error)
+      get page_path
+      assert_includes CGI.unescapeHTML(response.body), "#{@feature.error} Accept again, or Reject."
+      assert_select "form[action=?]", accept_workshop_design_import_feature_path(@import, @feature)
     end
   end
 
@@ -169,6 +291,7 @@ class Designs::ImportReviewsTest < ActionDispatch::IntegrationTest
       review_it(repo)
       push_from_elsewhere(remote, "master", { "designs/admin/bugs.html" => CARD.sub("old card", "a newer thread's card") })
       post accept_workshop_design_import_feature_path(@import, @feature)
+      perform_enqueued_jobs(only: Designs::ImportAcceptJob)
       assert_equal [ "todo", true ], [ @feature.reload.status, @feature.review["accepted"] ]
 
       perform_enqueued_jobs(only: Designs::SetupRunJob)

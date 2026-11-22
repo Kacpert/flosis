@@ -82,7 +82,11 @@ module DesignImportsHelper
   def import_card_text(feature)
     case feature.problem
     when :waiting then feature.question.to_s
-    when :review then "Developers changed this feature's code. Part of its design came from a thread, so nothing lands on master until you decide."
+    when :review
+      # A landing that failed (Designs::ImportAcceptJob) says why.
+      if feature.error.present? then "#{feature.error} Accept again, or Reject."
+      else "Developers changed this feature's code. Part of its design came from a thread, so nothing lands on master until you decide."
+      end
     when :unreadable then "The AI's answer could not be read."
     when :limit
       stopped = (feature.finished_at || feature.updated_at).in_time_zone

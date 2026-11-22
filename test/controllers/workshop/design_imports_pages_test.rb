@@ -369,4 +369,19 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
       refute_includes response.body, "FEEDBACK"
     end
   end
+
+  # Kacper, 2026-11-22 ("żeby ktoś mógł szybko zaakceptować zmiany a nie
+  # czekał"): an accepted proposal leaves Needs you at once and waits here
+  # while a job lands it, and the page refreshes until it has.
+  test "an accepted proposal waits under Landing on master, and the page refreshes until it lands" do
+    with_designs do
+      import = first_import([ [ "Bug Reporting", "landing", { queued_at: Time.zone.local(2026, 11, 22, 15, 21) } ], [ "Settings", "done" ] ])
+      get workshop_designs_overview_path(tab: "imports", import: import.id)
+
+      assert_select "[data-import-landing=bug-reporting]", text: /Bug Reporting\s*· accepted 15:21/
+      assert_includes CGI.unescapeHTML(response.body), "LANDING ON MASTER · 1"
+      assert_select "[data-import-card=bug-reporting]", false
+      assert_select "[data-controller=designs-refresh]"
+    end
+  end
 end

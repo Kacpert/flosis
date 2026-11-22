@@ -7,11 +7,12 @@
 #
 # On an import's page (Designs imports) a feature can also be waiting for the
 # person (the AI asked them something only they can fix), in review (its
-# update would replace a thread's work on master) or set aside (not needed).
+# update would replace a thread's work on master), landing (accepted, on its
+# way to master: Designs::ImportAcceptJob) or set aside (not needed).
 # Retrying, answering or adding one queues it: it is to do again, after the
 # import is over too, and the run builds it on its own branch.
 class DesignSetupFeature < ApplicationRecord
-  STATUSES = %w[todo running done failed waiting review set_aside].freeze
+  STATUSES = %w[todo running done failed waiting review landing set_aside].freeze
   STAGES = %w[building checking].freeze
   # Where it came from: the map, the person (Missing feature? · Add), or a
   # resync (a feature whose code changed, or one the map did not have).
@@ -111,6 +112,22 @@ class DesignSetupFeature < ApplicationRecord
     update!(status: "todo", queued_at: Time.current, reply: reply.to_s.strip.presence, error: nil, stage: nil, started_at: nil,
             finished_at: nil, resets_at: nil, attempts: 0, branch: (branch unless fresh), question: (question unless fresh),
             review: (fresh ? {} : review), notes: notes.reject { |note| note.to_s.start_with?(COULD_NOT_FINISH) })
+  end
+
+  # A proposal in review moves on once, whatever decides it (Accept, Reject,
+  # a newer import's proposal): only the call that moved it says true, so two
+  # decisions sent at once never both act (final review, 2026-11-22).
+  def leave_review!(**attributes)
+    left = self.class.where(id: id, status: "review").update_all(attributes.merge(updated_at: Time.current)) == 1
+    reload if left
+    left
+  end
+
+  # Accept on its card (Kacper, 2026-11-22: "żeby ktoś mógł szybko
+  # zaakceptować zmiany a nie czekał"): the proposal is landing from now on,
+  # accepted at queued_at, and Designs::ImportAcceptJob lands it.
+  def accept!
+    leave_review!(status: "landing", queued_at: Time.current, error: nil)
   end
 
   def done? = status == "done"
