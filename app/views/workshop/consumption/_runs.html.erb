@@ -1,0 +1,28 @@
+<%# The runs themselves, newest first: the price the organization is charged
+    and who set each going — an automation by its own name. %>
+<section class="clar-card overflow-hidden">
+  <div class="flex flex-wrap items-baseline justify-between gap-2.5 border-b border-[color:var(--border)] px-4.5 py-3.5">
+    <h2 class="m-0 text-[14px] font-bold clar-text-text">Runs</h2>
+    <span class="text-[11.5px] clar-text-faint">Newest first &middot; <%= pluralize(number_with_delimiter(@summary.runs), "run") %> in <%= @month.strftime("%B %Y") %></span>
+  </div>
+  <div class="overflow-x-auto">
+    <div class="min-w-[860px]">
+      <div class="flex border-b border-[color:var(--border)] px-4.5 py-2.5 text-[11px] font-bold tracking-[.4px] clar-text-faint">
+        <span class="w-28 flex-none">WHEN</span>
+        <span class="w-40 flex-none">AREA</span>
+        <span class="flex-1">ITEM</span>
+        <span class="w-40 flex-none">STARTED BY</span>
+        <span class="w-52 flex-none">TOKENS</span>
+        <span class="w-24 flex-none text-right">PRICE</span>
+      </div>
+      <% if @runs.empty? %>
+        <div class="px-4.5 py-6 text-center text-[13px] clar-text-faint">No AI runs in <%= @month.strftime("%B %Y") %>.</div>
+      <% else %>
+        <%= render "workshop/consumption/run_rows", runs: @runs, offset: 0 %>
+      <% end %>
+    </div>
+  </div>
+  <div class="border-t border-[color:var(--border)] bg-[var(--surface-2)] px-4.5 py-3 text-[11.5px] clar-text-faint">
+    Every run is priced on the plan that stood on the day it ran, and a closed month never moves.
+  </div>
+</section>

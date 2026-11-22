@@ -153,6 +153,7 @@ Rails.application.routes.draw do
     post "configuration/verify_jira_fields", to: "configuration#verify_jira_fields", as: :verify_jira_fields_configuration
     post "configuration/refresh_features", to: "configuration#refresh_features", as: :refresh_features_configuration
     patch "configuration/ai_costs", to: "configuration#update_ai_costs", as: :configuration_ai_costs
+    get "consumption", to: "consumption#show", as: :consumption
     resources :discord_webhooks, only: [ :create, :destroy ]
     resources :project_members, only: [ :create, :update, :destroy ]
     resources :projects, only: [ :create ]

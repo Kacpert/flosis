@@ -1,0 +1,6 @@
+<%# One of the notes under the total: a label and a sentence or two. %>
+<%# locals: (label:, warn: false) %>
+<div class="rounded-[10px] border px-3.5 py-3 <%= warn ? 'border-[color:var(--warn-soft)] bg-[color:var(--warn-soft)]' : 'border-[color:var(--border)] bg-[var(--bg)]' %>">
+  <div class="text-[11.5px] <%= warn ? 'font-bold clar-text-warn' : 'clar-text-faint' %>"><%= label %></div>
+  <div class="mt-[3px] text-[12.5px] leading-[1.45] clar-text-muted"><%= yield %></div>
+</div>

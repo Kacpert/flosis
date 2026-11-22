@@ -1,0 +1,64 @@
+<%# All time: the shape of the spend since the first run. The limit is a
+    monthly one, so it is read month by month; to read the runs themselves,
+    open a month. %>
+<% months = @summary.months %>
+<% over = months.count { |_, amount, limit| limit&.limit_usd && amount > limit.limit_usd } %>
+<section class="clar-card mb-4.5 p-4.5">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <div class="mb-1 text-[11px] font-bold tracking-[.4px] clar-text-faint">
+        USED <%= @summary.first_run_at ? "SINCE #{l(@summary.first_run_at.to_date, format: :long).upcase}" : "SO FAR" %>
+      </div>
+      <div class="flex items-baseline gap-2.5">
+        <span class="text-[30px] font-bold tracking-[-.5px] clar-text-text"><%= AiCostFormatter.money(@summary.total) %></span>
+        <span class="text-[14px] clar-text-muted">in <%= pluralize(months.size, "month") %></span>
+      </div>
+    </div>
+    <div class="text-right">
+      <div class="mb-1 text-[11px] font-bold tracking-[.4px] clar-text-faint">PLAN</div>
+      <% if (plan = current_workspace.ai_plan) %>
+        <div class="text-[13.5px] font-semibold clar-text-text"><%= plan.name %> &middot; <%= AiCostFormatter.money(plan.monthly_price_usd) %> / month</div>
+        <% if current_workspace.ai_plan_assigned_at %><div class="mt-[3px] text-[11.5px] clar-text-faint">assigned <%= current_workspace.ai_plan_assigned_at.strftime("%-d %b %Y") %></div><% end %>
+      <% else %>
+        <span class="clar-badge clar-badge-muted">NO PLAN</span>
+      <% end %>
+    </div>
+  </div>
+  <p class="mt-3.5 mb-0 text-[12.5px] leading-[1.45] clar-text-muted">
+    The limit is a monthly one, so it is read month by month below.
+    <%= over.zero? ? "No month has gone over it so far." : "#{pluralize(over, 'month')} went over it so far, and nothing was blocked then either." %>
+  </p>
+</section>
+
+<section class="clar-card mb-4.5 overflow-hidden">
+  <div class="flex items-baseline justify-between border-b border-[color:var(--border)] px-4.5 py-3.5">
+    <h2 class="m-0 text-[14px] font-bold clar-text-text">By month</h2>
+    <span class="text-[11.5px] clar-text-faint">Against the limit of each month</span>
+  </div>
+  <% months.each do |month, amount, limit| %>
+    <% cap = limit&.limit_usd %>
+    <%= link_to workshop_consumption_path(month: month.strftime("%Y-%m")), class: "flex items-center gap-3 border-b border-[color:var(--border)] px-4.5 py-[11px] no-underline clar-row-hover", data: { month_row: month.strftime("%Y-%m") } do %>
+      <span class="min-w-0 flex-1 text-[13.5px] clar-text-text"><%= month.strftime("%B %Y") %></span>
+      <span class="text-[12px] <%= cap && amount > cap ? 'font-semibold clar-text-warn' : 'clar-text-faint' %>">
+        <% if cap.nil? %>no plan<% elsif amount > cap %>over by <%= AiCostFormatter.money(amount - cap) %><% else %><%= consumption_percent(amount, cap) %>% of limit<% end %>
+      </span>
+      <span class="w-28 text-right text-[13.5px] font-semibold clar-text-text"><%= AiCostFormatter.money(amount) %></span>
+    <% end %>
+  <% end %>
+  <div class="flex items-center bg-[var(--surface-2)] px-4.5 py-3">
+    <span class="min-w-0 flex-1 text-[13.5px] font-bold clar-text-text">All time</span>
+    <span class="w-28 text-right text-[13.5px] font-bold clar-text-text"><%= AiCostFormatter.money(@summary.total) %></span>
+  </div>
+</section>
+
+<%= render "workshop/consumption/tables", period: "All time" %>
+
+<% if @summary.unknown_runs.positive? %>
+  <div class="mb-4.5">
+    <%= render "workshop/consumption/note", label: "Unknown costs", warn: true do %>
+      <%= pluralize(@summary.unknown_runs, "run") %> of <%= number_with_delimiter(@summary.runs) %> came back from the provider with
+      no cost. Their tokens are kept and their price reads unknown; not one of them is counted as $0, in any month or in this total.
+    <% end %>
+  </div>
+<% end %>
+<p class="text-[12px] clar-text-faint">To read the runs themselves, open a month: all time lists the shape of the spend, not every row.</p>

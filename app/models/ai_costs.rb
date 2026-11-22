@@ -43,6 +43,13 @@ class AiCosts
     by_month.sort_by { |month, _| month }.reverse.first(limit).map { |month, (amount, count)| Month.new(month: month, amount: amount, runs: count) }
   end
 
+  # The months with finished runs, newest first, the current month always
+  # first: what Consumption's period picker offers.
+  def months
+    found = workspace_runs.finished.distinct.pluck(Arel.sql(month_sql)).map(&:to_date)
+    ([ Date.current.beginning_of_month ] | found).sort.reverse
+  end
+
   def month(date)
     date = date.to_date.beginning_of_month
     summarize(workspace_runs.in_month(date), limit: AiMonthLimit.for(@workspace, date), months: nil)

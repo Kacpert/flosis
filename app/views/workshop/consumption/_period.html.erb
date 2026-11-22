@@ -1,0 +1,32 @@
+<%# The period: a month, or all time. Everything below is for it. %>
+<% current = Date.current.beginning_of_month %>
+<div class="clar-card mb-4.5 flex flex-wrap items-center gap-3.5 px-4.5 py-3.5">
+  <%= form_with url: workshop_consumption_path, method: :get, class: "flex items-center gap-3.5",
+        data: { controller: "auto-save", turbo_frame: "_top" } do %>
+    <label for="period-month" class="text-[11px] font-bold tracking-[.4px] clar-text-faint">PERIOD</label>
+    <select id="period-month" name="month" data-action="change->auto-save#save" class="clar-input !w-auto !py-2 font-semibold">
+      <% if @all_time %><option value="" selected>Pick a month&hellip;</option><% end %>
+      <% @months.each do |month| %>
+        <option value="<%= month.strftime("%Y-%m") %>" <%= "selected" if !@all_time && month == @month %>><%= consumption_month(month) %></option>
+      <% end %>
+    </select>
+  <% end %>
+  <div class="clar-tabs p-[3px] gap-[3px]">
+    <%= link_to "By month", workshop_consumption_path(month: (@all_time ? current : @month).strftime("%Y-%m")),
+          class: "clar-tab text-[12.5px] py-[6px] px-[13px] #{'clar-tab-active' unless @all_time}" %>
+    <%= link_to "All time", workshop_consumption_path(view: "all"), class: "clar-tab text-[12.5px] py-[6px] px-[13px] #{'clar-tab-active' if @all_time}" %>
+  </div>
+  <span class="flex-1"></span>
+  <% if @all_time %>
+    <span class="text-[11.5px] clar-text-faint">
+      <%= @summary.first_run_at ? "Since #{l(@summary.first_run_at.to_date, format: :long)} · #{pluralize(number_with_delimiter(@summary.runs), 'run')}" : "No runs yet" %>
+    </span>
+  <% elsif @month < current %>
+    <span class="inline-flex items-center gap-1.5 rounded-[7px] border border-[color:var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11.5px] font-semibold clar-text-muted">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      Closed &middot; <%= pluralize(number_with_delimiter(@summary.runs), "run") %>
+    </span>
+  <% else %>
+    <span class="text-[11.5px] clar-text-faint"><%= pluralize(number_with_delimiter(@summary.runs), "run") %> this month</span>
+  <% end %>
+</div>

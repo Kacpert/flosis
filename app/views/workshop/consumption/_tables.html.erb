@@ -1,0 +1,22 @@
+<%# By area and by project: the same total, cut two ways. The eight areas are
+    everything that runs Claude. Own-key projects sit under the project total,
+    outside it. Deleting an item does not refund it: the totals keep it. %>
+<%# locals: (period:) %>
+<% own = @summary.own_key_projects %>
+<div class="mb-4.5 grid grid-cols-1 items-start gap-4.5 lg:grid-cols-2">
+  <%= render "workshop/consumption/table", title: "By area", period: period, column: "AREA",
+             rows: @summary.by_area.map { |area, runs, amount| [ AiRun::AREAS[area], runs, amount ] },
+             total: @summary.total, total_runs: @summary.runs %>
+  <div class="flex flex-col gap-4.5">
+    <%= render "workshop/consumption/table", title: "By project", period: period, column: "PROJECT",
+               rows: @summary.by_project, total: @summary.total, total_runs: @summary.runs, aside: own,
+               aside_note: "#{own.map(&:first).to_sentence} #{own.size == 1 ? 'runs' : 'run'} on #{own.size == 1 ? 'its' : 'their'} own Anthropic key. That usage is recorded and shown, and it is outside the total and the limit." %>
+    <div class="clar-card flex items-start gap-2 px-4.5 py-3.5 text-[12.5px] leading-[1.45] clar-text-muted">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mt-[1px] flex-none" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <span>
+        Areas and projects both add up to <b class="font-semibold clar-text-text"><%= AiCostFormatter.money(@summary.total) %></b>.
+        Usage of a deleted conversation, thread or import stays in these totals &mdash; the run still happened.
+      </span>
+    </div>
+  </div>
+</div>
