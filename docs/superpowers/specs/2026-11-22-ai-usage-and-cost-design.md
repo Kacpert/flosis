@@ -469,3 +469,19 @@ answers the ticket's open question; it is my call.
 - Test structure (Minitest): service recording, including INT on a fake CLI script; every
   call site's attribution; the formatter; visibility; Consumption sums; and the hidmin
   pages.
+
+## Deviations (as built, 2026-11-22)
+
+- **`Designs::SetupRunJob`'s `pkill` keeps sending TERM.** That process's job is dead, so
+  nobody would read an INT result. The sweeper fails its row, as §2 accepts.
+- **Item figures are loaded by a view helper.** `ai_figures(records, area:)` makes one
+  grouped query per list, and none while costs are hidden. Controllers do not set them.
+- **Hints use `.clar-tip`, not `title`.** This follows Kacper's fast-hover rule.
+- **Profile → AI costs is in the page's m3 markup**, with a new `.m3-switch`. The Profile
+  page is not in the Workshop design system.
+- **Staff figures come from `AiBilling`** (cost, price and margin). `AiCosts` stays
+  price-only, so no organization screen can show cost by accident.
+- **The Organizations list in `/hidmin` is the billing table.** Its old PEOPLE and PRODUCTS
+  columns live on each organization's page.
+- **A table row whose runs all reported no cost reads "unknown"**, never $0.00.
+- **"Show 50 more" on Consumption is a Turbo-frame link** at the end of the list.
