@@ -46,6 +46,8 @@ class Designs::AppRepos
     rescue GitRunner::Error, SystemCallError => e
       last = reason(e)
       @setup.note!("Reading the repositories", "#{name}#{" @ #{branch}" if branch} could not be read: #{last}.")
+      DesignImportSuggestion.record!(@setup, kind: "other", title: "#{name} could not be read",
+                                     detail: "#{last}. Check that the project's GitHub token can read it.")
       nil
     end
     raise Failure, "No app repository could be read#{": #{last}" if last}." if fetched.empty?

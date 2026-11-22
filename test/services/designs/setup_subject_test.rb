@@ -72,4 +72,22 @@ class Designs::SetupSubjectTest < ActiveSupport::TestCase
     assert_includes message, "Manager: no browser (could not sign in): build it from the code, designs/manager/"
     assert_includes @subject.system_text, "# Contexts built from the code"
   end
+
+  # Kacper, 2026-11-22: a turn says what it needs from the person.
+  test "setup turns may leave suggestions" do
+    %w[map feature resync].each do |phase|
+      @setup.update!(phase: phase)
+      assert_includes Designs::Subject::SetupSubject.new(@setup.reload.then { ChatSession.find_by!(design_setup: @setup) }).tools, "mcp__flosis_browser__suggest", phase
+    end
+    assert_includes @subject.system_text, "# When you need something from the person"
+    @subject.with_mcp(File.join(@dir, "worktree")) { |_config| nil }
+    assert_equal @setup.run_dir.join("suggestions.jsonl").to_s, JSON.parse(File.read(@setup.run_dir.join("browser.json")))["suggestionsPath"]
+  end
+
+  test "the roles the person dismissed are named, so the AI does not raise them again" do
+    other = @project.design_setups.create!(kind: "resync", status: "approved", phase: "resync", started_by: users(:one))
+    DesignImportSuggestion.record!(other, kind: "context", title: "Super admin", context_name: "Super admin").update!(status: "dismissed")
+
+    assert_includes @subject.turn_message("Build it."), "Roles the person said not to import: Super admin."
+  end
 end

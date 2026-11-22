@@ -14,8 +14,16 @@ require "open3"
 # afresh: a session may not last a run of many hours.
 class Designs::SignIn
   class Failure < StandardError; end
-  # Nobody passed the sign-in: its message is their reasons.
-  class Nobody < Failure; end
+  # Nobody passed the sign-in: its message is their reasons; failures,
+  # [[slug, reason]].
+  class Nobody < Failure
+    attr_reader :failures
+
+    def initialize(message, failures: [])
+      @failures = failures
+      super(message)
+    end
+  end
 
   TIMEOUT = 5.minutes
   # A sign-in nobody passes is tried this many times, a minute apart, before
@@ -125,6 +133,18 @@ class Designs::SignIn
   def nobody!(error)
     why = error.is_a?(Nobody) ? "Nobody could sign in to the test environment: #{error.message}." : "#{error.message.delete_suffix('.')}."
     @setup.note!("Signing in", "#{why} Every context is built from the code.")
+    if error.is_a?(Nobody)
+      error.failures.each { |slug, reason| suggest_login(slug, reason) }
+    else
+      DesignImportSuggestion.record!(@setup, kind: "other", title: "The sign-in could not run", detail: "#{why} Every context was built from the code.")
+    end
+  end
+
+  # A context that could not sign in, for the person to fix its login.
+  def suggest_login(slug, reason)
+    role = @project.design_setup_roles.find { |candidate| self.class.slug(candidate) == slug } or return
+    DesignImportSuggestion.record!(@setup, kind: "sign_in", role: role, context_name: role.name, title: "#{role.name} could not sign in",
+                                   detail: "#{reason}. Its screens were built from the code.")
   end
 
   def sign_in_once(roles)
@@ -137,11 +157,12 @@ class Designs::SignIn
     failures = results.reject { |row| row["ok"] }
     failures.each { |row| FileUtils.rm_f(auth.join("#{row['slug']}.json")) }
     messages = failures.map { |row| scrub(row["error"].to_s.presence || "it did not say why").delete_suffix(".") }
-    raise Nobody, messages.uniq.join("; ") if results.none? { |row| row["ok"] }
+    raise Nobody.new(messages.uniq.join("; "), failures: failures.map { |row| row["slug"] }.zip(messages)) if results.none? { |row| row["ok"] }
 
     names = roles.to_h { |role| [ self.class.slug(role), role.name ] }
     failures.zip(messages).each do |row, message|
       @setup.note!("Signing in", "#{names.fetch(row['slug'], row['slug'])} could not sign in: #{message}.")
+      suggest_login(row["slug"], message)
     end
     results
   end

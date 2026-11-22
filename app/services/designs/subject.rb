@@ -283,6 +283,14 @@ module Designs::Subject
     # A resync's look at what changed works from the code and its history
     # alone (Kacper, 2026-11-22): no browser tools, and this note instead of
     # the browser's.
+    # What a turn needs from the person (Kacper, 2026-11-22): the suggest
+    # tool, for every setup turn, and when to use it.
+    SUGGEST_TOOL = "mcp__flosis_browser__suggest".freeze
+    SUGGEST_NOTE = <<~TEXT.freeze
+      # When you need something from the person
+
+      If something keeps you from importing the app as it is, and only the person can give it, leave a suggestion with the suggest tool, once per thing, and go on with what you can: a role the run's contexts do not cover (kind context: name the role and the map's features it has), data or an integration the test environment lacks, or a repository you could not read (kind other). Never ask for a password. Nothing else is a suggestion.
+    TEXT
     CODE_ONLY_NOTE = <<~TEXT.freeze
       # This turn reads code only
 
@@ -372,9 +380,16 @@ module Designs::Subject
 
     def from_code_contexts? = !code_only? && project.design_setup_roles.any? { |role| !browser?(role) }
 
+    # The roles the person dismissed before, so that no turn raises them again.
+    def dismissed_line
+      names = DesignImportSuggestion.dismissed_contexts(project)
+      "\nRoles the person said not to import: #{names.join(', ')}." if names.any?
+    end
+
     def system_text
       "#{Designs::Prompt.system_text(project: project, composition: composition)}\n#{readable}\n#{code_only? ? CODE_ONLY_NOTE : BROWSER_NOTE}" \
         "#{"\n#{GIT_NOTE}" if history?}" \
+        "\n#{SUGGEST_NOTE}" \
         "#{"\n#{CODE_CONTEXTS_NOTE}" if from_code_contexts?}" \
         "#{"\n#{BLOCKED_NOTE}" if setup.phase == 'feature' && !setup.reimport?}"
     end
@@ -400,7 +415,7 @@ module Designs::Subject
         #{repos.join("\n").presence || "(the project's own repository)"}
 
         ## Contexts
-        #{contexts.join("\n").presence || "(none)"}
+        #{contexts.join("\n").presence || "(none)"}#{dismissed_line}
 
         ## Request
         #{request.to_s.strip}
@@ -408,7 +423,8 @@ module Designs::Subject
     end
 
     def tools
-      Designs::TurnJob::TOOLS + (code_only? ? [] : BROWSER_TOOLS) + (SAVING.include?(setup.phase) ? MAP_TOOLS : []) + (history? ? [ GIT_TOOL ] : [])
+      Designs::TurnJob::TOOLS + (code_only? ? [] : BROWSER_TOOLS) + (SAVING.include?(setup.phase) ? MAP_TOOLS : []) + [ SUGGEST_TOOL ] +
+        (history? ? [ GIT_TOOL ] : [])
     end
     # The CLI's own set of tools, beside the browser's.
     def tool_set = nil
@@ -499,7 +515,7 @@ module Designs::Subject
       { baseUrl: project.design_app_url, contexts: contexts, worktree: worktree.to_s,
         progressPath: setup.run_dir.join("progress.json").to_s,
         featuresPath: (setup.run_dir.join("features.json").to_s if SAVING.include?(setup.phase)),
-        featureKey: feature&.key, viewport: VIEWPORT }
+        featureKey: feature&.key, viewport: VIEWPORT, suggestionsPath: setup.run_dir.join("suggestions.jsonl").to_s }
     end
 
     def readable

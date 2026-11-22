@@ -399,6 +399,7 @@ class Designs::SetupRunJob < ApplicationJob
     turn = start_turn(setup, follow_up_request(feature))
     feature.update!(design_turn: turn)
     self.class.turn_runner.call(turn.id)
+    read_suggestions!(setup)
     finish_feature(feature, turn.reload, repo, before)
   end
 
@@ -527,6 +528,7 @@ class Designs::SetupRunJob < ApplicationJob
     turn = start_turn(setup, follow_up_request(feature), kind: kind)
     feature.update!(design_turn: turn)
     self.class.turn_runner.call(turn.id)
+    read_suggestions!(setup)
     finish_follow_up(feature, turn.reload, repo, before)
   end
 
@@ -611,6 +613,7 @@ class Designs::SetupRunJob < ApplicationJob
   def run_turn!(setup, request)
     turn = start_turn(setup, request)
     self.class.turn_runner.call(turn.id)
+    read_suggestions!(setup)
     turn.reload
     limit!(turn) unless turn.succeeded?
     raise Failure, turn.error.presence || "Claude could not finish this step." unless turn.succeeded?
@@ -629,6 +632,28 @@ class Designs::SetupRunJob < ApplicationJob
   end
 
   def branch(setup) = setup.design_thread&.branch || Designs::BranchNames::SETUP
+
+  # What the turn left for the person with the suggest tool (Kacper,
+  # 2026-11-22), into the import's suggestions; the file goes. A line that is
+  # not a suggestion is skipped.
+  def read_suggestions!(setup)
+    file = setup.run_dir.join("suggestions.jsonl")
+    return unless file.file?
+
+    lines = file.read.lines
+    FileUtils.rm_f(file)
+    lines.each do |line|
+      row = begin
+        JSON.parse(line)
+      rescue JSON::ParserError
+        nil
+      end
+      next unless row.is_a?(Hash) && %w[context other].include?(row["kind"]) && row["title"].present?
+
+      DesignImportSuggestion.record!(setup, kind: row["kind"], title: row["title"], detail: row["detail"],
+                                     context_name: (row["context"] if row["kind"] == "context"), features: Array(row["features"]))
+    end
+  end
 
   # The feature's contexts (every context when it names none) that did not
   # sign in now: its turn builds them from the code (Kacper, 2026-11-22).

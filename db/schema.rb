@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_110100) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_110200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -302,6 +302,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_110100) do
     t.bigint "user_id", null: false
     t.index ["task_id", "number"], name: "index_design_approvals_on_task_id_and_number", unique: true
     t.index ["user_id"], name: "index_design_approvals_on_user_id"
+  end
+
+  create_table "design_import_suggestions", force: :cascade do |t|
+    t.datetime "acted_at"
+    t.bigint "acted_by_id"
+    t.string "context_name"
+    t.datetime "created_at", null: false
+    t.bigint "design_setup_id", null: false
+    t.bigint "design_setup_role_id"
+    t.text "detail"
+    t.json "features"
+    t.string "key", null: false
+    t.string "kind", null: false
+    t.string "status", default: "open", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["acted_by_id"], name: "index_design_import_suggestions_on_acted_by_id"
+    t.index ["design_setup_id", "key"], name: "index_design_import_suggestions_on_design_setup_id_and_key", unique: true
+    t.index ["design_setup_id"], name: "index_design_import_suggestions_on_design_setup_id"
+    t.index ["design_setup_role_id"], name: "index_design_import_suggestions_on_design_setup_role_id"
   end
 
   create_table "design_import_views", force: :cascade do |t|
@@ -1106,6 +1126,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_110100) do
   add_foreign_key "delivered_issues", "projects"
   add_foreign_key "design_approvals", "tasks"
   add_foreign_key "design_approvals", "users"
+  add_foreign_key "design_import_suggestions", "design_setup_roles", on_delete: :nullify
+  add_foreign_key "design_import_suggestions", "design_setups", on_delete: :cascade
+  add_foreign_key "design_import_suggestions", "users", column: "acted_by_id", on_delete: :nullify
   add_foreign_key "design_import_views", "design_setups", on_delete: :cascade
   add_foreign_key "design_import_views", "users", on_delete: :cascade
   add_foreign_key "design_merges", "design_threads", on_delete: :nullify

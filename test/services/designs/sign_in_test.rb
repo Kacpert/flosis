@@ -130,4 +130,14 @@ class Designs::SignInTest < ActiveSupport::TestCase
     Designs::SignIn.new(@setup).call
     assert_not @setup.run_dir.join("auth", "2-hiring-manager.json").exist?
   end
+
+  test "a context that cannot sign in becomes a suggestion, once" do
+    Designs::SignIn.runner = runner(ok: %w[1-admin])
+    2.times { Designs::SignIn.new(@setup).call }
+
+    suggestion = @setup.suggestions.sole
+    assert_equal [ "sign_in", "Hiring manager could not sign in" ], [ suggestion.kind, suggestion.title ]
+    assert_match(/login failed/, suggestion.detail)
+    assert_no_match(/hm-secret/, suggestion.detail)
+  end
 end

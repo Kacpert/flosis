@@ -273,4 +273,27 @@ class Designs::SetupRunJobTest < ActiveSupport::TestCase
       end
     end
   end
+
+  # Kacper, 2026-11-22: what a turn needs from the person is left for them.
+  test "a turn's suggestions become the import's" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        setup = new_setup(repo.project)
+        turns = fake_turns(repo, setup)
+        Designs::SetupRunJob.turn_runner = lambda do |turn_id|
+          if setup.reload.phase == "map"
+            File.write(setup.run_dir.join("suggestions.jsonl"), [
+              { kind: "context", title: "Flosis staff can see the Library", context: "Flosis staff", features: [ "library" ] }.to_json,
+              { kind: "other", title: "No invoices on staging" }.to_json, "not json" ].join("\n"))
+          end
+          turns.call(turn_id)
+        end
+        run_to_the_end(setup)
+
+        assert_equal [ [ "context", "Flosis staff" ], [ "other", nil ] ], setup.suggestions.order(:id).pluck(:kind, :context_name)
+        refute setup.run_dir.join("suggestions.jsonl").exist?
+      end
+    end
+  end
 end

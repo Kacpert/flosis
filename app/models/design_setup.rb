@@ -50,6 +50,8 @@ class DesignSetup < ApplicationRecord
   belongs_to :since_setup, class_name: "DesignSetup", optional: true
   has_many :features, -> { order(:position) }, class_name: "DesignSetupFeature", dependent: :destroy
   has_many :views, class_name: "DesignImportView", dependent: :delete_all
+  # What it needs from the person (Feedback, Kacper 2026-11-22).
+  has_many :suggestions, class_name: "DesignImportSuggestion", dependent: :delete_all
 
   # Production is MariaDB: the columns read as text unless typed here.
   attribute :notes, :json, default: []
