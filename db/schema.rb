@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_200100) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,88 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_200100) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "ai_models", force: :cascade do |t|
+    t.decimal "cache_read_usd_per_mtok", precision: 12, scale: 4
+    t.decimal "cache_write_usd_per_mtok", precision: 12, scale: 4
+    t.datetime "created_at", null: false
+    t.datetime "hand_set_at"
+    t.decimal "input_usd_per_mtok", precision: 12, scale: 4
+    t.string "model_id", null: false
+    t.string "name", null: false
+    t.decimal "output_usd_per_mtok", precision: 12, scale: 4
+    t.string "price_source", default: "read", null: false
+    t.datetime "read_at"
+    t.datetime "read_failed_at"
+    t.datetime "updated_at", null: false
+    t.index ["model_id"], name: "index_ai_models_on_model_id", unique: true
+  end
+
+  create_table "ai_month_limits", force: :cascade do |t|
+    t.bigint "ai_plan_id"
+    t.datetime "created_at", null: false
+    t.decimal "limit_usd", precision: 12, scale: 2
+    t.date "month", null: false
+    t.string "plan_name"
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["ai_plan_id"], name: "index_ai_month_limits_on_ai_plan_id"
+    t.index ["workspace_id", "month"], name: "index_ai_month_limits_on_workspace_id_and_month", unique: true
+  end
+
+  create_table "ai_plan_models", force: :cascade do |t|
+    t.bigint "ai_model_id", null: false
+    t.bigint "ai_plan_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ai_model_id"], name: "index_ai_plan_models_on_ai_model_id"
+    t.index ["ai_plan_id", "ai_model_id"], name: "index_ai_plan_models_on_ai_plan_id_and_ai_model_id", unique: true
+  end
+
+  create_table "ai_plans", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.decimal "margin_percent", precision: 6, scale: 2, null: false
+    t.decimal "monthly_price_usd", precision: 12, scale: 2, null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "ai_runs", force: :cascade do |t|
+    t.string "area", null: false
+    t.string "automation"
+    t.bigint "cache_read_tokens", default: 0, null: false
+    t.bigint "cache_write_tokens", default: 0, null: false
+    t.string "claude_session_id"
+    t.decimal "cost_usd", precision: 14, scale: 6
+    t.datetime "created_at", null: false
+    t.integer "duration_ms"
+    t.bigint "input_tokens", default: 0, null: false
+    t.bigint "item_id"
+    t.string "item_label"
+    t.string "item_type"
+    t.decimal "margin_percent", precision: 6, scale: 2
+    t.string "model"
+    t.jsonb "model_usage"
+    t.bigint "output_tokens", default: 0, null: false
+    t.boolean "own_key", default: false, null: false
+    t.decimal "price_usd", precision: 14, scale: 6
+    t.bigint "project_id"
+    t.string "project_name"
+    t.datetime "ran_at", null: false
+    t.bigint "started_by_id"
+    t.string "status", default: "running", null: false
+    t.datetime "unknown_reviewed_at"
+    t.bigint "unknown_reviewed_by_id"
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["item_type", "item_id"], name: "index_ai_runs_on_item_type_and_item_id"
+    t.index ["project_id", "ran_at"], name: "index_ai_runs_on_project_id_and_ran_at"
+    t.index ["ran_at"], name: "index_ai_runs_running", where: "((status)::text = 'running'::text)"
+    t.index ["started_by_id"], name: "index_ai_runs_on_started_by_id"
+    t.index ["workspace_id", "area", "ran_at"], name: "index_ai_runs_on_workspace_id_and_area_and_ran_at"
+    t.index ["workspace_id", "ran_at"], name: "index_ai_runs_on_workspace_id_and_ran_at"
+    t.index ["workspace_id"], name: "index_ai_runs_unknown_cost", where: "(cost_usd IS NULL)"
   end
 
   create_table "alert_rule_prompt_versions", force: :cascade do |t|
@@ -955,6 +1037,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_200100) do
     t.boolean "flosis_staff", default: false, null: false
     t.string "name", null: false
     t.string "password_digest", null: false
+    t.boolean "show_ai_costs", default: false, null: false
     t.string "timezone", default: "UTC", null: false
     t.datetime "updated_at", null: false
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
@@ -973,6 +1056,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_200100) do
   end
 
   create_table "workspaces", force: :cascade do |t|
+    t.boolean "ai_costs_enabled", default: true, null: false
+    t.datetime "ai_plan_assigned_at"
+    t.bigint "ai_plan_id"
     t.boolean "clients_enabled", default: false, null: false
     t.datetime "created_at", null: false
     t.string "discord_channel_id"
@@ -981,10 +1067,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_200100) do
     t.string "name", null: false
     t.datetime "updated_at", null: false
     t.boolean "workshop_enabled", default: false, null: false
+    t.index ["ai_plan_id"], name: "index_workspaces_on_ai_plan_id"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "ai_month_limits", "ai_plans", on_delete: :nullify
+  add_foreign_key "ai_month_limits", "workspaces"
+  add_foreign_key "ai_plan_models", "ai_models"
+  add_foreign_key "ai_plan_models", "ai_plans"
+  add_foreign_key "ai_runs", "projects", on_delete: :nullify
+  add_foreign_key "ai_runs", "users", column: "started_by_id", on_delete: :nullify
+  add_foreign_key "ai_runs", "users", column: "unknown_reviewed_by_id", on_delete: :nullify
+  add_foreign_key "ai_runs", "workspaces"
   add_foreign_key "alert_rules", "discord_webhooks"
   add_foreign_key "alert_rules", "projects"
   add_foreign_key "alert_rules", "workspaces"
@@ -1078,4 +1173,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_200100) do
   add_foreign_key "time_entry_tags", "time_entries"
   add_foreign_key "workspace_memberships", "users"
   add_foreign_key "workspace_memberships", "workspaces"
+  add_foreign_key "workspaces", "ai_plans"
 end

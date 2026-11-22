@@ -4,6 +4,8 @@ class Project < ApplicationRecord
   belongs_to :workspace
   belongs_to :client, optional: true
   has_many :tasks, dependent: :destroy
+  # SCRUM-70: a deleted project's AI runs stay in its organization's totals.
+  has_many :ai_runs, dependent: :nullify
   has_many :delivered_issues, dependent: :destroy
   has_many :jira_boards, dependent: :destroy
   has_many :time_entries, dependent: :nullify

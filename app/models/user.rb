@@ -13,6 +13,7 @@ class User < ApplicationRecord
   has_many :workspaces, through: :workspace_memberships
   has_many :time_entries, dependent: :restrict_with_error
   has_many :api_tokens, dependent: :destroy
+  has_many :started_ai_runs, class_name: "AiRun", foreign_key: :started_by_id, dependent: :nullify, inverse_of: :started_by
   has_many :project_memberships, dependent: :destroy
   has_many :chat_sessions, dependent: :destroy
   has_many :created_feedback_meetings, class_name: "FeedbackMeeting", foreign_key: :creator_id, dependent: :destroy
