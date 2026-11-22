@@ -345,4 +345,28 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
       assert_includes response.body, "From code: Flosis staff"
     end
   end
+
+  # Kacper, 2026-11-22: the import ends with what it needs from the person.
+  test "Feedback shows the open suggestions once the import is over" do
+    with_designs do
+      import = first_import([ [ "Library", "done" ] ])
+      role = @project.design_setup_roles.create!(name: "PO", login_url: "https://s.test/login", username: "po", password: "p", position: 0)
+      DesignImportSuggestion.record!(import, kind: "context", title: "Flosis staff sees the Library", context_name: "Flosis staff", features: %w[library])
+      DesignImportSuggestion.record!(import, kind: "sign_in", title: "PO could not sign in", detail: "Wrong password.", role: role)
+
+      get workshop_designs_overview_path(tab: "imports", import: import.id)
+      page = CGI.unescapeHTML(response.body)
+      assert_includes page, "FEEDBACK · 2"
+      assert_includes page, "Flosis staff sees the Library"
+      [ "Build from code", "Add login", "Fix login", "Dismiss" ].each { |label| assert_includes page, label, label }
+
+      get workshop_designs_overview_path(tab: "imports")
+      assert_includes css_select("[data-import-entry='#{import.id}']").first.text.squish, "2 suggestions"
+
+      running = @project.design_setups.create!(kind: "resync", since_setup: import, status: "active", phase: "feature", step: 3, started_by: users(:one))
+      DesignImportSuggestion.record!(running, kind: "other", title: "No invoices on staging")
+      get workshop_designs_overview_path(tab: "imports", import: running.id)
+      refute_includes response.body, "FEEDBACK"
+    end
+  end
 end

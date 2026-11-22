@@ -79,6 +79,8 @@
   <% end %>
 
   <%= render "workshop/design_imports/cards", setup: setup, cards: cards if cards.any? %>
+  <% suggestions = setup.running? ? [] : setup.suggestions.open.order(:id).to_a %>
+  <%= render "workshop/design_imports/feedback", setup: setup, suggestions: suggestions if suggestions.any? %>
   <%= render "workshop/design_imports/built", setup: setup, built: built, repo: @repo if built.any? %>
 
   <% if aside.any? %>

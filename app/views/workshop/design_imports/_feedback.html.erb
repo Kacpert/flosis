@@ -1,0 +1,41 @@
+<%# Feedback (Kacper, 2026-11-22: "dodatkowy step który zazwyczaj nie
+    występuje"): what the import needs from the person, shown once it is not
+    running, each with what they can do. Acting imports more on this import
+    (Designs::ImportMore), so only an import that is over offers it. %>
+<% acting = import_actions?(setup) && setup.done? %>
+<% field = "clar-input !text-[12.5px] !py-1.5" %>
+<div class="text-[11px] tracking-[.06em] font-bold clar-text-muted mt-1 mb-2" data-import-feedback>FEEDBACK · <%= suggestions.size %></div>
+<div class="clar-card overflow-hidden mb-5" style="border-color: var(--warn);">
+  <% suggestions.each_with_index do |suggestion, i| %>
+    <div class="px-4 py-3 <%= 'border-t border-[color:var(--border)]' if i.positive? %>" data-suggestion="<%= suggestion.id %>">
+      <div class="text-[13px] font-semibold clar-text-text"><%= suggestion.title %></div>
+      <% if suggestion.detail.present? %>
+        <div class="text-[12.5px] clar-text-muted mt-1 leading-[1.5] whitespace-pre-line"><%= suggestion.detail %></div>
+      <% end %>
+      <% if suggestion.kind == "context" && suggestion.features.any? %>
+        <div class="text-[12px] clar-text-faint mt-1">Features it has: <%= suggestion.features.join(", ") %></div>
+      <% end %>
+      <% if acting %>
+        <div class="flex items-start gap-2 flex-wrap mt-2.5">
+          <% if suggestion.kind.in?(%w[context sign_in]) %>
+            <% role = suggestion.role %>
+            <details class="group">
+              <summary class="clar-btn !py-1.5 !px-3 !text-[12.5px] list-none cursor-pointer"><%= suggestion.kind == "context" ? "Add login" : "Fix login" %></summary>
+              <%= form_with url: (suggestion.kind == "context" ? add_login_workshop_design_import_suggestion_path(setup, suggestion) : fix_login_workshop_design_import_suggestion_path(setup, suggestion)),
+                            method: :post, class: "flex items-center gap-2 flex-wrap mt-2" do %>
+                <input name="login_url" value="<%= role&.login_url %>" placeholder="https://staging.example.com/login" class="<%= field %> !w-[240px]" required>
+                <input name="login" value="<%= role&.username %>" placeholder="Login" class="<%= field %> !w-[170px]" required>
+                <input type="password" name="password" autocomplete="new-password" placeholder="Password" class="<%= field %> !w-[140px]" required>
+                <button type="submit" class="clar-btn clar-btn-primary !py-1.5 !px-3 !text-[12.5px]"><%= suggestion.kind == "context" ? "Add and import" : "Save and check" %></button>
+              <% end %>
+            </details>
+          <% end %>
+          <% if suggestion.kind == "context" %>
+            <%= button_to "Build from code", from_code_workshop_design_import_suggestion_path(setup, suggestion), class: "clar-btn !py-1.5 !px-3 !text-[12.5px]", form: { class: "contents" } %>
+          <% end %>
+          <%= button_to "Dismiss", dismiss_workshop_design_import_suggestion_path(setup, suggestion), class: "clar-btn !py-1.5 !px-3 !text-[12.5px] clar-text-muted", form: { class: "contents" } %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>

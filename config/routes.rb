@@ -121,6 +121,9 @@ Rails.application.routes.draw do
       resources :features, only: [], controller: "design_import_features" do
         member { post :retry; post :reply; post :set_aside; post :accept; post :reject; post :revise }
       end
+      resources :suggestions, only: [], controller: "design_import_suggestions" do
+        member { post :add_login; post :from_code; post :fix_login; post :dismiss }
+      end
     end
     resources :design_threads, only: %i[create destroy], path: "designs/threads" do
       member { post :message; post :merge; post :update_description; post :update_master; post :create_task; post :restore; post :retry; post :stop; post :go; post :reopen }

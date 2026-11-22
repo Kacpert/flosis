@@ -39,7 +39,11 @@
               style: (setup.lit_for?(current_user) ? "border-color: var(--warn);" : nil), data: { import_entry: setup.id } do %>
           <div class="flex items-center justify-between gap-3 text-[13.5px]">
             <b class="clar-text-text min-w-0" data-import-title><%= setup.title %></b>
-            <% if waiting.positive? %><span class="text-[12px] font-semibold clar-text-warn whitespace-nowrap"><%= waiting %> need you</span><% end %>
+            <% suggested = setup.suggestions.open.count %>
+            <span class="flex items-center gap-2 whitespace-nowrap">
+              <% if waiting.positive? %><span class="text-[12px] font-semibold clar-text-warn"><%= waiting %> need you</span><% end %>
+              <% if suggested.positive? && !setup.running? %><span class="text-[12px] font-semibold clar-text-warn"><%= pluralize(suggested, "suggestion") %></span><% end %>
+            </span>
           </div>
           <div class="text-[12px] clar-text-muted mt-1">
             <%= [ import_when(setup, range: true), (setup.stopped? ? "Stopped" : setup.running? ? "Running in the background" : setup.summary), import_contexts(@project) ].compact.join(" · ") %>
