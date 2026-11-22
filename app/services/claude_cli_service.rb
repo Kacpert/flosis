@@ -8,10 +8,27 @@ class ClaudeCliService
   # How often a streamed run looks up from a CLI that prints nothing, in seconds
   # (see stream_claude).
   TICK_SECONDS = 2
+  # What a run that is stopped or out of time gets after INT to print its result
+  # (and with it, what it cost) before TERM. SCRUM-70: TERM alone loses the cost.
+  INT_GRACE_SECONDS = 10
+
+  class << self
+    attr_writer :int_grace_seconds
+
+    def int_grace_seconds
+      @int_grace_seconds || INT_GRACE_SECONDS
+    end
+  end
 
   def initialize(codebase_path: nil, allowed_tools: nil, model: nil, mcp_config: nil, api_key: nil,
                  restricted: false, append_system_prompt_file: nil, add_dirs: [], max_budget_usd: nil, timeout: nil,
-                 tools: nil, effort: nil)
+                 tools: nil, effort: nil, attribution:)
+    # SCRUM-70: whose run this is. Every run is recorded as an AiRun (see
+    # recorded), so a call site that cannot say whose it is does not run.
+    unless attribution.is_a?(AiRun::Attribution)
+      raise ArgumentError, "attribution must be an AiRun::Attribution, got #{attribution.inspect}"
+    end
+    @attribution = attribution
     @codebase_path = codebase_path || ENV.fetch("CHAT_CODEBASE_PATH", DEFAULT_CODEBASE_PATH)
     # Per-chat override of the pre-approved tool list. The briefing chat passes a
     # code-free set (no Read/Glob/Grep) so it stays a product conversation and
@@ -72,9 +89,11 @@ class ClaudeCliService
   # block as it comes, and :tick while it prints nothing (see stream_session for
   # what is returned then).
   def start_session(prompt:, new_session_id: nil, &on_event)
-    return stream_session(build_command(streaming: true, new_session_id: new_session_id), prompt, &on_event) if on_event
+    recorded do
+      next stream_session(build_command(streaming: true, new_session_id: new_session_id), prompt, &on_event) if on_event
 
-    run_session(build_command(streaming: false, new_session_id: new_session_id), prompt)
+      run_session(build_command(streaming: false, new_session_id: new_session_id), prompt)
+    end
   end
 
   # Send a message to an existing session and return the whole answer once the
@@ -83,53 +102,67 @@ class ClaudeCliService
   # Returns { session_id: String, response: String, is_error: Boolean }
   # With a block, the run streams, as start_session's does.
   def resume_session(session_id:, prompt:, &on_event)
-    return stream_session(build_command(session_id: session_id, streaming: true), prompt, &on_event) if on_event
+    recorded do
+      next stream_session(build_command(session_id: session_id, streaming: true), prompt, &on_event) if on_event
 
-    run_session(build_command(session_id: session_id, streaming: false), prompt)
+      run_session(build_command(session_id: session_id, streaming: false), prompt)
+    end
   end
 
   # Start a brand-new session with the given prompt, streaming raw JSON lines
   # back to the caller. Yields :keepalive periodically so the caller can
   # write SSE keepalives.
   def send_initial_streaming(prompt:, &block)
-    cmd = build_command(streaming: true)
-    popen_streaming(cmd, prompt) do |line|
-      block.call(line) if block_given?
+    recorded do
+      cmd = build_command(streaming: true)
+      popen_streaming(cmd, prompt) do |line|
+        block.call(line) if block_given?
+      end
+    rescue Errno::ENOENT
+      raise ClaudeCliError, "Claude CLI not found"
     end
-  rescue Errno::ENOENT
-    raise ClaudeCliError, "Claude CLI not found"
   end
 
   # Send a message to an existing session and stream the response line by line.
   # Yields each raw JSON line from the subprocess.
   # Returns { session_id: String, response: String }
   def send_message_streaming(session_id:, message:, &block)
-    cmd = build_command(session_id: session_id, streaming: true)
-    full_response = ""
-    current_session_id = session_id
+    recorded do
+      cmd = build_command(session_id: session_id, streaming: true)
+      full_response = ""
+      current_session_id = session_id
 
-    popen_streaming(cmd, message) do |line|
-      block.call(line) if block_given?
-      next if line == :keepalive
+      popen_streaming(cmd, message) do |line|
+        block.call(line) if block_given?
+        next if line == :keepalive
 
-      data = JSON.parse(line) rescue nil
-      next unless data
+        data = JSON.parse(line) rescue nil
+        next unless data
 
-      if data["type"] == "result"
-        full_response = data["result"] || full_response
-        current_session_id = data["session_id"] || current_session_id
+        if data["type"] == "result"
+          full_response = data["result"] || full_response
+          current_session_id = data["session_id"] || current_session_id
+        end
       end
-    end
 
-    { session_id: current_session_id, response: full_response }
-  rescue Errno::ENOENT
-    raise ClaudeCliError, "Claude CLI not found"
+      { session_id: current_session_id, response: full_response }
+    rescue Errno::ENOENT
+      raise ClaudeCliError, "Claude CLI not found"
+    end
   end
 
   class ClaudeCliError < StandardError; end
 
   # A run that went past its timeout. It has been stopped by the time this is raised.
   class TimeoutError < ClaudeCliError; end
+
+  # Marks the error a caller's block raises to stop a run (Designs' Stop): the
+  # run is then recorded as stopped rather than failed.
+  module StopSignal; end
+
+  # What a caller's block raises when the browser it streams to has gone. The
+  # run is not stopped for it: what it costs is still read to the end.
+  CLIENT_GONE = [ IOError, Errno::EPIPE, ActionController::Live::ClientDisconnected ].freeze
 
   private
 
@@ -265,6 +298,7 @@ class ClaudeCliService
   def run_session(cmd, prompt)
     output = run_claude(cmd, prompt)
     data = JSON.parse(output)
+    @usage&.see(data)
 
     {
       session_id: data["session_id"],
@@ -293,6 +327,7 @@ class ClaudeCliService
     said = Hash.new { |texts, id| texts[id] = +"" }
     used_tool = {}
     stream_claude(cmd, prompt) do |event|
+      seen(event)
       if event.is_a?(Hash) && event["type"] == "assistant" && !event["parent_tool_use_id"]
         last = event.dig("message", "id")
         Array(event.dig("message", "content")).grep(Hash).each do |block|
@@ -325,10 +360,10 @@ class ClaudeCliService
         @timeout ? Timeout.timeout(@timeout) { hand_over(io, message) } : hand_over(io, message)
         read_events(io, deadline, tick, &block)
       rescue Timeout::Error
-        stop_child(io.pid)
+        stop_child(io.pid, io: io)
         raise TimeoutError, "Claude CLI did not finish within #{@timeout} seconds and was stopped"
       rescue StandardError
-        stop_child(io.pid)
+        stop_child(io.pid, io: io)
         raise
       end
     end
@@ -398,7 +433,7 @@ class ClaudeCliService
       begin
         Timeout.timeout(@timeout) { exchange(io, message) }
       rescue Timeout::Error
-        stop_child(io.pid)
+        stop_child(io.pid, io: io)
         raise TimeoutError, "Claude CLI did not finish within #{@timeout} seconds and was stopped"
       end
     end
@@ -411,11 +446,19 @@ class ClaudeCliService
     io.read
   end
 
-  # Stops the CLI of a run that is out of time: TERM first, so it can clean up after
-  # itself, then KILL if it is still there once the grace period is over. It is
-  # waited for either way, so no zombie is left behind, and IO.popen finds nothing
-  # to wait for when its block ends. The signals go to the CLI process only.
-  def stop_child(pid, grace: KILL_GRACE_SECONDS)
+  # Stops the CLI of a run that is out of time or stopped. INT first: the CLI
+  # then prints its result, with what the run cost, and that output is read
+  # (into the run's usage) for up to int_grace seconds. TERM next, so it can
+  # clean up after itself, then KILL if it is still there once the grace period
+  # is over. It is waited for either way, so no zombie is left behind, and
+  # IO.popen finds nothing to wait for when its block ends. The signals go to
+  # the CLI process only.
+  def stop_child(pid, io: nil, grace: KILL_GRACE_SECONDS, int_grace: self.class.int_grace_seconds)
+    Process.kill("INT", pid)
+    deadline = monotonic + int_grace
+    drain(io, deadline) if io
+    return if exited?(pid, deadline)
+
     Process.kill("TERM", pid)
     begin
       Timeout.timeout(grace) { Process.wait(pid) }
@@ -427,7 +470,52 @@ class ClaudeCliService
     nil # already gone and collected: there is nothing left to stop
   end
 
+  # Whether the child exits by the deadline; it is collected if it does.
+  def exited?(pid, deadline)
+    loop do
+      return true if Process.wait(pid, Process::WNOHANG)
+      return false if monotonic >= deadline
+
+      sleep 0.02
+    end
+  end
+
+  # What a stopped CLI still prints, read until it closes its output or the
+  # deadline passes. Each line that is a JSON object goes to the run's usage.
+  def drain(io, deadline)
+    buffer = String.new(encoding: Encoding::BINARY)
+    loop do
+      left = deadline - monotonic
+      break if left <= 0 || !IO.select([ io ], nil, nil, left)
+
+      chunk = io.read_nonblock(65_536, exception: false)
+      next if chunk == :wait_readable
+      break if chunk.nil?
+
+      buffer << chunk
+    end
+    buffer.split("\n").each { |line| seen(parse_event(line)) }
+  rescue IOError, SystemCallError
+    nil
+  end
+
+  # Streams the CLI's lines to the block. Each line also goes to the run's usage.
+  # When the block raises because the browser has gone (CLIENT_GONE), the run
+  # is read to its end all the same, its lines no longer handed on, and the
+  # error is raised after: the run finishes and its cost is recorded.
   def popen_streaming(cmd, message, keepalive_interval: 10, &block)
+    gone = nil
+    hand_on = lambda do |line|
+      seen(line == :keepalive ? :tick : parse_event(line))
+      return if gone
+
+      begin
+        block.call(line)
+      rescue *CLIENT_GONE => e
+        gone = e
+      end
+    end
+
     IO.popen(*popen_args(cmd), "r+", chdir: @codebase_path) do |io|
       io.write(message)
       io.close_write
@@ -437,7 +525,7 @@ class ClaudeCliService
         ready = IO.select([io], nil, nil, keepalive_interval)
         if ready.nil?
           # Idle — let the caller send a keepalive
-          block.call(:keepalive)
+          hand_on.call(:keepalive)
           next
         end
 
@@ -453,12 +541,64 @@ class ClaudeCliService
         buffer << chunk
         while (newline_idx = buffer.index("\n"))
           line = buffer.slice!(0..newline_idx).chomp
-          block.call(line) if line.length > 0
+          hand_on.call(line) if line.length > 0
         end
       end
 
       # Flush trailing partial line, if any
-      block.call(buffer.strip) if buffer.strip.length > 0
+      hand_on.call(buffer.strip) if buffer.strip.length > 0
     end
+    raise gone if gone
+  end
+
+  # -- recording (SCRUM-70) ------------------------------------------------
+
+  # Runs the block as one recorded AI run: a running AiRun before the CLI
+  # starts, finished after it ends with what it reported, however it ended.
+  # Recording never raises (AiRun::Recorder).
+  def recorded
+    @usage = AiRun::Usage.new
+    @run = AiRun::Recorder.start!(@attribution, own_key: own_key?)
+    started = monotonic
+    status = "failed"
+    outcome = yield
+    status = answered? ? "succeeded" : "failed"
+    outcome
+  rescue TimeoutError
+    status = "timed_out"
+    raise
+  rescue StandardError => e
+    status =
+      if e.is_a?(StopSignal) then "stopped"
+      elsif CLIENT_GONE.any? { |gone| e.is_a?(gone) } && answered? then "succeeded"
+      else "failed"
+      end
+    raise
+  ensure
+    AiRun::Recorder.finish!(@run, @usage, status: status, duration_ms: ((monotonic - started) * 1000).round) if started
+  end
+
+  # Whether the CLI ended with an answer rather than an error.
+  def answered?
+    @usage.result.present? && @usage.result["is_error"] != true
+  end
+
+  # One event the CLI printed (nil, :tick or a Hash): its usage is kept, and a
+  # quiet tick saves the running row's tokens so far.
+  def seen(event)
+    return unless @usage
+
+    if event == :tick
+      AiRun::Recorder.progress!(@run, @usage)
+    else
+      @usage.see(event)
+    end
+  end
+
+  # The client's own key: the run's key is the project's own Anthropic key.
+  # Flosis's setup key and the server's login are not.
+  def own_key?
+    own = @attribution.project&.anthropic_api_key
+    @api_key.present? && own.present? && @api_key == own
   end
 end
