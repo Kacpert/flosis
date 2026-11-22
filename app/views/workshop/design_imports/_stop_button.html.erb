@@ -1,0 +1,7 @@
+<%# Stop (Kacper, 2026-11-22: "nie ma przycisku stop"), for an import that is
+    busy, to people who may change the setup. %>
+<% if setup.busy? && can?(:configuration) && !setup.reimport? %>
+  <%= button_to "Stop", stop_workshop_design_import_path(setup),
+        class: "clar-btn !py-1.5 !px-3.5 !text-[12.5px]", form: { class: "contents" },
+        data: { turbo_confirm: "Stop this import? What is on master stays, and you can resume it." } %>
+<% end %>

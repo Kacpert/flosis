@@ -24,6 +24,9 @@ class DesignSetup < ApplicationRecord
   STATUSES = %w[active approved failed].freeze
   KINDS = %w[first reimport resync].freeze
   THREAD_DELETED = "Its thread was deleted, so there is nothing to retry. Start a new import instead.".freeze
+  # What a feature or a turn the person's Stop cut short says (Kacper,
+  # 2026-11-22), with their name.
+  STOPPED = "Stopped by %s.".freeze
   STEPS = %i[read_repos sign_in map_features design_system features commit].freeze
   STEP_MINUTES = [ 10, 2, 20, 30, nil, 3 ].freeze
   FEATURES_STEP = STEPS.index(:features)
@@ -40,6 +43,8 @@ class DesignSetup < ApplicationRecord
 
   belongs_to :project
   belongs_to :started_by, class_name: "User", optional: true
+  # Who stopped it from its page (Designs::ImportStop), and when (stopped_at).
+  belongs_to :stopped_by, class_name: "User", optional: true
   belongs_to :design_thread, optional: true
   # A resync's: the import whose app commits it starts from.
   belongs_to :since_setup, class_name: "DesignSetup", optional: true
@@ -180,6 +185,8 @@ class DesignSetup < ApplicationRecord
   def failed? = status == "failed"
   def done? = status == "approved"
   def running? = status == "active" && finished_at.nil?
+  # Stopped by a person from its page: failed, and resumed by Retry.
+  def stopped? = stopped_at.present?
   # A re-import works on a thread of its own: once someone deleted that
   # thread, there is nothing left to retry it on.
   def thread_deleted? = reimport? && (design_thread.nil? || design_thread.deleted?)

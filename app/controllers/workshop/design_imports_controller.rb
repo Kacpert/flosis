@@ -39,6 +39,13 @@ class Workshop::DesignImportsController < Workshop::BaseController
     redirect_to helpers.import_page_path(@import)
   end
 
+  # Kacper, 2026-11-22: "nie ma przycisku stop". What is on master stays;
+  # Retry (Resume) goes on from where it stopped.
+  def stop
+    flash[:clar_toast] = Designs::ImportStop.new(@import, current_user).stop! ? "Import stopped" : "Nothing of this import is running."
+    redirect_to helpers.import_page_path(@import)
+  end
+
   def add_feature
     description = params[:description].to_s.strip
     if description.present? && @import.done?

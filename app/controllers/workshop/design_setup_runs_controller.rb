@@ -74,7 +74,8 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
     return redirect_to(helpers.import_page_path(setup), alert: DesignSetup::THREAD_DELETED) if setup&.thread_deleted?
 
     if setup&.failed? && setup.finished_at.nil?
-      setup.update!(status: "active", error: nil, unit_job_id: nil, unit_deadline_at: nil)
+      resume_stopped!(setup) if setup.stopped?
+      setup.update!(status: "active", error: nil, unit_job_id: nil, unit_deadline_at: nil, stopped_at: nil, stopped_by: nil)
       Designs::SetupRunJob.perform_later(setup.id)
     elsif setup&.failed?
       setup.update!(status: "approved", error: nil, unit_job_id: nil, unit_deadline_at: nil)
@@ -101,6 +102,14 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
   end
 
   private
+
+  # Resume (Kacper, 2026-11-22): what the stop cut short (the feature it was
+  # building, failed by its killed turn) is built again.
+  def resume_stopped!(setup)
+    setup.features.where(status: "failed").where(finished_at: setup.stopped_at..).find_each do |feature|
+      feature.update!(status: "todo", stage: nil, error: nil, finished_at: nil)
+    end
+  end
 
   def refuse_while_running
     return unless current_workshop_project.design_setups.running.exists?

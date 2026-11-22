@@ -232,4 +232,26 @@ class Designs::SetupRunJobTest < ActiveSupport::TestCase
       end
     end
   end
+
+  # Kacper, 2026-11-22: what the job does after the person stopped the import
+  # (its killed turn fails, a limit pauses it) must not undo the stop.
+  test "the job's stop after the person's stop keeps the import as it was stopped" do
+    setup = projects(:jira_project).design_setups.create!(status: "active", phase: "feature", step: 4, started_by: users(:one),
+                                                          unit_job_id: "job-1", unit_deadline_at: 10.minutes.from_now)
+    Designs::ImportStop.new(setup, users(:one)).stop!
+
+    Designs::SetupRunJob.new(setup.id).send(:stop, setup.reload, "Claude could not finish this step.")
+    setup.reload
+    assert_equal [ "failed", nil ], [ setup.status, setup.error ]
+    assert setup.stopped?
+  end
+
+  test "a pause after a stop enqueues nothing" do
+    setup = projects(:jira_project).design_setups.create!(status: "active", phase: "feature", step: 4, started_by: users(:one),
+                                                          unit_job_id: "job-1", unit_deadline_at: 10.minutes.from_now)
+    Designs::ImportStop.new(setup, users(:one)).stop!
+
+    assert_no_enqueued_jobs(only: Designs::SetupRunJob) { Designs::SetupRunJob.new(setup.id).send(:pause, setup.reload, 1.hour.from_now) }
+    assert_nil setup.reload.paused_until
+  end
 end

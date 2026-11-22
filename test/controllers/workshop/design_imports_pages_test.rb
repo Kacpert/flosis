@@ -314,4 +314,24 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Kacper, 2026-11-22: a running import can be stopped from its page; a
+  # stopped one says who stopped it, and can be resumed.
+  test "a running import shows Stop, a stopped one says who stopped it" do
+    with_designs do
+      since = first_import([ [ "App shell", "done" ] ])
+      running = @project.design_setups.create!(kind: "resync", since_setup: since, status: "active", phase: "feature", step: 3, started_by: users(:one))
+
+      get workshop_designs_overview_path(tab: "imports", import: running.id)
+      assert_select "form[action='#{stop_workshop_design_import_path(running)}'] button", text: "Stop"
+
+      running.update!(status: "failed", stopped_at: Time.zone.local(2026, 11, 22, 2, 47), stopped_by: users(:one))
+      get workshop_designs_overview_path(tab: "imports", import: running.id)
+      assert_includes CGI.unescapeHTML(response.body), "Stopped by Kacper at 02:47. What is on master stays."
+      assert_select "form[action='#{stop_workshop_design_import_path(running)}']", false
+      assert_select "button", text: "Resume"
+
+      get workshop_designs_overview_path(tab: "imports")
+      assert_includes css_select("[data-import-entry='#{running.id}']").first.text.squish, "Stopped"
+    end
+  end
 end

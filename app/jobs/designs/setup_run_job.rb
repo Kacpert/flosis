@@ -183,6 +183,8 @@ class Designs::SetupRunJob < ApplicationJob
   def pause(setup, until_time)
     paused = setup.with_lock do
       next false if setup.unit_job_id.present? && setup.unit_job_id != job_id
+      # Stopped meanwhile: nothing comes back for it.
+      next false if setup.stopped? || !(setup.running? || setup.follow_up?)
 
       setup.update!(paused_until: until_time, unit_job_id: nil, unit_deadline_at: until_time + UNIT_GRACE)
       true
@@ -203,7 +205,8 @@ class Designs::SetupRunJob < ApplicationJob
 
     setup.with_lock do
       next if setup.unit_job_id.present? && setup.unit_job_id != job_id
-      next if setup.done?
+      # A person's Stop (Designs::ImportStop) already said why it stopped.
+      next if setup.done? || setup.stopped?
 
       setup.update!(status: "failed", error: message.to_s.truncate(1_000), unit_job_id: nil, unit_deadline_at: nil)
     end

@@ -136,4 +136,43 @@ class Workshop::DesignImportActionsTest < ActionDispatch::IntegrationTest
     assert_equal "failed", @unreadable.reload.status
     assert_no_enqueued_jobs only: Designs::SetupRunJob
   end
+
+  # Kacper, 2026-11-22: "nie ma przycisku stop".
+  test "Stop stops a running import and says so" do
+    running = @project.design_setups.create!(kind: "resync", since_setup: @import, status: "active", phase: "feature", step: 3, started_by: users(:one))
+    Designs::SetupRunJob.killer = ->(_id) {}
+
+    post stop_workshop_design_import_path(running)
+    assert_redirected_to workshop_designs_overview_path(tab: "imports", import: running.id)
+    assert_equal "Import stopped", flash[:clar_toast]
+    assert running.reload.stopped?
+  ensure
+    Designs::SetupRunJob.killer = nil
+  end
+
+  test "Stop needs the configuration permission" do
+    running = @project.design_setups.create!(kind: "resync", since_setup: @import, status: "active", phase: "feature", step: 3, started_by: users(:one))
+    project_memberships(:two_elvium).update!(designs: true, configuration: false)
+    sign_in_as(users(:two))
+    post switch_product_path, params: { product: "workshop" }
+    post switch_workshop_project_path, params: { project_id: @project.id }
+
+    post stop_workshop_design_import_path(running)
+    refute running.reload.stopped?
+    assert_equal "active", running.status
+  end
+
+  test "Resume goes on with the feature the stop interrupted" do
+    stopped = @project.design_setups.create!(kind: "resync", since_setup: @import, status: "failed", phase: "feature", step: 3,
+                                             started_by: users(:one), stopped_at: 5.minutes.ago, stopped_by: users(:one))
+    interrupted = stopped.features.create!(name: "Designs", key: "designs", position: 1, status: "failed", finished_at: 4.minutes.ago, error: "Stopped by Kacper.")
+    earlier = stopped.features.create!(name: "Library", key: "library", position: 2, status: "failed", finished_at: 1.hour.ago, error: "Couldn't sign in")
+
+    post retry_workshop_design_setup_run_path(import: stopped.id)
+    stopped.reload
+    assert_equal [ "active", nil, nil ], [ stopped.status, stopped.stopped_at, stopped.stopped_by ]
+    assert_equal [ "todo", nil ], [ interrupted.reload.status, interrupted.error ]
+    assert_equal "failed", earlier.reload.status
+    assert_enqueued_with(job: Designs::SetupRunJob, args: [ stopped.id ])
+  end
 end

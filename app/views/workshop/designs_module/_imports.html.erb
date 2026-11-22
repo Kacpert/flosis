@@ -42,7 +42,7 @@
             <% if waiting.positive? %><span class="text-[12px] font-semibold clar-text-warn whitespace-nowrap"><%= waiting %> need you</span><% end %>
           </div>
           <div class="text-[12px] clar-text-muted mt-1">
-            <%= [ import_when(setup, range: true), (setup.running? ? "Running in the background" : setup.summary), import_contexts(@project) ].compact.join(" · ") %>
+            <%= [ import_when(setup, range: true), (setup.stopped? ? "Stopped" : setup.running? ? "Running in the background" : setup.summary), import_contexts(@project) ].compact.join(" · ") %>
             <%= render "workshop/shared/ai_cost", cost: ai_item_cost(import_costs, setup), dot: true,
                        tip: "AI cost of this import · total, this month in brackets" %>
           </div>

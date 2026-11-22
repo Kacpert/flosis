@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -428,12 +428,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
     t.integer "step", default: 0, null: false
     t.json "step_seconds"
     t.datetime "step_started_at"
+    t.datetime "stopped_at"
+    t.bigint "stopped_by_id"
     t.datetime "unit_deadline_at"
     t.string "unit_job_id"
     t.datetime "updated_at", null: false
     t.index ["design_thread_id"], name: "index_design_setups_on_design_thread_id"
     t.index ["project_id"], name: "index_design_setups_on_project_id"
     t.index ["started_by_id"], name: "index_design_setups_on_started_by_id"
+    t.index ["stopped_by_id"], name: "index_design_setups_on_stopped_by_id"
   end
 
   create_table "design_threads", force: :cascade do |t|
@@ -1116,6 +1119,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_100000) do
   add_foreign_key "design_setups", "design_threads", on_delete: :nullify
   add_foreign_key "design_setups", "projects"
   add_foreign_key "design_setups", "users", column: "started_by_id", on_delete: :nullify
+  add_foreign_key "design_setups", "users", column: "stopped_by_id", on_delete: :nullify
   add_foreign_key "design_threads", "chat_sessions", on_delete: :nullify
   add_foreign_key "design_threads", "projects"
   add_foreign_key "design_threads", "tasks", on_delete: :nullify
