@@ -14,6 +14,14 @@ module AiCostsHelper
     AiCosts.new(current_workspace).item_figures(records, area: area)
   end
 
+  # An area's months for its page title (workshop/shared/_area_cost); nothing
+  # while costs are not shown.
+  def ai_area_months(area)
+    return [] unless ai_costs_visible?
+
+    AiCosts.new(current_workspace).area_months(area)
+  end
+
   # The record's figure from AiCosts#item_figures, formatted; nil when costs
   # are not shown or it has no runs.
   def ai_item_cost(figures, record)

@@ -1,6 +1,10 @@
 <% content_for :title, "Agents & Automations · Flosis" %>
 
-<h1 class="clar-h1">Agents &amp; Automations</h1>
+<%# The title's row carries the open tab's area cost at its right end (SCRUM-70). %>
+<div class="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1">
+  <h1 class="clar-h1">Agents &amp; Automations</h1>
+  <%= render "workshop/shared/area_cost", area: { "pr" => "pr_reviews", "estimate" => "estimates", "alerts" => "agents" }.fetch(@tab) %>
+</div>
 <p class="clar-sub">Three AI automations watching this project. They comment and propose — humans decide.</p>
 
 <div class="clar-tabs mb-6">

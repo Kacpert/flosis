@@ -1,0 +1,28 @@
+<%# What one AI area cost the organization in a chosen month (SCRUM-70), at the
+    right end of the area page's title row: one faint line, no card, no link —
+    people work on these pages; an administrator after the whole picture opens
+    Consumption. Own-key runs are left out, as on Consumption. Picking another
+    month swaps the figure (area-cost controller). Drawn only while costs are
+    shown. Ported from the accepted designs' area-cost component. %>
+<%# locals: (area:) %>
+<% months = ai_area_months(area) %>
+<% if months.any? %>
+  <% label = AiRun::AREAS.fetch(area) %>
+  <div class="flex flex-wrap items-center justify-end gap-1.5 text-[11.5px] clar-text-faint" data-area-cost data-controller="area-cost">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="flex-none" aria-hidden="true"><path d="M3 7h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V6a2 2 0 0 1 2-2h11"/></svg>
+    <%= label %>
+    <span class="relative inline-flex items-center">
+      <select aria-label="Month to show the cost of <%= label.downcase %> for" data-area-cost-target="month" data-action="area-cost#pick"
+              class="cursor-pointer appearance-none border-0 bg-transparent py-0 pr-3.5 pl-0 text-[11.5px] clar-text-faint underline decoration-dotted underline-offset-2 focus:clar-text-text">
+        <% months.each do |month| %>
+          <option value="<%= format('%.2f', month.amount) %>|<%= month.runs %>"><%= month.month.strftime("%B %Y") %></option>
+        <% end %>
+      </select>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true" class="pointer-events-none absolute right-0"><path d="M6 9l6 6 6-6"/></svg>
+    </span>
+    <span aria-hidden="true">&middot;</span>
+    <span class="font-semibold clar-text-muted" data-area-cost-target="amount"><%= AiCostFormatter.money(months.first.amount) %></span>
+    <span aria-hidden="true">&middot;</span>
+    <span><span data-area-cost-target="runs"><%= months.first.runs %></span> runs</span>
+  </div>
+<% end %>

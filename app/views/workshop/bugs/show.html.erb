@@ -1,6 +1,10 @@
 <% content_for :title, "Bug Reporting · Flosis" %>
 
-<h1 class="clar-h1">Bug Reporting</h1>
+<%# The title's row carries what bug analysis cost in a chosen month (SCRUM-70). %>
+<div class="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1">
+  <h1 class="clar-h1">Bug Reporting</h1>
+  <%= render "workshop/shared/area_cost", area: "bug_analysis" %>
+</div>
 <p class="clar-sub">Source: Jira issues of type <b class="clar-text-text">Bug</b>. The AI attributes origin from the code — and shows how sure it is.</p>
 
 <%= render "stats", bug_stats: @bug_stats %>

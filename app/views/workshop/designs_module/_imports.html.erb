@@ -16,6 +16,14 @@
           <h2 class="m-0 text-[21px] font-bold tracking-[-.4px] clar-text-text">Imports</h2>
           <p class="mt-1.5 mb-0 text-[13px] clar-text-muted">Every import of the designs from the app: the first one, and each one after it.</p>
         </div>
+        <%# What Designs and its imports cost the organization this month (SCRUM-70). %>
+        <% designs_month = ai_area_months("designs").first %>
+        <% if designs_month %>
+          <span class="mt-1.5 inline-flex items-center gap-[5px] text-[11.5px] whitespace-nowrap clar-text-faint" data-area-cost>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="flex-none" aria-hidden="true"><path d="M3 7h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V6a2 2 0 0 1 2-2h11"/></svg>
+            <%= [ AiRun::AREAS["designs"], designs_month.month.strftime("%B %Y"), AiCostFormatter.money(designs_month.amount), pluralize(designs_month.runs, "run") ].join(" · ") %>
+          </span>
+        <% end %>
         <% since = import_resync_from(@project) %>
         <% if can?(:configuration) && since && @imports.none?(&:busy?) %>
           <div class="flex flex-col items-end gap-1">
