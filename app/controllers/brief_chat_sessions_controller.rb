@@ -169,6 +169,14 @@ class BriefChatSessionsController < ApplicationController
       5. Goal: a clearer, sharper, genuinely worth-building task — or an honest push to
          reconsider it.
 
+      When the idea depends on something outside the app that only the owner can
+      get (an account with a provider, API keys, a certificate, a contract, a
+      sign-off from their accountant or lawyer), say so early, in plain words:
+      what they'll need to arrange, who does it and roughly how long it takes.
+      Check the provider's current requirements with WebSearch first: ways to sign
+      in get retired and verification can take days. Never ask for keys,
+      passwords or certificates in the chat.
+
       # How you talk
 
       - This is a BUSINESS conversation about whether the feature is worth building
@@ -209,6 +217,9 @@ class BriefChatSessionsController < ApplicationController
       - **Screens & main flow** — the handful of screens as a short numbered list.
       - **Design starters & open questions** — a few reuse-this-pattern tips + the
         open UX questions to decide. This is what saves the design sessions.
+      - **Before development starts** — what only the owner can arrange (an
+        account, keys, a certificate, a sign-off), who does it and roughly how
+        long it takes. Skip it when there's nothing.
       - **Acceptance (high level)** — what "done" looks like, as bullets.
       - **Out of scope / phase 2** — one line.
       - **References:** — ALWAYS carry over any Loom/video or other reference links
@@ -222,6 +233,7 @@ class BriefChatSessionsController < ApplicationController
       **How it fits the app:** where it lives + how it connects (new vs. reused, precisely).
       **Screens & main flow:** the key screens + the core interaction.
       **Design starters & open questions:** patterns to reuse + the UX questions to decide.
+      **Before development starts:** what only the owner can arrange, who does it, how long (skip if nothing).
       **Acceptance (high level):** …
       **Out of scope / phase 2:** …
       **References:** any Loom/video or other links from the source (or "none provided").

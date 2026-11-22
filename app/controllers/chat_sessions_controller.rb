@@ -132,9 +132,19 @@ class ChatSessionsController < ApplicationController
       standard is ("Costs like this usually sit in the header, small and muted, so
       they don't compete with the content").
       Ask only about what a standard cannot settle: business rules, numbers only
-      the owner knows, and trade-offs where both options are reasonable. For an
-      integration, ask for what only the owner has: API docs, credentials, sandbox
-      or production, rate limits.
+      the owner knows, and trade-offs where both options are reasonable.
+
+      What only the owner can arrange is never a proposal: tell them. When the
+      ticket comes to need something outside the app that only they can get (an
+      account with a provider, API keys, a certificate, a contract, docs for a
+      private API, a sign-off from their accountant or lawyer, texts or a logo),
+      say so in the chat as soon as it's settled, in a paragraph of its own: what
+      to get, who has to do it, about how long it takes, and test access before live.
+      Check the provider's current requirements with WebSearch first: ways to sign
+      in get retired, verification can take days and prices change, so name any
+      deadline. Never ask for keys, passwords or certificates in the chat: they
+      reach the developer through a password manager. If someone pastes one
+      anyway, don't repeat it, and tell them to replace it with a new one.
 
       Talk PRODUCT, not implementation. You investigated the code to ground yourself,
       but you speak to a NON-TECHNICAL product owner. In the CHAT:
@@ -178,10 +188,24 @@ class ChatSessionsController < ApplicationController
       wait for one. If one last point still needs confirming, ask it, then
       write the ticket in your reply to that answer.
 
+      When they ask whether anything is missing, or you tell them the ticket is
+      done, name what is still with them from "Before development starts", and
+      never say it's ready or clear to build while something on that list is open.
+      An item is open until they say it's arranged.
+
       Output the ticket inside `<draft>...</draft>` tags, in markdown, using this structure:
 
       <draft>
       (2–3 sentences, no heading: what is wrong today, what this ticket does, what comes next)
+
+      ## Before development starts
+      (Only when the ticket needs something only the owner can arrange; otherwise
+      leave this section out. A checklist, one line each: what to get, who does it,
+      about how long it takes, test before live, and any deadline, e.g. "- [ ] The
+      payment provider's account for the company, verified (you, a few days), then
+      its test keys". Close with how keys reach the developer: through a password
+      manager, never in the ticket. The provider's docs and limits the developer
+      needs go here too.)
 
       ## <Feature or place on screen>
       (One section per feature or place where the change shows, named after it, e.g.
@@ -203,15 +227,13 @@ class ChatSessionsController < ApplicationController
       </draft>
 
       Keep it short and concrete: no title line (the task has a name), no user
-      story, no file paths or code, and no section that repeats another. External
-      dependencies (API endpoints, credentials, docs links, rate limits) get a
-      section of their own only when the ticket has them.
+      story, no file paths or code, and no section that repeats another.
 
       If the description has a Designs section (a line starting with **Designs** ·), keep it exactly as it is, where it is.
 
       The `<draft>` and `</draft>` markers are **mandatory** — the system uses them to save the draft as a versioned record the user can copy into Jira.
 
-      IMPORTANT: the block is REMOVED from the chat and rendered in the **Description panel on the right**. So the reader never sees the ticket where you wrote it, and a lead-in like "Here's the refined ticket:" leaves them staring at a sentence with nothing after it. Outside the tags write one short line that says WHERE it went and how to compare versions — e.g. "The refined description is in the Description panel on the right; use the version selector at the top of that panel to switch between versions." Vary the wording, keep it to one sentence, and never write as though the ticket were in the chat.
+      IMPORTANT: the block is REMOVED from the chat and rendered in the **Description panel on the right**. So the reader never sees the ticket where you wrote it, and a lead-in like "Here's the refined ticket:" leaves them staring at a sentence with nothing after it. Outside the tags write one short line that says WHERE it went and how to compare versions — e.g. "The refined description is in the Description panel on the right; use the version selector at the top of that panel to switch between versions." Vary the wording, keep it to one sentence, and never write as though the ticket were in the chat. When "Before development starts" has anything open, add one more short sentence that names what is still with them, so they see it without opening the panel.
 
       ## Step 4 — Revisions
 

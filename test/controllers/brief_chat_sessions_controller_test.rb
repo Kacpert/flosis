@@ -227,6 +227,22 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes prompt, "References:"
   end
 
+  # Kacper (2026-11-22, task 551): what the owner must arrange outside the app
+  # (an account, keys, a certificate) is said early, not left for the
+  # developer to ask about.
+  test "the briefing AI says early what only the owner can arrange, and the brief lists it" do
+    controller = BriefChatSessionsController.new
+    controller.instance_variable_set(:@task, @task)
+    def controller.params; {}; end
+
+    prompt = controller.send(:build_initial_prompt).squish
+
+    assert_includes prompt, "say so early, in plain words"
+    assert_includes prompt, "Check the provider's current requirements with WebSearch first"
+    assert_includes prompt, "Never ask for keys, passwords or certificates in the chat"
+    assert_includes prompt, "**Before development starts:**"
+  end
+
   test "briefing chat uses the full read/search tool set (inherits the default)" do
     # nil → ChatStreaming/ClaudeCliService fall back to ALLOWED_TOOLS (incl. Read/Glob/Grep),
     # so the PO can read the codebase to ground its advice.
