@@ -134,4 +134,15 @@ class Workshop::ConsumptionControllerTest < ActionDispatch::IntegrationTest
     get workshop_consumption_path(offset: 50), headers: { "Turbo-Frame" => "consumption_runs_50" }
     assert_select "turbo-frame#consumption_runs_50 [data-run-row]", count: 1
   end
+
+  # Review Focus: an area or project whose runs all came back without a cost
+  # reads unknown — never $0.00.
+  test "an area whose runs all reported no cost reads unknown, not $0.00" do
+    run!(price: 5)
+    run!(price: nil, area: "ticket_chat")
+    get workshop_consumption_path
+    row = css_select("[data-consumption-row]").map { |r| r.text.squish }.find { |t| t.start_with?("Chat with AI on a ticket") }
+    assert_equal "Chat with AI on a ticket 1 unknown", row
+  end
+
 end

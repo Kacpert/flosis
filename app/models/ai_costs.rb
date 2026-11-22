@@ -9,6 +9,8 @@
 class AiCosts
   Figure = Data.define(:total, :this_month, :priced_runs, :runs)
   Month = Data.define(:month, :amount, :runs)
+  # by_area, by_project and own_key_projects rows are [label, runs, amount,
+  # priced runs]: a row whose runs were none of them priced reads "unknown".
   Summary = Data.define(:total, :runs, :unknown_runs, :own_key_total, :own_key_projects, :by_area, :by_project,
                         :months, :limit, :first_run_at)
 
@@ -78,14 +80,15 @@ class AiCosts
   def summarize(scope, limit:, months:)
     billable = scope.billable
     own = scope.own_keyed
-    areas = billable.group(:area).pluck(:area, Arel.sql("COUNT(*)"), Arel.sql("COALESCE(SUM(price_usd), 0)")).to_h { |area, count, amount| [ area, [ count, amount ] ] }
+    areas = billable.group(:area).pluck(:area, Arel.sql("COUNT(*)"), Arel.sql("COALESCE(SUM(price_usd), 0)"), Arel.sql("COUNT(price_usd)"))
+                    .to_h { |area, count, amount, priced| [ area, [ count, amount, priced ] ] }
     Summary.new(
       total: billable.sum(:price_usd),
       runs: billable.count,
       unknown_runs: scope.unknown_cost.count,
       own_key_total: own.sum(:price_usd),
       own_key_projects: by_project(own),
-      by_area: AiRun::AREAS.keys.map { |area| [ area, *(areas[area] || [ 0, BigDecimal("0") ]) ] },
+      by_area: AiRun::AREAS.keys.map { |area| [ area, *(areas[area] || [ 0, BigDecimal("0"), 0 ]) ] },
       by_project: by_project(billable),
       months: months,
       limit: limit,
@@ -93,13 +96,15 @@ class AiCosts
     )
   end
 
-  # [[name, runs, amount]], biggest first. A deleted project keeps its name.
+  # [[name, runs, amount, priced runs]], biggest first. A deleted project keeps
+  # its name.
   def by_project(scope)
-    rows = scope.group(:project_id, :project_name).pluck(:project_id, :project_name, Arel.sql("COUNT(*)"), Arel.sql("COALESCE(SUM(price_usd), 0)"))
+    rows = scope.group(:project_id, :project_name).pluck(:project_id, :project_name, Arel.sql("COUNT(*)"),
+                                                         Arel.sql("COALESCE(SUM(price_usd), 0)"), Arel.sql("COUNT(price_usd)"))
     names = Project.where(id: rows.map(&:first).compact).pluck(:id, :name).to_h
-    rows.group_by { |id, name, _, _| names[id] || name || "No project" }
-        .map { |name, group| [ name, group.sum { |row| row[2] }, group.sum { |row| row[3] } ] }
-        .sort_by { |_, _, amount| -amount }
+    rows.group_by { |id, name, *| names[id] || name || "No project" }
+        .map { |name, group| [ name, group.sum { |row| row[2] }, group.sum { |row| row[3] }, group.sum { |row| row[4] } ] }
+        .sort_by { |_, _, amount, _| -amount }
   end
 
   # A run's calendar month in the app's time zone (ran_at is stored in UTC).

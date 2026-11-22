@@ -63,10 +63,11 @@
           <span class="text-[11.5px] clar-text-faint">cost &rarr; price</span>
         </div>
         <% rows.each do |row| %>
-          <div class="flex items-center border-b border-[color:var(--border)] px-4.5 py-2.5 text-[13px]">
+          <% unknown = row.priced.to_i.zero? %>
+          <div class="flex items-center border-b border-[color:var(--border)] px-4.5 py-2.5 text-[13px]" data-billing-row>
             <span class="flex-1 min-w-0 truncate clar-text-text"><%= row.label %></span>
-            <span class="w-24 text-right clar-mono text-[12px] clar-text-muted"><%= AiCostFormatter.money(row.cost) %></span>
-            <span class="w-24 text-right font-semibold clar-text-text"><%= AiCostFormatter.money(row.price) %></span>
+            <span class="w-24 text-right clar-mono text-[12px] <%= unknown ? 'clar-text-warn' : 'clar-text-muted' %>"><%= unknown ? "unknown" : AiCostFormatter.money(row.cost) %></span>
+            <span class="w-24 text-right font-semibold <%= unknown ? 'clar-text-warn' : 'clar-text-text' %>"><%= unknown ? "unknown" : AiCostFormatter.money(row.price) %></span>
           </div>
         <% end %>
         <div class="flex items-center bg-[var(--surface-2)] px-4.5 py-2.5 text-[13px] font-bold" data-billing-total>
@@ -100,7 +101,7 @@
           <span class="w-28 flex-none text-[12px] clar-text-faint"><%= consumption_when(run.ran_at) %></span>
           <span class="w-40 flex-none text-[12px] clar-text-muted"><%= AiRun::AREAS[run.area] %></span>
           <span class="flex-1 min-w-0 truncate clar-text-text"><%= run.item_label %></span>
-          <span class="w-52 flex-none clar-mono text-[11.5px] clar-text-faint"><%= AiCostFormatter.tokens(run) %></span>
+          <span class="w-60 flex-none truncate whitespace-nowrap clar-mono text-[11.5px] clar-text-faint"><%= AiCostFormatter.tokens(run) %></span>
           <%= button_to "Looked at", looked_at_hidmin_ai_run_path(run), method: :patch, class: "clar-btn !py-1 !px-2.5 !text-[12px]" %>
         </div>
       <% end %>

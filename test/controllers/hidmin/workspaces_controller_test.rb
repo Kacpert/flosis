@@ -146,4 +146,13 @@ class Hidmin::WorkspacesControllerTest < ActionDispatch::IntegrationTest
     assert_select "h2", text: "Settings"
   end
 
+
+  test "an area whose runs all reported no cost reads unknown on the organization's page" do
+    billed_run!(cost: 10)
+    billed_run!(cost: nil, area: "ticket_chat")
+    get hidmin_workspace_path(workspaces(:one))
+    row = css_select("[data-billing-row]").map { |r| r.text.squish }.find { |t| t.start_with?("Chat with AI on a ticket") }
+    assert_equal "Chat with AI on a ticket unknown unknown", row
+  end
+
 end

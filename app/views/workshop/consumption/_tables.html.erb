@@ -5,7 +5,7 @@
 <% own = @summary.own_key_projects %>
 <div class="mb-4.5 grid grid-cols-1 items-start gap-4.5 lg:grid-cols-2">
   <%= render "workshop/consumption/table", title: "By area", period: period, column: "AREA",
-             rows: @summary.by_area.map { |area, runs, amount| [ AiRun::AREAS[area], runs, amount ] },
+             rows: @summary.by_area.map { |area, runs, amount, priced| [ AiRun::AREAS[area], runs, amount, priced ] },
              total: @summary.total, total_runs: @summary.runs %>
   <div class="flex flex-col gap-4.5">
     <%= render "workshop/consumption/table", title: "By project", period: period, column: "PROJECT",

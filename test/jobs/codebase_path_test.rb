@@ -97,7 +97,7 @@ class CodebasePathTest < ActiveSupport::TestCase
     @project.update_columns(workspace_dir: nil)
     bug = { task: nil, title: "Export crashes", description: "", created_at: 3.days.ago }
 
-    refusing_cli { assert_nil BugAttributionJob.new.send(:run_ai, @project, "ELV-777", bug) }
+    refusing_cli { assert_nil BugAttributionJob.new.send(:run_ai, @project, "ELV-777", bug, BugAttribution.new(project: @project, jira_key: "ELV-777")) }
   end
 
   test "AutoEstimateJob does not estimate from another project's tree" do

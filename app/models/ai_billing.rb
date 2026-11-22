@@ -4,7 +4,8 @@
 # cost or margin. Own-key runs are billed to the client by Anthropic: they are
 # shown apart and are in no total.
 class AiBilling
-  Row = Data.define(:label, :cost, :price, :runs)
+  # priced: how many of the row's runs reported a cost; none of them → unknown.
+  Row = Data.define(:label, :cost, :price, :runs, :priced)
   Organization = Data.define(:cost, :price, :runs, :unknown)
 
   # This month's figures for every organization at once:
@@ -43,8 +44,8 @@ class AiBilling
   def by_area
     rows = billable.group(:area).pluck(:area, *sums).to_h { |area, *values| [ area, values ] }
     AiRun::AREAS.filter_map do |area, label|
-      cost, price, runs = rows[area]
-      Row.new(label: label, cost: cost, price: price, runs: runs) if runs
+      cost, price, runs, priced = rows[area]
+      Row.new(label: label, cost: cost, price: price, runs: runs, priced: priced) if runs
     end
   end
 
@@ -52,7 +53,7 @@ class AiBilling
     rows = scope.group(:project_id, :project_name).pluck(:project_id, :project_name, *sums)
     names = Project.where(id: rows.map(&:first).compact).pluck(:id, :name).to_h
     rows.group_by { |id, name, *| names[id] || name || "No project" }
-        .map { |label, group| Row.new(label: label, cost: group.sum { |r| r[2] }, price: group.sum { |r| r[3] }, runs: group.sum { |r| r[4] }) }
+        .map { |label, group| Row.new(label: label, cost: group.sum { |r| r[2] }, price: group.sum { |r| r[3] }, runs: group.sum { |r| r[4] }, priced: group.sum { |r| r[5] }) }
         .sort_by { |row| -row.price }
   end
 
@@ -74,6 +75,6 @@ class AiBilling
   def runs_in_month = AiRun.where(workspace_id: @workspace.id).in_month(@month)
 
   def sums
-    [ Arel.sql("COALESCE(SUM(cost_usd), 0)"), Arel.sql("COALESCE(SUM(price_usd), 0)"), Arel.sql("COUNT(*)") ]
+    [ Arel.sql("COALESCE(SUM(cost_usd), 0)"), Arel.sql("COALESCE(SUM(price_usd), 0)"), Arel.sql("COUNT(*)"), Arel.sql("COUNT(cost_usd)") ]
   end
 end

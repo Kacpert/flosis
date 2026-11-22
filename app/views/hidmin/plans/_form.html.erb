@@ -6,7 +6,7 @@
     <div class="clar-card p-3.5 text-[13px] clar-text-danger"><%= @plan.errors.full_messages.to_sentence %></div>
   <% end %>
 
-  <section class="clar-card p-4.5" data-controller="plan-margin">
+  <section class="clar-card p-4.5" data-controller="plan-price">
     <div class="font-bold text-[14px] clar-text-text mb-3.5">The plan</div>
     <div class="grid grid-cols-1 gap-3.5 md:grid-cols-3">
       <label class="flex flex-col gap-1.5">
@@ -21,13 +21,13 @@
       <label class="flex flex-col gap-1.5">
         <span class="text-[11px] font-bold tracking-[.4px] clar-text-faint">MARGIN (%)</span>
         <%= f.number_field :margin_percent, step: "0.01", min: 0, class: "clar-input", required: true,
-              data: { plan_margin_target: "margin", action: "input->plan-margin#show" } %>
+              data: { plan_price_target: "margin", action: "input->plan-price#show" } %>
         <span class="text-[11px] clar-text-faint">Added to every run&rsquo;s reported cost to make the price the organization sees.</span>
       </label>
     </div>
     <div class="mt-3.5 rounded-[10px] bg-[var(--surface-2)] px-3.5 py-2.5 text-[12.5px] clar-text-muted">
       A run that costs <b class="clar-text-text">$10.00</b> is charged
-      <b class="clar-text-text" data-plan-margin-target="example"><%= AiCostFormatter.money(10 * (1 + @plan.margin_percent.to_d / 100)) %></b>
+      <b class="clar-text-text" data-plan-price-target="example"><%= AiCostFormatter.money(10 * (1 + @plan.margin_percent.to_d / 100)) %></b>
       &middot; every run keeps the margin of the day it ran
     </div>
   </section>

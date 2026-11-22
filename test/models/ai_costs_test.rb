@@ -24,11 +24,11 @@ class AiCostsTest < ActiveSupport::TestCase
     summary = @costs.month(Date.current)
     assert_equal BigDecimal("15"), summary.total
     assert_equal 2, summary.runs
-    assert_equal summary.total, summary.by_area.sum { |_, _, amount| amount }
-    assert_equal summary.total, summary.by_project.sum { |_, _, amount| amount }
+    assert_equal summary.total, summary.by_area.sum { |_, _, amount, _| amount }
+    assert_equal summary.total, summary.by_project.sum { |_, _, amount, _| amount }
     assert_equal BigDecimal("7"), summary.own_key_total
     assert_equal 8, summary.by_area.size
-    assert_equal [ "Elvium", 1, BigDecimal("10") ], summary.by_project.first
+    assert_equal [ "Elvium", 1, BigDecimal("10"), 1 ], summary.by_project.first
   end
 
   test "mixed project splits own key from totals" do
@@ -36,15 +36,15 @@ class AiCostsTest < ActiveSupport::TestCase
     run!(price: 6, area: "task_conversations")
 
     summary = @costs.month(Date.current)
-    assert_equal [ [ "Elvium", 1, BigDecimal("6") ] ], summary.by_project
-    assert_equal [ [ "Elvium", 1, BigDecimal("4") ] ], summary.own_key_projects
+    assert_equal [ [ "Elvium", 1, BigDecimal("6"), 1 ] ], summary.by_project
+    assert_equal [ [ "Elvium", 1, BigDecimal("4"), 1 ] ], summary.own_key_projects
     assert_equal BigDecimal("6"), summary.total
   end
 
   test "deleted item stays in totals" do
     run!(price: 2, item_type: "PrReview", item_id: 0)
-    row = @costs.month(Date.current).by_area.find { |area, _, _| area == "pr_reviews" }
-    assert_equal [ "pr_reviews", 1, BigDecimal("2") ], row
+    row = @costs.month(Date.current).by_area.find { |area, *| area == "pr_reviews" }
+    assert_equal [ "pr_reviews", 1, BigDecimal("2"), 1 ], row
   end
 
   test "unknown cost is counted apart and never as zero" do
