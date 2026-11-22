@@ -140,4 +140,16 @@ class Designs::SignInTest < ActiveSupport::TestCase
     assert_match(/login failed/, suggestion.detail)
     assert_no_match(/hm-secret/, suggestion.detail)
   end
+
+  # Final review (re-graded): a sign-in that fails once and works later is
+  # not left as a card.
+  test "a context that signs in later closes its sign-in suggestion" do
+    Designs::SignIn.runner = runner(ok: %w[1-admin])
+    Designs::SignIn.new(@setup).call
+    assert_equal "open", @setup.suggestions.sole.status
+
+    Designs::SignIn.runner = runner
+    Designs::SignIn.new(@setup).call
+    assert_equal "done", @setup.suggestions.sole.reload.status
+  end
 end

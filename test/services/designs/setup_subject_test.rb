@@ -56,6 +56,8 @@ class Designs::SetupSubjectTest < ActiveSupport::TestCase
     refute_includes @subject.tools, "mcp__flosis_browser__open"
     assert_includes @subject.system_text, "# This turn reads code only"
     refute_includes @subject.system_text, "# This turn's browser"
+    # Final review I4: the features it saves name contexts by slug.
+    assert_includes @subject.turn_message("Find what changed."), "Admin (1-admin): designs/admin/"
   end
 
   # Kacper, 2026-11-22: a context without a login, or one that could not sign
@@ -68,8 +70,8 @@ class Designs::SetupSubjectTest < ActiveSupport::TestCase
 
     message = @subject.turn_message("Build it.")
     assert_includes message, "Admin: browser 1-admin, designs/admin/"
-    assert_includes message, "Flosis staff: no browser (no login): build it from the code, designs/flosis-staff/"
-    assert_includes message, "Manager: no browser (could not sign in): build it from the code, designs/manager/"
+    assert_includes message, "Flosis staff (2-flosis-staff): no browser (no login): build it from the code, designs/flosis-staff/"
+    assert_includes message, "Manager (3-manager): no browser (could not sign in): build it from the code, designs/manager/"
     assert_includes @subject.system_text, "# Contexts built from the code"
   end
 

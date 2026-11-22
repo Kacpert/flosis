@@ -9,8 +9,12 @@
 # Designs::AppRepos does. A repository that cannot be read is a note on the
 # run, never a stop.
 class Designs::AppHistory
+  # [{ "repo", "branch", "error" }]: what the last fetch! could not read.
+  attr_reader :failures
+
   def initialize(project)
     @project = project
+    @failures = []
   end
 
   def root = Pathname(@project.designs_dir).join("app-history")
@@ -23,6 +27,7 @@ class Designs::AppHistory
   # "path", "sha" }] for those it read: sha is the branch's head (the default
   # branch's when the form names none).
   def fetch!(setup = nil)
+    @failures = []
     FileUtils.mkdir_p(root)
     File.chmod(0o700, root)
     Designs::AppRepos.repos_of(@project).filter_map do |_role, name, branch|
@@ -30,7 +35,9 @@ class Designs::AppHistory
       dir.join("HEAD").file? ? update(dir) : clone(name, dir)
       { "repo" => name, "branch" => branch, "path" => dir.to_s, "sha" => head(name, branch) }
     rescue GitRunner::Error, SystemCallError => e
-      setup&.note!("Reading the history", "#{name}#{" @ #{branch}" if branch} could not be read: #{e.message.to_s.lines.last(2).join(' ').squish.truncate(200)}")
+      reason = e.message.to_s.lines.last(2).join(" ").squish.truncate(200)
+      @failures << { "repo" => name, "branch" => branch, "error" => reason }
+      setup&.note!("Reading the history", "#{name}#{" @ #{branch}" if branch} could not be read: #{reason}")
       nil
     end
   end

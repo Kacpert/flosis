@@ -65,6 +65,9 @@ class Workshop::DesignImportSuggestionsController < Workshop::BaseController
       back("This one is settled already.")
     elsif !@import.done? || @import.running?
       back("Resume the import first: it imports more once it is over.")
+    elsif @import.busy?
+      # A feature being built is not queued again under it (final review I6).
+      back("The import is building: act on this once it is done.")
     end
   end
 

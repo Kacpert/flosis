@@ -55,4 +55,28 @@ class Designs::ImportDeletionTest < ActiveSupport::TestCase
     landed.features.create!(name: "Library", key: "library", position: 1, status: "done")
     refute landed.deletable?
   end
+
+  # Final review (re-graded): a branch GitHub no longer has does not stop
+  # the deletion halfway.
+  test "a branch already gone from GitHub does not stop the deletion" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        setup = resync(repo.project)
+        feature = setup.features.create!(name: "Designs", key: "designs", position: 1, status: "failed", branch: "wip/import-#{setup.id}-designs")
+        commit_files(repo, repo.worktree!(feature.branch, from: "master"), { "designs/admin/designs.html" => "<h1>Designs</h1>" })
+        repo.push!(feature.branch)
+        system("git", "--git-dir", remote, "branch", "-D", feature.branch, out: File::NULL, exception: true)
+        # GitHub refuses to delete a branch it does not have; a local remote
+        # only warns, so a hook stands in for GitHub's refusal.
+        hook = File.join(remote, "hooks", "pre-receive")
+        File.write(hook, "#!/bin/sh\nwhile read old new ref; do\n  [ \"$old\" = \"$new\" ] && { echo \"remote ref does not exist\" >&2; exit 1; }\ndone\nexit 0\n")
+        File.chmod(0o755, hook)
+
+        Designs::ImportDeletion.new(setup).delete!
+        refute DesignSetup.exists?(setup.id)
+        assert_nil repo.head(feature.branch)
+      end
+    end
+  end
 end

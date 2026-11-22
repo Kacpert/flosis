@@ -55,4 +55,23 @@ class Designs::SetupFormTest < ActiveSupport::TestCase
     assert_equal [ nil, nil ], [ staff.login_url.presence, staff.username.presence ]
     assert_equal "https://staging.acme.test", @project.reload.design_app_url
   end
+
+  # Final review I7 (2026-11-22): a context's slug ("3-flosis-staff") is its
+  # position and name, and the map's features name contexts by it.
+  test "removing a context keeps the others' slugs" do
+    contexts = { "0" => { name: "Admin", url: "https://s.test/login", login: "a", password: "p" },
+                 "1" => { name: "Guest", url: "https://s.test/login", login: "g", password: "p" },
+                 "2" => { name: "Flosis staff", code_only: "1" } }
+    assert form(FORM.merge(contexts: contexts)).save
+    staff = @project.design_setup_roles.find_by!(name: "Flosis staff")
+    assert_equal "3-flosis-staff", Designs::SignIn.slug(staff)
+
+    admin = @project.design_setup_roles.find_by!(name: "Admin")
+    kept = { "0" => { id: admin.id.to_s, name: "Admin", url: "https://s.test/login", login: "a", password: "" },
+             "1" => { id: staff.id.to_s, name: "Flosis staff", code_only: "1" },
+             "2" => { name: "Manager", url: "https://s.test/login", login: "m", password: "p" } }
+    assert form(FORM.merge(contexts: kept)).save
+    assert_equal "3-flosis-staff", Designs::SignIn.slug(staff.reload)
+    assert_equal "4-manager", Designs::SignIn.slug(@project.design_setup_roles.find_by!(name: "Manager"))
+  end
 end

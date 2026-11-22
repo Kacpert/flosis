@@ -2,8 +2,8 @@
 # (Kacper, 2026-11-22: "jak AI nie miało danej roli czy coś"): a role the
 # setup's contexts do not cover (context), a context that could not sign in
 # (sign_in), anything else only the person can give (other). One per thing
-# and import, by its key; one the person dismissed is not raised again by a
-# later import of the project. Its actions (Feedback, on the import's page)
+# and import, by its key; a role the person dismissed is not raised again by
+# a later import of the project. Its actions (Feedback, on the import's page)
 # import more (Designs::ImportMore).
 class DesignImportSuggestion < ApplicationRecord
   KINDS = %w[context sign_in other].freeze
@@ -22,11 +22,12 @@ class DesignImportSuggestion < ApplicationRecord
 
   scope :open, -> { where(status: "open") }
 
-  # The suggestion for this thing on this import, made once; nil when the
-  # person dismissed the same thing on an import of the project before.
+  # The suggestion for this thing on this import, made once; nil for a role
+  # the person dismissed on an import of the project before. A login that
+  # fails again, or anything else, comes back.
   def self.record!(setup, kind:, title:, detail: nil, context_name: nil, role: nil, features: [])
     key = key_for(kind, title: title, context_name: context_name, role: role)
-    return if joins(:design_setup).where(design_setups: { project_id: setup.project_id }).exists?(key: key, status: "dismissed")
+    return if kind == "context" && joins(:design_setup).where(design_setups: { project_id: setup.project_id }).exists?(key: key, status: "dismissed")
 
     setup.suggestions.find_or_create_by!(key: key) do |suggestion|
       suggestion.assign_attributes(kind: kind, title: title.to_s.squish.truncate(200), detail: detail.to_s.strip.truncate(2_000).presence,

@@ -29,13 +29,24 @@ class Designs::ImportDeletion
     return unless repo.initialized?
 
     repo.synchronize do
+      # Fetched first, pruned: a branch GitHub no longer has is not deleted
+      # there again, which GitHub refuses.
+      repo.ensure_clone!
       names.each do |name|
         path = repo.worktree_path(name)
         repo.remove_worktree!(path) if path.exist?
         repo.delete_branch!(name) if repo.head(name)
-        repo.push!(":refs/heads/#{name}") if repo.remote_head(name)
+        delete_remote(repo, name) if repo.remote_head(name)
       end
     end
+  end
+
+  # A branch GitHub refuses to delete (gone meanwhile) does not stop the
+  # deletion of the import.
+  def delete_remote(repo, name)
+    repo.push!(":refs/heads/#{name}")
+  rescue GitRunner::Error => e
+    Rails.logger.warn("[#{self.class.name}] #{name} was not deleted on GitHub: #{e.message.to_s.lines.first}")
   end
 
   def remove_run_dir!

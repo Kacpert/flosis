@@ -31,7 +31,7 @@ class Designs::ImportMore
   # that it can sign in.
   def fix_login!(role)
     slug = Designs::SignIn.slug(role)
-    features = @setup.features.select { |feature| Array(feature.from_code).include?(slug) }
+    features = @setup.features.select { |feature| Array(feature.from_code).include?(slug) && !feature.running? }
     features.each do |feature|
       feature.queue!(reply: "#{role.name} can sign in now: check its screens against the app and fix what differs. They were built from the code.")
     end
@@ -47,6 +47,9 @@ class Designs::ImportMore
 
   def queue_with(mapped, slug, words)
     own = @setup.features.find_by(key: mapped.key)
+    # Being built: never queued again under its own build (final review I6).
+    return own if own&.running?
+
     if own
       own.update!(contexts: with(own.contexts, slug))
       own.queue!(reply: words)

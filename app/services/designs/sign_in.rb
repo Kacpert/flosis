@@ -127,7 +127,17 @@ class Designs::SignIn
       nobody!(e)
       return {}
     end
-    rows.to_h { |row| [ row["slug"], row["ok"] == true ] }
+    results = rows.to_h { |row| [ row["slug"], row["ok"] == true ] }
+    close_suggestions(roles.select { |role| results[self.class.slug(role)] })
+    results
+  end
+
+  # A context that signs in now has no card saying it could not (a failure
+  # that passed is not left for the person).
+  def close_suggestions(roles)
+    return if roles.empty?
+
+    @setup.suggestions.open.where(kind: "sign_in", design_setup_role_id: roles.map(&:id)).update_all(status: "done", updated_at: Time.current)
   end
 
   def nobody!(error)
@@ -144,7 +154,7 @@ class Designs::SignIn
   def suggest_login(slug, reason)
     role = @project.design_setup_roles.find { |candidate| self.class.slug(candidate) == slug } or return
     DesignImportSuggestion.record!(@setup, kind: "sign_in", role: role, context_name: role.name, title: "#{role.name} could not sign in",
-                                   detail: "#{reason}. Its screens were built from the code.")
+                                   detail: "#{reason}. What it could not reach was built from the code.")
   end
 
   def sign_in_once(roles)

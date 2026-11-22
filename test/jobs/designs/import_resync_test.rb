@@ -174,9 +174,43 @@ class Designs::ImportResyncTest < ActiveSupport::TestCase
 
         analysis = @requests.first
         assert_includes analysis, "## Contexts new since the last import"
-        assert_includes analysis, "- Flosis staff: designs/flosis-staff/"
-        refute_includes analysis, "- Admin: designs/admin/"
+        assert_includes analysis, "- Flosis staff (2-flosis-staff): designs/flosis-staff/"
+        refute_includes analysis, "- Admin (1-admin): designs/admin/"
         assert_includes analysis, "- acme/api: new to the designs"
+      end
+    end
+  end
+
+  # Final review I5 (2026-11-22): a history that cannot be read is not
+  # "nothing changed".
+  test "a resync whose history cannot be read at all stops instead of finding nothing changed" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        resync = resync_of(first_import(repo))
+        Designs::SetupRunJob.app_changes = ->(_setup) { [ { "repo" => "acme/app", "branch" => nil, "unreadable" => true, "error" => "disk quota exceeded" } ] }
+        Designs::SetupRunJob.turn_runner = ->(_turn_id) { flunk "nothing to ask Claude" }
+        run_to_the_end(resync)
+
+        assert_equal "failed", resync.status
+        assert_match(/acme\/app's history could not be read: disk quota exceeded/, resync.error)
+      end
+    end
+  end
+
+  test "a repository whose history cannot be read is named for the turn" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        resync = resync_of(first_import(repo))
+        Designs::SetupRunJob.app_changes = lambda do |_setup|
+          [ { "repo" => "acme/app", "branch" => nil, "from" => "a" * 40, "to" => "b" * 40, "commits" => 3, "new" => false, "stat" => " a | 1 +" },
+            { "repo" => "acme/api", "branch" => nil, "unreadable" => true, "error" => "disk quota exceeded" } ]
+        end
+        Designs::SetupRunJob.turn_runner = fake_turns(repo, resync, analysis: [])
+        run_to_the_end(resync)
+
+        assert_includes @requests.first, "- acme/api: its history could not be read now (disk quota exceeded)"
       end
     end
   end

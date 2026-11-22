@@ -78,4 +78,15 @@ class Workshop::DesignImportSuggestionsControllerTest < ActionDispatch::Integrat
     post dismiss_workshop_design_import_suggestion_path(@import, @suggestion)
     assert_equal "open", @suggestion.reload.status
   end
+
+  # Final review I6 (2026-11-22): a feature being built is not queued again
+  # under it.
+  test "acting while the import builds waits" do
+    @import.features.create!(name: "Billing", key: "billing", position: 2, status: "running", stage: "building")
+
+    post from_code_workshop_design_import_suggestion_path(@import, @suggestion)
+    assert_equal "The import is building: act on this once it is done.", flash[:clar_toast]
+    refute @project.design_setup_roles.exists?(name: "Flosis staff")
+    assert_equal "open", @suggestion.reload.status
+  end
 end

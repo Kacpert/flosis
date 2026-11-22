@@ -33,4 +33,14 @@ class DesignImportSuggestionTest < ActiveSupport::TestCase
     assert_nil DesignImportSuggestion.record!(later, kind: "context", title: "Super admin again", context_name: "Super admin")
     assert_equal [ "Super admin" ], DesignImportSuggestion.dismissed_contexts(@project)
   end
+
+  # Final review (re-graded): only a dismissed role stays dismissed; a login
+  # that fails again, or anything else, comes back.
+  test "a dismissed sign-in suggestion does not hide a later one" do
+    role = @project.design_setup_roles.create!(name: "PO", login_url: "https://s.test/login", username: "po", password: "p", position: 0)
+    DesignImportSuggestion.record!(@import, kind: "sign_in", title: "PO could not sign in", role: role).update!(status: "dismissed")
+    later = @project.design_setups.create!(kind: "resync", status: "active", phase: "resync", started_by: users(:one))
+
+    assert DesignImportSuggestion.record!(later, kind: "sign_in", title: "PO could not sign in", role: role)
+  end
 end

@@ -21,16 +21,25 @@ class Designs::AppChanges
 
   # [{ "repo", "branch", "from", "to", "commits", "stat", "new" }]: from is
   # nil for a repository new to the designs (new: true); stat is nil when
-  # nothing changed. The setup's app_commits become the commits read now, for
+  # nothing changed. One whose history could not be read is
+  # { "repo", "branch", "error", "unreadable" => true }. The setup's app_commits become the commits read now, for
   # the next import to start from.
   def fetch!
     history = Designs::AppHistory.new(@project)
     rows = history.fetch!(@setup).map { |row| read(history, row) }
-    @setup.update!(app_commits: rows.map { |row| { "repo" => row["repo"], "branch" => row["branch"], "sha" => row["to"] } })
+    # One whose history could not be read is said (final review I5), and
+    # keeps the commit the earlier import read, for the next to start from.
+    rows += history.failures.map { |row| row.merge("unreadable" => true) }
+    @setup.update!(app_commits: rows.filter_map { |row| commit_of(row) })
     rows
   end
 
   private
+
+  def commit_of(row)
+    sha = row["unreadable"] ? Array(@since&.app_commits).find { |commit| commit["repo"] == row["repo"] && commit["branch"] == row["branch"] }&.dig("sha") : row["to"]
+    { "repo" => row["repo"], "branch" => row["branch"], "sha" => sha } if sha
+  end
 
   def read(history, row)
     to = row["sha"]

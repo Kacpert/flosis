@@ -95,4 +95,19 @@ class Designs::AppChangesTest < ActiveSupport::TestCase
     changes = Designs::AppChanges.new(resync_from(since)).fetch!
     assert_equal [ [ "acme/app", nil, true, @first ] ], changes.map { |row| row.values_at("repo", "from", "new", "to") }
   end
+
+  # Final review I5 (2026-11-22).
+  test "a repository whose history cannot be read is said, and keeps where the last import left it" do
+    @project.update!(design_app_repos: [ { "role" => "Frontend", "repo" => "acme/app" }, { "role" => "Backend", "repo" => "acme/missing" } ])
+    Designs::AppRepos.url_for = ->(name) { name == "acme/missing" ? File.join(@dir, "missing.git") : @remote }
+    since = @project.design_setups.create!(status: "approved", started_by: users(:one),
+                                           app_commits: [ { "repo" => "acme/app", "branch" => nil, "sha" => @first }, { "repo" => "acme/missing", "branch" => nil, "sha" => "d" * 40 } ])
+    resync = resync_from(since)
+
+    changes = Designs::AppChanges.new(resync).fetch!
+    missing = changes.find { |row| row["repo"] == "acme/missing" }
+    assert missing["unreadable"]
+    assert missing["error"].present?
+    assert_includes resync.reload.app_commits, { "repo" => "acme/missing", "branch" => nil, "sha" => "d" * 40 }
+  end
 end

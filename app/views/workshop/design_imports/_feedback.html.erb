@@ -2,7 +2,7 @@
     występuje"): what the import needs from the person, shown once it is not
     running, each with what they can do. Acting imports more on this import
     (Designs::ImportMore), so only an import that is over offers it. %>
-<% acting = import_actions?(setup) && setup.done? %>
+<% acting = import_actions?(setup) && setup.done? && !setup.busy? %>
 <% field = "clar-input !text-[12.5px] !py-1.5" %>
 <div class="text-[11px] tracking-[.06em] font-bold clar-text-muted mt-1 mb-2" data-import-feedback>FEEDBACK · <%= suggestions.size %></div>
 <div class="clar-card overflow-hidden mb-5" style="border-color: var(--warn);">
@@ -14,6 +14,9 @@
       <% end %>
       <% if suggestion.kind == "context" && suggestion.features.any? %>
         <div class="text-[12px] clar-text-faint mt-1">Features it has: <%= suggestion.features.join(", ") %></div>
+      <% end %>
+      <% if import_actions?(setup) && setup.done? && setup.busy? %>
+        <div class="text-[12px] clar-text-faint mt-2">You can act on this once the import finishes what it is building.</div>
       <% end %>
       <% if acting %>
         <div class="flex items-start gap-2 flex-wrap mt-2.5">

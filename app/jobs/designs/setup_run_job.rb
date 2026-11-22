@@ -294,7 +294,15 @@ class Designs::SetupRunJob < ApplicationJob
   def find_changes(setup)
     FileUtils.mkdir_p(setup.run_dir)
     File.chmod(0o700, setup.run_dir)
-    changed = self.class.app_changes.call(setup).select { |row| row["stat"].present? || row["new"] }
+    rows = self.class.app_changes.call(setup)
+    unreadable = rows.select { |row| row["unreadable"] }
+    # A history that cannot be read is not "nothing changed" (final review
+    # I5): with none readable the run stops, saying why.
+    if unreadable.any? && unreadable.size == rows.size
+      raise Failure, unreadable.map { |row| "#{row['repo']}'s history could not be read: #{row['error'].to_s.delete_suffix('.')}" }.join("; ") + "."
+    end
+
+    changed = rows.select { |row| row["stat"].present? || row["new"] || row["unreadable"] }
     contexts = new_contexts(setup)
     if changed.empty? && contexts.empty?
       setup.note!("Finding what changed", "Nothing changed in the app's repositories since #{setup.since_label}.")
@@ -317,7 +325,7 @@ class Designs::SetupRunJob < ApplicationJob
 
     setup.project.design_setup_roles.filter_map do |role|
       folder = Designs::Subject::SetupSubject.folder_for(role)
-      [ role.name, "designs/#{folder}/" ] unless folders.include?(folder)
+      [ "#{role.name} (#{Designs::SignIn.slug(role)})", "designs/#{folder}/" ] unless folders.include?(folder)
     end
   end
 
@@ -329,6 +337,10 @@ class Designs::SetupRunJob < ApplicationJob
     repos = changed.map do |row|
       name = "#{row['repo']}#{" @ #{row['branch']}" if row['branch']}"
       next "- #{name}: new to the designs: read it whole, its routes and screens, against the map." if row["new"]
+      if row["unreadable"]
+        next "- #{name}: its history could not be read now (#{row['error'].to_s.delete_suffix('.')}). " \
+             "What changed in it since the last import is unknown: say so in your summary."
+      end
 
       commits = "#{row['commits']} #{row['commits'] == 1 ? 'commit' : 'commits'}"
       "- #{name}: #{row['from'].first(7)}..#{row['to'].first(7)} (#{commits}). Start with git log --stat #{row['from']}..#{row['to']}.\n" \

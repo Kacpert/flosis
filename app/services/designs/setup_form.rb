@@ -53,8 +53,13 @@ class Designs::SetupForm
                        design_app_repos: repos, design_base_kit: ui == "custom" ? "plain" : "tailwind4",
                        design_app_url: origin(contexts.find { |row| row[:url].present? }&.dig(:url)) || @project.design_app_url, designs_enabled: true)
       @project.update!(design_repo_token: @params[:repo_token]) if @params[:repo_token].present?
-      kept = contexts.each_with_index.map do |row, position|
+      # A context's slug is its position and name, and the map's features
+      # name contexts by it: a saved context keeps its position, a new one
+      # comes after them (final review I7).
+      next_position = contexts.filter_map { |row| roles[row[:id].to_s]&.position }.max.to_i + (contexts.any? { |row| roles[row[:id].to_s] } ? 1 : 0)
+      kept = contexts.map do |row|
         role = roles[row[:id].to_s] || @project.design_setup_roles.new
+        position = role.persisted? ? role.position : (next_position += 1) - 1
         if code_only?(row)
           # No login (Kacper, 2026-11-22): built from the code; whatever
           # login it had goes.

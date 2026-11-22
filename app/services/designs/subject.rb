@@ -373,12 +373,15 @@ module Designs::Subject
 
     def browser?(role) = role.signs_in? && setup.run_dir.join("auth", "#{Designs::SignIn.slug(role)}.json").file?
 
+    # Every line names the context's slug, which the map's features and the
+    # saved features name contexts by (final review I4).
     def context_line(role)
       folder = "designs/#{self.class.folder_for(role)}/"
-      return "#{role.name}: #{folder}#{' (no login)' if role.code_only?}" if code_only?
-      return "#{role.name}: browser #{Designs::SignIn.slug(role)}, #{folder}" if browser?(role)
+      slug = Designs::SignIn.slug(role)
+      return "#{role.name} (#{slug}): #{folder}#{' (no login)' if role.code_only?}" if code_only?
+      return "#{role.name}: browser #{slug}, #{folder}" if browser?(role)
 
-      "#{role.name}: no browser (#{role.code_only? ? 'no login' : 'could not sign in'}): build it from the code, #{folder}"
+      "#{role.name} (#{slug}): no browser (#{role.code_only? ? 'no login' : 'could not sign in'}): build it from the code, #{folder}"
     end
 
     def from_code_contexts? = !code_only? && project.design_setup_roles.any? { |role| !browser?(role) }
