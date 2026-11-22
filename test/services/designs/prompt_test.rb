@@ -243,8 +243,21 @@ class Designs::PromptTest < ActiveSupport::TestCase
     assert_includes message, "Kit: plain"
     assert_includes message, Designs::Prompt::COMPONENTS
     assert_not_includes message, "Build the screens only"
-    [ Designs::Prompt::STATES, Designs::Prompt::COPIES ].each { |rule| assert_includes message, rule }
+    [ Designs::Prompt::STATES, Designs::Prompt::COPIES, Designs::Prompt::SPACE ].each { |rule| assert_includes message, rule }
     assert message.rstrip.end_with?("Do it")
+  end
+
+  # Kacper (2026-11-23): a page header of a badge, a title, a description and
+  # labelled tab groups pushed the content half way down, and he wants the AI
+  # to keep space without being asked. Design turns and plans keep it; a
+  # check counts a header that pushes the content low as broken.
+  test "design turns and plans keep the window for the content, and a check fixes a header that pushes it low" do
+    thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x")
+    assert_includes Designs::Prompt.thread_message(thread: thread, request: "Do it", design: true), Designs::Prompt::SPACE
+    assert_includes Designs::Prompt.thread_message(thread: thread, request: "Do it", plan: true), Designs::Prompt::SPACE
+    assert_not_includes Designs::Prompt.thread_message(thread: thread, request: "Check", check: true), Designs::Prompt::SPACE
+    [ "top third", "1160 × 860", "two short rows", "beside it", "tabs" ].each { |rule| assert_includes Designs::Prompt::SPACE, rule }
+    assert_includes Designs::Prompt::CHECK, "top third"
   end
   # Accept designs (2026-11-21): the task's next description version keeps
   # the task as it is and changes only what the designs settled.
