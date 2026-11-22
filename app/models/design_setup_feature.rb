@@ -114,16 +114,20 @@ class DesignSetupFeature < ApplicationRecord
             review: (fresh ? {} : review), notes: notes.reject { |note| note.to_s.start_with?(COULD_NOT_FINISH) })
   end
 
+  # A proposal in review moves on once, whatever decides it (Accept, Reject,
+  # a newer import's proposal): only the call that moved it says true, so two
+  # decisions sent at once never both act (final review, 2026-11-22).
+  def leave_review!(**attributes)
+    left = self.class.where(id: id, status: "review").update_all(attributes.merge(updated_at: Time.current)) == 1
+    reload if left
+    left
+  end
+
   # Accept on its card (Kacper, 2026-11-22: "żeby ktoś mógł szybko
-  # zaakceptować zmiany a nie czekał"): a proposal in review is landing from
-  # now on, accepted at queued_at, and Designs::ImportAcceptJob lands it. A
-  # second click, or a Reject sent after it, finds it landing: only the call
-  # that flipped it says true.
+  # zaakceptować zmiany a nie czekał"): the proposal is landing from now on,
+  # accepted at queued_at, and Designs::ImportAcceptJob lands it.
   def accept!
-    now = Time.current
-    flipped = self.class.where(id: id, status: "review").update_all(status: "landing", queued_at: now, error: nil, updated_at: now) == 1
-    reload if flipped
-    flipped
+    leave_review!(status: "landing", queued_at: Time.current, error: nil)
   end
 
   def done? = status == "done"

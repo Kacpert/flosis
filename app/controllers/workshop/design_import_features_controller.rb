@@ -47,14 +47,15 @@ class Workshop::DesignImportFeaturesController < Workshop::BaseController
     back
   end
 
-  # Master stays as it is, and the proposal goes.
+  # Master stays as it is, and the proposal goes. The card is set aside
+  # before its branch goes, which takes seconds: an Accept sent meanwhile
+  # finds it decided.
   def reject
-    return back unless @feature.problem == :review
+    return back unless @feature.problem == :review && @feature.leave_review!(status: "set_aside")
 
     items = Array(@feature.review["comes_in"])
     Designs::ImportLanding.new(@feature).discard!
-    @feature.update!(status: "set_aside", branch: nil,
-                     review: @feature.review.merge("rejected" => "Rejected · not brought in#{": #{items.join('; ')}" if items.any?}".truncate(300)))
+    @feature.update!(branch: nil, review: @feature.review.merge("rejected" => "Rejected · not brought in#{": #{items.join('; ')}" if items.any?}".truncate(300)))
     back
   end
 

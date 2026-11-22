@@ -157,6 +157,37 @@ class Designs::ImportReviewsTest < ActionDispatch::IntegrationTest
       assert_equal 1, enqueued_jobs.count { _1["job_class"] == "Designs::ImportAcceptJob" }
       assert_equal "landing", @feature.reload.status
       assert remote_branch_sha(remote, branch), "the proposal is still on its way"
+
+      perform_enqueued_jobs(only: Designs::ImportAcceptJob)
+      assert_equal "done", @feature.reload.status, "and it lands"
+    end
+  end
+
+  # Final review (2026-11-22): Reject takes seconds (a fetch and a push), and
+  # an Accept sent meanwhile must find the card decided, not land nothing and
+  # call it built.
+  test "Accept sent while Reject is under way is refused, and the card stays rejected" do
+    with_a_thread_on_master do |repo, _remote|
+      review_it(repo)
+      accepted_meanwhile = nil
+      new_landing = Designs::ImportLanding.method(:new)
+      Designs::ImportLanding.define_singleton_method(:new) do |feature|
+        new_landing.call(feature).tap do |landing|
+          landing.define_singleton_method(:discard!) do
+            accepted_meanwhile = DesignSetupFeature.find(feature.id).accept!
+            super()
+          end
+        end
+      end
+      begin
+        post reject_workshop_design_import_feature_path(@import, @feature)
+      ensure
+        Designs::ImportLanding.singleton_class.remove_method(:new)
+      end
+
+      assert_equal false, accepted_meanwhile
+      assert_equal [ "set_aside", nil ], [ @feature.reload.status, @feature.branch ]
+      assert_equal "Rejected · not brought in: The card as the app has it.", @feature.review["rejected"]
     end
   end
 
@@ -188,6 +219,25 @@ class Designs::ImportReviewsTest < ActionDispatch::IntegrationTest
 
       assert_equal [ "done", nil ], [ @feature.reload.status, @feature.error ]
       assert_equal %w[manual import], @project.design_merges.order(:id).pluck(:how)
+    end
+  end
+
+  # Final review (2026-11-22): a deploy gives a job 5 s and a landing takes
+  # 14–19 s, its push in the middle. Cut after the push, the landing run
+  # again has nothing left to merge, and still publishes master.
+  test "a landing cut off after its push publishes master when it runs again" do
+    with_a_thread_on_master do |repo, _remote|
+      review_it(repo)
+      publisher = Designs::Publisher.new(@project, repo)
+      publisher.publish!("master", "master")
+      repo.merge_into_master!(@feature.branch, message: "Import: Bug Reporting")
+      repo.push!("master", ":refs/heads/#{@feature.branch}", atomic: true)
+
+      post accept_workshop_design_import_feature_path(@import, @feature)
+      perform_enqueued_jobs(only: Designs::ImportAcceptJob)
+
+      assert_equal "done", @feature.reload.status
+      assert_includes publisher.slot_folder("master").join("designs/admin/bugs.html").read, "the app's card"
     end
   end
 

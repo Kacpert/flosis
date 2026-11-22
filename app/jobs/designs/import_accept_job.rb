@@ -9,8 +9,9 @@
 #   which brings it up to date first and lands it after;
 # - one that cannot land goes back to its card, with the reason, to be
 #   accepted again.
-# The default queue's workers never run design turns, so a landing starts at
-# once even while an import builds on the designs queue.
+# The default queue's workers never run design turns, so a landing never
+# waits behind an import building on the designs queue. It does share their
+# three threads with the other default jobs, Claude's automations among them.
 class Designs::ImportAcceptJob < ApplicationJob
   queue_as :default
   # One at a time per import: a second job waits in the queue without holding
@@ -44,8 +45,12 @@ class Designs::ImportAcceptJob < ApplicationJob
     DesignSetupFeature.where(design_setup_id: setup_id, status: "landing").where.not(id: tried).order(:queued_at, :id).first
   end
 
+  # A landing that finds nothing to merge was cut off after its push (a
+  # deploy gives a job 5 s, a landing takes 14–19 s): master is on GitHub
+  # already, and only its preview is left to publish.
   def land(feature)
-    Designs::ImportLanding.new(feature).land!(accepted: true)
+    landing = Designs::ImportLanding.new(feature)
+    landing.publish_master! unless landing.land!(accepted: true)
     feature.update!(status: "done", finished_at: Time.current, branch: nil, error: nil, review: feature.review.merge("accepted" => true))
   rescue Designs::Repo::Conflict
     feature.queue!(fresh: false)
