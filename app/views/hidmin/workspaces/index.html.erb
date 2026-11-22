@@ -30,6 +30,7 @@
         <% figures = @billing[workspace.id] || AiBilling::Organization.new(cost: 0, price: 0, runs: 0, unknown: 0) %>
         <% plan = workspace.ai_plan %>
         <% percent = consumption_percent(figures.price, plan&.monthly_price_usd) %>
+        <% over = plan && figures.price > plan.monthly_price_usd %>
         <% projects = @project_counts.fetch(workspace.id, 0) %>
         <% own = @own_key_counts.fetch(workspace.id, 0) %>
         <div class="flex items-center px-5 py-3 text-[13px] <%= 'bg-[color:var(--warn-soft)]' unless plan %>" data-organization-row="<%= workspace.id %>">
@@ -53,9 +54,9 @@
           <span class="w-24 text-right font-bold clar-text-text"><%= AiCostFormatter.money(figures.price) %></span>
           <span class="w-40 pl-4 text-right">
             <% if percent %>
-              <span class="block text-[11.5px] <%= percent > 100 ? 'font-semibold clar-text-warn' : 'clar-text-muted' %>"><%= percent > 100 ? "over by #{AiCostFormatter.money(figures.price - plan.monthly_price_usd)}" : "#{percent}% of the limit" %></span>
+              <span class="block text-[11.5px] <%= over ? 'font-semibold clar-text-warn' : 'clar-text-muted' %>"><%= over ? "over by #{AiCostFormatter.money(figures.price - plan.monthly_price_usd)}" : "#{percent}% of the limit" %></span>
               <span class="mt-1 block h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-2)]">
-                <span class="block h-full rounded-full <%= percent > 100 ? 'bg-[var(--warn)]' : 'bg-[var(--primary)]' %>" style="width: <%= [ percent, 100 ].min %>%;"></span>
+                <span class="block h-full rounded-full <%= over ? 'bg-[var(--warn)]' : 'bg-[var(--primary)]' %>" style="width: <%= [ percent, 100 ].min %>%;"></span>
               </span>
             <% else %>
               <span class="text-[11.5px] font-semibold clar-text-warn">no plan &middot; no limit</span>

@@ -8,7 +8,8 @@
 # Months are calendar months in the app's time zone (Warsaw).
 class AiCosts
   Figure = Data.define(:total, :this_month, :priced_runs, :runs)
-  Month = Data.define(:month, :amount, :runs)
+  # priced: how many of the month's runs reported a cost; none → "unknown".
+  Month = Data.define(:month, :amount, :runs, :priced)
   # by_area, by_project and own_key_projects rows are [label, runs, amount,
   # priced runs]: a row whose runs were none of them priced reads "unknown".
   Summary = Data.define(:total, :runs, :unknown_runs, :own_key_total, :own_key_projects, :by_area, :by_project,
@@ -38,11 +39,13 @@ class AiCosts
   # The area's billable spend by month, newest first, the current month always
   # first even with nothing in it.
   def area_months(area, limit: 12)
-    by_month = workspace_runs.billable.in_area(area).group(Arel.sql(month_sql)).pluck(Arel.sql(month_sql), Arel.sql("COALESCE(SUM(price_usd), 0)"), Arel.sql("COUNT(*)"))
-                   .to_h { |month, amount, count| [ month.to_date, [ amount, count ] ] }
+    by_month = workspace_runs.billable.in_area(area).group(Arel.sql(month_sql))
+                             .pluck(Arel.sql(month_sql), Arel.sql("COALESCE(SUM(price_usd), 0)"), Arel.sql("COUNT(*)"), Arel.sql("COUNT(price_usd)"))
+                             .to_h { |month, amount, count, priced| [ month.to_date, [ amount, count, priced ] ] }
     current = Date.current.beginning_of_month
-    by_month[current] ||= [ BigDecimal("0"), 0 ]
-    by_month.sort_by { |month, _| month }.reverse.first(limit).map { |month, (amount, count)| Month.new(month: month, amount: amount, runs: count) }
+    by_month[current] ||= [ BigDecimal("0"), 0, 0 ]
+    by_month.sort_by { |month, _| month }.reverse.first(limit)
+            .map { |month, (amount, count, priced)| Month.new(month: month, amount: amount, runs: count, priced: priced) }
   end
 
   # The months with finished runs, newest first, the current month always

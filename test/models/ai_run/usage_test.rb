@@ -60,4 +60,17 @@ class AiRun::UsageTest < ActiveSupport::TestCase
     { "type" => "assistant", "message" => { "id" => id, "model" => "claude-opus-5[1m]",
       "usage" => { "input_tokens" => input, "output_tokens" => output, "cache_read_input_tokens" => read, "cache_creation_input_tokens" => write } } }
   end
+
+  # Final review: the CLI's synthetic messages are not a model.
+  test "synthetic messages name no model" do
+    usage = AiRun::Usage.new
+    usage.see({ "type" => "assistant", "message" => { "id" => "m1", "model" => "claude-opus-5", "usage" => { "input_tokens" => 1 } } })
+    usage.see({ "type" => "assistant", "message" => { "id" => "m2", "model" => "<synthetic>", "usage" => { "input_tokens" => 0 } } })
+    assert_equal "claude-opus-5", usage.totals[:model]
+
+    only = AiRun::Usage.new
+    only.see({ "type" => "assistant", "message" => { "id" => "m1", "model" => "<synthetic>", "usage" => { "input_tokens" => 0 } } })
+    assert_nil only.totals[:model]
+  end
+
 end

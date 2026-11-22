@@ -155,4 +155,16 @@ class Hidmin::WorkspacesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Chat with AI on a ticket unknown unknown", row
   end
 
+
+  # Final review I1
+  test "a $0 plan does not break the organization pages" do
+    plan = AiPlan.create!(name: "Trial", monthly_price_usd: 0, margin_percent: 30)
+    workspaces(:one).update!(ai_plan: plan)
+    billed_run!(cost: 5)
+    get hidmin_workspace_path(workspaces(:one))
+    assert_response :success
+    get hidmin_workspaces_path
+    assert_includes css_select("[data-organization-row='#{workspaces(:one).id}']").text, "over by $6.50"
+  end
+
 end

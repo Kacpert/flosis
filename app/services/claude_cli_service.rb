@@ -597,8 +597,14 @@ class ClaudeCliService
 
   # The client's own key: the run's key is the project's own Anthropic key.
   # Flosis's setup key and the server's login are not.
+  # Reading the project's key is part of recording, so it never stops a run.
   def own_key?
+    return false if @api_key.blank?
+
     own = @attribution.project&.anthropic_api_key
-    @api_key.present? && own.present? && @api_key == own
+    own.present? && @api_key == own
+  rescue StandardError => e
+    Rails.error.report(e, handled: true, context: { recorder: "ClaudeCliService#own_key?" })
+    false
   end
 end

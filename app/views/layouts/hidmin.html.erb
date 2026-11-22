@@ -31,7 +31,9 @@
   <body class="min-h-screen">
     <%# The Workshop's tokens and theming, without its sidebar: hidmin stands
         outside every workspace, so nothing here is about the current one. %>
-    <div class="clar-app flex flex-col h-screen overflow-hidden" data-controller="clar-theme" data-clar-theme="light">
+    <%# clar-toast: the confirmations the billing pages leave in flash[:clar_toast]. %>
+    <div class="clar-app flex flex-col h-screen overflow-hidden" data-controller="clar-theme clar-toast" data-clar-theme="light"
+         data-clar-toast-initial-value="<%= flash[:clar_toast] %>" data-clar-toast-link-value="<%= flash[:clar_toast_link] %>">
       <script>
         (function(el){
           var t = el.ownerDocument.documentElement.dataset.clarThemePending;

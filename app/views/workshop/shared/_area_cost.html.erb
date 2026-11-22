@@ -15,13 +15,13 @@
       <select aria-label="Month to show the cost of <%= label.downcase %> for" data-area-cost-target="month" data-action="area-cost#pick"
               class="cursor-pointer appearance-none border-0 bg-transparent py-0 pr-3.5 pl-0 text-[11.5px] clar-text-faint underline decoration-dotted underline-offset-2 focus:clar-text-text">
         <% months.each do |month| %>
-          <option value="<%= format('%.2f', month.amount) %>|<%= month.runs %>"><%= month.month.strftime("%B %Y") %></option>
+          <option value="<%= month.runs.positive? && month.priced.zero? ? 'unknown' : format('%.2f', month.amount) %>|<%= month.runs %>"><%= month.month.strftime("%B %Y") %></option>
         <% end %>
       </select>
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true" class="pointer-events-none absolute right-0"><path d="M6 9l6 6 6-6"/></svg>
     </span>
     <span aria-hidden="true">&middot;</span>
-    <span class="font-semibold clar-text-muted" data-area-cost-target="amount"><%= AiCostFormatter.money(months.first.amount) %></span>
+    <span class="font-semibold clar-text-muted" data-area-cost-target="amount"><%= AiCostFormatter.sum(months.first.amount, runs: months.first.runs, priced: months.first.priced) %></span>
     <span aria-hidden="true">&middot;</span>
     <span><span data-area-cost-target="runs"><%= months.first.runs %></span> runs</span>
   </div>

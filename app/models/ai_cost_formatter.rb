@@ -6,6 +6,11 @@ module AiCostFormatter
     "$#{ActiveSupport::NumberHelper.number_to_delimited(format('%.2f', amount.to_d.round(2)))}"
   end
 
+  # A sum of runs: "unknown" when there were runs and none reported a cost.
+  def sum(amount, runs:, priced:)
+    runs.to_i.positive? && priced.to_i.zero? ? "unknown" : money(amount)
+  end
+
   # An item's figure: its total, with this month in brackets only when that is
   # a different amount. "unknown" when none of its runs reported a cost; nil
   # when it has no runs at all.

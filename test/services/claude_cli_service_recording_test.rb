@@ -141,4 +141,17 @@ class ClaudeCliServiceRecordingTest < ActiveSupport::TestCase
   ensure
     AiRun::Recorder.define_singleton_method(:start!, original)
   end
+
+  # Final review: reading the project's key is part of recording, and must
+  # never stop a run — not even one that never uses the key.
+  test "a project key that cannot be read never stops the run" do
+    project = projects(:jira_project)
+    project.define_singleton_method(:anthropic_api_key) { raise ActiveRecord::Encryption::Errors::Decryption }
+    with_fake_claude_bin(%(STDIN.read; puts #{CLI_RESULT.to_json.inspect})) do
+      svc = ClaudeCliService.new(codebase_path: Dir.tmpdir, attribution: ai_attribution(project: project), api_key: "sk-x")
+      assert_equal "Done.", svc.start_session(prompt: "hi")[:response]
+    end
+    refute AiRun.last.own_key
+  end
+
 end

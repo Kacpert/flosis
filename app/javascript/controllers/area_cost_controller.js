@@ -8,7 +8,9 @@ export default class extends Controller {
 
   pick() {
     const [amount, runs] = this.monthTarget.value.split("|")
-    this.amountTarget.textContent = "$" + Number(amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    // A month none of whose runs reported a cost reads "unknown", never $0.00.
+    this.amountTarget.textContent = amount === "unknown" ? amount
+      : "$" + Number(amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     this.runsTarget.textContent = runs
   }
 }

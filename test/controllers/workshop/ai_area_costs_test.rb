@@ -71,4 +71,14 @@ class Workshop::AiAreaCostsTest < ActionDispatch::IntegrationTest
     assert option, "last month is offered"
     assert_equal "268.40|1", option["value"]
   end
+
+  # Final review I3: an area month none of whose runs reported a cost.
+  test "an area month whose runs all reported no cost reads unknown, not $0.00" do
+    run!(area: "pr_reviews", price: nil)
+    show_ai_costs!
+    get workshop_process_path(tab: "pr")
+    assert_includes area_figure.text, "unknown"
+    refute_includes area_figure.text, "$0.00"
+  end
+
 end

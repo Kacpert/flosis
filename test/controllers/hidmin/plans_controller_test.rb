@@ -76,4 +76,12 @@ class Hidmin::PlansControllerTest < ActionDispatch::IntegrationTest
     assert_equal BigDecimal("13"), run.reload.price_usd
     assert_equal BigDecimal("50"), plan.reload.margin_percent
   end
+
+  # Final review I2: the confirmation reaches the page.
+  test "creating a plan confirms it on the page" do
+    post hidmin_plans_path, params: { ai_plan: { name: "Growth", monthly_price_usd: "100", margin_percent: "30" } }
+    follow_redirect!
+    assert_select "[data-controller~='clar-toast'][data-clar-toast-initial-value='Plan created']"
+  end
+
 end

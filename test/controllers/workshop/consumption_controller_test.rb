@@ -145,4 +145,24 @@ class Workshop::ConsumptionControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Chat with AI on a ticket 1 unknown", row
   end
 
+
+  # Final review I1: a free plan is a natural thing to make; anything spent is over it.
+  test "a $0 plan shows what was spent as over the limit" do
+    plan = AiPlan.create!(name: "Trial", monthly_price_usd: 0, margin_percent: 30)
+    @workspace.update!(ai_plan: plan)
+    run!(price: 5)
+    get workshop_consumption_path
+    assert_response :success
+    assert_includes response.body, "Over the limit by $5.00"
+    get workshop_consumption_path(view: "all")
+    assert_response :success
+  end
+
+  # Final review I3: a total with no priced run reads unknown, never $0.00.
+  test "a month whose runs all reported no cost totals unknown" do
+    run!(price: nil)
+    get workshop_consumption_path
+    css_select("[data-consumption-total]").each { |row| assert_includes row.text, "unknown" }
+  end
+
 end

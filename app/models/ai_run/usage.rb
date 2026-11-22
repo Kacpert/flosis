@@ -22,7 +22,7 @@ class AiRun::Usage
       message = event["message"]
       return unless message.is_a?(Hash)
 
-      @model = message["model"].presence || @model
+      @model = message["model"] if claude_model?(message["model"])
       @messages[message["id"] || @messages.size] = message["usage"] if message["usage"].is_a?(Hash)
     end
   end
@@ -37,13 +37,18 @@ class AiRun::Usage
     cost = @result && @result["total_cost_usd"]
     tokens.merge(
       cost_usd: cost.nil? ? nil : BigDecimal(cost.to_s),
-      model: AiModel.normalize_id(model_usage ? model_usage.max_by { |_, used| used["costUSD"].to_f }&.first : @model),
+      model: AiModel.normalize_id(model_usage ? model_usage.select { |id, _| claude_model?(id) }.max_by { |_, used| used["costUSD"].to_f }&.first : @model),
       model_usage: model_usage,
       claude_session_id: @result&.dig("session_id").presence || @session_id
     )
   end
 
   private
+
+  # The CLI's own synthetic messages carry "<synthetic>": not a model.
+  def claude_model?(id)
+    id.to_s.start_with?("claude-")
+  end
 
   def result_tokens
     by_model = @result["modelUsage"]

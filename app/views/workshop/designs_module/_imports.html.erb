@@ -21,7 +21,7 @@
         <% if designs_month %>
           <span class="mt-1.5 inline-flex items-center gap-[5px] text-[11.5px] whitespace-nowrap clar-text-faint" data-area-cost>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="flex-none" aria-hidden="true"><path d="M3 7h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V6a2 2 0 0 1 2-2h11"/></svg>
-            <%= [ AiRun::AREAS["designs"], designs_month.month.strftime("%B %Y"), AiCostFormatter.money(designs_month.amount), pluralize(designs_month.runs, "run") ].join(" · ") %>
+            <%= [ AiRun::AREAS["designs"], designs_month.month.strftime("%B %Y"), AiCostFormatter.sum(designs_month.amount, runs: designs_month.runs, priced: designs_month.priced), pluralize(designs_month.runs, "run") ].join(" · ") %>
           </span>
         <% end %>
         <% since = import_resync_from(@project) %>

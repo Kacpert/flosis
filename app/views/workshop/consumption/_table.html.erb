@@ -23,7 +23,7 @@
   <div class="flex items-center bg-[var(--surface-2)] px-4.5 py-3" data-consumption-total>
     <span class="min-w-0 flex-1 text-[13.5px] font-bold clar-text-text">Total</span>
     <span class="w-16 text-right text-[12.5px] clar-text-muted"><%= number_with_delimiter(total_runs) %></span>
-    <span class="w-24 text-right text-[13.5px] font-bold clar-text-text"><%= AiCostFormatter.money(total) %></span>
+    <span class="w-24 text-right text-[13.5px] font-bold clar-text-text"><%= AiCostFormatter.sum(total, runs: total_runs, priced: rows.sum { |row| row[3].to_i }) %></span>
   </div>
   <% aside.each do |label, runs, amount, _priced| %>
     <div class="flex items-center gap-2.5 border-t border-[color:var(--border)] px-4.5 py-[11px]" data-own-key-row>

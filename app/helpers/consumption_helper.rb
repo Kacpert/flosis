@@ -16,8 +16,10 @@ module ConsumptionHelper
   end
 
   # How much of the limit an amount is, in whole percent; nil without a limit.
+  # A $0 limit (a free plan) is all used by anything spent at all.
   def consumption_percent(amount, limit)
-    return if limit.nil? || limit.to_d.zero?
+    return if limit.nil?
+    return amount.to_d.positive? ? 100 : 0 if limit.to_d.zero?
 
     (amount.to_d / limit.to_d * 100).round
   end

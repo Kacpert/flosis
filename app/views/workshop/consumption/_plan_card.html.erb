@@ -11,7 +11,7 @@
     <div>
       <div class="mb-1 text-[11px] font-bold tracking-[.4px] clar-text-faint">USED IN <%= @month.strftime("%B").upcase %></div>
       <div class="flex items-baseline gap-2.5">
-        <span class="text-[30px] font-bold tracking-[-.5px] clar-text-text"><%= AiCostFormatter.money(total) %></span>
+        <span class="text-[30px] font-bold tracking-[-.5px] clar-text-text"><%= AiCostFormatter.sum(total, runs: @summary.runs, priced: @summary.by_area.sum { |row| row[3].to_i }) %></span>
         <span class="text-[14px] clar-text-muted"><%= cap ? "of #{AiCostFormatter.money(cap)}" : "no limit set" %></span>
       </div>
     </div>
