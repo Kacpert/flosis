@@ -2,16 +2,22 @@
 # administrator, or not at all: an organization nobody can run would need a
 # console session to fix.
 class Hidmin::WorkspacesController < Hidmin::BaseController
-  before_action :set_workspace, only: %i[show update]
+  before_action :set_workspace, only: %i[show update assign_plan]
 
+  # SCRUM-70: the organizations as Flosis bills them this month — plan,
+  # margin, cost, price, the limit and unknown-cost runs not yet looked at.
   def index
-    @workspaces = Workspace.order(:name)
+    @workspaces = Workspace.includes(:ai_plan).order(:name)
     @member_counts = WorkspaceMembership.group(:workspace_id).count
     @project_counts = Project.active.group(:workspace_id).count
+    @own_key_counts = Project.active.where.not(anthropic_api_key: [ nil, "" ]).group(:workspace_id).count
+    @billing = AiBilling.organizations
+    @plans = AiPlan.order(:monthly_price_usd, :name)
   end
 
   def show
     load_members
+    @billing = AiBilling.new(@workspace)
   end
 
   def new
@@ -44,9 +50,13 @@ class Hidmin::WorkspacesController < Hidmin::BaseController
     end
   end
 
-  # SCRUM-70: assigning a plan. Filled in by Task 15.
+  # SCRUM-70: an organization's plan. Its price becomes the monthly limit from
+  # now on (this month's included); runs so far keep the margin they had.
   def assign_plan
-    head :not_implemented
+    plan = AiPlan.find(params[:ai_plan_id])
+    @workspace.update!(ai_plan: plan, ai_plan_assigned_at: Time.current)
+    AiMonthLimit.refresh_current!(@workspace)
+    redirect_back_or_to hidmin_workspaces_path, flash: { clar_toast: "Plan assigned" }
   end
 
   private
@@ -58,6 +68,7 @@ class Hidmin::WorkspacesController < Hidmin::BaseController
   def load_members
     @memberships = @workspace.workspace_memberships.includes(:user).order("users.name").references(:user)
     @projects = @workspace.projects.order(:archived, :name)
+    @billing ||= AiBilling.new(@workspace)
     @new_member = WorkspaceInvite.new(@workspace, name: "", email_address: "")
   end
 

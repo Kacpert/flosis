@@ -70,4 +70,80 @@ class Hidmin::WorkspacesControllerTest < ActionDispatch::IntegrationTest
 
     assert workspaces(:two).reload.hr_access?
   end
+
+  # -- SCRUM-70: billing ------------------------------------------------
+
+  def billed_run!(workspace: workspaces(:one), cost:, margin: 30, own_key: false, area: "pr_reviews", project: projects(:jira_project), **rest)
+    price = cost && (own_key ? cost : (BigDecimal(cost.to_s) * (1 + BigDecimal(margin.to_s) / 100)).round(6))
+    AiRun.create!({ workspace: workspace, project: project, project_name: project&.name, area: area, automation: "PR review",
+                    status: "succeeded", ran_at: Time.current, own_key: own_key, cost_usd: cost,
+                    margin_percent: (own_key ? nil : margin), price_usd: price, model: "claude-opus-5",
+                    item_label: "#19 Designs" }.merge(rest))
+  end
+
+  test "organizations list shows cost, price and the margin" do
+    workspaces(:one).update!(ai_plan: ai_plans(:scale))
+    billed_run!(cost: 100)
+    billed_run!(cost: nil)
+
+    get hidmin_workspaces_path
+    row = css_select("[data-organization-row='#{workspaces(:one).id}']").text.squish
+    assert_includes row, "Scale · $1,200.00"
+    assert_includes row, "30%"
+    assert_includes row, "$100.00"
+    assert_includes row, "$130.00"
+    assert_includes row, "11% of the limit"
+    assert_includes row, "1 UNKNOWN"
+  end
+
+  test "an organization without a plan is offered one to assign" do
+    get hidmin_workspaces_path
+    row = css_select("[data-organization-row='#{workspaces(:two).id}']")
+    assert_select row, "select[name=ai_plan_id] option", text: "Scale"
+    assert_includes row.text, "no plan"
+  end
+
+  test "assigning a plan sets this month's limit" do
+    patch assign_plan_hidmin_workspace_path(workspaces(:two)), params: { ai_plan_id: ai_plans(:scale).id }
+    assert_redirected_to hidmin_workspaces_path
+    workspace = workspaces(:two).reload
+    assert_equal ai_plans(:scale), workspace.ai_plan
+    assert workspace.ai_plan_assigned_at
+    assert_equal BigDecimal("1200"), AiMonthLimit.find_by!(workspace: workspace, month: Date.current.beginning_of_month).limit_usd
+    assert_equal "Plan assigned", flash[:clar_toast]
+  end
+
+  test "an organization's page splits cost and price by area and project" do
+    workspaces(:one).update!(ai_plan: ai_plans(:scale))
+    billed_run!(cost: 100)
+    billed_run!(cost: 50, margin: 25, area: "task_conversations", project: projects(:plain_project))
+
+    get hidmin_workspace_path(workspaces(:one))
+    billing = css_select("[data-billing]").text.squish
+    assert_includes billing, "$150.00"
+    assert_includes billing, "$192.50"
+    assert_includes billing, "$42.50"
+    assert_includes billing, "PR reviews $100.00 $130.00"
+    assert_includes billing, "Internal $50.00 $62.50"
+    assert_includes billing, "25%"
+  end
+
+  test "own-key usage is billed to them and outside the total" do
+    billed_run!(cost: 10)
+    billed_run!(cost: 24.60, own_key: true, area: "designs", project: projects(:other_jira_project))
+
+    get hidmin_workspace_path(workspaces(:one))
+    own = css_select("[data-billing] [data-own-key-row]").text.squish
+    assert_includes own, "SecretProject"
+    assert_includes own, "billed to them"
+    assert_includes own, "$24.60"
+    assert_includes css_select("[data-billing-total]").text.squish, "$10.00"
+  end
+
+  test "existing organization settings are still on the page" do
+    get hidmin_workspace_path(workspaces(:one))
+    assert_select "h2", text: "People"
+    assert_select "h2", text: "Settings"
+  end
+
 end
