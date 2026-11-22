@@ -12,6 +12,15 @@
 production:
   # A setup run a deploy cut off is picked up again once its unit's deadline
   # has passed (the Designs setup, feature by feature).
+  # SCRUM-70: an AI run whose job died with it (a deploy) is failed once it is
+  # past AiRun::STALE_AFTER, so it stops counting as running.
+  # SCRUM-70: Models & prices — Anthropic's prices, read at 06:00 Warsaw.
+  ai_price_read:
+    class: AiPriceReadJob
+    schedule: "0 6 * * *"
+  ai_runs_sweep:
+    class: AiRuns::SweepJob
+    schedule: every 15 minutes
   resume_design_setups:
     class: Designs::ResumeSetupsJob
     schedule: every 10 minutes

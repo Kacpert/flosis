@@ -22,7 +22,10 @@ class AutoEstimateJob < ApplicationJob
 
   # force: true bypasses the "already estimated" guard — used only by the manual
   # "Estimate" button, where a human explicitly asked to (re-)estimate.
-  def perform(task_id, force: false)
+  # started_by_id: the person who asked for this estimate (the Estimate button,
+  # a brief pushed to Jira); without one the run is the automation's (SCRUM-70).
+  def perform(task_id, force: false, started_by_id: nil)
+    @started_by = User.find_by(id: started_by_id) if started_by_id
     task = Task.find_by(id: task_id)
     return unless task
 
@@ -57,7 +60,8 @@ class AutoEstimateJob < ApplicationJob
     return nil if codebase.nil?
 
     prompt = build_prompt(task)
-    ClaudeCliService.new(codebase_path: codebase).start_session(prompt: prompt)[:response].to_s.tap do |response|
+    ClaudeCliService.new(codebase_path: codebase, attribution: AiRun::Attribution.for_estimate(task, user: @started_by))
+                    .start_session(prompt: prompt)[:response].to_s.tap do |response|
       return nil if cli_failed?(response)
     end
   rescue ClaudeCliService::ClaudeCliError => e

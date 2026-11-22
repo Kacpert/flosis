@@ -1,4 +1,4 @@
-<% content_for :title, "#{@user.name_was} · Hidmin" %>
+<% content_for :title, "#{@user.name_was} · Flosis admin" %>
 <% memberships = @user.workspace_memberships.includes(:workspace).sort_by { _1.workspace.name } %>
 <% last_sign_in = last_sign_ins([ @user.id ])[@user.id] %>
 

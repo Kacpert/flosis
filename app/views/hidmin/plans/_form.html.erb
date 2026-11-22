@@ -1,0 +1,85 @@
+<%# A plan: a name, a monthly price, a margin and the models it includes, and —
+    optionally — an organization to assign it to now (SCRUM-70,
+    flosis-admin/plan-new.html), in dollars. %>
+<%= form_with model: @plan, url: (@plan.persisted? ? hidmin_plan_path(@plan) : hidmin_plans_path), class: "flex flex-col gap-4.5" do |f| %>
+  <% if @plan.errors.any? %>
+    <div class="clar-card p-3.5 text-[13px] clar-text-danger"><%= @plan.errors.full_messages.to_sentence %></div>
+  <% end %>
+
+  <section class="clar-card p-4.5" data-controller="plan-price">
+    <div class="font-bold text-[14px] clar-text-text mb-3.5">The plan</div>
+    <div class="grid grid-cols-1 gap-3.5 md:grid-cols-3">
+      <label class="flex flex-col gap-1.5">
+        <span class="text-[11px] font-bold tracking-[.4px] clar-text-faint">NAME</span>
+        <%= f.text_field :name, class: "clar-input", required: true %>
+      </label>
+      <label class="flex flex-col gap-1.5">
+        <span class="text-[11px] font-bold tracking-[.4px] clar-text-faint">MONTHLY PRICE (USD)</span>
+        <%= f.number_field :monthly_price_usd, step: "0.01", min: 0, class: "clar-input", required: true %>
+        <span class="text-[11px] clar-text-faint">This is the organization&rsquo;s monthly limit. Going over it blocks nothing.</span>
+      </label>
+      <label class="flex flex-col gap-1.5">
+        <span class="text-[11px] font-bold tracking-[.4px] clar-text-faint">MARGIN (%)</span>
+        <%= f.number_field :margin_percent, step: "0.01", min: 0, class: "clar-input", required: true,
+              data: { plan_price_target: "margin", action: "input->plan-price#show" } %>
+        <span class="text-[11px] clar-text-faint">Added to every run&rsquo;s reported cost to make the price the organization sees.</span>
+      </label>
+    </div>
+    <div class="mt-3.5 rounded-[10px] bg-[var(--surface-2)] px-3.5 py-2.5 text-[12.5px] clar-text-muted">
+      A run that costs <b class="clar-text-text">$10.00</b> is charged
+      <b class="clar-text-text" data-plan-price-target="example"><%= AiCostFormatter.money(10 * (1 + @plan.margin_percent.to_d / 100)) %></b>
+      &middot; every run keeps the margin of the day it ran
+    </div>
+  </section>
+
+  <section class="clar-card overflow-hidden">
+    <div class="flex items-baseline justify-between border-b border-[color:var(--border)] px-4.5 py-3.5">
+      <div class="font-bold text-[14px] clar-text-text">Models included</div>
+      <span class="text-[11.5px] clar-text-faint">Anthropic only &middot; per 1M tokens, in dollars</span>
+    </div>
+    <div class="clar-table-head">
+      <span class="flex-1">MODEL</span>
+      <span class="w-24 text-right">INPUT</span>
+      <span class="w-24 text-right">OUTPUT</span>
+      <span class="w-28 text-right">CACHE WRITE</span>
+      <span class="w-28 text-right">CACHE READ</span>
+    </div>
+    <% @models.each do |model| %>
+      <label class="flex items-center px-5 py-3 border-t border-[color:var(--border)] text-[13px] cursor-pointer">
+        <span class="flex-1 min-w-0 flex items-center gap-2.5">
+          <%= check_box_tag "ai_plan[ai_model_ids][]", model.id, @plan.ai_model_ids.include?(model.id), id: "model_#{model.id}" %>
+          <span class="font-semibold clar-text-text"><%= model.name %></span>
+          <% if model.model_id == @default_model %><span class="clar-badge clar-badge-ai !py-[2px] !px-1.5 !text-[10px]">DEFAULT</span><% end %>
+          <% if model.price_source == "hand" %><span class="clar-badge clar-badge-warn !py-[2px] !px-1.5 !text-[10px]">BY HAND<%= " · #{model.hand_set_at.strftime('%-d %b').upcase}" if model.hand_set_at %></span><% end %>
+        </span>
+        <% %i[input_usd_per_mtok output_usd_per_mtok cache_write_usd_per_mtok cache_read_usd_per_mtok].each_with_index do |column, i| %>
+          <span class="<%= i < 2 ? 'w-24' : 'w-28' %> text-right clar-text-muted"><%= model[column] ? AiCostFormatter.money(model[column]) : "—" %></span>
+        <% end %>
+      </label>
+    <% end %>
+    <%= hidden_field_tag "ai_plan[ai_model_ids][]", "", id: nil %>
+    <div class="border-t border-[color:var(--border)] bg-[var(--surface-2)] px-5 py-3 text-[11.5px] clar-text-faint">
+      Nobody in an organization chooses a model &mdash; this is what the plan is allowed to spend on. A run is priced from the
+      cost Anthropic reports, never from this list. Where it could not be read, it was typed:
+      <%= link_to "Models & prices", hidmin_ai_models_path, class: "font-semibold clar-text-primary no-underline" %>.
+    </div>
+  </section>
+
+  <section class="clar-card p-4.5">
+    <div class="font-bold text-[14px] clar-text-text mb-1">Assign it now</div>
+    <div class="text-[12.5px] clar-text-muted mb-3">Optional. An organization has one plan, and the plan&rsquo;s price becomes its monthly limit from the moment it is assigned.</div>
+    <label class="flex flex-col gap-1.5 max-w-sm">
+      <span class="text-[11px] font-bold tracking-[.4px] clar-text-faint">ORGANIZATION</span>
+      <%= select_tag :assign_workspace_id,
+            options_for_select([ [ "Nobody yet — assign later on Organizations", "" ] ] +
+              @workspaces.reject { |w| w.ai_plan_id == @plan.id && @plan.persisted? }.map { |w| [ "#{w.name} (#{w.ai_plan&.name || 'no plan'})", w.id ] }),
+            class: "clar-input" %>
+    </label>
+  </section>
+
+  <div class="flex items-center gap-3">
+    <%= f.submit(@plan.persisted? ? "Save plan" : "Create plan", class: "clar-btn clar-btn-primary") %>
+    <%= link_to "Cancel", hidmin_plans_path, class: "clar-btn no-underline" %>
+    <span class="text-[11.5px] clar-text-faint">Nothing is priced differently until a plan is assigned to an organization.</span>
+  </div>
+<% end %>

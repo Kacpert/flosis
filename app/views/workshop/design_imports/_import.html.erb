@@ -15,6 +15,8 @@
       <div class="text-[12.5px] clar-text-muted mt-1.5 leading-[1.5]">
         <%= [ import_when(setup), import_contexts(project) ].compact.join(" · ") %> ·
         <b class="clar-text-text"><%= setup.summary %></b><% if cards.any? %> · <b class="clar-text-warn"><%= cards.size %> need you</b><% end %>
+        <%= render "workshop/shared/ai_cost", cost: ai_item_cost(ai_figures([ setup ], area: "designs"), setup), dot: true,
+                   tip: "AI cost of this import · total, this month in brackets" %>
       </div>
     </div>
     <% retryable = cards.count(&:retryable?) %>

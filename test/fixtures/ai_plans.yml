@@ -1,0 +1,6 @@
+# A plan Flosis staff made: its price is the organization's monthly limit, and
+# its margin is added to each run's reported cost.
+scale:
+  name: Scale
+  monthly_price_usd: 1200
+  margin_percent: 30

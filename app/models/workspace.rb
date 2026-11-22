@@ -20,5 +20,10 @@ class Workspace < ApplicationRecord
   has_many :discord_webhooks, dependent: :destroy
   has_many :alert_rules, dependent: :destroy
 
+  # SCRUM-70: what its AI runs cost, against the plan Flosis assigned.
+  belongs_to :ai_plan, optional: true
+  has_many :ai_runs, dependent: :delete_all
+  has_many :ai_month_limits, dependent: :delete_all
+
   validates :name, presence: true
 end

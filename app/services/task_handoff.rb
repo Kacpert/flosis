@@ -6,8 +6,11 @@
 class TaskHandoff
   BLOCK = %r{<handoff>(.*?)</handoff>}m
 
-  def initialize(task)
+  # user: whoever opened the task's first chat, the person the handoff's AI run
+  # is recorded against (SCRUM-70).
+  def initialize(task, user:)
     @task = task
+    @user = user
   end
 
   # Writes the handoff once. Yields :keepalive while the AI works, for a
@@ -33,7 +36,8 @@ class TaskHandoff
   # tools and no code: everything it reads is in the prompt.
   def handed_over(&keepalive)
     FileUtils.mkdir_p(ChatStreaming::NO_CODEBASE_DIR)
-    service = ClaudeCliService.new(codebase_path: ChatStreaming::NO_CODEBASE_DIR.to_s, allowed_tools: [])
+    service = ClaudeCliService.new(codebase_path: ChatStreaming::NO_CODEBASE_DIR.to_s, allowed_tools: [],
+                                   attribution: AiRun::Attribution.for_handoff(@task, user: @user))
     result = nil
     service.send_initial_streaming(prompt: prompt) do |line|
       next keepalive&.call if line == :keepalive

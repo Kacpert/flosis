@@ -97,7 +97,7 @@ class Workshop::BugsControllerTest < ActionDispatch::IntegrationTest
   test "POST analyze enqueues BugAttributionJob for a failed attribution" do
     attribution = BugAttribution.create!(project: @project, jira_key: "ELV-970", status: "failed")
 
-    assert_enqueued_with(job: BugAttributionJob, args: [ @project.id, "ELV-970" ]) do
+    assert_enqueued_with(job: BugAttributionJob, args: [ @project.id, "ELV-970", { started_by_id: users(:one).id } ]) do
       post workshop_analyze_bug_path(attribution.jira_key)
     end
 

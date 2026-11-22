@@ -505,4 +505,26 @@ class ChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_match %r{/rails/active_storage/blobs/}, shown["images"].first["url"]
   end
 
+
+  # SCRUM-70: the refine chat outside the pipeline is the Jira Tasks page's
+  # ticket chat; in the pipeline it is Details Gathering.
+  test "a follow-up on the ticket chat is attributed to Chat with AI on a ticket" do
+    @task.update!(in_pipeline: false)
+    with_message_cli do |_sent, built|
+      post message_jira_task_chat_session_path(@task), params: { content: "More" }, as: :json
+      assert_equal "ticket_chat", built.last[:attribution].area
+      assert_equal users(:one), built.last[:attribution].started_by
+    end
+  end
+
+  test "a Details Gathering chat in the pipeline is a task conversation" do
+    @task.update!(in_pipeline: true)
+    chat_sessions(:one).update!(status: "closed")
+    with_fake_cli do |captured|
+      post jira_task_chat_session_path(@task)
+      assert_equal "task_conversations", captured[:attribution].area
+      assert_equal "ELV-1 · Details Gathering", captured[:attribution].item_label
+    end
+  end
+
 end

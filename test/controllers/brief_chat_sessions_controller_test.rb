@@ -298,4 +298,18 @@ class BriefChatSessionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes prompt, "- Billed monthly"
     assert_includes prompt, "From «Add token calculations» I brought over:"
   end
+
+  # SCRUM-70: whose AI run a chat is.
+  test "a Briefing chat is attributed to the task's conversations and the person" do
+    @task.update!(in_pipeline: true)
+    with_fake_cli do |captured|
+      post jira_task_brief_chat_session_path(@task)
+      attribution = captured[:attribution]
+      assert_equal "task_conversations", attribution.area
+      assert_equal @task, attribution.item
+      assert_equal users(:one), attribution.started_by
+      assert_equal "ELV-1 · Briefing", attribution.item_label
+    end
+  end
+
 end

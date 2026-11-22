@@ -1,0 +1,139 @@
+<%# One organization as Flosis bills it this month (SCRUM-70,
+    flosis-admin/organization.html), in dollars: cost (Flosis only), price, the
+    margin kept, the limit, by area and by project, own key billed to them,
+    unknown runs to look at, and the runs. The organization sees only price. %>
+<% b = @billing %>
+<% cost, price = b.cost, b.price %>
+<% limit = b.limit %>
+<% cap = limit&.limit_usd %>
+<% percent = consumption_percent(price, cap) %>
+<% own_total = b.own_key_total %>
+<section class="mb-8" data-billing>
+  <p class="clar-text-muted text-[13px] mb-3.5">
+    <%= b.month.strftime("%B %Y") %> &middot;
+    <%= limit&.plan_name ? "#{limit.plan_name}, #{AiCostFormatter.money(cap)} a month" : "no plan" %>
+  </p>
+
+  <div class="grid grid-cols-1 gap-3.5 md:grid-cols-3">
+    <div class="clar-card p-4.5">
+      <div class="flex items-center gap-2 text-[11px] font-bold tracking-[.4px] clar-text-faint">COST <span class="clar-badge clar-badge-ai !py-[1px] !px-1.5 !text-[10px]">FLOSIS ONLY</span></div>
+      <div class="mt-1 text-[26px] font-bold clar-text-text"><%= AiCostFormatter.money(cost) %></div>
+      <div class="text-[12px] clar-text-muted">What the provider reported for <%= pluralize(number_with_delimiter(b.priced_runs_count), "priced run") %>. Never calculated from the price list.</div>
+    </div>
+    <div class="clar-card p-4.5">
+      <div class="text-[11px] font-bold tracking-[.4px] clar-text-faint">PRICE</div>
+      <div class="mt-1 text-[26px] font-bold clar-text-text"><%= AiCostFormatter.money(price) %></div>
+      <div class="text-[12px] clar-text-muted">Cost plus the margin each run was priced with. This is what the organization sees.</div>
+    </div>
+    <div class="clar-card p-4.5">
+      <div class="text-[11px] font-bold tracking-[.4px] clar-text-faint">MARGIN KEPT</div>
+      <div class="mt-1 text-[26px] font-bold clar-text-text"><%= AiCostFormatter.money(price - cost) %></div>
+      <div class="text-[12px] clar-text-muted">
+        <% margins = b.margins %>
+        <% if margins.empty? %>No priced runs this month.<% else %>
+          <%= margins.reverse.each_with_index.map { |(margin, since), i| "#{number_to_percentage(margin, precision: 2, strip_insignificant_zeros: true)}#{i.zero? && margins.size > 1 ? " since #{since.strftime('%-d %B')}" : (i.positive? ? ' before it' : '')}" }.join(", ") %>
+          &mdash; each run keeps the day it ran.
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="clar-card mt-3.5 p-4.5">
+    <% if cap %>
+      <div class="flex flex-wrap items-baseline justify-between gap-2 text-[12.5px]">
+        <span class="font-semibold clar-text-text"><%= percent %>% of the <%= AiCostFormatter.money(cap) %> limit</span>
+        <span class="clar-text-muted">
+          <%= price > cap ? "#{AiCostFormatter.money(price - cap)} over" : "#{AiCostFormatter.money(cap - price)} left" %>
+          <%= " · own-key usage (#{AiCostFormatter.money(own_total)}) is outside this" if own_total.positive? %>
+        </span>
+      </div>
+      <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-[var(--surface-2)]">
+        <div class="h-full rounded-full <%= price > cap ? 'bg-[var(--warn)]' : 'bg-[var(--primary)]' %>" style="width: <%= [ percent, 100 ].min %>%;"></div>
+      </div>
+    <% else %>
+      <div class="text-[12.5px] clar-text-muted">No plan, so no limit: every run is still priced, at the default <%= number_to_percentage(AiRun.default_margin_percent, precision: 0) %> margin.</div>
+    <% end %>
+  </div>
+
+  <div class="mt-3.5 grid grid-cols-1 items-start gap-3.5 lg:grid-cols-2">
+    <% [ [ "By area", b.by_area ], [ "By project", b.by_project ] ].each do |title, rows| %>
+      <section class="clar-card overflow-hidden">
+        <div class="flex items-baseline justify-between border-b border-[color:var(--border)] px-4.5 py-3">
+          <h3 class="m-0 text-[14px] font-bold clar-text-text"><%= title %></h3>
+          <span class="text-[11.5px] clar-text-faint">cost &rarr; price</span>
+        </div>
+        <% rows.each do |row| %>
+          <% unknown = row.priced.to_i.zero? %>
+          <div class="flex items-center border-b border-[color:var(--border)] px-4.5 py-2.5 text-[13px]" data-billing-row>
+            <span class="flex-1 min-w-0 truncate clar-text-text"><%= row.label %></span>
+            <span class="w-24 text-right clar-mono text-[12px] <%= unknown ? 'clar-text-warn' : 'clar-text-muted' %>"><%= unknown ? "unknown" : AiCostFormatter.money(row.cost) %></span>
+            <span class="w-24 text-right font-semibold <%= unknown ? 'clar-text-warn' : 'clar-text-text' %>"><%= unknown ? "unknown" : AiCostFormatter.money(row.price) %></span>
+          </div>
+        <% end %>
+        <div class="flex items-center bg-[var(--surface-2)] px-4.5 py-2.5 text-[13px] font-bold" data-billing-total>
+          <span class="flex-1 clar-text-text">Total</span>
+          <span class="w-24 text-right clar-mono text-[12px] clar-text-muted"><%= AiCostFormatter.money(cost) %></span>
+          <span class="w-24 text-right clar-text-text"><%= AiCostFormatter.money(price) %></span>
+        </div>
+        <% if title == "By project" %>
+          <% b.own_key_projects.each do |row| %>
+            <div class="flex items-center gap-2 border-t border-[color:var(--border)] px-4.5 py-2.5 text-[13px]" data-own-key-row>
+              <span class="flex-1 min-w-0 truncate clar-text-muted"><%= row.label %></span>
+              <span class="clar-badge clar-badge-muted !py-[1px] !px-1.5 !text-[10px]">OWN KEY</span>
+              <span class="w-24 text-right text-[11.5px] clar-text-faint">billed to them</span>
+              <span class="w-24 text-right clar-text-muted"><%= AiCostFormatter.money(row.cost) %></span>
+            </div>
+          <% end %>
+        <% end %>
+      </section>
+    <% end %>
+  </div>
+
+  <% unknown = b.unknown_runs.to_a %>
+  <% if unknown.any? %>
+    <section class="clar-card mt-3.5 overflow-hidden border-[color:var(--warn)]">
+      <div class="border-b border-[color:var(--border)] bg-[color:var(--warn-soft)] px-4.5 py-3 text-[13px]">
+        <b class="clar-text-warn"><%= pluralize(unknown.size, "run") %> reported no cost.</b>
+        <span class="clar-text-muted">Their tokens are recorded. The organization sees unknown against them and is charged nothing; none is counted as $0. They stay flagged here until somebody has looked at them.</span>
+      </div>
+      <% unknown.each do |run| %>
+        <div class="flex items-center gap-3 border-b border-[color:var(--border)] px-4.5 py-2.5 text-[13px]" data-unknown-run>
+          <span class="w-28 flex-none text-[12px] clar-text-faint"><%= consumption_when(run.ran_at) %></span>
+          <span class="w-40 flex-none text-[12px] clar-text-muted"><%= AiRun::AREAS[run.area] %></span>
+          <span class="flex-1 min-w-0 truncate clar-text-text"><%= run.item_label %></span>
+          <span class="w-60 flex-none truncate whitespace-nowrap clar-mono text-[11.5px] clar-text-faint"><%= AiCostFormatter.tokens(run) %></span>
+          <%= button_to "Looked at", looked_at_hidmin_ai_run_path(run), method: :patch, class: "clar-btn !py-1 !px-2.5 !text-[12px]" %>
+        </div>
+      <% end %>
+    </section>
+  <% end %>
+
+  <section class="clar-card mt-3.5 overflow-x-auto">
+    <div class="min-w-[960px]">
+      <div class="flex items-baseline justify-between border-b border-[color:var(--border)] px-4.5 py-3">
+        <h3 class="m-0 text-[14px] font-bold clar-text-text">Runs</h3>
+        <span class="text-[11.5px] clar-text-faint">Newest <%= [ b.runs_count, 20 ].min %> of <%= number_with_delimiter(b.runs_count) %> in <%= b.month.strftime("%B %Y") %></span>
+      </div>
+      <div class="clar-table-head">
+        <span class="w-28">WHEN</span><span class="w-36">AREA</span><span class="flex-1">ITEM</span><span class="w-32">STARTED BY</span>
+        <span class="w-32">MODEL</span><span class="w-20 text-right">COST</span><span class="w-16 text-right">MARGIN</span><span class="w-20 text-right">PRICE</span>
+      </div>
+      <% b.recent_runs.each do |run| %>
+        <div class="flex items-center border-b border-[color:var(--border)] px-5 py-2.5 text-[12.5px]">
+          <span class="w-28 clar-text-faint"><%= consumption_when(run.ran_at) %></span>
+          <span class="w-36 clar-text-muted"><%= AiRun::AREAS[run.area] %></span>
+          <span class="flex-1 min-w-0 truncate clar-text-text">
+            <%= run.item_label %>
+            <% consumption_run_badges(run).each do |badge| %><span class="clar-badge clar-badge-muted !py-[1px] !px-1.5 !text-[10px] ml-1"><%= badge %></span><% end %>
+          </span>
+          <span class="w-32 truncate clar-text-muted"><% if run.automation.present? %><span class="clar-badge clar-badge-ai !py-[1px] !px-1 !text-[9.5px]">AUTO</span> <% end %><%= consumption_started_by(run) %></span>
+          <span class="w-32 truncate clar-text-muted"><%= run.model ? AiModel.name_for(run.model) : "—" %></span>
+          <span class="w-20 text-right clar-mono <%= run.cost_usd ? 'clar-text-muted' : 'font-bold clar-text-warn' %>"><%= run.cost_usd ? AiCostFormatter.money(run.cost_usd) : "unknown" %></span>
+          <span class="w-16 text-right clar-text-faint"><%= run.margin_percent ? number_to_percentage(run.margin_percent, precision: 2, strip_insignificant_zeros: true) : "—" %></span>
+          <span class="w-20 text-right font-semibold <%= run.price_usd ? 'clar-text-text' : 'clar-text-warn' %>"><%= run.price_usd ? AiCostFormatter.money(run.price_usd) : "unknown" %></span>
+        </div>
+      <% end %>
+      <div class="bg-[var(--surface-2)] px-5 py-2.5 text-[11.5px] clar-text-faint">The margin column is the one each run was priced with, not today&rsquo;s.</div>
+    </div>
+  </section>
+</section>

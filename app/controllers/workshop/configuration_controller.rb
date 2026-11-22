@@ -31,7 +31,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
     "users" => :configuration
   }.freeze
 
-  before_action :require_configuration_access!
+  before_action :require_configuration_access!, except: :update_ai_costs
   before_action -> { require_permission!(:configuration) }, only: %i[test_github verify_jira_fields]
   before_action -> { require_permission!(:briefing_config) }, only: :refresh_features
   before_action :redirect_to_a_tab_they_hold, only: :show
@@ -99,12 +99,24 @@ class Workshop::ConfigurationController < Workshop::BaseController
   # request returns immediately — the scan reads the repo and can take a while.
   def refresh_features
     if current_workshop_project
-      ProjectFeaturesScanJob.perform_later(current_workshop_project.id)
+      ProjectFeaturesScanJob.perform_later(current_workshop_project.id, started_by_id: current_user.id)
       flash[:clar_toast] = "Refreshing the app feature summary — this runs in the background."
     else
       flash[:alert] = "No project selected."
     end
     redirect_to workshop_configuration_path(tab: "briefing")
+  end
+
+  # SCRUM-70: the organization's switch for AI cost figures, above every
+  # person's own. An organization administrator's alone; Consumption is never
+  # hidden by it.
+  def update_ai_costs
+    return head :not_found unless workspace_admin?
+
+    shown = params[:ai_costs_enabled] == "1"
+    current_workspace.update!(ai_costs_enabled: shown)
+    flash[:clar_toast] = shown ? "AI costs are now shown in #{current_workspace.name}" : "AI costs are now hidden for everyone in #{current_workspace.name}"
+    redirect_to workshop_configuration_path(tab: "ai")
   end
 
   private

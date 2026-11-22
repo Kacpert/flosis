@@ -152,6 +152,8 @@ Rails.application.routes.draw do
     post "configuration/test_github", to: "configuration#test_github", as: :test_github_configuration
     post "configuration/verify_jira_fields", to: "configuration#verify_jira_fields", as: :verify_jira_fields_configuration
     post "configuration/refresh_features", to: "configuration#refresh_features", as: :refresh_features_configuration
+    patch "configuration/ai_costs", to: "configuration#update_ai_costs", as: :configuration_ai_costs
+    get "consumption", to: "consumption#show", as: :consumption
     resources :discord_webhooks, only: [ :create, :destroy ]
     resources :project_members, only: [ :create, :update, :destroy ]
     resources :projects, only: [ :create ]
@@ -193,11 +195,21 @@ Rails.application.routes.draw do
   namespace :hidmin do
     root "dashboard#show"
     resources :workspaces, path: "organizations", only: %i[index show new create update] do
+      member { patch :assign_plan }
       resources :memberships, only: %i[create update destroy] do
         member { post :resend_invitation }
       end
     end
     resources :users, path: "people", only: %i[index show update]
+    # SCRUM-70: billing — plans, the model price list, and unknown-cost runs
+    # staff have looked at.
+    resources :plans, only: %i[index new create edit update]
+    resources :ai_models, path: "models", only: %i[index update] do
+      collection { post :read }
+    end
+    resources :ai_runs, only: [] do
+      member { patch :looked_at }
+    end
   end
 
   get "up" => "rails/health#show", as: :rails_health_check

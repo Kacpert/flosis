@@ -283,4 +283,35 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
       assert_redirected_to workshop_designs_overview_path(tab: "imports", import: import.id)
     end
   end
+
+  include AiRunTestHelper
+
+  # SCRUM-70: each import says what it cost, on the list and on its page.
+  test "an import shows its AI cost when costs are on" do
+    with_designs do
+      import = first_import([ [ "Bug Reporting", "done" ] ])
+      priced_runs!(import, area: "designs", total: 48.90, this_month: 48.90, project: @project)
+      show_ai_costs!
+
+      get workshop_designs_overview_path(tab: "imports")
+      assert_includes response.body, "$48.90"
+      get workshop_designs_overview_path(tab: "imports", import: import.id)
+      assert_includes response.body, "$48.90"
+    end
+  end
+
+
+  # SCRUM-70: the imports page says what Designs and its imports cost this month.
+  test "the imports page shows what Designs and imports cost this month" do
+    with_designs do
+      first_import([ [ "Bug Reporting", "done" ] ])
+      AiRun.create!(workspace: workspaces(:one), project: @project, area: "designs", automation: "Test", status: "succeeded",
+                    ran_at: Time.current, cost_usd: 182.35, price_usd: 182.35)
+      show_ai_costs!
+
+      get workshop_designs_overview_path(tab: "imports")
+      assert_includes response.body, "Designs and imports · #{Date.current.strftime('%B %Y')} · $182.35 · 1 run"
+    end
+  end
+
 end

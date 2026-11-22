@@ -1,0 +1,7 @@
+<% content_for :title, "New plan · Flosis admin" %>
+<div class="max-w-3xl">
+  <%= link_to "‹ All plans", hidmin_plans_path, class: "text-[12.5px] font-semibold clar-text-muted no-underline" %>
+  <h1 class="clar-h1 mt-2">New plan</h1>
+  <p class="clar-text-muted text-[13px] mt-1 mb-5">A name, a monthly price, a margin, and the models the plan includes.</p>
+  <%= render "form" %>
+</div>

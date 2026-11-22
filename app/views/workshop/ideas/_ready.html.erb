@@ -53,7 +53,12 @@
         <% if idea.external_reference.present? %>
           <span class="clar-key"><%= idea.external_reference %></span>
         <% end %>
-        <span class="font-semibold text-sm clar-text-text flex-1"><%= idea.name %></span>
+        <%# Under the title, what the task's conversation cost in AI (SCRUM-70). %>
+        <span class="flex min-w-0 flex-1 flex-col">
+          <span class="font-semibold text-sm clar-text-text"><%= idea.name %></span>
+          <%= render "workshop/shared/ai_cost", cost: ai_item_cost(ai_figures([ idea ], area: "task_conversations"), idea),
+                     tip: "AI cost of this task's conversation · total, this month in brackets" %>
+        </span>
         <span class="clar-badge <%= @detail_pushed ? "clar-badge-primary" : "clar-badge-warn" %>">
           <%= @detail_pushed ? "IN JIRA" : "LOCAL" %>
         </span>

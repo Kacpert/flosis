@@ -107,7 +107,7 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     task = tasks(:jira_task)
 
     # Manual estimate must force past the estimate-once guard.
-    assert_enqueued_with(job: AutoEstimateJob, args: [ task.id, { force: true } ]) do
+    assert_enqueued_with(job: AutoEstimateJob, args: [ task.id, { force: true, started_by_id: users(:one).id } ]) do
       post estimate_workshop_idea_path(task)
     end
 

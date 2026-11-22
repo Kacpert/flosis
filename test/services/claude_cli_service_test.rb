@@ -2,6 +2,8 @@ require "test_helper"
 require "tmpdir"
 
 class ClaudeCliServiceTest < ActiveSupport::TestCase
+  include AiRunTestHelper
+
   setup do
     @codebase_path = "/tmp/test-codebase"
   end
@@ -30,7 +32,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   # -- build_command tests --
 
   test "build_command includes resume flag when session_id provided" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path)
     cmd = service.send(:build_command, session_id: "abc-123", streaming: false)
 
     assert_kind_of Array, cmd
@@ -40,7 +42,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   end
 
   test "build_command uses array form not string" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path)
     cmd = service.send(:build_command, streaming: true)
 
     assert_kind_of Array, cmd
@@ -50,7 +52,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   end
 
   test "build_command without session_id does not include resume flag" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path)
     cmd = service.send(:build_command, streaming: false)
 
     assert_kind_of Array, cmd
@@ -58,7 +60,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   end
 
   test "build_command non-streaming uses json output format" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path)
     cmd = service.send(:build_command, streaming: false)
 
     assert_includes cmd, "--output-format"
@@ -67,21 +69,21 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   end
 
   test "build_command streaming includes verbose flag" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path)
     cmd = service.send(:build_command, streaming: true)
 
     assert_includes cmd, "--verbose"
   end
 
   test "build_command always includes -p flag" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path)
     cmd = service.send(:build_command, streaming: false)
 
     assert_includes cmd, "-p"
   end
 
   test "with an API key build_command adds --bare and popen_args returns the key as the environment" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path, api_key: "sk-ant-test")
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path, api_key: "sk-ant-test")
     assert_includes service.send(:build_command, streaming: false), "--bare"
     assert_equal [ { "ANTHROPIC_API_KEY" => "sk-ant-test", "CLAUDE_CODE_OAUTH_TOKEN" => nil, "ANTHROPIC_AUTH_TOKEN" => nil },
                    [ "claude" ] ],
@@ -89,20 +91,20 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   end
 
   test "without an API key the command and the environment are unchanged" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path)
     refute_includes service.send(:build_command, streaming: false), "--bare"
     assert_equal [ [ "claude" ] ], service.send(:popen_args, [ "claude" ])
   end
 
   test "an API key that is given but blank is refused, never a silent fallback to the server login" do
     [ "", "  " ].each do |blank|
-      error = assert_raises(ArgumentError) { ClaudeCliService.new(codebase_path: @codebase_path, api_key: blank) }
+      error = assert_raises(ArgumentError) { ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path, api_key: blank) }
       assert_equal "api_key was given but is blank — refusing to fall back to the server's Claude login", error.message
     end
   end
 
   test "a streaming resume with an API key still runs bare" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path, api_key: "sk-ant-test")
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path, api_key: "sk-ant-test")
     cmd = service.send(:build_command, session_id: "abc", streaming: true)
 
     assert_includes cmd, "--bare"
@@ -113,13 +115,13 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   # actually receives, not just what the private helpers return.
 
   test "run_claude with an API key puts the key in the Claude process environment" do
-    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, api_key: "sk-ant-test")
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir, api_key: "sk-ant-test")
 
     assert_equal "sk-ant-test", service.send(:run_claude, [ "sh", "-c", 'printf %s "$ANTHROPIC_API_KEY"' ], "")
   end
 
   test "popen_streaming with an API key puts the key in the Claude process environment" do
-    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, api_key: "sk-ant-test")
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir, api_key: "sk-ant-test")
     lines = []
 
     service.send(:popen_streaming, [ "sh", "-c", 'printf %s "$ANTHROPIC_API_KEY"' ], "") { |line| lines << line }
@@ -131,7 +133,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
     original = ENV["ANTHROPIC_API_KEY"]
     begin
       ENV["ANTHROPIC_API_KEY"] = "sk-ant-parent"
-      service = ClaudeCliService.new(codebase_path: Dir.tmpdir)
+      service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir)
 
       assert_equal "sk-ant-parent", service.send(:run_claude, [ "sh", "-c", 'printf %s "$ANTHROPIC_API_KEY"' ], "")
     ensure
@@ -149,13 +151,13 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   test "a keyed Claude process does not inherit the server's login from the environment" do
     probe = [ "sh", "-c", 'printf "%s|%s" "${CLAUDE_CODE_OAUTH_TOKEN-unset}" "${ANTHROPIC_AUTH_TOKEN-unset}"' ]
     with_env("CLAUDE_CODE_OAUTH_TOKEN" => "oauth-from-parent", "ANTHROPIC_AUTH_TOKEN" => "auth-from-parent") do
-      keyed = ClaudeCliService.new(codebase_path: Dir.tmpdir, api_key: "sk-ant-test")
+      keyed = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir, api_key: "sk-ant-test")
       assert_equal "unset|unset", keyed.send(:run_claude, probe, "")
       lines = []
       keyed.send(:popen_streaming, probe, "") { |line| lines << line }
       assert_equal [ "unset|unset" ], lines - [ :keepalive ]
 
-      keyless = ClaudeCliService.new(codebase_path: Dir.tmpdir)
+      keyless = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir)
       assert_equal "oauth-from-parent|auth-from-parent", keyless.send(:run_claude, probe, "")
     end
   end
@@ -163,7 +165,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   # -- the guard rails a design turn needs --
 
   test "a design turn's command carries every guard rail" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path, api_key: "k", restricted: true,
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path, api_key: "k", restricted: true,
                                    append_system_prompt_file: "/tmp/p.md", add_dirs: [ "/srv/app" ],
                                    max_budget_usd: "5", allowed_tools: %w[Read Glob Grep Edit Write])
     cmd = service.send(:build_command, streaming: false)
@@ -175,14 +177,14 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   end
 
   test "a new session can be given its id up front" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path)
     cmd = service.send(:build_command, streaming: false, new_session_id: "11111111-2222-3333-4444-555555555555")
     assert_equal "11111111-2222-3333-4444-555555555555", cmd[cmd.index("--session-id") + 1]
   end
 
   # Every existing caller passes none of the new options.
   test "without the new options the command is exactly what it was" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path)
     allowed = ClaudeCliService::ALLOWED_TOOLS.flat_map { |tool| [ "--allowedTools", tool ] }
 
     assert_equal [ "claude", "-p", "--output-format", "json", *allowed ], service.send(:build_command, streaming: false)
@@ -191,7 +193,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   end
 
   test "the guard rails are the service's, so a streaming run carries them too" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path, restricted: true, add_dirs: [ "/srv/app" ])
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path, restricted: true, add_dirs: [ "/srv/app" ])
     cmd = service.send(:build_command, session_id: "abc", streaming: true)
 
     assert_includes cmd, "--restricted"
@@ -199,7 +201,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   end
 
   test "--add-dir is given once per directory, in the order they were passed" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path, add_dirs: [ "/srv/app", "/srv/shared" ])
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path, add_dirs: [ "/srv/app", "/srv/shared" ])
     cmd = service.send(:build_command, streaming: false)
 
     assert_equal [ [ "--add-dir", "/srv/app" ], [ "--add-dir", "/srv/shared" ] ],
@@ -209,7 +211,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   # IO.popen takes strings only, so a number has to reach the command as one.
   test "the budget may be given as a number" do
     [ [ 5, "5" ], [ 2.5, "2.5" ] ].each do |given, expected|
-      cmd = ClaudeCliService.new(codebase_path: @codebase_path, max_budget_usd: given).send(:build_command, streaming: false)
+      cmd = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path, max_budget_usd: given).send(:build_command, streaming: false)
 
       assert_equal expected, cmd[cmd.index("--max-budget-usd") + 1]
     end
@@ -220,21 +222,21 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   test "a budget or a timeout that is given but unusable is refused, never quietly dropped" do
     [ "", "  ", "abc", 0, "0", -1, "-2" ].each do |budget|
       error = assert_raises(ArgumentError, "max_budget_usd: #{budget.inspect}") do
-        ClaudeCliService.new(codebase_path: @codebase_path, max_budget_usd: budget)
+        ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path, max_budget_usd: budget)
       end
       assert_match(/\Amax_budget_usd must be a positive number of dollars, got /, error.message)
     end
 
     [ 0, -1, "900", "", Float::NAN ].each do |timeout|
       error = assert_raises(ArgumentError, "timeout: #{timeout.inspect}") do
-        ClaudeCliService.new(codebase_path: @codebase_path, timeout: timeout)
+        ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path, timeout: timeout)
       end
       assert_match(/\Atimeout must be a positive number of seconds, got /, error.message)
     end
   end
 
   test "uses codebase_path from initializer" do
-    service = ClaudeCliService.new(codebase_path: "/custom/path")
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: "/custom/path")
 
     assert_equal "/custom/path", chdir_for(service)
   end
@@ -244,7 +246,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
     begin
       ENV["CHAT_CODEBASE_PATH"] = "/env/codebase"
 
-      assert_equal "/env/codebase", chdir_for(ClaudeCliService.new)
+      assert_equal "/env/codebase", chdir_for(ClaudeCliService.new(attribution: ai_attribution))
     ensure
       if original_env
         ENV["CHAT_CODEBASE_PATH"] = original_env
@@ -354,7 +356,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   end
 
   test "resume_session reports a missing CLI as ClaudeCliError" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path)
     service.define_singleton_method(:run_claude) { |_cmd, _message| raise Errno::ENOENT }
 
     error = assert_raises(ClaudeCliService::ClaudeCliError) { service.resume_session(session_id: "abc", prompt: "Hi") }
@@ -364,21 +366,21 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   # -- timeout tests (these run real processes) --
 
   test "a run past its timeout is killed and raises" do
-    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 0.3)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir, timeout: 0.3)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     assert_raises(ClaudeCliService::TimeoutError) { service.send(:run_claude, [ "sleep", "10" ], "") }
     assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 7
   end
 
   test "a run that finishes within its timeout returns its output" do
-    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 30)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir, timeout: 30)
 
     assert_equal "hello", service.send(:run_claude, [ "cat" ], "hello")
   end
 
   # sleep never reads its stdin, so a prompt this size blocks in the write.
   test "the timeout covers handing over the prompt as well" do
-    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 0.3)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir, timeout: 0.3)
     started = monotonic
 
     assert_raises(ClaudeCliService::TimeoutError) { service.send(:run_claude, [ "sleep", "10" ], "x" * 1_000_000) }
@@ -386,14 +388,35 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   end
 
   test "the timeout error says how long the run was given" do
-    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 0.3)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir, timeout: 0.3)
 
     error = assert_raises(ClaudeCliService::TimeoutError) { service.send(:run_claude, [ "sleep", "10" ], "") }
     assert_includes error.message, "0.3 seconds"
   end
 
-  test "a child is told to stop with TERM first, so it can clean up" do
+  # SCRUM-70: INT, not TERM, is what makes the CLI print its result — and with
+  # it what the run cost — before it goes.
+  test "a child is told to stop with INT first, so it can report what it used" do
     script = <<~'SH'
+      trap 'echo interrupted > "$0"; exit 0' INT
+      echo ready
+      while :; do sleep 0.05; done
+    SH
+
+    Dir.mktmpdir do |dir|
+      marker = File.join(dir, "interrupted")
+      with_child([ "sh", "-c", script, marker ]) do |child|
+        assert_equal "ready\n", child.gets, "the trap is in place from here on"
+        ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir).send(:stop_child, child.pid)
+      end
+
+      assert_equal "interrupted\n", File.read(marker)
+    end
+  end
+
+  test "a child that ignores INT gets TERM once the INT grace is over, so it can clean up" do
+    script = <<~'SH'
+      trap '' INT
       trap 'echo terminated > "$0"; exit 0' TERM
       echo ready
       while :; do sleep 0.05; done
@@ -402,21 +425,21 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
     Dir.mktmpdir do |dir|
       marker = File.join(dir, "terminated")
       with_child([ "sh", "-c", script, marker ]) do |child|
-        assert_equal "ready\n", child.gets, "the trap is in place from here on"
-        ClaudeCliService.new(codebase_path: Dir.tmpdir).send(:stop_child, child.pid)
+        assert_equal "ready\n", child.gets, "the traps are in place from here on"
+        ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir).send(:stop_child, child.pid, int_grace: 0.2)
       end
 
       assert_equal "terminated\n", File.read(marker)
     end
   end
 
-  test "a child that ignores TERM is killed once the grace period is over" do
-    service = ClaudeCliService.new(codebase_path: Dir.tmpdir)
+  test "a child that ignores INT and TERM is killed once the grace period is over" do
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir)
 
-    with_child([ "sh", "-c", 'trap "" TERM; echo ready; exec sleep 30' ]) do |child|
-      assert_equal "ready\n", child.gets, "TERM is ignored from here on"
+    with_child([ "sh", "-c", 'trap "" INT TERM; echo ready; exec sleep 30' ]) do |child|
+      assert_equal "ready\n", child.gets, "INT and TERM are ignored from here on"
       started = monotonic
-      service.send(:stop_child, child.pid, grace: 0.3)
+      service.send(:stop_child, child.pid, grace: 0.3, int_grace: 0.1)
       elapsed = monotonic - started
 
       assert_operator elapsed, :>=, 0.2, "it was given its grace period, not killed at once"
@@ -429,7 +452,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
     IO.popen([ "sh", "-c", "exit 0" ]) do |child|
       child.read # EOF: the child is done, though nobody has waited for it yet
 
-      assert_nothing_raised { ClaudeCliService.new(codebase_path: Dir.tmpdir).send(:stop_child, child.pid) }
+      assert_nothing_raised { ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir).send(:stop_child, child.pid) }
     end
   end
 
@@ -438,7 +461,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
       child.read
       Process.wait(child.pid)
 
-      assert_nothing_raised { ClaudeCliService.new(codebase_path: Dir.tmpdir).send(:stop_child, child.pid) }
+      assert_nothing_raised { ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir).send(:stop_child, child.pid) }
     end
   end
 
@@ -473,7 +496,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   # -- a design turn's exact tool set --
 
   test "a run can be given its exact set of tools, which leaves out every other one" do
-    service = ClaudeCliService.new(codebase_path: @codebase_path, tools: %w[Read Glob Grep Edit Write])
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path, tools: %w[Read Glob Grep Edit Write])
     cmd = service.send(:build_command, streaming: true)
 
     assert_equal "Read,Glob,Grep,Edit,Write", cmd[cmd.index("--tools") + 1]
@@ -483,10 +506,10 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   # (Designs::TurnJob): the level reaches the CLI as --effort, and a call that
   # sets none leaves the CLI's default.
   test "an effort level reaches the CLI, and none is passed by default" do
-    cmd = ClaudeCliService.new(codebase_path: @codebase_path, effort: "medium").send(:build_command, streaming: true)
+    cmd = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path, effort: "medium").send(:build_command, streaming: true)
     assert_equal "medium", cmd[cmd.index("--effort") + 1]
 
-    cmd = ClaudeCliService.new(codebase_path: @codebase_path).send(:build_command, streaming: true)
+    cmd = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path).send(:build_command, streaming: true)
     assert_not_includes cmd, "--effort"
   end
 
@@ -575,7 +598,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   # -- stream_claude (these run real processes) --
 
   test "stream_claude hands over each JSON line the CLI prints, and skips what is not JSON" do
-    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 30)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir, timeout: 30)
     script = %q(cat > /dev/null; printf '%s\n' '{"type":"a"}' 'noise' '{"type":"b","n":1}')
     seen = []
 
@@ -585,7 +608,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   end
 
   test "stream_claude ticks while the CLI is quiet, so the caller can look up from waiting" do
-    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 30)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir, timeout: 30)
     seen = []
 
     service.send(:stream_claude, [ "sh", "-c", %q(sleep 0.5; printf '{"type":"a"}\n') ], "", tick: 0.1) { |event| seen << event }
@@ -594,7 +617,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   end
 
   test "a streamed run past its timeout is stopped and raises" do
-    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 0.3)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir, timeout: 0.3)
     started = monotonic
 
     error = assert_raises(ClaudeCliService::TimeoutError) { service.send(:stream_claude, [ "sleep", "10" ], "") { |_event| } }
@@ -603,7 +626,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   end
 
   test "the streamed run's timeout covers handing over the prompt as well" do
-    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 0.3)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir, timeout: 0.3)
     started = monotonic
 
     assert_raises(ClaudeCliService::TimeoutError) { service.send(:stream_claude, [ "sleep", "10" ], "x" * 1_000_000) { |_event| } }
@@ -611,18 +634,20 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   end
 
   # How a turn is stopped on request: its block raises, and the CLI must not run on.
+  # The stand-in execs sleep, so the INT reaches it as it reaches the real CLI
+  # (a shell waiting on a child would hold the INT until the child ends).
   test "an error the caller's block raises stops the CLI and goes up to the caller" do
-    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 30)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir, timeout: 30)
     started = monotonic
 
     assert_raises(ArgumentError) do
-      service.send(:stream_claude, [ "sh", "-c", %q(printf '{"type":"a"}\n'; sleep 10) ], "") { |_event| raise ArgumentError, "stop" }
+      service.send(:stream_claude, [ "sh", "-c", %q(printf '{"type":"a"}\n'; exec sleep 10) ], "") { |_event| raise ArgumentError, "stop" }
     end
     assert_operator monotonic - started, :<, 7
   end
 
   test "stream_claude reports a missing CLI as ClaudeCliError" do
-    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 30)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir, timeout: 30)
 
     assert_raises(ClaudeCliService::ClaudeCliError) { service.send(:stream_claude, [ "/nonexistent/claude-cli" ], "") { |_event| } }
   end
@@ -666,7 +691,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   # `answer`: [ service, ran ], with ran[:cmd] and ran[:message] filled in by a run.
   def recording_service(answer, **options)
     ran = {}
-    service = ClaudeCliService.new(codebase_path: @codebase_path, **options)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path, **options)
     service.define_singleton_method(:run_claude) do |cmd, message|
       ran[:cmd] = cmd
       ran[:message] = message
@@ -684,7 +709,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   # [ service, ran ], with ran[:cmd] and ran[:message] filled in by a run.
   def streaming_service(events, **options)
     ran = {}
-    service = ClaudeCliService.new(codebase_path: @codebase_path, **options)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path, **options)
     service.define_singleton_method(:stream_claude) do |cmd, message, **_opts, &block|
       ran[:cmd] = cmd
       ran[:message] = message
@@ -697,7 +722,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
 
   # Build a testable subclass that overrides IO interactions
   def build_fake_service(run_claude_output: nil, streaming_lines: nil)
-    service = ClaudeCliService.new(codebase_path: @codebase_path)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: @codebase_path)
 
     if run_claude_output
       service.define_singleton_method(:run_claude) { |_cmd, _message| run_claude_output }
@@ -716,7 +741,7 @@ class ClaudeCliServiceTest < ActiveSupport::TestCase
   # reads a long prompt: that is a run with no answer, which a turn can start
   # afresh, not a broken pipe.
   test "a CLI that quits before reading the prompt streams nothing, and the write does not fail" do
-    service = ClaudeCliService.new(codebase_path: Dir.tmpdir, timeout: 30)
+    service = ClaudeCliService.new(attribution: ai_attribution, codebase_path: Dir.tmpdir, timeout: 30)
     seen = []
 
     service.send(:stream_claude, [ "sh", "-c", "exit 0" ], "x" * 1_000_000) { |event| seen << event }

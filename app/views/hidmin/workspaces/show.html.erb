@@ -1,4 +1,4 @@
-<% content_for :title, "#{@workspace.name_was} · Hidmin" %>
+<% content_for :title, "#{@workspace.name_was} · Flosis admin" %>
 <% sign_ins = last_sign_ins(@memberships.map(&:user_id)) %>
 
 <div class="mb-6">
@@ -10,6 +10,8 @@
     <%= pluralize(@projects.count { !_1.archived? }, "active project") %>
   </p>
 </div>
+
+<%= render "billing" %>
 
 <section class="mb-8">
   <h2 class="clar-section-label mb-2.5">People</h2>

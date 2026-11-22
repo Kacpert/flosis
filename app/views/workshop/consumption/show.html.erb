@@ -1,0 +1,28 @@
+<% content_for :title, "Consumption · Flosis" %>
+<%# Consumption (SCRUM-70): the organization's AI spend against its plan —
+    after the accepted designs consumption*.html, in dollars. %>
+<% limit = @summary.limit %>
+<div class="max-w-[1040px]">
+  <div class="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[.4px] clar-text-warn bg-[color:var(--warn-soft)] py-[3px] px-[9px] rounded-[6px] mb-2.5">ORGANIZATION ADMINISTRATORS ONLY</div>
+  <h1 class="clar-h1">Consumption</h1>
+  <p class="clar-sub">
+    Every AI run in <b class="clar-text-text"><%= current_workspace.name %></b> &mdash; all projects &mdash;
+    <%= current_workspace.ai_plan ? "priced on your plan" : "priced as it ran" %>. Month means calendar month, and a past month never changes.
+  </p>
+
+  <%= render "workshop/consumption/period" %>
+
+  <% if @all_time %>
+    <%= render "workshop/consumption/all_time" %>
+  <% else %>
+    <% if limit&.limit_usd && @summary.total > limit.limit_usd %>
+      <div class="mb-4.5 flex items-start gap-2 rounded-[12px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4.5 py-3 text-[13px] clar-text-text" data-over-limit>
+        <b class="clar-text-warn">Over the limit by <%= AiCostFormatter.money(@summary.total - limit.limit_usd) %>.</b>
+        Nothing was blocked and no run was refused &mdash; <%= @month.strftime("%B") %> simply cost more than the plan.
+      </div>
+    <% end %>
+    <%= render "workshop/consumption/plan_card", limit: limit %>
+    <%= render "workshop/consumption/tables", period: @month.strftime("%B %Y") %>
+    <%= render "workshop/consumption/runs" %>
+  <% end %>
+</div>

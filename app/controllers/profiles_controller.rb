@@ -17,7 +17,7 @@ class ProfilesController < ApplicationController
       end
     end
 
-    user_params = params.require(:user).permit(:name, :email_address, :timezone)
+    user_params = params.require(:user).permit(:name, :email_address, :timezone, :show_ai_costs)
 
     # Handle password change
     if params[:user][:password].present?
@@ -26,13 +26,22 @@ class ProfilesController < ApplicationController
     end
 
     if current_user.update(user_params)
-      redirect_to profile_path, notice: "Profile updated."
+      redirect_to profile_path, notice: ai_costs_only?(user_params) ? ai_costs_notice : "Profile updated."
     else
       render :show, status: :unprocessable_entity
     end
   end
 
   private
+
+  # The AI costs card saves on its own, the moment it is flipped (SCRUM-70).
+  def ai_costs_only?(user_params)
+    user_params.keys == [ "show_ai_costs" ]
+  end
+
+  def ai_costs_notice
+    current_user.show_ai_costs? ? "AI costs are shown on your screens." : "AI costs are hidden on your screens."
+  end
 
   # One row per project this person can reach, each able to answer what they
   # may do there. workshop_projects and not the workspace's own projects: every

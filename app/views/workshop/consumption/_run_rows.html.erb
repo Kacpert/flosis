@@ -1,0 +1,31 @@
+<%# A page of runs, and — when there are more — the frame that fetches the next
+    page in its place (Show 50 more). %>
+<%# locals: (runs:, offset:) %>
+<% runs.each do |run| %>
+  <% unknown = run.price_usd.nil? %>
+  <div class="flex items-center border-b border-[color:var(--border)] px-4.5 py-[11px] <%= 'bg-[color:var(--warn-soft)]' if unknown %>" data-run-row>
+    <span class="w-28 flex-none text-[12.5px] clar-text-faint"><%= consumption_when(run.ran_at) %></span>
+    <span class="w-40 flex-none text-[12.5px] clar-text-muted"><%= AiRun::AREAS[run.area] %></span>
+    <span class="min-w-0 flex-1 truncate text-[13.5px] clar-text-text">
+      <%= run.item_label.presence || AiRun::AREAS[run.area] %>
+      <% consumption_run_badges(run).each do |badge| %>
+        <span class="clar-badge clar-badge-muted !py-[1px] !px-1.5 !text-[10px] ml-1"><%= badge %></span>
+      <% end %>
+    </span>
+    <span class="w-40 flex-none truncate text-[12.5px] clar-text-muted">
+      <% if run.automation.present? %><span class="clar-badge clar-badge-ai !py-[1px] !px-1.5 !text-[10px]">AUTOMATION</span><% end %>
+      <%= consumption_started_by(run) %>
+    </span>
+    <span class="w-52 flex-none clar-mono text-[11.5px] clar-text-faint"><%= AiCostFormatter.tokens(run) %></span>
+    <span class="w-24 flex-none text-right text-[13.5px] <%= unknown ? 'font-bold clar-text-warn' : (run.own_key ? 'clar-text-muted' : 'font-semibold clar-text-text') %>" data-run-price><%= unknown ? "unknown" : AiCostFormatter.money(run.price_usd) %></span>
+  </div>
+<% end %>
+<% next_offset = offset + Workshop::ConsumptionController::PAGE %>
+<% if runs.size == Workshop::ConsumptionController::PAGE %>
+  <turbo-frame id="consumption_runs_<%= next_offset %>">
+    <div class="px-4.5 py-3 text-center">
+      <%= link_to "Show 50 more", workshop_consumption_path(month: @month.strftime("%Y-%m"), offset: next_offset),
+            class: "clar-btn !py-1.5 !px-3.5 !text-[12.5px] no-underline" %>
+    </div>
+  </turbo-frame>
+<% end %>

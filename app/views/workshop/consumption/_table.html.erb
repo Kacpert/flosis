@@ -1,0 +1,39 @@
+<%# A Consumption table: rows of [label, runs, amount, priced runs] — a row none
+    of whose runs reported a cost reads "unknown", never $0.00 — their total, and
+    anything outside the total (own-key projects) under it. %>
+<%# locals: (title:, period:, column:, rows:, total:, total_runs:, aside: [], aside_note: nil) %>
+<section class="clar-card overflow-hidden">
+  <div class="flex items-baseline justify-between border-b border-[color:var(--border)] px-4.5 py-3.5">
+    <h2 class="m-0 text-[14px] font-bold clar-text-text"><%= title %></h2>
+    <span class="text-[11.5px] clar-text-faint"><%= period %></span>
+  </div>
+  <div class="flex border-b border-[color:var(--border)] px-4.5 py-2.5 text-[11px] font-bold tracking-[.4px] clar-text-faint">
+    <span class="flex-1"><%= column %></span>
+    <span class="w-16 text-right">RUNS</span>
+    <span class="w-24 text-right">PRICE</span>
+  </div>
+  <% rows.each do |label, runs, amount, priced| %>
+    <% unknown = runs.positive? && priced.to_i.zero? %>
+    <div class="flex items-center border-b border-[color:var(--border)] px-4.5 py-[11px]" data-consumption-row>
+      <span class="min-w-0 flex-1 truncate text-[13.5px] clar-text-text"><%= label %></span>
+      <span class="w-16 text-right text-[12.5px] clar-text-faint"><%= number_with_delimiter(runs) %></span>
+      <span class="w-24 text-right text-[13.5px] font-semibold <%= unknown ? 'clar-text-warn' : 'clar-text-text' %>"><%= unknown ? "unknown" : AiCostFormatter.money(amount) %></span>
+    </div>
+  <% end %>
+  <div class="flex items-center bg-[var(--surface-2)] px-4.5 py-3" data-consumption-total>
+    <span class="min-w-0 flex-1 text-[13.5px] font-bold clar-text-text">Total</span>
+    <span class="w-16 text-right text-[12.5px] clar-text-muted"><%= number_with_delimiter(total_runs) %></span>
+    <span class="w-24 text-right text-[13.5px] font-bold clar-text-text"><%= AiCostFormatter.sum(total, runs: total_runs, priced: rows.sum { |row| row[3].to_i }) %></span>
+  </div>
+  <% aside.each do |label, runs, amount, _priced| %>
+    <div class="flex items-center gap-2.5 border-t border-[color:var(--border)] px-4.5 py-[11px]" data-own-key-row>
+      <span class="min-w-0 flex-1 truncate text-[13.5px] clar-text-muted"><%= label %></span>
+      <span class="clar-badge clar-badge-muted !py-[3px] !px-2">OWN KEY</span>
+      <span class="w-16 text-right text-[12.5px] clar-text-faint"><%= number_with_delimiter(runs) %></span>
+      <span class="w-24 text-right text-[13.5px] clar-text-muted"><%= AiCostFormatter.money(amount) %></span>
+    </div>
+  <% end %>
+  <% if aside.any? && aside_note %>
+    <p class="m-0 px-4.5 pt-1 pb-3.5 text-[11.5px] leading-[1.4] clar-text-faint"><%= aside_note %></p>
+  <% end %>
+</section>

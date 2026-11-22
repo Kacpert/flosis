@@ -19,7 +19,9 @@ class Designs::DescribeJob < ApplicationJob
                      key: ->(turn_id) { Designs::TurnJob.concurrency_key_for_session(DesignTurn.find(turn_id).chat_session) }
 
   # Stop (the turn's button) reaches the job between ticks.
-  class Stopped < StandardError; end
+  class Stopped < StandardError
+    include ClaudeCliService::StopSignal # SCRUM-70: recorded as stopped, not failed
+  end
 
   BLOCK = %r{<description>(.*?)</description>}m
   CHANGES = %r{<changes>(.*?)</changes>}m
@@ -122,7 +124,8 @@ class Designs::DescribeJob < ApplicationJob
     cli = self.class.claude_factory.call(
       codebase_path: ChatStreaming::NO_CODEBASE_DIR.to_s, tools: [], allowed_tools: [],
       api_key: ProjectCredentials.new(task.project).designs_api_key, max_budget_usd: DesignTurn::DESCRIBE_BUDGET_USD,
-      timeout: DesignTurn::DESCRIBE_TIMEOUT_SECONDS, effort: DesignTurn::DESCRIBE_EFFORT
+      timeout: DesignTurn::DESCRIBE_TIMEOUT_SECONDS, effort: DesignTurn::DESCRIBE_EFFORT,
+      attribution: AiRun::Attribution.for_describe(turn, user: turn.chat_message.user)
     )
     result = cli.start_session(prompt: prompt) do |event|
       raise Stopped if event == :tick && DesignTurn.where(id: turn.id).where.not(stop_requested_at: nil).exists?

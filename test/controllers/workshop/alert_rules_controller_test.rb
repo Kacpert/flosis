@@ -224,7 +224,7 @@ class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
   test "run_now enqueues a run of the rule straight away and toasts" do
     rule = create_rule("Sprint capacity watch")
 
-    assert_enqueued_with(job: AlertRuleRunJob, args: [ rule.id ]) do
+    assert_enqueued_with(job: AlertRuleRunJob, args: [ rule.id, { started_by_id: users(:one).id } ]) do
       post run_now_workshop_alert_rule_path(rule)
     end
 
@@ -239,7 +239,7 @@ class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
     rule = create_rule("Paused watch")
     rule.update_column(:active, false)
 
-    assert_enqueued_with(job: AlertRuleRunJob, args: [ rule.id ]) do
+    assert_enqueued_with(job: AlertRuleRunJob, args: [ rule.id, { started_by_id: users(:one).id } ]) do
       post run_now_workshop_alert_rule_path(rule)
     end
 

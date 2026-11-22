@@ -21,11 +21,14 @@ class AlertRuleRunJob < ApplicationJob
   # tickets). While a rule is running, further enqueues of it are dropped; once
   # it finishes, last_run_at is current and the rule is no longer due. The
   # duration only bounds a lock whose run was killed mid-way.
-  limits_concurrency to: 1, key: ->(alert_rule_id) { alert_rule_id }, duration: 1.hour, on_conflict: :discard
+  limits_concurrency to: 1, key: ->(alert_rule_id, **) { alert_rule_id }, duration: 1.hour, on_conflict: :discard
 
   CLI_FAILURE_MARKERS = /\b(401|403|429|invalid authentication|failed to authenticate|api error|credit balance|rate limit|usage limit|overloaded|unauthorized)\b/i
 
-  def perform(alert_rule_id)
+  # started_by_id: the person who pressed Run now; a scheduled run is the
+  # rule's own (SCRUM-70).
+  def perform(alert_rule_id, started_by_id: nil)
+    @started_by = User.find_by(id: started_by_id) if started_by_id
     rule = AlertRule.find_by(id: alert_rule_id)
     return unless rule
 
@@ -101,7 +104,8 @@ class AlertRuleRunJob < ApplicationJob
     service = ClaudeCliService.new(
       codebase_path: codebase,
       allowed_tools: ClaudeCliService::AUTOMATION_TOOLS,
-      mcp_config: (ProjectMcpConfig.path_for(project) if project.workspace_dir.present?)
+      mcp_config: (ProjectMcpConfig.path_for(project) if project.workspace_dir.present?),
+      attribution: AiRun::Attribution.for_alert_rule(rule, user: @started_by)
     )
     service.start_session(prompt: prompt)[:response].to_s.tap do |response|
       if cli_failed?(response)

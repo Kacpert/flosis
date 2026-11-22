@@ -408,4 +408,22 @@ class PrReviewJobTest < ActiveJob::TestCase
     assert_includes prompt, "AT MOST 5 items"
     refute_includes prompt, "{{"
   end
+
+  include AiRunTestHelper
+
+  # SCRUM-70
+  test "a PR review run is the PR review automation's" do
+    fake = fake_github(pr: pr_payload(sha: "abc"))
+    with_github(fake) do
+      with_attributed_ai("[]") do |seen|
+        PrReviewJob.perform_now(@project.id, 7, "initial")
+        review = PrReview.find_by!(project: @project, pr_number: 7)
+        assert_equal review, seen.last.item
+        assert_equal "pr_reviews", seen.last.area
+        assert_equal "PR review", seen.last.automation
+        assert seen.last.item_label.start_with?("#7")
+      end
+    end
+  end
+
 end
