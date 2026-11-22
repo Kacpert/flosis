@@ -1,0 +1,18 @@
+<%# Only for somebody in more than one organization (design component
+    organizations-card): the profile is where a person with nothing to open
+    lands, so whoever has a second organization switches back from here. %>
+<% others = current_user.workspaces.where.not(id: current_workspace.id).order(:name).to_a %>
+<% if others.any? %>
+  <section class="clar-card mb-4.5 p-4.5" data-organizations-card>
+    <h2 class="m-0 text-[14px] font-bold clar-text-text">Organizations</h2>
+    <p class="mt-1 mb-3.5 text-[12.5px] leading-[1.4] clar-text-muted">
+      You are in <b class="font-bold clar-text-text"><%= current_workspace.name %></b>. Switch to another of yours:
+    </p>
+    <div class="flex flex-wrap gap-2">
+      <% others.each do |workspace| %>
+        <%= button_to "Switch to #{workspace.name}", switch_workspace_path(workspace), method: :post,
+              params: { product: "workshop" }, class: "clar-btn" %>
+      <% end %>
+    </div>
+  </section>
+<% end %>

@@ -1,0 +1,57 @@
+<%# "What am I allowed to see?", answered per project (design components
+    access-card, access-project-card, access-permission). Nothing here is
+    editable: permissions are set per project by an administrator. The
+    sentences come from PermissionPreset, the same ones the Users grid uses. %>
+<section class="clar-card mt-4.5 p-4.5" data-access-card>
+  <h2 class="m-0 text-[14px] font-bold clar-text-text">Your access</h2>
+  <p class="mt-1 mb-3.5 text-[12.5px] leading-[1.4] clar-text-muted">
+    Permissions are set per project. To change them, ask an administrator &mdash; they are on each project&rsquo;s
+    Configuration &rsaquo; Users.
+  </p>
+
+  <% if @access_rows.empty? %>
+    <%# Three different facts, and saying the wrong one is worse than saying nothing. %>
+    <p class="m-0 text-[12.5px] leading-[1.4] clar-text-muted" data-access-empty>
+      <% if workspace_admin? %>
+        There are no projects in this workspace yet.
+      <% elsif @memberships_without_access %>
+        Your hours and hourly rate attach to the projects you are on, but none of them gives you any Workshop
+        access yet.
+      <% else %>
+        You are not on any project yet.
+      <% end %>
+    </p>
+  <% else %>
+    <div class="flex flex-col gap-3.5">
+      <% @access_rows.each do |access| %>
+        <% role = access.role_label %>
+        <% tone = case role when "Administrator" then "clar-badge-warn" when "No access" then "clar-badge-muted" else "clar-badge-primary" end %>
+        <div class="rounded-[12px] border border-[color:var(--border)] p-3.5" data-access-project="<%= access.project.id %>">
+          <div class="mb-3 flex items-baseline justify-between gap-3">
+            <span class="text-[13.5px] font-semibold clar-text-text"><%= access.project.name %></span>
+            <span class="clar-badge <%= tone %> flex-none whitespace-nowrap"><%= role %></span>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <% PermissionPreset::PERMISSIONS.each do |permission| %>
+              <% held = access.can?(permission) %>
+              <%# A line you do not hold is muted by colour and by the cross, never
+                  dimmed: its sentence is the one you need in order to ask for it. %>
+              <div class="flex items-start gap-2.5 text-[13.5px]" data-held="<%= held %>">
+                <span aria-hidden="true" class="mt-px flex-none <%= held ? "clar-text-success" : "clar-text-faint" %>">
+                  <% if held %>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+                  <% else %>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                  <% end %>
+                </span>
+                <span class="w-44 flex-none font-semibold <%= held ? "clar-text-text" : "clar-text-muted" %>"><%= PermissionPreset.label(permission) %><span class="sr-only">, <%= held ? "allowed" : "not allowed" %></span></span>
+                <span class="min-w-0 flex-1 leading-[1.4] clar-text-muted"><%= PermissionPreset.description(permission) %></span>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</section>

@@ -58,7 +58,8 @@
             <%= yield %>
           <% else %>
             <div class="max-w-[1560px] mx-auto px-[30px] pt-[26px] pb-[60px]">
-              <%= render "layouts/clar_flash" %>
+              <%# A page with a column of its own (Profile Settings) puts the flash in it. %>
+              <%= render "layouts/clar_flash" unless content_for?(:clar_own_flash) %>
               <%= yield %>
             </div>
           <% end %>
