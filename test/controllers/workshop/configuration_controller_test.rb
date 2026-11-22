@@ -731,4 +731,31 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name='project[anthropic_api_key]'][placeholder$=?]", %("<i>)
     assert_select ".clar-card i", count: 0
   end
+
+  # SCRUM-70: the organization's switch, above every personal one.
+  test "an organization admin hides costs for everyone" do
+    patch workshop_configuration_ai_costs_path, params: { ai_costs_enabled: "0" }
+    assert_redirected_to workshop_configuration_path(tab: "ai")
+    refute workspaces(:one).reload.ai_costs_enabled?
+    assert_equal "AI costs are now hidden for everyone in Test Workspace", flash[:clar_toast]
+
+    patch workshop_configuration_ai_costs_path, params: { ai_costs_enabled: "1" }
+    assert workspaces(:one).reload.ai_costs_enabled?
+    assert_equal "AI costs are now shown in Test Workspace", flash[:clar_toast]
+  end
+
+  test "a non-admin cannot flip the organization switch" do
+    sign_in_as(users(:two))
+    patch workshop_configuration_ai_costs_path, params: { ai_costs_enabled: "0" }
+    assert_response :not_found
+    assert workspaces(:one).reload.ai_costs_enabled?
+  end
+
+  test "the AI tab shows the organization switch and explains own key per run" do
+    get workshop_configuration_path(tab: "ai")
+    assert_includes response.body, "AI costs in the product"
+    assert_includes response.body, "Hidden for everyone"
+    assert_includes response.body, "Other AI features run on Flosis and count as usual"
+  end
+
 end

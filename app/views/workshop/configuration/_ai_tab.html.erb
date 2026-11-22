@@ -22,6 +22,39 @@
           placeholder: anthropic_key.present? ? "sk-ant-&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;#{anthropic_key.last(4)}".html_safe : "Not set",
           autocomplete: "new-password", class: "clar-input clar-mono mb-1.5", data: { action: "change->auto-save#save" } %>
     <div class="text-[11px] clar-text-faint">Write-only &mdash; leave blank to keep the current key.</div>
+    <%# SCRUM-70: own key is judged per run — only Designs runs on this key today. %>
+    <div class="mt-2.5 border-t border-[color:var(--border)] pt-2.5 text-[11px] leading-[1.5] clar-text-faint">
+      Designs runs on this key, so its runs are recorded and shown on Consumption, marked
+      <b class="font-semibold clar-text-text">own key</b>, and do not count toward the organization&rsquo;s monthly
+      limit. Other AI features run on Flosis and count as usual.
+    </div>
+  </div>
+
+  <%# The organization's own switch, above every personal one: with it off nobody
+      sees a price anywhere, however they have set their profile. A sentence and
+      two choices, not a toggle that flips something this wide without saying
+      so. Its buttons submit a form of their own (below), not this one. %>
+  <% costs_shown = current_workspace.ai_costs_enabled? %>
+  <div class="clar-card p-4.5" data-ai-costs-switch>
+    <div class="font-bold text-[14px] clar-text-text mb-1">AI costs in the product</div>
+    <div class="text-[12.5px] clar-text-muted mb-3.5">
+      Whether anybody in <b class="font-semibold clar-text-text"><%= current_workspace.name %></b> may see what
+      Claude costs &mdash; on a conversation, a PR review, an estimate, a design thread, an import, a bug analysis,
+      and in each area&rsquo;s month. Each person then chooses for themselves on their
+      <%= link_to "Profile settings", profile_path, class: "font-semibold clar-text-primary no-underline" %>;
+      costs stay hidden until they do.
+    </div>
+    <div class="clar-tabs p-[3px] gap-[3px] w-fit">
+      <% [ [ "Shown", "1", costs_shown ], [ "Hidden for everyone", "0", !costs_shown ] ].each do |label, value, current| %>
+        <button type="submit" form="ai-costs-form" name="ai_costs_enabled" value="<%= value %>"
+                class="clar-tab text-[12.5px] py-[6px] px-[14px] border-0 cursor-pointer disabled:cursor-not-allowed <%= 'clar-tab-active' if current %>"
+                <%= 'aria-current="true"'.html_safe if current %> <%= "disabled" unless workspace_admin? %>><%= label %></button>
+      <% end %>
+    </div>
+    <div class="mt-3 text-[11px] clar-text-faint">
+      Consumption is never hidden by this: an organization administrator always sees the organization&rsquo;s total.
+      <% unless workspace_admin? %>Only an organization administrator can change it.<% end %>
+    </div>
   </div>
 
   <div class="clar-card p-4.5">
@@ -119,3 +152,5 @@
     <button type="submit" class="clar-btn clar-btn-primary">Save AI settings</button>
   </noscript>
 <% end %>
+
+<%= form_with url: workshop_configuration_ai_costs_path, method: :patch, id: "ai-costs-form", class: "hidden" do %><% end %>
