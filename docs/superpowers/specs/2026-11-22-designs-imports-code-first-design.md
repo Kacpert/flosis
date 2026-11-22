@@ -209,6 +209,15 @@ import. A plan-first review step (a) and a chat (c) were not chosen.
   today, and leaves suggestions (6). Its flosis_browser server still runs, for
   save_features and suggest; the browser starts only when a browser tool is
   used, and none is allowed.
+- **New contexts and new repositories** (builder check, my calls): a context
+  whose designs folder (`designs/<context>/`) master lacks is new since the
+  last import; the resync's message names it, and the turn saves every map
+  feature that context has as touched, with "New context <name>: build its
+  screens" among its changes, so the features are built again with it. A
+  repository the last import did not record, while it recorded others, is new
+  to the designs: the message says so, with no range, and the turn reads it
+  whole against the map. An import that recorded no commits at all keeps
+  today's fallback (the branch's commit when it started).
 - The first import's map turn and the feature turns keep their browser and
   gain the git tool; their prompts are in the Library, so what they need to
   know about git, code-only contexts and suggestions comes in the
@@ -260,12 +269,21 @@ import. A plan-first review step (a) and a chat (c) were not chosen.
     URL and login filled in, password blank): saves it and queues that
     context's screens again, to be checked against the app; **Dismiss**.
   - `other`: **Dismiss**.
-- **Importing more** (queued on the same import, as Missing feature? · Add
-  does): for a context, one follow-up feature per feature of the map the
-  suggestion names ("<feature> · as <context>", contexts = that context, the
-  map feature's brief and screens, plus "Build only what <context> sees"); none
-  named: one feature "<context>'s screens" whose brief is the suggestion's
-  detail. Then `start_work!`. The import is busy again, and Stop applies.
+- **Importing more** (queued on the same import; builder check, my calls):
+  the map stays one row per feature. For a context card, each map feature the
+  suggestion names (at most 10) is queued on this import under its own key:
+  the import's row for it if it has one, else a new row with the map
+  feature's name, brief and screens. Either way the context joins its
+  contexts, and the person's words say "<context> is a new context: build its
+  screens; the others exist, update them only where they differ from the
+  app". None named: one added feature "<context>'s screens", whose brief is
+  the suggestion's detail. Fix login queues again this import's features whose
+  `from_code` holds that context, with "<context> can sign in now: check its
+  screens against the app". Then `start_work!`; the import is busy again, and
+  Stop applies.
+- **A dismissed suggestion stays dismissed** in later imports of the project
+  (same key); the turn message lists the dismissed roles so the AI does not
+  raise them again.
 - The imports list shows "n suggestions" on an import that has open ones.
 
 ## What's left to the builder
@@ -291,3 +309,10 @@ import. A plan-first review step (a) and a chat (c) were not chosen.
   browser; full bare clones, never partial, so it needs no network.
 - No mockup file: the screens follow the import page's style, and Kacper sees
   them on production in the morning.
+- (After the builder check) A context added in the New import form is built:
+  the resync takes every map feature it has as touched. Importing more queues
+  the map's own features (the context joins them) rather than new
+  "<feature> · as <context>" rows, so the map stays one row per feature. Fix
+  login rebuilds this import's features built from the code for that
+  context. Dismissed suggestions stay dismissed project-wide. A repository new
+  to the designs is read whole.

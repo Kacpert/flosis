@@ -314,6 +314,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
+- New contexts and repositories (spec section 4): `new_contexts(setup)` = roles whose `designs/<folder>/` is absent from master's tree (`Designs::Repo#ls_tree`-style read, folder as SetupSubject names it); the request gains "## Contexts new since the last import" ("<name>: designs/<folder>/ — save every map feature it has as touched, with \"New context <name>: build its screens\" in its changes") when any; a repo absent from `since.app_commits` while it lists others is "new to the designs: read it whole against the map" (AppChanges returns `from: nil, new: true` for it). Tests: `test "a context new since the last import is named for the turn"`, `test "a repository new to the designs is read whole"`.
 - `find_changes`: no `sign_in`; the request lists, per changed repo, "- <repo>[ @ <branch>]: <from7>..<to7> (<n> commits)" then its stat in a fenced block, under "## What changed in the app since <since_label>"; plus the map, as today.
 - Resync seed body (code only, as the spec's section 4 says): read the history with the git tool (`git log --stat <from>..<to>`, then `git diff` per path), the routes whatever the framework calls them (config/routes.rb, a pages or app folder, a router's configuration, urls.py…), the navigation, views, components and styles the changes touch, and the roles and permissions; decide touched and new features; save with save_features once; a role the contexts do not cover is a suggestion (Task 7 wording: "leave a suggestion with the suggest tool"); write no files, open no browser.
 - SetupSubject: CODE_ONLY_NOTE "# This turn reads code only\n\nThis turn has no browser: it works from the app's code and history alone. What the base prompt says about the browser does not apply."; `tools`/`system_text` per `code_only_turn?`.
@@ -390,13 +391,14 @@ git commit -m "feat: a context without a login, or one that cannot sign in, is b
 - Test: as listed plus `test/jobs/designs/setup_run_job_test.rb`, `test/services/designs/sign_in_test.rb`, `test/services/designs/subject_test.rb`
 
 **Interfaces:**
-- Produces: `DesignImportSuggestion` (belongs_to :design_setup; kind in `%w[context sign_in other]`; status in `%w[open done dismissed]`; `attribute :features, :json, default: []`; `scope :open`); `DesignImportSuggestion.record!(setup, kind:, title:, detail: nil, context_name: nil, role: nil, features: [])` → finds by `[design_setup_id, key]` (key: `"context:<context_name.parameterize>"`, `"sign_in:<role.id>"`, `"other:<title.parameterize.first(80)>"`) and leaves an existing one as it is; `DesignSetup has_many :suggestions, class_name: "DesignImportSuggestion", dependent: :delete_all`; SetupSubject `SUGGEST_TOOL = "mcp__flosis_browser__suggest"`, `SUGGEST_NOTE`; browser config `suggestionsPath`; SetupRunJob `read_suggestions!(setup)`.
+- Produces: `DesignImportSuggestion` (belongs_to :design_setup; kind in `%w[context sign_in other]`; status in `%w[open done dismissed]`; `attribute :features, :json, default: []`; `scope :open`); `DesignImportSuggestion.record!(setup, kind:, title:, detail: nil, context_name: nil, role: nil, features: [])` → finds by `[design_setup_id, key]` (key: `"context:<context_name.parameterize>"`, `"sign_in:<role.id>"`, `"other:<title.parameterize.first(80)>"`) and leaves an existing one as it is; returns nil (records nothing) when any import of the project has a dismissed suggestion with that key; `DesignImportSuggestion.dismissed_contexts(project)` → names; `DesignSetup has_many :suggestions, class_name: "DesignImportSuggestion", dependent: :delete_all`; SetupSubject `SUGGEST_TOOL = "mcp__flosis_browser__suggest"`, `SUGGEST_NOTE`; browser config `suggestionsPath`; SetupRunJob `read_suggestions!(setup)`.
 
 - [ ] **Step 1: Write the failing tests**
 
 ```ruby
 # design_import_suggestion_test.rb
 test "record! keeps one suggestion per thing" # twice context "Flosis staff" → 1 row; title/detail of the first kept
+test "a dismissed suggestion stays dismissed in later imports" # dismissed in import A → record! in import B returns nil
 test "a sign-in suggestion is keyed by its context"
 # setup_run_job_test.rb
 test "a turn's suggestions become the import's" # turn_runner stub writes two JSON lines to run_dir/suggestions.jsonl ({"kind":"context","title":"Flosis staff can see the Library","context":"Flosis staff","features":["library"]} and {"kind":"other","title":"No invoices on staging"}) → setup.suggestions.open.count == 2, file gone
@@ -445,13 +447,14 @@ git commit -m "feat: import turns, sign-ins and repository reads leave suggestio
 
 ```ruby
 # import_more_test.rb
-test "a context's features from the map are queued, one each, for that context only" # map has "library" (Library) and "billing"; suggestion features ["library", "billing"] → two todo features "Library · as Flosis staff", contexts [slug], brief starts with the map brief and ends "Build only what Flosis staff sees.", source "added", queued_at set
+test "a context's map features are queued under their own keys, with the context added" # map (earlier import) has "library" and "billing"; this import has "billing" done → "billing" re-queued (todo, contexts include slug), "library" a new row with the map's name/brief/screens, contexts = map contexts + slug, source "changed"; reply says "is a new context"; design_feature_map still has one row per key
 test "without features named, one feature finds the context's screens" # → "Flosis staff's screens", brief = suggestion detail + "\nFind what Flosis staff has in the app and build its screens."
+test "Fix login queues again what was built from the code for that context" # features with from_code ["2-po"] → todo with reply "can sign in now"; others untouched
 # design_import_suggestions_controller_test.rb
 test "Build from code adds a code-only context and imports its screens" # post from_code → role code_only "Flosis staff", suggestion done (acted_by), features queued, SetupRunJob enqueued, redirect to the import page with toast "Importing Flosis staff from the code"
 test "Add login adds the context with its login and imports its screens" # params login_url, login, password → role with credentials; toast "Importing Flosis staff"
 test "Add login without a password shows the problem" # → nothing created, toast "Fill in the login URL, the login and the password."
-test "Fix login saves the new login and imports that context again" # sign_in suggestion → role updated (password changed), features queued for that context ("<feature> · as <name>" for each done feature of the import whose contexts include it, else one "<name>'s screens"), suggestion done
+test "Fix login saves the new login and imports that context again" # sign_in suggestion → role updated (password changed), this import's features with from_code including the slug re-queued, suggestion done
 test "Dismiss sets it aside"
 test "only people with the configuration permission act on suggestions"
 # design_imports_pages_test.rb
@@ -465,7 +468,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
-- ImportMore#context!: map features (`project.design_feature_map.index_by(&:key)`) for the suggestion's `features`, at most 10; each → `setup.features.create!(name: "<name> · as <context>", key: DesignSetupFeature.key_for("<key>-as-<context>", taken), position: max+1, source: "added", status: "todo", queued_at: now, contexts: [slug], screens: map screens, brief: "<map brief>\n\nBuild only what <context> sees.")`; none → one feature as the test says; then `setup.start_work!`. A sign_in fix uses the import's done features whose contexts include the role's slug (all done features when their contexts are blank) instead of the map's.
+- ImportMore#context!(role, suggestion): map features (`project.design_feature_map.index_by(&:key)`) for the suggestion's `features`, at most 10; each → this import's row with that key (re-queued: status todo, queued_at now, error nil, contexts |= [slug], reply = the words below) or a new row `setup.features.create!(key: map.key, name: map.name, brief: map.brief, screens: map.screens, contexts: map.contexts | [slug], position: max+1, source: "changed", status: "todo", queued_at: now, reply: words)`; words = "<context> is a new context: build its screens. The other contexts' screens exist: update them only where they differ from the app."; none named → one added feature "<context>'s screens" (key_for, contexts [slug], brief = detail + "\nFind what <context> has in the app and build its screens."); then `setup.start_work!`. ImportMore#fix_login!(role): this import's features whose `from_code` includes the slug → re-queued with reply "<context> can sign in now: check its screens against the app and fix what differs. They were built from the code."; returns them (none → toast "Login saved. Nothing of this import was built from the code for <name>.").
 - Controller (Workshop::BaseController, `require_permission!(:designs)` and `(:configuration)`, the import from `current_workshop_project.design_setups`, the suggestion from it): `add_login` (creates the role: name = context_name, login_url, username, password, position last; invalid → toast), `from_code` (role code_only), `fix_login` (updates the role; password required), `dismiss`; each marks the suggestion done/dismissed with acted_by/acted_at and redirects to `helpers.import_page_path(import)`.
 - `_feedback.html.erb`: heading "FEEDBACK · n" (the style of "SET ASIDE · n"), one clar-card per open suggestion: bold title, muted detail, actions by kind; Add login and Fix login open an inline form (a `<details>` with Login URL, Login, Password inputs and a submit) — fields prefilled from the role for Fix login (URL, login). Rendered above Built when `!setup.running? && setup.suggestions.open.any? && import_actions?(setup)` (read-only list for people without configuration).
 - List entry: "· n suggestions" when open ones exist.
