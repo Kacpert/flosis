@@ -280,6 +280,14 @@ module Designs::Subject
       If the feature cannot be built honestly because of something only the person can fix on the test account (an integration that is not connected, data you cannot create there, a context that cannot reach the feature), stop building it. Keep what you built so far, and end the turn with one <blocked> block: a single question for the person, saying what to fix and where. They will answer, and a later turn goes on from where you stopped. A gap you can build around from the code is a <missing> note, not a <blocked> block.
     TEXT
     MAP_TOOLS = %w[mcp__flosis_browser__save_features].freeze
+    # A resync's look at what changed works from the code and its history
+    # alone (Kacper, 2026-11-22): no browser tools, and this note instead of
+    # the browser's.
+    CODE_ONLY_NOTE = <<~TEXT.freeze
+      # This turn reads code only
+
+      This turn has no browser: it works from the app's code and its history alone. What the base prompt says about a browser does not apply to it.
+    TEXT
     # Read-only git on the app's history (Kacper, 2026-11-22: "dobrze żeby
     # miał po prostu dostęp do gita"): lib/designs_crawler/git.mjs on the
     # project's clones (Designs::AppHistory), for every setup turn once they
@@ -338,8 +346,14 @@ module Designs::Subject
       @composition ||= Designs::Library.compose_setup(setup.phase)
     end
 
+    # The designs folder a context's screens go in.
+    def self.folder_for(role) = role.name.parameterize.presence || "context-#{role.position.to_i + 1}"
+
+    # A resync's look at what changed: code and history only.
+    def code_only? = setup.phase == "resync"
+
     def system_text
-      "#{Designs::Prompt.system_text(project: project, composition: composition)}\n#{readable}\n#{BROWSER_NOTE}" \
+      "#{Designs::Prompt.system_text(project: project, composition: composition)}\n#{readable}\n#{code_only? ? CODE_ONLY_NOTE : BROWSER_NOTE}" \
         "#{"\n#{GIT_NOTE}" if history?}" \
         "#{"\n#{BLOCKED_NOTE}" if setup.phase == 'feature' && !setup.reimport?}"
     end
@@ -354,7 +368,7 @@ module Designs::Subject
       framework = Workshop::DesignsModuleController::FRAMEWORKS.fetch(project.designs_framework, project.designs_framework.to_s.humanize)
       repos = Array(project.design_app_repos).filter_map { |row| "#{row['role']}: #{row['repo']}" if row.is_a?(Hash) }
       contexts = project.design_setup_roles.map do |role|
-        "#{role.name}: browser #{Designs::SignIn.slug(role)}, designs/#{role.name.parameterize.presence || "context-#{role.position.to_i + 1}"}/"
+        "#{role.name}: browser #{Designs::SignIn.slug(role)}, designs/#{self.class.folder_for(role)}/"
       end
       <<~MESSAGE
         ## Setup run
@@ -374,7 +388,9 @@ module Designs::Subject
       MESSAGE
     end
 
-    def tools = Designs::TurnJob::TOOLS + BROWSER_TOOLS + (SAVING.include?(setup.phase) ? MAP_TOOLS : []) + (history? ? [ GIT_TOOL ] : [])
+    def tools
+      Designs::TurnJob::TOOLS + (code_only? ? [] : BROWSER_TOOLS) + (SAVING.include?(setup.phase) ? MAP_TOOLS : []) + (history? ? [ GIT_TOOL ] : [])
+    end
     # The CLI's own set of tools, beside the browser's.
     def tool_set = nil
     def timeout = DesignTurn.setup_timeout

@@ -275,38 +275,64 @@ class Designs::SetupRunJob < ApplicationJob
     []
   end
 
-  # A resync's look at what changed (Designs imports): the app's diffs since
-  # the import it starts from, and a turn that reads them with the map, walks
-  # the app and saves the features the changes touch and the new ones. Those
-  # become the resync's features. Nothing changed: nothing to build.
+  # A resync's look at what changed (Designs imports), from the code and its
+  # history alone (Kacper, 2026-11-22): nobody signs in for it. The turn gets
+  # each repository's range since the import it starts from (Designs::
+  # AppChanges), reads the history with the git tool, and saves the features
+  # the changes touch and the new ones. A context new since that import (no
+  # folder of its own on master) has its features built again with it, even
+  # when no code changed; a repository new to the designs is read whole.
+  # Nothing changed and nobody new: nothing to build.
   def find_changes(setup)
     FileUtils.mkdir_p(setup.run_dir)
     File.chmod(0o700, setup.run_dir)
-    changed = self.class.app_changes.call(setup).select { |row| row["path"] }
-    if changed.empty?
+    changed = self.class.app_changes.call(setup).select { |row| row["stat"].present? || row["new"] }
+    contexts = new_contexts(setup)
+    if changed.empty? && contexts.empty?
       setup.note!("Finding what changed", "Nothing changed in the app's repositories since #{setup.since_label}.")
       return setup.finish_step!
     end
 
     map = setup.run_dir.join("features.json")
     FileUtils.rm_f(map)
-    self.class.sign_in.call(setup)
     setup.update!(phase: "resync")
-    run_turn!(setup, resync_request(setup, changed))
+    run_turn!(setup, resync_request(setup, changed, contexts))
     add_resync_features!(setup, saved_features(map))
     setup.finish_step!
   end
 
-  def resync_request(setup, changed)
+  # [[name, "designs/<folder>/"]] for the contexts master has no folder for;
+  # none when master has no designs to tell by.
+  def new_contexts(setup)
+    folders = Designs::Repo.new(setup.project).ls_files(Designs::Repo::MASTER, "designs/").filter_map { |path| path.split("/")[1] }.uniq
+    return [] if folders.empty?
+
+    setup.project.design_setup_roles.filter_map do |role|
+      folder = Designs::Subject::SetupSubject.folder_for(role)
+      [ role.name, "designs/#{folder}/" ] unless folders.include?(folder)
+    end
+  end
+
+  def resync_request(setup, changed, contexts = [])
     map = setup.project.design_feature_map.map do |feature|
       "- #{feature.key} · #{feature.name} · contexts: #{feature.contexts.join(', ').presence || 'every context'} · " \
         "screens: #{feature.screens.join(', ').presence || 'as its brief says'}\n  #{feature.brief.to_s.squish.truncate(300)}"
     end
-    diffs = changed.map do |row|
-      "- #{row['repo']}#{" @ #{row['branch']}" if row['branch']}: #{row['from'].to_s.first(7)}..#{row['to'].to_s.first(7)}, the diff in #{row['path']}"
+    repos = changed.map do |row|
+      name = "#{row['repo']}#{" @ #{row['branch']}" if row['branch']}"
+      next "- #{name}: new to the designs: read it whole, its routes and screens, against the map." if row["new"]
+
+      commits = "#{row['commits']} #{row['commits'] == 1 ? 'commit' : 'commits'}"
+      "- #{name}: #{row['from'].first(7)}..#{row['to'].first(7)} (#{commits}). Start with git log --stat #{row['from']}..#{row['to']}.\n" \
+        "```text\n#{row['stat']}\n```"
     end
-    "#{RESYNC_REQUEST}\n\n## The map\n#{map.join("\n").presence || '(no features yet)'}\n\n" \
-      "## What changed in the app since #{setup.since_label}\n#{diffs.join("\n")}"
+    sections = [ RESYNC_REQUEST, "## The map\n#{map.join("\n").presence || '(no features yet)'}" ]
+    sections << "## What changed in the app since #{setup.since_label}\n#{repos.join("\n")}" if repos.any?
+    if contexts.any?
+      sections << "## Contexts new since the last import\n#{contexts.map { |name, folder| "- #{name}: #{folder}" }.join("\n")}\n" \
+                  "Save every feature of the map each of them has as touched, with \"New context <name>: build its screens\" in its changes."
+    end
+    sections.join("\n\n")
   end
 
   # A feature the changes touch is the map's, with what changed in its code;

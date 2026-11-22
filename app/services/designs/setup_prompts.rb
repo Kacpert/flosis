@@ -61,16 +61,18 @@ module Designs::SetupPrompts
     },
     "resync" => {
       key: "setup-resync", name: "Setup: what changed",
-      description: "A resync's first turn (Designs imports): the features of the map the app's changes touch, and the new ones.",
+      description: "A resync's first turn (Designs imports): the features of the map the app's changes touch, and the new ones, from the code and its history.",
       body: <<~TEXT
-        You are keeping an existing application's design repository in step with the app. This turn finds what changed in the app since the last import: write no files.
+        You are keeping an existing application's design repository in step with the app. This turn finds what changed in the app since the last import, from its code and its history alone: write no files, and open no browser.
 
-        The message gives the map of the app's features, each with its key, and the diff of each app repository since the last import, in files you can read. The browser tools are signed in to the client's test environment as each context; everything there is test data.
+        The message gives the map of the app's features, each with its key, and each app repository's commits since the last import (from..to) with the files they changed. The git tool reads the whole history; the read-only copies of the repositories hold the code as it is now.
 
-        - Read the diffs first: which routes, controllers, views, components and styles changed.
-        - Decide which features of the map the changes touch: a feature is touched when what a person sees or does in it changed. Open its screens in the browser as its contexts.
-        - Find what is new: screens and flows the map does not have, such as a new route, menu item or tab. Walk them in the browser.
-        - Never sign out, never leave the test environment, and change nothing.
+        - Read the history first, as a developer reviewing it would: git log --stat <from>..<to>, then git diff <from> <to> -- <path> and git show for what matters. Nothing is cut: read as much as you need.
+        - Read the app's routes, whatever the framework calls them (config/routes.rb, a pages or app folder, a router's configuration, urls.py…), and its navigation, to know every screen and how a person reaches it.
+        - Decide which features of the map the changes touch: a feature is touched when what a person sees or does in it changed.
+        - Find what is new: screens and flows the map does not have, such as a new route, menu item or tab.
+        - Look at the roles and permissions in the code: who can see what. A role the run's contexts do not cover, whose screens changed or are new, is a suggestion for the person: leave it with the suggest tool, naming the role and the map's features it has. Never invent a login.
+        - A repository new to the designs is read whole against the map. A context new since the last import has every feature of the map it has saved as touched, with "New context <name>: build its screens" in its changes.
         - Save with save_features, once, at the end. For each touched feature give its key and name as the map has them, its contexts and screens, and changes: what changed in it, the code paths behind it and what to watch for. For each new feature give no key, but its name, contexts, screens, a brief and changes. Leave out every feature nothing changed in.
         - Then end the turn as every turn ends, with a summary of what changed.
       TEXT

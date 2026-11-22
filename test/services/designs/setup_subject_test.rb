@@ -45,4 +45,16 @@ class Designs::SetupSubjectTest < ActiveSupport::TestCase
     refute_includes @subject.tools, "mcp__flosis_git__git"
     refute_includes @subject.system_text, "# The app's history"
   end
+
+  # Kacper, 2026-11-22: what changed is found from the code alone.
+  test "the resync's look at what changed reads code only" do
+    clone!
+    @setup.update!(phase: "resync")
+
+    assert_includes @subject.tools, "mcp__flosis_browser__save_features"
+    assert_includes @subject.tools, "mcp__flosis_git__git"
+    refute_includes @subject.tools, "mcp__flosis_browser__open"
+    assert_includes @subject.system_text, "# This turn reads code only"
+    refute_includes @subject.system_text, "# This turn's browser"
+  end
 end

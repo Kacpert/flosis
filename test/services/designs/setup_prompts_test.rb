@@ -21,9 +21,19 @@ class Designs::SetupPromptsTest < ActiveSupport::TestCase
 
   test "a resync saves the features the changes touch by key, and the new ones, with what changed" do
     body = Designs::SetupPrompts::SEEDS.fetch("resync")[:body]
-    [ "save_features", "key and name as the map has them", "changes", "new feature", "write no files", "Never sign out" ].each do |word|
+    [ "save_features", "key and name as the map has them", "changes", "new feature", "write no files", "open no browser" ].each do |word|
       assert_includes body, word, word
     end
+  end
+
+  # Kacper, 2026-11-22: the import starts from the code, its history and its
+  # paths, whatever the framework calls them.
+  test "the resync prompt starts from the code and its history" do
+    body = Designs::SetupPrompts::SEEDS.fetch("resync")[:body]
+    [ "git tool", "git log --stat", "whatever the framework calls them", "roles and permissions", "suggest tool" ].each do |word|
+      assert_includes body, word, word
+    end
+    refute_includes body, "Open its screens in the browser"
   end
 
   test "the map is saved with its tool, the app shell first" do
