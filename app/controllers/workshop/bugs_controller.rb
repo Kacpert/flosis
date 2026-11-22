@@ -28,7 +28,7 @@ class Workshop::BugsController < Workshop::BaseController
   def analyze
     attribution = current_workshop_project.bug_attributions.find_by!(jira_key: params[:jira_key])
 
-    BugAttributionJob.perform_later(current_workshop_project.id, attribution.jira_key)
+    BugAttributionJob.perform_later(current_workshop_project.id, attribution.jira_key, started_by_id: current_user.id)
 
     flash[:clar_toast] = "Analyzing…"
     redirect_to workshop_bugs_path

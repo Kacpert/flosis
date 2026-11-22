@@ -257,7 +257,7 @@ class Workshop::IdeasController < Workshop::BaseController
     @idea = current_workshop_project.tasks.find(params[:id])
     # Manual = explicit human request → force a (re-)estimate past the
     # estimate-once guard.
-    AutoEstimateJob.perform_later(@idea.id, force: true)
+    AutoEstimateJob.perform_later(@idea.id, force: true, started_by_id: current_user.id)
     flash[:clar_toast] = "Estimating #{@idea.external_reference.presence || @idea.name}…"
     # Return to wherever the button was pressed (the AI Estimate list or the idea
     # page); fall back to the idea page.

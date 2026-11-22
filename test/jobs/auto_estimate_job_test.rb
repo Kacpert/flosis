@@ -211,4 +211,28 @@ class AutoEstimateJobTest < ActiveJob::TestCase
   test "does nothing when the task no longer exists" do
     assert_nothing_raised { AutoEstimateJob.perform_now(-1) }
   end
+
+  include AiRunTestHelper
+
+  # SCRUM-70
+  test "an estimate from the Estimate button names the person" do
+    with_jira_client(fake_jira_client) do
+      with_attributed_ai(estimate_block(score: 40)) do |seen|
+        AutoEstimateJob.perform_now(@task.id, force: true, started_by_id: users(:one).id)
+        assert_equal users(:one), seen.last.started_by
+        assert_equal "estimates", seen.last.area
+        assert_equal @task, seen.last.item
+      end
+    end
+  end
+
+  test "a scheduled estimate names the automation" do
+    with_jira_client(fake_jira_client) do
+      with_attributed_ai(estimate_block(score: 40)) do |seen|
+        AutoEstimateJob.perform_now(@task.id)
+        assert_equal "AI estimate", seen.last.automation
+      end
+    end
+  end
+
 end

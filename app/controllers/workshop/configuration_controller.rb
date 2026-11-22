@@ -99,7 +99,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
   # request returns immediately — the scan reads the repo and can take a while.
   def refresh_features
     if current_workshop_project
-      ProjectFeaturesScanJob.perform_later(current_workshop_project.id)
+      ProjectFeaturesScanJob.perform_later(current_workshop_project.id, started_by_id: current_user.id)
       flash[:clar_toast] = "Refreshing the app feature summary — this runs in the background."
     else
       flash[:alert] = "No project selected."

@@ -88,6 +88,7 @@ class PrReviewJob < ApplicationJob
       pr_url: pr["html_url"]
     )
 
+    @review = record
     issues = ai_issues(project, pr, files, mode)
     # The AI step failed to run (CLI/auth/transport). Record the failure against
     # this SHA so PrReviewCheckJob retries it a bounded number of times with a
@@ -197,7 +198,8 @@ class PrReviewJob < ApplicationJob
     service = ClaudeCliService.new(
       codebase_path: codebase,
       allowed_tools: mcp_config ? ClaudeCliService::REVIEW_TOOLS : nil,
-      mcp_config: mcp_config
+      mcp_config: mcp_config,
+      attribution: AiRun::Attribution.for_pr_review(@review)
     )
     response = service.start_session(prompt: prompt)[:response].to_s
     json = extract_json(response)

@@ -61,7 +61,7 @@ class BriefCommitsControllerTest < ActionDispatch::IntegrationTest
   test "successful commit enqueues AutoEstimateJob when the project's trigger is briefed" do
     @project.update!(estimation_trigger: "briefed")
     stub_writer({ ok: true, key: "BCM-1", url: "u" }) do
-      assert_enqueued_with(job: AutoEstimateJob, args: [ @task.id ]) do
+      assert_enqueued_with(job: AutoEstimateJob, args: [ @task.id, { started_by_id: users(:one).id } ]) do
         post commit_jira_task_brief_path(@task, @brief)
       end
     end

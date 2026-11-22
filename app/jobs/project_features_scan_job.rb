@@ -14,7 +14,10 @@ class ProjectFeaturesScanJob < ApplicationJob
   # No project_id → the daily sweep over every Workshop project.
   # With project_id → a single-project refresh (the manual "Refresh" button).
   # Returns true when a single-project scan actually updated the summary.
-  def perform(project_id = nil)
+  # started_by_id: the person who pressed Refresh; the nightly sweep is the
+  # automation's (SCRUM-70).
+  def perform(project_id = nil, started_by_id: nil)
+    @started_by = User.find_by(id: started_by_id) if started_by_id
     if project_id
       project = Project.find_by(id: project_id)
       return false unless project
@@ -55,7 +58,7 @@ class ProjectFeaturesScanJob < ApplicationJob
   end
 
   def scan_summary(project, codebase)
-    response = ClaudeCliService.new(codebase_path: codebase)
+    response = ClaudeCliService.new(codebase_path: codebase, attribution: AiRun::Attribution.for_feature_scan(project, user: @started_by))
                                .start_session(prompt: prompt_for(project))[:response].to_s
     return nil if response.strip.length < 40 || response.match?(CLI_FAILURE_MARKERS)
     response.strip

@@ -16,6 +16,20 @@ module AiRunTestHelper
                                item_label: "Rule · Test", automation: "Test" }.merge(overrides))
   end
 
+  # Claude answers `response` without running, and the attribution each
+  # service was built with is kept, in order, for the block to look at.
+  def with_attributed_ai(response)
+    seen = []
+    original = ClaudeCliService.instance_method(:start_session)
+    ClaudeCliService.define_method(:start_session) do |**_kw|
+      seen << @attribution
+      { session_id: "s", response: response }
+    end
+    yield seen
+  ensure
+    ClaudeCliService.define_method(:start_session, original)
+  end
+
   def cli_usage(event = CLI_RESULT)
     AiRun::Usage.new.tap { |usage| usage.see(event) }
   end

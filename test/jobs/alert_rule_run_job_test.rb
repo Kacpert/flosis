@@ -430,4 +430,23 @@ class AlertRuleRunJobTest < ActiveJob::TestCase
     assert_equal Project::ELVIUM_LEGACY_DIR, captured[:codebase_path]
     assert_equal ProjectMcpConfig.path_for(@rule.project), captured[:mcp_config]
   end
+
+  include AiRunTestHelper
+
+  # SCRUM-70
+  test "Run now names the person; the schedule names the rule" do
+    with_webhook_post do
+      with_attributed_ai(alert_block(fired: true)) do |seen|
+        AlertRuleRunJob.perform_now(@rule.id, started_by_id: users(:one).id)
+        assert_equal users(:one), seen.last.started_by
+        assert_equal @rule, seen.last.item
+        assert_equal "agents", seen.last.area
+
+        AlertRuleRunJob.perform_now(@rule.id)
+        assert_equal "QA backlog watch", seen.last.automation
+        assert_equal "Rule · QA backlog watch", seen.last.item_label
+      end
+    end
+  end
+
 end

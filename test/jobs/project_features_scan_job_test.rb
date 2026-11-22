@@ -107,4 +107,20 @@ class ProjectFeaturesScanJobTest < ActiveJob::TestCase
     end
     assert_equal "PREVIOUS", @project.reload.features_summary
   end
+
+  include AiRunTestHelper
+
+  # SCRUM-70
+  test "a feature scan Refresh names the person; the nightly scan names the automation" do
+    with_attributed_ai("This app does X, Y, Z. Architecture: Rails monolith with Solid Queue and Turbo.") do |seen|
+      job_without_pull.perform(@project.id, started_by_id: users(:one).id)
+      assert_equal users(:one), seen.last.started_by
+      assert_equal @project, seen.last.item
+      assert_equal "feature_scan", seen.last.area
+
+      job_without_pull.perform
+      assert_equal "Feature scan", seen.last.automation
+    end
+  end
+
 end

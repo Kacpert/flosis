@@ -174,4 +174,24 @@ class BugAttributionJobTest < ActiveJob::TestCase
   test "does nothing and does not crash when the project does not exist" do
     assert_nothing_raised { BugAttributionJob.perform_now(-1, "ELV-777") }
   end
+
+  include AiRunTestHelper
+
+  # SCRUM-70: the run needs a saved item to hang on.
+  test "a bug analysis has a saved item before Claude runs" do
+    with_attributed_ai(attribution_block) do |seen|
+      BugAttributionJob.perform_now(@project.id, "ELV-777")
+      assert seen.last.item.persisted?
+      assert_equal "bug_analysis", seen.last.area
+      assert_equal "Bug analysis", seen.last.automation
+    end
+  end
+
+  test "Analyze names the person" do
+    with_attributed_ai(attribution_block) do |seen|
+      BugAttributionJob.perform_now(@project.id, "ELV-777", started_by_id: users(:one).id)
+      assert_equal users(:one), seen.last.started_by
+    end
+  end
+
 end

@@ -443,7 +443,7 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "refresh_features enqueues a single-project scan and toasts" do
-    assert_enqueued_with(job: ProjectFeaturesScanJob, args: [ @project.id ]) do
+    assert_enqueued_with(job: ProjectFeaturesScanJob, args: [ @project.id, { started_by_id: users(:one).id } ]) do
       post workshop_refresh_features_configuration_path
     end
 

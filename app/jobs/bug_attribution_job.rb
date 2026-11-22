@@ -28,7 +28,10 @@ class BugAttributionJob < ApplicationJob
 
   CLI_FAILURE_MARKERS = /\b(401|403|429|invalid authentication|failed to authenticate|api error|credit balance|rate limit|usage limit|overloaded|unauthorized)\b/i
 
-  def perform(project_id, jira_key)
+  # started_by_id: the person who pressed Analyze; one the Jira sync started is
+  # the automation's (SCRUM-70).
+  def perform(project_id, jira_key, started_by_id: nil)
+    @started_by = User.find_by(id: started_by_id) if started_by_id
     project = Project.find_by(id: project_id)
     return unless project
 
@@ -37,8 +40,10 @@ class BugAttributionJob < ApplicationJob
 
     attribution = BugAttribution.find_or_initialize_by(project: project, jira_key: jira_key)
     attribution.task = bug[:task]
+    # Saved before Claude runs: the AI run is recorded against it (SCRUM-70).
+    attribution.save! if attribution.new_record? || attribution.changed?
 
-    response = run_ai(project, jira_key, bug)
+    response = run_ai(project, jira_key, bug, attribution)
     if response.nil?
       record_failure(attribution)
       return
@@ -82,12 +87,13 @@ class BugAttributionJob < ApplicationJob
     attribution.save!
   end
 
-  def run_ai(project, jira_key, bug)
+  def run_ai(project, jira_key, bug, attribution)
     codebase = ai_codebase_path(project)
     return nil if codebase.nil?
 
     prompt = build_prompt(project, jira_key, bug)
-    ClaudeCliService.new(codebase_path: codebase).start_session(prompt: prompt)[:response].to_s.tap do |response|
+    ClaudeCliService.new(codebase_path: codebase, attribution: AiRun::Attribution.for_bug_analysis(attribution, user: @started_by))
+                    .start_session(prompt: prompt)[:response].to_s.tap do |response|
       return nil if cli_failed?(response)
     end
   rescue ClaudeCliService::ClaudeCliError => e
