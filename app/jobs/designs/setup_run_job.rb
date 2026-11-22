@@ -47,6 +47,10 @@ class Designs::SetupRunJob < ApplicationJob
     end
   end
 
+  # A person stopped the import (Designs::ImportStop) while the unit went:
+  # the unit ends where it is, and lets its claim go.
+  class Halted < StandardError; end
+
   STOPS = [ Failure, Designs::AppRepos::Failure, Designs::SignIn::Failure ].freeze
   # How long a unit's claim lasts without a heartbeat.
   UNIT_GRACE = 15.minutes
@@ -117,6 +121,8 @@ class Designs::SetupRunJob < ApplicationJob
     go_on(setup.reload)
   rescue Paused => e
     pause(setup, e.until_time)
+  rescue Halted
+    release_after_stop(setup)
   rescue *STOPS => e
     @follow_up ? give_up_feature(setup, trouble(e)) : stop(setup, e.message)
   rescue StandardError => e
@@ -208,8 +214,10 @@ class Designs::SetupRunJob < ApplicationJob
 
     setup.with_lock do
       next if setup.unit_job_id.present? && setup.unit_job_id != job_id
-      # A person's Stop (Designs::ImportStop) already said why it stopped.
-      next if setup.done? || setup.stopped?
+      next if setup.done?
+      # A person's Stop (Designs::ImportStop) already said why it stopped:
+      # the job only lets its unit go.
+      next setup.update!(unit_job_id: nil, unit_deadline_at: nil) if setup.stopped?
 
       setup.update!(status: "failed", error: message.to_s.truncate(1_000), unit_job_id: nil, unit_deadline_at: nil)
     end
@@ -384,19 +392,23 @@ class Designs::SetupRunJob < ApplicationJob
   # the turn's notes) or failed (noted, and the run goes on). With none left,
   # the step is over.
   def features(setup)
+    halt_if_stopped!(setup)
     return resync_features(setup) if setup.resync?
 
     feature = setup.features.pending.first
     return setup.finish_step! unless feature
 
     signed_in = self.class.sign_in.call(setup)
-    feature.update!(status: "running", stage: "building", started_at: feature.started_at || Time.current, error: nil, resets_at: nil,
-                    from_code: from_code(feature, signed_in))
+    setup.with_lock do
+      halt_if_stopped!(setup)
+      feature.update!(status: "running", stage: "building", started_at: feature.started_at || Time.current, error: nil, resets_at: nil,
+                      from_code: from_code(feature, signed_in))
+    end
     FileUtils.rm_f(setup.run_dir.join("progress.json"))
     setup.update!(phase: "feature")
     repo = Designs::Repo.new(setup.project)
     before = repo.head(feature.branch.presence || branch(setup))
-    turn = start_turn(setup, follow_up_request(feature))
+    turn = setup.with_lock { halt_if_stopped!(setup, feature) && start_turn(setup, follow_up_request(feature)) }
     feature.update!(design_turn: turn)
     self.class.turn_runner.call(turn.id)
     read_suggestions!(setup)
@@ -408,6 +420,7 @@ class Designs::SetupRunJob < ApplicationJob
   # import still ran) joins wip/setup, to land with the rest.
   def finish_feature(feature, turn, repo, before)
     if turn.succeeded?
+      halt_if_stopped!(feature.design_setup, feature)
       question = question_in(turn)
       return wait_for_answer(feature, turn, repo, before, question) if question
 
@@ -478,6 +491,7 @@ class Designs::SetupRunJob < ApplicationJob
   # A resync's features are each built on a branch of their own off master
   # and land there as they finish, as features queued after an import do.
   def resync_features(setup)
+    halt_if_stopped!(setup)
     return setup.finish_step! unless setup.features.pending.exists?
 
     follow_up(setup)
@@ -485,10 +499,12 @@ class Designs::SetupRunJob < ApplicationJob
 
   # A resync is over once its features have landed, one by one.
   def finish(setup)
+    halt_if_stopped!(setup)
     setup.finish_step!(status: "approved", finished_at: Time.current, settled_at: Time.current)
   end
 
   def commit(setup)
+    halt_if_stopped!(setup)
     if (thread = setup.design_thread)
       Designs::Threads.note(thread, "Re-import from staging finished. Check what changed, then merge it.")
     else
@@ -512,7 +528,11 @@ class Designs::SetupRunJob < ApplicationJob
     setup.features.where(status: "running").find_each { |feature| feature.update!(status: "todo") }
     feature = setup.features.where(status: "todo").reorder(:queued_at, :position).first or return
 
-    feature.update!(status: "running", stage: "building", started_at: Time.current, error: nil, resets_at: nil)
+    setup.with_lock do
+      raise Halted unless feature.reload.status == "todo"
+
+      feature.update!(status: "running", stage: "building", started_at: Time.current, error: nil, resets_at: nil)
+    end
     signed_in = self.class.sign_in.call(setup)
     feature.update!(from_code: from_code(feature, signed_in))
     self.class.app_repos.call(setup) if Designs::AppRepos.new(setup).dirs.empty?
@@ -525,7 +545,7 @@ class Designs::SetupRunJob < ApplicationJob
     before = repo.head(branch)
     # An accepted proposal master moved under is brought up to date first.
     kind = feature.review["accepted"] ? "resolve_conflicts" : "setup"
-    turn = start_turn(setup, follow_up_request(feature), kind: kind)
+    turn = setup.with_lock { halt_if_stopped!(setup, feature) && start_turn(setup, follow_up_request(feature), kind: kind) }
     feature.update!(design_turn: turn)
     self.class.turn_runner.call(turn.id)
     read_suggestions!(setup)
@@ -583,6 +603,7 @@ class Designs::SetupRunJob < ApplicationJob
     question = question_in(turn)
     return wait_for_answer(feature, turn, repo, before, question) if question
 
+    halt_if_stopped!(feature.design_setup, feature)
     counts = Designs::ComponentCount.between(repo, before, turn.commit_sha || repo.head(feature.branch))
     notes = missing_in(turn)
     feature.update!(components_new: counts[:new], components_reused: counts[:reused], notes: feature.notes + notes)
@@ -611,7 +632,7 @@ class Designs::SetupRunJob < ApplicationJob
   # A setup turn, run here and now: the run waits for it, and a step's turn
   # that fails stops the run.
   def run_turn!(setup, request)
-    turn = start_turn(setup, request)
+    turn = setup.with_lock { halt_if_stopped!(setup) && start_turn(setup, request) }
     self.class.turn_runner.call(turn.id)
     read_suggestions!(setup)
     turn.reload
@@ -632,6 +653,23 @@ class Designs::SetupRunJob < ApplicationJob
   end
 
   def branch(setup) = setup.design_thread&.branch || Designs::BranchNames::SETUP
+
+  # A person's Stop (Designs::ImportStop) ends the unit here: before a turn
+  # starts, before a feature lands, before the import is approved (final
+  # review C2, 2026-11-22). Stopped is the import's for a run, and its
+  # feature's (failed by the Stop) for work queued after it was over.
+  # Callers that start something take the run's lock around the check.
+  def halt_if_stopped!(setup, feature = nil)
+    raise Halted if setup.reload.stopped?
+    raise Halted if feature && feature.reload.status != "running"
+
+    true
+  end
+
+  # The unit a Stop ended lets its claim go, if it is still this job's.
+  def release_after_stop(setup)
+    setup&.with_lock { setup.update!(unit_job_id: nil, unit_deadline_at: nil) if setup.unit_job_id == job_id }
+  end
 
   # What the turn left for the person with the suggest tool (Kacper,
   # 2026-11-22), into the import's suggestions; the file goes. A line that is

@@ -242,4 +242,20 @@ class Workshop::DesignImportActionsTest < ActionDispatch::IntegrationTest
     assert_includes response.body, Designs::SetupForm::INCOMPLETE
     refute @project.design_setups.exists?(kind: "resync")
   end
+
+  # Final review C2 (2026-11-22): while the stopped import's job still ends
+  # the step it was on, neither Delete nor Resume may start.
+  test "Delete and Resume wait for the step a stopped import was on" do
+    stopped = @project.design_setups.create!(kind: "resync", since_setup: @import, status: "failed", phase: "feature", step: 3, started_by: users(:one),
+                                             stopped_at: 1.minute.ago, stopped_by: users(:one), unit_job_id: "job-1", unit_deadline_at: 10.minutes.from_now)
+
+    delete workshop_design_import_path(stopped)
+    assert_equal "The import is still stopping. Try again in a minute.", flash[:clar_toast]
+    assert DesignSetup.exists?(stopped.id)
+
+    post retry_workshop_design_setup_run_path(import: stopped.id)
+    assert_equal "The import is still stopping. Try again in a minute.", flash[:clar_toast]
+    assert_equal "failed", stopped.reload.status
+    assert_no_enqueued_jobs only: Designs::SetupRunJob
+  end
 end

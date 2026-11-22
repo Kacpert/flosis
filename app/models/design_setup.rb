@@ -227,13 +227,18 @@ class DesignSetup < ApplicationRecord
   # 2026-11-22): it can be deleted, branches, chats and all
   # (Designs::ImportDeletion). A first import or a re-import stays.
   def deletable?
-    resync? && failed? && !busy? && !features.where(status: "done").exists?
+    resync? && failed? && !busy? && !unit_live? && !features.where(status: "done").exists?
   end
 
-  # Running, or with a feature queued or under way after it was over.
+  # Running, or over with a feature queued or under way: a job works on it.
+  # A failed import is not busy, whatever it had to do (final review C3).
   def busy?
-    running? || features.pending.exists?
+    running? || follow_up?
   end
+
+  # A job holds the import's unit now: after a Stop, until the job has ended
+  # the step it was on, nothing may resume or delete it.
+  def unit_live? = unit_job_id.present? && unit_deadline_at.present? && unit_deadline_at.future?
 
   def settle!
     update!(settled_at: Time.current)

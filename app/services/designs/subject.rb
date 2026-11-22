@@ -335,11 +335,14 @@ module Designs::Subject
       @setup ||= @session.design_setup || project.design_setups.active.order(:id).last || raise(Designs::TurnJob::Failure, NO_SETUP)
     end
 
-    # The feature the run is building, if any.
+    # The feature the turn is for: the one its turn was started for (even
+    # once a Stop failed it, so that it keeps to its own branch: final review
+    # C2), else the one the run is building, if any.
     def feature
       return @feature if defined?(@feature)
 
-      @feature = setup.features.find_by(status: "running")
+      @feature = setup.features.find_by(design_turn_id: DesignTurn.where(chat_session_id: @session.id).select(:id)) ||
+                 setup.features.find_by(status: "running")
     end
 
     # wip/setup, made off master when neither this clone nor origin has it.

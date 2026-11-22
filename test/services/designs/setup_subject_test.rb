@@ -90,4 +90,15 @@ class Designs::SetupSubjectTest < ActiveSupport::TestCase
 
     assert_includes @subject.turn_message("Build it."), "Roles the person said not to import: Super admin."
   end
+
+  # Final review C2 (2026-11-22): a feature's turn works on its feature's
+  # branch even once a Stop failed the feature, never on wip/setup.
+  test "a feature's turn keeps to its feature's branch after a Stop" do
+    feature = @setup.features.create!(name: "Library", key: "library", position: 1, status: "failed", branch: "wip/import-#{@setup.id}-library")
+    session = ChatSession.find_by!(design_setup: @setup)
+    message = session.chat_messages.create!(role: "user", user: users(:one), content: "Update Library.")
+    feature.update!(design_turn: DesignTurn.create!(chat_session: session, chat_message: message, kind: "setup"))
+
+    assert_equal "wip/import-#{@setup.id}-library", Designs::Subject::SetupSubject.new(session).wip_branch
+  end
 end

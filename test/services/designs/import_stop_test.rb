@@ -20,9 +20,15 @@ class Designs::ImportStopTest < ActiveSupport::TestCase
     DesignTurn.create!(chat_session: session, chat_message: message, kind: "setup", status: status)
   end
 
-  test "stopping a running import fails it as stopped and kills its turns' Claude" do
+  # Final review C2/C3 (2026-11-22): the job stops its own turn (the turn's
+  # stop request, which it checks every 2 s, survives a restarted CLI) and
+  # lets its unit go itself; what the import had to do fails, so it is no
+  # longer busy and can be deleted.
+  test "stopping a running import fails it as stopped, fails what it had to do and asks its turns to stop" do
     setup = @project.design_setups.create!(kind: "resync", status: "active", phase: "feature", step: 3, started_by: users(:one),
                                            unit_job_id: "job-1", unit_deadline_at: 10.minutes.from_now)
+    running = setup.features.create!(name: "Designs", key: "designs", position: 1, status: "running", stage: "building")
+    todo = setup.features.create!(name: "Library", key: "library", position: 2, status: "todo")
     turn = turn_for(setup, claude: "sess-1")
     done = turn_for(setup, status: "succeeded", claude: "sess-0")
     other = turn_for(@project.design_setups.create!(status: "approved", phase: "feature", step: 6, started_by: users(:one)), claude: "sess-9")
@@ -30,11 +36,24 @@ class Designs::ImportStopTest < ActiveSupport::TestCase
     assert Designs::ImportStop.new(setup, users(:one)).stop!
 
     setup.reload
-    assert_equal [ "failed", users(:one), nil, nil, nil ], [ setup.status, setup.stopped_by, setup.unit_job_id, setup.unit_deadline_at, setup.error ]
+    assert_equal [ "failed", users(:one), nil, "job-1" ], [ setup.status, setup.stopped_by, setup.error, setup.unit_job_id ]
     assert setup.stopped?
-    assert_equal [ "sess-1" ], @killed
-    assert_equal [ "failed", "Stopped by Kacper." ], [ turn.reload.status, turn.error ]
-    assert_equal [ "succeeded", "running" ], [ done.reload.status, other.reload.status ]
+    refute setup.busy?
+    assert_equal [ [ "failed", "Stopped by Kacper." ] ] * 2, [ running, todo ].map { |feature| feature.reload.values_at(:status, :error) }
+    assert_equal [ "running", "Kacper" ], [ turn.reload.status, turn.stop_requested_by ]
+    assert turn.stop_requested_at
+    assert_empty @killed, "its job is alive: it stops the turn itself"
+    assert_nil done.reload.stop_requested_at
+    assert_nil other.reload.stop_requested_at
+  end
+
+  test "a turn whose job is gone is killed as well" do
+    setup = @project.design_setups.create!(kind: "resync", status: "active", phase: "feature", step: 3, started_by: users(:one))
+    turn = turn_for(setup, claude: "sess-3")
+
+    Designs::ImportStop.new(setup, users(:one)).stop!
+    assert_equal [ "sess-3" ], @killed
+    assert turn.reload.stop_requested_at
   end
 
   test "stopping a finished import's queue fails its queued and running features" do
@@ -52,6 +71,7 @@ class Designs::ImportStopTest < ActiveSupport::TestCase
     assert_equal "approved", setup.reload.status
     refute setup.stopped?
     assert_equal [ "sess-2" ], @killed
+    refute setup.busy?
   end
 
   test "an import with nothing under way is left alone" do

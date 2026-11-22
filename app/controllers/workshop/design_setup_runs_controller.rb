@@ -73,6 +73,11 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
     setup = params[:import].present? ? project.design_setups.find_by(id: params[:import]) : project.design_setups.order(:id).last
     return redirect_to(helpers.import_page_path(setup), alert: DesignSetup::THREAD_DELETED) if setup&.thread_deleted?
 
+    if setup&.stopped? && setup.unit_live?
+      flash[:clar_toast] = "The import is still stopping. Try again in a minute."
+      return redirect_to(helpers.import_page_path(setup))
+    end
+
     if setup&.failed? && setup.finished_at.nil?
       resume_stopped!(setup) if setup.stopped?
       setup.update!(status: "active", error: nil, unit_job_id: nil, unit_deadline_at: nil, stopped_at: nil, stopped_by: nil)

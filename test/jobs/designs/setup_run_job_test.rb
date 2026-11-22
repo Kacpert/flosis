@@ -235,14 +235,15 @@ class Designs::SetupRunJobTest < ActiveSupport::TestCase
 
   # Kacper, 2026-11-22: what the job does after the person stopped the import
   # (its killed turn fails, a limit pauses it) must not undo the stop.
-  test "the job's stop after the person's stop keeps the import as it was stopped" do
+  test "the job's stop after the person's stop keeps the import as it was stopped, and lets its unit go" do
     setup = projects(:jira_project).design_setups.create!(status: "active", phase: "feature", step: 4, started_by: users(:one),
                                                           unit_job_id: "job-1", unit_deadline_at: 10.minutes.from_now)
     Designs::ImportStop.new(setup, users(:one)).stop!
+    assert setup.reload.unit_live?, "the unit is the job's until it lets it go"
 
-    Designs::SetupRunJob.new(setup.id).send(:stop, setup.reload, "Claude could not finish this step.")
+    job_as(setup, "job-1").send(:stop, setup.reload, "Claude could not finish this step.")
     setup.reload
-    assert_equal [ "failed", nil ], [ setup.status, setup.error ]
+    assert_equal [ "failed", nil, nil ], [ setup.status, setup.error, setup.unit_job_id ]
     assert setup.stopped?
   end
 
@@ -293,6 +294,49 @@ class Designs::SetupRunJobTest < ActiveSupport::TestCase
 
         assert_equal [ [ "context", "Flosis staff" ], [ "other", nil ] ], setup.suggestions.order(:id).pluck(:kind, :context_name)
         refute setup.run_dir.join("suggestions.jsonl").exist?
+      end
+    end
+  end
+
+  # Final review C2 (2026-11-22): a Stop while a unit signs in (minutes, with
+  # retries) ends the unit there: no turn starts, nothing lands.
+  test "a Stop during a feature's sign-in builds nothing more" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed = seed_master(repo)
+        setup = new_setup(repo.project)
+        Designs::SetupRunJob.sign_in = lambda do |signing|
+          Designs::ImportStop.new(signing, users(:one)).stop! if signing.reload.step == DesignSetup::FEATURES_STEP
+          { "1-admin" => true }
+        end
+        Designs::SetupRunJob.turn_runner = fake_turns(repo, setup)
+        run_to_the_end(setup)
+
+        assert setup.stopped?
+        assert_equal 2, @requests.size, "the map and the design system only"
+        assert_empty setup.features.where(status: %w[running done])
+        assert_nil setup.unit_job_id
+        assert_equal seed, remote_branch_sha(remote, "master"), "nothing reached master"
+      end
+    end
+  end
+
+  test "a Stop of a finished import's queue during its sign-in starts no turn" do
+    with_design_remote do |repo, remote|
+      with_remote_url(remote) do
+        seed_master(repo)
+        project = repo.project
+        project.design_setup_roles.create!(name: "Admin", login_url: "https://s.test/login", username: "a", password: "p", position: 0)
+        project.update!(design_app_repos: [ { "role" => "Frontend", "repo" => "acme/app" } ], design_repo_status: "ready")
+        import = project.design_setups.create!(status: "approved", phase: "feature", step: 6, started_by: users(:one), finished_at: 1.hour.ago, settled_at: 1.hour.ago)
+        feature = import.features.create!(name: "Library", key: "library", position: 1, status: "todo", queued_at: Time.current, contexts: %w[1-admin])
+        Designs::SetupRunJob.sign_in = ->(signing) { Designs::ImportStop.new(signing, users(:one)).stop!; { "1-admin" => true } }
+        Designs::SetupRunJob.turn_runner = ->(_turn_id) { flunk "no turn after a Stop" }
+        perform_enqueued_jobs(only: Designs::SetupRunJob) { import.start_work! }
+
+        assert_equal [ "failed", "Stopped by Kacper." ], feature.reload.values_at(:status, :error)
+        assert_equal "approved", import.reload.status
+        assert_nil import.unit_job_id
       end
     end
   end

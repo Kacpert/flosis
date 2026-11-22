@@ -51,6 +51,10 @@ class Workshop::DesignImportsController < Workshop::BaseController
 
   # A stopped or failed resync with nothing on master (Kacper, 2026-11-22).
   def destroy
+    if @import.stopped? && @import.unit_live?
+      flash[:clar_toast] = "The import is still stopping. Try again in a minute."
+      return redirect_to helpers.import_page_path(@import)
+    end
     unless @import.deletable?
       flash[:clar_toast] = @import.features.where(status: "done").exists? ? "This import has work on master, so it stays." : "Stop the import before deleting it."
       return redirect_to helpers.import_page_path(@import)
