@@ -2,9 +2,9 @@
 # Retry it (with words for the AI first, if they like), answer the AI's
 # question (Send and continue), set it aside (Not needed), or decide on a
 # proposal that would replace a thread's work (Accept, Reject, or words for a
-# new one). Each queues the work and starts it, or lands it; the import's job
-# builds what is queued one at a time. A re-import's features are fixed on
-# its thread instead.
+# new one). Each queues the work and starts it (Accept: a landing, in the
+# background); the import's job builds what is queued one at a time. A
+# re-import's features are fixed on its thread instead.
 class Workshop::DesignImportFeaturesController < Workshop::BaseController
   before_action { require_permission!(:designs) }
   before_action { require_permission!(:configuration) }
@@ -35,23 +35,15 @@ class Workshop::DesignImportFeaturesController < Workshop::BaseController
     back
   end
 
-  # A proposal lands on master as it is. When master changed the same lines
-  # meanwhile, it is brought up to date first, and lands after.
+  # A proposal lands on master as it is, in the background (Kacper,
+  # 2026-11-22: "żeby ktoś mógł szybko zaakceptować zmiany a nie czekał"):
+  # Designs::ImportAcceptJob lands it, and brings it up to date first when
+  # master changed the same lines meanwhile.
   def accept
-    return back unless @feature.problem == :review
-
-    Designs::ImportLanding.new(@feature).land!(accepted: true)
-    @feature.update!(status: "done", finished_at: Time.current, branch: nil, review: @feature.review.merge("accepted" => true))
-    flash[:clar_toast] = "Accepted · #{@feature.name} is on master"
-    back
-  rescue Designs::Repo::Conflict
-    @feature.queue!(fresh: false)
-    @feature.update!(review: @feature.review.merge("accepted" => true))
-    @import.start_work!
-    flash[:clar_toast] = "Master changed the same lines · bringing #{@feature.name} up to date first"
-    back
-  rescue Designs::ImportLanding::NotLanded => e
-    flash[:clar_toast] = e.message
+    if @feature.problem == :review && @feature.accept!
+      Designs::ImportAcceptJob.perform_later(@import.id)
+      flash[:clar_toast] = "Accepted · #{@feature.name} lands on master in a moment"
+    end
     back
   end
 

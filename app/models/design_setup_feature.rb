@@ -7,11 +7,12 @@
 #
 # On an import's page (Designs imports) a feature can also be waiting for the
 # person (the AI asked them something only they can fix), in review (its
-# update would replace a thread's work on master) or set aside (not needed).
+# update would replace a thread's work on master), landing (accepted, on its
+# way to master: Designs::ImportAcceptJob) or set aside (not needed).
 # Retrying, answering or adding one queues it: it is to do again, after the
 # import is over too, and the run builds it on its own branch.
 class DesignSetupFeature < ApplicationRecord
-  STATUSES = %w[todo running done failed waiting review set_aside].freeze
+  STATUSES = %w[todo running done failed waiting review landing set_aside].freeze
   STAGES = %w[building checking].freeze
   # Where it came from: the map, the person (Missing feature? · Add), or a
   # resync (a feature whose code changed, or one the map did not have).
@@ -111,6 +112,18 @@ class DesignSetupFeature < ApplicationRecord
     update!(status: "todo", queued_at: Time.current, reply: reply.to_s.strip.presence, error: nil, stage: nil, started_at: nil,
             finished_at: nil, resets_at: nil, attempts: 0, branch: (branch unless fresh), question: (question unless fresh),
             review: (fresh ? {} : review), notes: notes.reject { |note| note.to_s.start_with?(COULD_NOT_FINISH) })
+  end
+
+  # Accept on its card (Kacper, 2026-11-22: "żeby ktoś mógł szybko
+  # zaakceptować zmiany a nie czekał"): a proposal in review is landing from
+  # now on, accepted at queued_at, and Designs::ImportAcceptJob lands it. A
+  # second click, or a Reject sent after it, finds it landing: only the call
+  # that flipped it says true.
+  def accept!
+    now = Time.current
+    flipped = self.class.where(id: id, status: "review").update_all(status: "landing", queued_at: now, error: nil, updated_at: now) == 1
+    reload if flipped
+    flipped
   end
 
   def done? = status == "done"
