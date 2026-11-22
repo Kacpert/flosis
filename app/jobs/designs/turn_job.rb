@@ -87,7 +87,9 @@ class Designs::TurnJob < ApplicationJob
   class Failure < StandardError; end
 
   # A turn someone stopped (Designs::Threads.stop!). Its message says who.
-  class Stopped < Failure; end
+  class Stopped < Failure
+    include ClaudeCliService::StopSignal # SCRUM-70: recorded as stopped, not failed
+  end
 
   class << self
     # Test seams. claude_factory is what a turn talks to Claude through, built
@@ -411,7 +413,7 @@ class Designs::TurnJob < ApplicationJob
             append_system_prompt_file: system_prompt,
             add_dirs: [ app, *subject.add_dirs, (ChatImages.dir(turn.chat_session) if images.any?) ].compact,
             max_budget_usd: bounds[:budget], timeout: bounds[:timeout], mcp_config: mcp_config,
-            tools: bounds[:tools], effort: bounds[:effort]
+            tools: bounds[:tools], effort: bounds[:effort], attribution: AiRun::Attribution.for_design_turn(turn)
           )
           activity = Designs::TurnActivity.new(turn, worktree: worktree, app: app)
           begin

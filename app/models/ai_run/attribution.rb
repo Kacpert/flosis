@@ -74,20 +74,21 @@ AiRun::Attribution = Data.define(:workspace, :project, :area, :item, :item_label
     end
 
     # A Designs turn: an import's (setup) turn is the import's, any other the
-    # thread's. The person is whoever asked for the turn.
+    # thread's (the task's, on a legacy task chat). The person is whoever
+    # asked for the turn. It never raises over a missing record: the turn's
+    # project is enough to record the run against.
     def for_design_turn(turn)
       session = turn.chat_session
       user = turn.chat_message.user
-      if session.purpose == "designs_setup" && session.design_setup
+      if session.purpose == "designs_setup"
         setup = session.design_setup
-        label = "Import · Designs from the app, #{I18n.l(setup.created_at.to_date, format: '%-d %b')}"
-        design(setup.project, setup, label, user)
-      elsif session.design_thread
-        thread = session.design_thread
+        on = (setup&.created_at || session.created_at).to_date
+        design(session.project, setup, "Import · Designs from the app, #{I18n.l(on, format: '%-d %b')}", user)
+      elsif (thread = session.design_thread)
         design(thread.project, thread, "Thread · #{thread.title}", user)
       else
         task = session.task
-        design(task.project, task, "#{task_key(task)} · Designs", user)
+        design(session.project || task.project, task, task ? "#{task_key(task)} · Designs" : "Designs", user)
       end
     end
 

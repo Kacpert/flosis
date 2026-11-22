@@ -178,4 +178,16 @@ class Designs::DescribeJobTest < ActiveSupport::TestCase
     assert turn.reload.failed?
     assert_equal 4, @task.reload.current_detail_draft.version
   end
+
+  # SCRUM-70
+  test "the describe turn is attributed to the thread and the person who accepted" do
+    claude(FakeCli.new(text: "<description>\n## AI usage\n\nIntro paragraph.\n</description>"))
+    run_job
+
+    attribution = @options[:attribution]
+    assert_equal @thread, attribution.item
+    assert_equal "designs", attribution.area
+    assert_equal @merge.user, attribution.started_by
+  end
+
 end

@@ -295,7 +295,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
 
       assert turn.succeeded?, turn.error
       worktree = repo.worktree!("wip/REC-1").to_s
-      assert_equal %i[add_dirs allowed_tools api_key append_system_prompt_file codebase_path effort max_budget_usd mcp_config restricted timeout tools],
+      assert_equal %i[add_dirs allowed_tools api_key append_system_prompt_file attribution codebase_path effort max_budget_usd mcp_config restricted timeout tools],
                    seen.keys.sort
       assert_equal worktree, seen[:codebase_path]
       assert_equal %w[Read Glob Grep Edit Write], seen[:allowed_tools]
@@ -2010,4 +2010,55 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       assert_equal "Stopped by Kacper. Nothing it changed was kept.", turn.error
     end
   end
+
+  # SCRUM-70: whose AI run a Designs turn is.
+  test "a thread turn is attributed to its thread and requester" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      opts = nil
+      scripted_claude { |_call, _keywords, o| opts = o; { session_id: "s", response: NO_DOUBTS, is_error: false } }
+
+      turn = run_turn(plan_turn(repo, base), remote)
+
+      attribution = opts[:attribution]
+      assert_equal turn.chat_session.design_thread, attribution.item
+      assert_equal "designs", attribution.area
+      assert_equal users(:one), attribution.started_by
+      assert_equal "Thread · Add a counter under long answers", attribution.item_label
+    end
+  end
+
+  test "an import's setup turn is attributed to the import and whoever started it" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      options = nil
+      fake_claude(reply: "<summary>Tokens read from the app.</summary>", during: ->(opts) { options = opts })
+      turn = setup_turn(repo.project)
+      setup = DesignSetup.find_by!(project: repo.project)
+      turn.chat_session.update!(design_setup: setup)
+      run_turn(turn, remote)
+
+      assert_equal setup, options[:attribution].item
+      assert options[:attribution].item_label.start_with?("Import · Designs from the app, ")
+      assert_equal users(:one), options[:attribution].started_by
+    end
+  end
+
+  test "a setup turn without its import on the session is still attributed to the project" do
+    with_design_remote do |repo, remote|
+      seed_master(repo)
+      options = nil
+      fake_claude(reply: "<summary>Tokens read from the app.</summary>", during: ->(opts) { options = opts })
+      run_turn(setup_turn(repo.project), remote)
+
+      assert_equal repo.project, options[:attribution].project
+      assert_equal "designs", options[:attribution].area
+    end
+  end
+
+  test "a stopped turn's error is a stop signal" do
+    assert Designs::TurnJob::Stopped.include?(ClaudeCliService::StopSignal)
+    assert Designs::DescribeJob::Stopped.include?(ClaudeCliService::StopSignal)
+  end
+
 end
