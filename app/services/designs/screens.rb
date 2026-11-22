@@ -1,8 +1,9 @@
 # The screens on one ref of a design repo (Workshop Designs v2). A context is a
 # folder under designs/ and a screen is an .html file in it, so
 # designs/admin/pipeline.html is the Pipeline screen as Admin. A screen is named
-# by its <title>, else after its file; a context after its folder. What could
-# not go into a link (anything but letters, digits, _ and -) is left out.
+# by its <title>, else after its file; a context as names gives it (its role in
+# the setup, 2026-11-22), else after its folder. What could not go into a link
+# (anything but letters, digits, _ and -) is left out.
 #
 # paths are the repo's paths on that ref and reader reads one of them, so the
 # same class reads a commit (Designs::Repo#read_file) or a test's hash.
@@ -12,8 +13,9 @@ class Designs::Screens
 
   attr_reader :reader
 
-  def initialize(paths:, reader:)
+  def initialize(paths:, reader:, names: {})
     @reader = reader
+    @names = names
     @entries = paths.filter_map do |path|
       match = PATH.match(path) or next
       context, id = match.captures
@@ -22,7 +24,7 @@ class Designs::Screens
   end
 
   def contexts
-    @entries.map { |entry| entry[:context] }.uniq.map { |id| { id: id, name: id.humanize } }
+    @entries.map { |entry| entry[:context] }.uniq.map { |id| { id: id, name: @names[id].presence || id.humanize } }
   end
 
   def screens
