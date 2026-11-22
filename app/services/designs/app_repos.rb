@@ -59,13 +59,15 @@ class Designs::AppRepos
   end
 
   # [role, "owner/name", branch or nil] for each row the form saved.
-  def repos
-    Array(@project.design_app_repos).filter_map do |row|
+  def self.repos_of(project)
+    Array(project.design_app_repos).filter_map do |row|
       next unless row.is_a?(Hash) && (match = NAME.match(row["repo"].to_s.strip))
 
       [ row["role"].presence || "Repository", match[1], match[2] ]
     end
   end
+
+  def repos = self.class.repos_of(@project)
 
   private
 

@@ -34,6 +34,12 @@ module ActiveSupport
       @ai_checkouts&.each { |dir| FileUtils.remove_entry(dir) if File.exist?(dir) }
     end
 
+    # An import's run fetches the app's history from GitHub (Designs::
+    # AppHistory); no test reaches GitHub, so the run's seam reads nothing
+    # unless a test says otherwise.
+    setup { Designs::SetupRunJob.app_history = ->(_setup) { [] } }
+    teardown { Designs::SetupRunJob.app_history = nil }
+
     # Sets environment variables for the block (nil unsets one), then puts
     # back what was there. Credentials the machine holds (.env, the CLI's
     # config) are replaced this way, so a test never reads, or prints, a real one.

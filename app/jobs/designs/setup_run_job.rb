@@ -66,12 +66,15 @@ class Designs::SetupRunJob < ApplicationJob
     # repositories and stops a Claude a killed worker left (by its session
     # id, which only its command line carries), here and now; and how often
     # the heartbeat beats, in seconds. Tests stand in for them.
-    attr_writer :turn_runner, :sign_in, :app_repos, :killer, :heartbeat_every, :app_changes
+    attr_writer :turn_runner, :sign_in, :app_repos, :killer, :heartbeat_every, :app_changes, :app_history
 
     def turn_runner = @turn_runner || ->(turn_id) { Designs::TurnJob.perform_now(turn_id) }
     def sign_in = @sign_in || ->(setup) { Designs::SignIn.new(setup).call }
     def app_repos = @app_repos || ->(setup) { Designs::AppRepos.new(setup).fetch! }
     def app_changes = @app_changes || ->(setup) { Designs::AppChanges.new(setup).fetch! }
+    # The app's history for the git tool (Designs::AppHistory): cloned or
+    # fetched; a repository it cannot read is a note.
+    def app_history = @app_history || ->(setup) { Designs::AppHistory.new(setup.project).fetch!(setup) }
     def killer = @killer || ->(session_id) { system("pkill", "-TERM", "-f", session_id, out: File::NULL, err: File::NULL) }
     def heartbeat_every = @heartbeat_every || 300
 
@@ -238,6 +241,7 @@ class Designs::SetupRunJob < ApplicationJob
       raise Failure, project.design_repo_error.presence || "The designs repository could not be set up." unless project.design_repo_status == "ready"
     end
     fetched = self.class.app_repos.call(setup)
+    self.class.app_history.call(setup)
     setup.finish_step!(app_commits: Array(fetched).map { |row| row.slice("repo", "branch", "sha") })
   end
 
@@ -483,6 +487,7 @@ class Designs::SetupRunJob < ApplicationJob
     feature.update!(status: "running", stage: "building", started_at: Time.current, error: nil, resets_at: nil)
     self.class.sign_in.call(setup)
     self.class.app_repos.call(setup) if Designs::AppRepos.new(setup).dirs.empty?
+    self.class.app_history.call(setup) if Designs::AppHistory.new(setup.project).clones.empty?
     repo = Designs::Repo.new(setup.project)
     branch = feature.branch.presence || fresh_branch!(repo, feature)
     feature.update!(branch: branch)

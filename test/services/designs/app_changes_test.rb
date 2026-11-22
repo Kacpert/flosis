@@ -40,18 +40,16 @@ class Designs::AppChangesTest < ActiveSupport::TestCase
     @project.design_setups.create!(kind: "resync", since_setup: since, status: "active", phase: "resync", started_by: users(:one))
   end
 
-  test "the changes since the last import are written for the AI" do
+  test "the changes since the last import are read from the app's history" do
     since = @project.design_setups.create!(status: "approved", started_by: users(:one), app_commits: [ { "repo" => "acme/app", "branch" => nil, "sha" => @first } ])
     latest = commit({ "app/views/bugs/index.html.erb" => "<h1>Bugs</h1>\n<form class=\"filter\"></form>\n" }, at: "2026-11-05T12:00:00+01:00")
     push
     resync = resync_from(since)
 
     changes = Designs::AppChanges.new(resync).fetch!
-    assert_equal [ [ "acme/app", @first, latest ] ], changes.map { |row| row.values_at("repo", "from", "to") }
-    diff = Pathname(changes.first["path"]).read
-    assert_includes diff, "app/views/bugs/index.html.erb"
-    assert_includes diff, "+<form class=\"filter\"></form>"
-    assert_equal resync.run_dir.join("changes"), Pathname(changes.first["path"]).dirname
+    assert_equal [ [ "acme/app", @first, latest, 1 ] ], changes.map { |row| row.values_at("repo", "from", "to", "commits") }
+    assert_includes changes.first["stat"], "app/views/bugs/index.html.erb"
+    refute resync.run_dir.join("changes").exist?, "no cut diff files any more"
     assert_equal [ { "repo" => "acme/app", "branch" => nil, "sha" => latest } ], resync.reload.app_commits
   end
 
@@ -62,15 +60,10 @@ class Designs::AppChangesTest < ActiveSupport::TestCase
     since = @project.design_setups.create!(status: "approved", started_by: users(:one), created_at: Time.zone.parse("2026-11-03T01:40:00+01:00"))
 
     changes = Designs::AppChanges.new(resync_from(since)).fetch!
-    assert_equal second, changes.first["from"]
-    assert_includes Pathname(changes.first["path"]).read, "+<p>Filter</p>"
+    assert_equal [ second, 1 ], changes.first.values_at("from", "commits")
   end
 
-  # Final review C3: a blobless clone fetches each file it diffs from GitHub,
-  # so every git it runs carries the project's token, and the diff works on a
-  # real partial clone.
-  test "a private repository's history is read with the project's token, file contents and all" do
-    system("git", "-C", @remote, "config", "uploadpack.allowFilter", "true", exception: true)
+  test "a private repository's history is fetched with the project's token" do
     Designs::AppRepos.url_for = ->(_name) { "file://#{@remote}" }
     @project.update!(github_token: "ghp_private")
     since = @project.design_setups.create!(status: "approved", started_by: users(:one), app_commits: [ { "repo" => "acme/app", "branch" => nil, "sha" => @first } ])
@@ -85,13 +78,21 @@ class Designs::AppChangesTest < ActiveSupport::TestCase
       GitRunner.define_singleton_method(:run!, run)
     end
 
-    assert_includes Pathname(changes.first["path"]).read, "+<p>Trend</p>"
-    assert_equal [ "ghp_private" ], tokens.map(&:last).uniq, "every git run took the token: #{tokens.inspect}"
+    assert_includes changes.first["stat"], "app/views/bugs/index.html.erb"
+    assert_includes tokens, [ "clone", "ghp_private" ]
   end
 
-  test "a repository nothing changed in has no diff" do
+  test "a repository nothing changed in has no stat" do
     since = @project.design_setups.create!(status: "approved", started_by: users(:one), app_commits: [ { "repo" => "acme/app", "branch" => nil, "sha" => @first } ])
     changes = Designs::AppChanges.new(resync_from(since)).fetch!
-    assert_equal [ [ @first, @first, nil ] ], changes.map { |row| row.values_at("from", "to", "path") }
+    assert_equal [ [ @first, @first, nil, 0 ] ], changes.map { |row| row.values_at("from", "to", "stat", "commits") }
+  end
+
+  # Builder check (2026-11-22): a repository the last import did not read,
+  # while it read others, is new to the designs, and read whole.
+  test "a repository new to the designs is read whole" do
+    since = @project.design_setups.create!(status: "approved", started_by: users(:one), app_commits: [ { "repo" => "acme/api", "branch" => nil, "sha" => "c" * 40 } ])
+    changes = Designs::AppChanges.new(resync_from(since)).fetch!
+    assert_equal [ [ "acme/app", nil, true, @first ] ], changes.map { |row| row.values_at("repo", "from", "new", "to") }
   end
 end
