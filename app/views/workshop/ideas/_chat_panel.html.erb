@@ -27,9 +27,15 @@
       their labels give way to their icons as the column narrows; the persona
       badge truncates last. %>
   <div class="px-4 py-3 flex items-center gap-2 border-b clar-divider flex-nowrap">
-    <span class="clar-badge clar-badge-ai min-w-0">
-      <svg class="flex-none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
-      <span class="truncate min-w-0"><%= persona_label %></span>
+    <%# Who the AI is being, and under it what the task's conversation has cost
+        in AI (SCRUM-70) — only while costs are shown. %>
+    <span class="flex min-w-0 flex-col items-start gap-[3px]">
+      <span class="clar-badge clar-badge-ai min-w-0 max-w-full">
+        <svg class="flex-none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
+        <span class="truncate min-w-0"><%= persona_label %></span>
+      </span>
+      <%= render "workshop/shared/ai_cost", cost: ai_item_cost(ai_figures([ idea ], area: "task_conversations"), idea),
+                 tip: "AI cost of this task's conversation · total, this month in brackets" %>
     </span>
     <span class="text-[12px] clar-text-faint min-w-0 truncate hidden @[56rem]:inline">Reads project &amp; task description first</span>
     <span class="flex-1 min-w-0"></span>

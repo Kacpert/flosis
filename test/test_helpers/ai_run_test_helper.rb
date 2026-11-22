@@ -30,6 +30,20 @@ module AiRunTestHelper
     ClaudeCliService.define_method(:start_session, original)
   end
 
+  # A finished run for `item` worth `total` in all, `this_month` of it this
+  # month (the rest two months ago), as the item figures read it.
+  def priced_runs!(item, area:, total:, this_month:, workspace: workspaces(:one), project: projects(:jira_project))
+    base = { workspace: workspace, project: project, area: area, item_type: item.class.polymorphic_name, item_id: item.id,
+             automation: "Test", status: "succeeded" }
+    earlier = BigDecimal(total.to_s) - BigDecimal(this_month.to_s)
+    AiRun.create!(base.merge(ran_at: 2.months.ago, cost_usd: earlier, price_usd: earlier)) if earlier.positive?
+    AiRun.create!(base.merge(ran_at: Time.current, cost_usd: this_month, price_usd: this_month)) if BigDecimal(this_month.to_s).positive?
+  end
+
+  def show_ai_costs!(user = users(:one))
+    user.update!(show_ai_costs: true)
+  end
+
   def cli_usage(event = CLI_RESULT)
     AiRun::Usage.new.tap { |usage| usage.see(event) }
   end

@@ -43,6 +43,11 @@
     <% if @accepting %>
       <span class="clar-badge clar-badge-primary !py-0.5 !px-2">Accepting</span>
     <% end %>
+    <%# The thread's AI cost rides on its state line (SCRUM-70): no row of its own. %>
+    <span class="text-[11.5px] clar-text-faint">
+      <%= render "workshop/shared/ai_cost", cost: ai_item_cost(ai_figures([ thread ], area: "designs"), thread), dot: true,
+                 tip: "AI cost of this thread · total, this month in brackets" %>
+    </span>
   </div>
 </div>
 

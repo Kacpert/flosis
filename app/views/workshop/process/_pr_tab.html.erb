@@ -31,6 +31,7 @@
     <% if @pr_reviews.empty? %>
       <div class="p-8 text-center clar-text-muted text-[13.5px]" data-empty>No PRs reviewed yet.</div>
     <% else %>
+      <% pr_costs = ai_figures(@pr_reviews, area: "pr_reviews") %>
       <% @pr_reviews.each do |review| %>
         <div class="flex items-center gap-3.5 px-4.5 py-3.5 border-b border-[color:var(--border)] last:border-b-0">
           <span class="clar-mono text-[12px] clar-text-faint w-[46px] flex-none">#<%= review.pr_number %></span>
@@ -38,6 +39,8 @@
             <div class="font-semibold text-[13.5px] clar-text-text truncate"><%= review.pr_title %></div>
             <div class="text-[11.5px] clar-text-faint mt-[3px]">
               <%= review.pr_author %> &middot; <span class="clar-mono"><%= review.pr_branch %></span> &middot; <%= clar_time_ago(review.reviewed_at) %>
+              <%= render "workshop/shared/ai_cost", cost: ai_item_cost(pr_costs, review), dot: true,
+                         tip: "AI cost of this review · total, this month in brackets" %>
             </div>
             <%# A failed review used to be invisible — the row was deleted and the
                 PR silently re-reviewed every poll. Now say what broke and when

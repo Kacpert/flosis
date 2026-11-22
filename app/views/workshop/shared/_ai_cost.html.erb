@@ -1,0 +1,15 @@
+<%# An item's AI cost (SCRUM-70), riding on a line that already exists: faint,
+    no link, nothing to click. cost: the formatted figure (AiCostsHelper#ai_item_cost),
+    nil draws nothing. tip: what the figure is. dot: "· $x" at the end of a meta
+    line; otherwise a wallet icon and the figure, on a line of its own. %>
+<%# locals: (cost:, tip:, dot: false) %>
+<% if cost %>
+  <% if dot %>
+    <span class="clar-tip clar-tip-below flex-none whitespace-nowrap" data-tip="<%= tip %>" data-ai-cost>&middot; <%= cost %></span>
+  <% else %>
+    <span class="clar-tip clar-tip-below inline-flex max-w-full items-center gap-[5px] text-[11px] clar-text-faint" data-tip="<%= tip %>" data-ai-cost>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="flex-none" aria-hidden="true"><path d="M3 7h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V6a2 2 0 0 1 2-2h11"/></svg>
+      <span class="min-w-0 truncate"><%= cost %></span>
+    </span>
+  <% end %>
+<% end %>

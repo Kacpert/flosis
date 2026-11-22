@@ -24,6 +24,7 @@
           </div>
         <% end %>
       </div>
+      <% import_costs = ai_figures(@imports, area: "designs") %>
       <% @imports.each do |setup| %>
         <% waiting = setup.needs_you.size %>
         <%= link_to workshop_designs_overview_path(tab: "imports", import: setup.id), class: "block clar-card px-4 py-3 mb-2 no-underline clar-row-hover",
@@ -34,6 +35,8 @@
           </div>
           <div class="text-[12px] clar-text-muted mt-1">
             <%= [ import_when(setup, range: true), (setup.running? ? "Running in the background" : setup.summary), import_contexts(@project) ].compact.join(" · ") %>
+            <%= render "workshop/shared/ai_cost", cost: ai_item_cost(import_costs, setup), dot: true,
+                       tip: "AI cost of this import · total, this month in brackets" %>
           </div>
         <% end %>
       <% end %>

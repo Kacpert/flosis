@@ -956,4 +956,21 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       assert_includes steps, "Writing SP-1051's description"
     end
   end
+
+  include AiRunTestHelper
+
+  # SCRUM-70: the thread's AI cost rides on its state line.
+  test "a thread shows its AI cost when costs are on" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      priced_runs!(thread, area: "designs", total: 6.40, this_month: 2.10, project: @project)
+      get workshop_designs_overview_path(thread: thread.id)
+      refute_includes response.body, "$6.40 ($2.10 this month)"
+
+      show_ai_costs!
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_includes response.body, "$6.40 ($2.10 this month)"
+    end
+  end
+
 end
