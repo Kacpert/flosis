@@ -107,6 +107,8 @@ Rails.application.routes.draw do
   # process/reporting/bugs/configuration) land in later phases (design_request
   # landed in Task 5.3).
   namespace :workshop do
+    # Profile Settings inside Flosis; Time & HR keeps its own /profile.
+    resource :profile, only: %i[show update]
     get "pipeline", to: "pipeline#index", as: :pipeline
     get "designs", to: "designs_module#show", as: :designs_overview
     post "ideas/:id/design_thread", to: "design_threads#start_from_task", as: :start_idea_design_thread

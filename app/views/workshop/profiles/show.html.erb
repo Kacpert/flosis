@@ -1,0 +1,23 @@
+<% content_for :title, "Profile Settings · Flosis" %>
+<% content_for :clar_own_flash, "1" %>
+<%# Profile Settings inside Flosis, after designs/admin/profile.html and its
+    states (saved, password error, costs off, two organizations). A narrow
+    column: the page is a form and a list of sentences, and neither reads at
+    the full Workshop width. Nothing in the sidebar is lit: the profile belongs
+    to the person, not to a project. %>
+<div class="mx-auto max-w-2xl" data-workshop-profile>
+  <%# Saving lands back here with the message above the title. %>
+  <%= render "layouts/clar_flash" %>
+
+  <h1 class="clar-h1 mb-5.5">Profile Settings</h1>
+
+  <%= render "workshop/profiles/organizations_card" %>
+  <%= render "workshop/profiles/form" %>
+
+  <%# Outside the form, and saved the moment it is flipped: what the product
+      shows you is yours, not something to Save. %>
+  <%= render "workshop/profiles/ai_costs_card" %>
+
+  <%# Outside the form: nothing here is submitted with the profile. %>
+  <%= render "workshop/profiles/access_card" %>
+</div>

@@ -1,0 +1,45 @@
+<%# The only form on Profile settings (design component profile-form): who you
+    are and, optionally, a new password. One Save Changes submits both cards,
+    which is why the password card says that leaving it blank keeps the one you
+    have. Whatever the save was refused for is listed above the first card. %>
+<%= form_with model: current_user, url: workshop_profile_path, method: :patch, class: "flex flex-col gap-4.5" do |f| %>
+  <% if current_user.errors.any? %>
+    <div role="alert" class="flex items-start gap-1.75 rounded-[7px] bg-[color:var(--danger-soft)] px-3.5 py-2.5 text-[13px] font-bold clar-text-danger">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" class="mt-0.5 flex-none"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      <span><%= current_user.errors.full_messages.to_sentence %></span>
+    </div>
+  <% end %>
+
+  <section class="clar-card p-4.5">
+    <h2 class="m-0 mb-3.5 text-[14px] font-bold clar-text-text">Personal Information</h2>
+
+    <%= f.label :name, "NAME", class: "clar-field-label", for: "profile-name" %>
+    <%= f.text_field :name, id: "profile-name", autocomplete: "name", required: true, class: "clar-input mb-4" %>
+
+    <%= f.label :email_address, "EMAIL", class: "clar-field-label", for: "profile-email" %>
+    <%= f.email_field :email_address, id: "profile-email", autocomplete: "email", required: true, class: "clar-input mb-4" %>
+
+    <%# Every time the product prints is printed in this zone. %>
+    <%= f.label :timezone, "TIMEZONE", class: "clar-field-label", for: "profile-timezone" %>
+    <%= f.select :timezone, ActiveSupport::TimeZone.all.map { |tz| [ tz.to_s, tz.name ] },
+          { include_blank: "Select timezone" }, id: "profile-timezone", class: "clar-select" %>
+  </section>
+
+  <section class="clar-card p-4.5">
+    <h2 class="m-0 text-[14px] font-bold clar-text-text">Change Password</h2>
+    <p class="mt-1 mb-3.5 text-[12.5px] clar-text-muted">Leave blank to keep current password.</p>
+
+    <label for="profile-current-password" class="clar-field-label">CURRENT PASSWORD</label>
+    <input id="profile-current-password" name="user[current_password]" type="password" autocomplete="current-password" class="clar-input mb-4">
+
+    <label for="profile-new-password" class="clar-field-label">NEW PASSWORD</label>
+    <input id="profile-new-password" name="user[password]" type="password" autocomplete="new-password" class="clar-input mb-4">
+
+    <label for="profile-confirm-password" class="clar-field-label">CONFIRM NEW PASSWORD</label>
+    <input id="profile-confirm-password" name="user[password_confirmation]" type="password" autocomplete="new-password" class="clar-input">
+  </section>
+
+  <div>
+    <%= f.button "Save Changes", type: "submit", class: "clar-btn clar-btn-primary" %>
+  </div>
+<% end %>
