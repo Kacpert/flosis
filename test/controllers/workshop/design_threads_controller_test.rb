@@ -139,7 +139,21 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
       thread.reload
       assert_equal "design/errors-under-the-field", thread.branch
       assert_equal [ "candidate", "apply" ], [ thread.focus_context, thread.focus_screen ]
+      assert_nil thread.focus_state
       assert_enqueued_jobs 1, only: Designs::TurnJob
+    end
+  end
+
+  # Kacper (2026-11-22): a page's states live in its file, and the canvas
+  # sends the one the person has open with the message.
+  test "a message keeps the state of the screen the person sees, and only a state's name" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      post message_workshop_design_thread_path(thread), params: { text: "Errors under the field", ctx: "candidate", screen: "apply", state: "errors-shown" }
+      assert_equal [ "candidate", "apply", "errors-shown" ], [ thread.reload.focus_context, thread.focus_screen, thread.focus_state ]
+
+      post message_workshop_design_thread_path(thread), params: { text: "Bigger", ctx: "candidate", screen: "apply", state: "../x" }
+      assert_nil thread.reload.focus_state
     end
   end
 

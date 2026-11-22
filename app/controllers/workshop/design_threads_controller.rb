@@ -36,7 +36,8 @@ class Workshop::DesignThreadsController < Workshop::BaseController
     text = params[:text].to_s.strip
     if text.present? && @thread.open?
       Designs::Threads.message!(@thread, user: current_user, text: text, context: params[:ctx].presence, screen: params[:screen].presence,
-                                                     images: Array(params[:images]).select { |file| file.respond_to?(:original_filename) })
+                                state: params[:state].presence,
+                                images: Array(params[:images]).select { |file| file.respond_to?(:original_filename) })
     end
     redirect_to canvas_as_it_was
   rescue Designs::Threads::Busy, ArgumentError => e

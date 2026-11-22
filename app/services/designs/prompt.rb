@@ -219,10 +219,20 @@ module Designs::Prompt
   # Kacper (2026-11-19): one file per page of the app, its states inside it,
   # as the app's own page has them; separate files drifted apart and took the
   # longest to write. Replaces the base prompt's states as screens of their own.
-  STATES = "Show a screen's states (empty, over a limit, no plan, an option off, an error) in that screen, not as " \
-           "screens of their own: a small state switcher at the top of the screen links to each state by its hash " \
-           "(consumption.html#over-limit), and only what differs changes. A new file is for a new page of the app " \
-           "only. This replaces what the base prompt says about showing states as screens of their own.".freeze
+  # 2026-11-22: the runtime switches them (runtime/flosis.js, states()), and
+  # Flosis's own designs were folded that way.
+  STATES = <<~TEXT.squish.freeze
+    Show a screen's states (empty, over a limit, no plan, an option off, an error, a dialog open) inside that screen,
+    never as screens of their own, so that a change to the page is made once. The first element of its body,
+    <nav data-states>, lists them: its first link is the page as it opens (<a href="#">This month</a>), each other one
+    a state by its hash (<a href="#over-limit">Over the limit</a>, opened as consumption.html#over-limit). Mark only
+    what differs: data-show-in="over-limit no-plan" shows an element only in those states ("default" is the page as it
+    opens), data-hide-in hides it in them, and data-open-in opens what the page itself opens and closes (a dialog, a
+    drawer, a menu: its hidden class goes); on an <x-include> they pass to the component. For anything else, the
+    page's script reads Flosis.state and listens for the flosis:state event. The runtime shows the switcher: never draw
+    one. A new file is for a new page of the app only. This replaces what the base prompt says about showing states as
+    screens of their own.
+  TEXT
   COPIES = "To start a new page, copy the closest existing screen with the copy_file tool and edit the copy; never " \
            "write a near-copy of a screen out from scratch.".freeze
 
@@ -283,8 +293,10 @@ module Designs::Prompt
     sections = [ "## Thread\n#{thread.title}\nBranch: #{thread.branch}" ]
     unless check
       if thread.focus_context.present? && thread.focus_screen.present?
-        sections << "## The person is looking at\n#{thread.focus_context.humanize} › #{thread.focus_screen.humanize} " \
-                    "(designs/#{thread.focus_context}/#{thread.focus_screen}.html)"
+        state = thread.focus_state.presence
+        sections << "## The person is looking at\n#{thread.focus_context.humanize} › #{thread.focus_screen.humanize}" \
+                    "#{", in its #{state.tr("-", " ").humanize} state" if state} " \
+                    "(designs/#{thread.focus_context}/#{thread.focus_screen}.html#{"##{state}" if state})"
       end
       if (task = thread.task)
         sections << "## Task\n#{Designs::ThreadNames.key(task)} — #{task.name}"

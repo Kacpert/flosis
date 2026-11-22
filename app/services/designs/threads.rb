@@ -85,7 +85,7 @@ module Designs::Threads
   # build (variant b, on test).
   # Images go with the message (Kacper, 2026-11-19), as in a task's chat, and
   # the turn reads them (Designs::TurnJob#ask_claude); none go to the repo.
-  def message!(thread, user:, text:, context: nil, screen: nil, images: [])
+  def message!(thread, user:, text:, context: nil, screen: nil, state: nil, images: [])
     raise Busy, IMPORTING if importing?(thread)
 
     images = Array(images).compact_blank
@@ -94,7 +94,11 @@ module Designs::Threads
 
     fresh = thread.fresh?
     name!(thread, text) if fresh
-    thread.update!(focus_context: context, focus_screen: screen) if context.present? && screen.present?
+    # The state of that screen too (2026-11-22: a page's states live in its
+    # file), when it names one: none is the page as it opens.
+    if context.present? && screen.present?
+      thread.update!(focus_context: context, focus_screen: screen, focus_state: (state if Designs::Screens::ID.match?(state.to_s)))
+    end
     return queue_turn(thread, user, text, kind: "plan", images: images) if fresh
 
     stop_checks!(thread)

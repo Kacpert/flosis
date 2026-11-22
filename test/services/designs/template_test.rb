@@ -227,6 +227,8 @@ class Designs::TemplateTest < ActiveSupport::TestCase
       createElement: element,
       // The kit's styles, as Tailwind's browser build writes them, are in.
       querySelectorAll: (selector) => (selector === "style" ? [{ textContent: "/*! tailwindcss v4.2.1 */" }] : []),
+      // A page with no states (<nav data-states>).
+      querySelector: () => null,
       addEventListener() {},
       dispatchEvent() {},
     };

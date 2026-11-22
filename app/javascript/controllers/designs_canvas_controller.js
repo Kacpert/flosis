@@ -13,6 +13,11 @@ import { Controller } from "@hotwired/stimulus"
 // corner both; a double-click on an edge puts back the standard size. Another
 // size shows in the frame's bar and is remembered in this browser; a frame
 // wider than the canvas is scaled to fit, as the standard one is.
+//
+// A screen's states (Kacper, 2026-11-22: a page's states live in its file,
+// switched by the hash): the screen tells them, the frame's bar picks one, the
+// next message names it, and the canvas puts a screen back in the state it was
+// left in when the page reloads (after a turn, say), for this tab's session.
 const STANDARD = { width: 1160, height: 860 }
 const STORAGE_KEY = "designs.frameSize"
 const MIN_WIDTH = 320
@@ -21,12 +26,15 @@ const MIN_HEIGHT = 320
 const BORDER = 2
 // A click that wobbles a pixel or two is not a drag.
 const DRAG_THRESHOLD = 3
+const STATES_KEY = "designs.screenStates"
+const DEFAULT_STATE = "default"
 
 export default class extends Controller {
-  static targets = ["box", "wrap", "frame", "size", "sees", "context", "screen", "path", "viewAs", "mode"]
+  static targets = ["box", "wrap", "frame", "size", "sees", "context", "screen", "path", "viewAs", "mode", "states", "stateSelect", "state"]
   static values = { contexts: Object, width: { type: Number, default: STANDARD.width }, height: { type: Number, default: STANDARD.height } }
 
   connect() {
+    this.firstScreen = true
     this.onMessage = this.message.bind(this)
     window.addEventListener("message", this.onMessage)
     this.sizeMove = this.sizeMove.bind(this)
@@ -170,12 +178,19 @@ export default class extends Controller {
     const data = event.data || {}
     const contextName = (id) => this.contextsValue[id] || id
     if (data.type === "flosis:screen") {
-      const label = `${contextName(data.context)} › ${data.title || data.screen}`
-      this.seesTargets.forEach((element) => { element.textContent = `AI sees ${label}` })
+      // Only the screen the page opened with is put back in its state: a
+      // link clicked inside the preview goes where it says.
+      this.seen = { label: `${contextName(data.context)} › ${data.title || data.screen}`, screen: data.screen, restore: this.firstScreen }
+      this.firstScreen = false
+      this.seesTargets.forEach((element) => { element.textContent = `AI sees ${this.seen.label}` })
       this.contextTargets.forEach((element) => { element.value = data.context })
       this.screenTargets.forEach((element) => { element.value = data.screen })
+      this.stateTargets.forEach((element) => { element.value = "" })
       this.pathTargets.forEach((element) => { element.textContent = `designs/${data.context}/${data.screen}.html` })
+      if (this.hasStatesTarget) this.statesTarget.hidden = true
       if (data.context && data.screen) this.follow(data.context, data.screen)
+    } else if (data.type === "flosis:states") {
+      this.showStates(data)
     } else if (data.type === "flosis:missing") {
       const label = String(data.label || "This page")
       const message = data.reason === "other-context"
@@ -183,6 +198,57 @@ export default class extends Controller {
         : `${label} is not designed yet. Start a thread to add it.`
       window.dispatchEvent(new CustomEvent("clar:toast", { detail: { message } }))
     }
+  }
+
+  // The screen's states in the frame's bar, the one shown picked; the AI is
+  // told of a state other than the page as it opens. A screen the page opened
+  // with as it opens is put back in the state it was left in.
+  showStates(data) {
+    if (!this.seen) return
+    const states = (Array.isArray(data.states) ? data.states : []).filter((state) => typeof state?.key === "string")
+    const current = states.find((state) => state.key === data.state)
+    if (!current) return
+    if (this.seen.restore) {
+      this.seen.restore = false
+      const remembered = this.rememberedState(this.seen.screen)
+      if (current.key === DEFAULT_STATE && remembered && states.some((state) => state.key === remembered)) {
+        this.setState(remembered)
+        return
+      }
+    }
+    this.remember(this.seen.screen, current.key)
+    if (this.hasStatesTarget) {
+      this.statesTarget.hidden = states.length < 2
+      this.stateSelectTarget.replaceChildren(...states.map((state) => new Option(String(state.label || state.key), state.key, false, state === current)))
+    }
+    const named = current.key !== DEFAULT_STATE
+    this.stateTargets.forEach((element) => { element.value = named ? current.key : "" })
+    this.seesTargets.forEach((element) => { element.textContent = `AI sees ${this.seen.label}${named ? ` › ${current.label || current.key}` : ""}` })
+  }
+
+  pickState(event) {
+    this.setState(event.target.value)
+  }
+
+  setState(state) {
+    this.frameTarget.contentWindow?.postMessage({ type: "flosis:set-state", state }, "*")
+  }
+
+  rememberedState(screen) {
+    try {
+      return JSON.parse(sessionStorage.getItem(STATES_KEY))?.[screen] || null
+    } catch {
+      return null
+    }
+  }
+
+  remember(screen, state) {
+    try {
+      const states = JSON.parse(sessionStorage.getItem(STATES_KEY)) || {}
+      if (state === DEFAULT_STATE) delete states[screen]
+      else states[screen] = state
+      sessionStorage.setItem(STATES_KEY, JSON.stringify(states))
+    } catch {}
   }
 
   // A role opens at this screen, or at its closest when it has none (the

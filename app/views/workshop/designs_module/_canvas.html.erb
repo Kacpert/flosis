@@ -84,6 +84,14 @@
       <div class="flex items-center gap-2.5 px-3 py-2 bg-[var(--surface)] border-b border-[color:var(--border)]">
         <span class="flex gap-[5px]"><% 3.times do %><span class="w-[9px] h-[9px] rounded-full bg-[var(--border)]"></span><% end %></span>
         <span class="clar-mono text-[11.5px] clar-text-muted flex-1 min-w-0 truncate" data-designs-canvas-target="path"><%= @current ? @current[:path] : "designs/" %></span>
+        <%# A screen's states (Kacper, 2026-11-22: a page's states live in its
+            file): the screen tells them and this picks one. Hidden on a
+            screen that has none. %>
+        <label class="flex items-center gap-1.5 flex-none text-[11.5px] clar-text-faint" data-designs-canvas-target="states" hidden>
+          State
+          <select class="clar-select !w-auto !text-[11.5px] !py-0.5 !pl-2 !pr-6 !rounded-[7px]" aria-label="State of this screen"
+                  data-designs-canvas-target="stateSelect" data-action="change->designs-canvas#pickState"></select>
+        </label>
         <span class="clar-mono text-[11.5px] clar-text-faint flex-none" data-designs-canvas-target="size" hidden></span>
         <% if @master_for_branch %>
           <span class="text-[11.5px] clar-text-faint flex-none">Nothing on this branch yet · showing master</span>

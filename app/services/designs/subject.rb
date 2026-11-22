@@ -200,7 +200,7 @@ module Designs::Subject
       chips = Designs::Changes.new(base: before, head: head).changed.filter_map do |change|
         [ change[:screen], change[:context], change[:kind] == "new" ? "+" : "M" ] if own.include?([ change[:context], change[:screen] ])
       end
-      @thread.update!(focus_screen: chips.first[0], focus_context: chips.first[1]) if chips.any? && move_focus
+      @thread.update!(focus_screen: chips.first[0], focus_context: chips.first[1], focus_state: nil) if chips.any? && move_focus
       chips
     end
 
@@ -392,11 +392,24 @@ module Designs::Subject
       "\nRoles the person said not to import: #{names.join(', ')}." if names.any?
     end
 
+    # An import keeps a page's states in its file, as a thread does (Kacper,
+    # 2026-11-22): the map lists pages, and a feature's turn builds each page
+    # with its states inside.
+    PAGES_NOTE = <<~TEXT.freeze
+      # Pages, not states
+
+      A screen in the map is a page of the app: its own route or tab. A state of a page (empty, an error, a limit reached, an option off, a dialog open) is part of that page, never a screen of its own, so list the page alone.
+    TEXT
+
+    def states_note = "# A screen's states\n\n#{Designs::Prompt::STATES}\n"
+
     def system_text
       "#{Designs::Prompt.system_text(project: project, composition: composition)}\n#{readable}\n#{code_only? ? CODE_ONLY_NOTE : BROWSER_NOTE}" \
         "#{"\n#{GIT_NOTE}" if history?}" \
         "\n#{SUGGEST_NOTE}" \
         "#{"\n#{CODE_CONTEXTS_NOTE}" if from_code_contexts?}" \
+        "#{"\n#{PAGES_NOTE}" if setup.phase.in?(%w[map resync])}" \
+        "#{"\n#{states_note}" if setup.phase == 'feature'}" \
         "#{"\n#{BLOCKED_NOTE}" if setup.phase == 'feature' && !setup.reimport?}"
     end
 
