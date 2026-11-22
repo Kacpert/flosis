@@ -176,8 +176,11 @@ module Designs::Prompt
     having no browser does not hold for it. For each screen in the request: look at it with design_shot at 1160 and at
     1024 px wide (full_page when it scrolls), run check_design on it, and open each state of its state switcher that the
     last turn touched (design_shot with the path and #state). Look for text cut off or overlapping, something pushed
-    onto a line of its own, a broken include or link, and script errors. Fix only what is broken on screen, with the
-    smallest change, and change nothing else: no redesign and no new idea. When nothing is broken, change no file. Your
+    onto a line of its own, a broken include or link, and script errors. A page whose own header pushes its main content
+    below the top third of the window at 1160 px is broken too: tighten that header to at most two short rows (the
+    title with its tabs on one row, an access note as a tag beside the title), keeping what it says. Fix only what is
+    broken on screen, with the smallest change, and change nothing else: no redesign and no new idea. When nothing is
+    broken, change no file. Your
     summary is one line that starts with "Checked on screen:" and says what you fixed, or that it looks right wide and
     narrow.
   TEXT
@@ -232,6 +235,18 @@ module Designs::Prompt
     page's script reads Flosis.state and listens for the flosis:state event. The runtime shows the switcher: never draw
     one. A new file is for a new page of the app only. This replaces what the base prompt says about showing states as
     screens of their own.
+  TEXT
+  # Kacper (2026-11-23): a badge, a title, a description and labelled tab
+  # groups pushed a page's content half way down the window ("straszne
+  # marnotractwo miejsca"), and he wants it kept without being asked.
+  SPACE = <<~TEXT.squish.freeze
+    Spend the window on what the page is for: at 1160 × 860 its main content (the list, the figures, the form) starts
+    in the top third, under the app's own bars. A page's header is at most two short rows: the title, with its tabs,
+    actions or filters on the same row when they fit, then one line of description at most, and none when the title
+    says it. An access note such as "Administrators only" is a small tag beside it, never a row above it; a row of tabs
+    has no labels over it (one tab bar, groups split by a divider); no card wraps a single control, and no band is
+    left empty. Before adding a row, a banner or a card, look for a row that exists. A change never leaves a page less
+    compact than it was.
   TEXT
   COPIES = "To start a new page, copy the closest existing screen with the copy_file tool and edit the copy; never " \
            "write a near-copy of a screen out from scratch.".freeze
@@ -306,7 +321,8 @@ module Designs::Prompt
       sections << "## Since your last turn\n#{check_note.strip}" if check_note.present?
     end
     this_turn = [ (PLAN if plan), (CHECK if check), (COMPONENTS if design), (STATES if design || plan),
-                  (COPIES if design), (DIRECTION_FIRST if may_propose && !after_plan), (AFTER_PLAN if after_plan) ].compact
+                  (SPACE if design || plan), (COPIES if design), (DIRECTION_FIRST if may_propose && !after_plan),
+                  (AFTER_PLAN if after_plan) ].compact
     sections << "## This turn\n#{this_turn.join("\n\n")}" if this_turn.any?
     sections << "## Request\n#{request.to_s.strip}"
     "#{sections.join("\n\n")}\n"
