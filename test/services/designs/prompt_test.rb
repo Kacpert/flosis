@@ -144,6 +144,15 @@ class Designs::PromptTest < ActiveSupport::TestCase
     assert message.rstrip.end_with?("Errors under the field")
   end
 
+  # Kacper (2026-11-22): a page's states live in its file, so the state the
+  # person has open is part of where they are looking.
+  test "a thread's turn names the state of the screen the person has open" do
+    thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x",
+                              focus_context: "candidate", focus_screen: "apply", focus_state: "errors-shown")
+    message = Designs::Prompt.thread_message(thread: thread, request: "Do it")
+    assert_includes message, "## The person is looking at\nCandidate › Apply, in its Errors shown state (designs/candidate/apply.html#errors-shown)\n"
+  end
+
   test "a thread with no task and no screen in view says only what it is and what is asked" do
     thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x")
     assert_equal [ "## Thread", "## Request" ], Designs::Prompt.thread_message(thread: thread, request: "Do it").scan(/^## .+$/)
@@ -159,6 +168,7 @@ class Designs::PromptTest < ActiveSupport::TestCase
     assert_equal [ "## Thread", "## This turn", "## Request" ], message.scan(/^## .+$/)
     assert_includes message, Designs::Prompt::PLAN
     assert_includes message, Designs::Prompt::STATES
+    [ "<nav data-states>", "data-show-in", "data-hide-in", "data-open-in", "Flosis.state", "never draw one" ].each { |rule| assert_includes Designs::Prompt::STATES, rule }
     [ "change no file", "exact strings", "Proposal: ", "No doubts, designing now." ].each { |rule| assert_includes Designs::Prompt::PLAN, rule }
     assert_not_includes message, Designs::Prompt::DIRECTION_FIRST
     assert message.rstrip.end_with?("Show AI costs")

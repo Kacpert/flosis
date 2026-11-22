@@ -72,6 +72,18 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     assert_includes Designs::Subject.for(@session).system_text, "This turn has a browser"
   end
 
+  # Kacper (2026-11-22): imports, like threads, keep a page's states in its
+  # file; the map lists pages, and a feature's turn builds their states inside.
+  test "an import's map lists pages and its feature turns build states inside them" do
+    @setup.update!(phase: "map")
+    assert_includes Designs::Subject.for(@session).system_text, Designs::Subject::SetupSubject::PAGES_NOTE
+    assert_not_includes Designs::Subject.for(@session).system_text, Designs::Prompt::STATES
+    @setup.update!(phase: "feature")
+    assert_includes Designs::Subject.for(@session).system_text, Designs::Prompt::STATES
+    @setup.update!(phase: "design_system")
+    assert_not_includes Designs::Subject.for(@session).system_text, Designs::Prompt::STATES
+  end
+
   test "the setup prompt follows the phase" do
     assert_includes Designs::Subject.for(@session).system_text, LibraryEntry.find_by!(key: "setup-design-system").current_version.body
     @setup.update!(phase: "feature")

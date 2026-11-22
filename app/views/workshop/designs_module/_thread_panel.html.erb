@@ -113,6 +113,7 @@
       <div class="hidden flex-wrap gap-2 mb-2" data-designs-images-target="previews"></div>
       <%= hidden_field_tag :ctx, @context, data: { designs_canvas_target: "context" } %>
       <%= hidden_field_tag :screen, @screen, data: { designs_canvas_target: "screen" } %>
+      <%= hidden_field_tag :state, nil, id: nil, data: { designs_canvas_target: "state" } %>
       <%= hidden_field_tag :mode, @mode %>
       <textarea name="text" rows="2" required class="w-full resize-none border-0 outline-none bg-transparent text-[13px] leading-[1.5] clar-text-text"
                 placeholder="<%= thread.fresh? ? 'What should change? Navigate the app on the right, AI sees the page you’re on.' : 'Describe a change…' %>"

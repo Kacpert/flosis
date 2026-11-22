@@ -76,6 +76,22 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Kacper (2026-11-22): a page's states live in its file. The screen tells
+  # the canvas its states and the frame's bar picks one; a message carries the
+  # one the person has open.
+  test "the frame's bar has a state picker, hidden until the screen has states, and the composer sends the state" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+
+      get workshop_designs_overview_path(thread: thread.id)
+
+      assert_select "[data-designs-canvas-target=states][hidden]" do
+        assert_select "select[data-designs-canvas-target=stateSelect][data-action='change->designs-canvas#pickState']"
+      end
+      assert_select "form input[type=hidden][name=state][data-designs-canvas-target=state]"
+    end
+  end
+
   test "the list shows master read-only, the library and New thread, and the canvas shows master's screen" do
     with_designs do
       get workshop_designs_overview_path

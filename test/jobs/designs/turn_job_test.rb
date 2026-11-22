@@ -1697,7 +1697,10 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       fake_claude(files: { "designs/candidate/apply.html" => page.call("<p>121 / 500</p>"),
                            "designs/candidate/status.html" => "<html><head><title>Status</title></head><body>s</body></html>" },
                   reply: "<summary>Added a character counter.</summary>")
-      turn = run_turn(thread_turn(repo, base), remote)
+      turn = thread_turn(repo, base)
+      # The person had a state of another screen open (2026-11-22).
+      DesignThread.find_by!(chat_session: turn.chat_session).update!(focus_state: "empty")
+      turn = run_turn(turn, remote)
 
       assert turn.succeeded?, turn.error
       assert_equal turn.commit_sha, remote_branch_sha(remote, "design/add-a-counter-under")
@@ -1707,7 +1710,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       reply = assistant_messages(turn).find_by(kind: "summary")
       assert_equal [ [ "apply", "candidate", "M" ], [ "status", "candidate", "+" ] ], reply.data["chips"]
       thread = DesignThread.find_by!(branch: "design/add-a-counter-under")
-      assert_equal [ "candidate", "apply" ], [ thread.focus_context, thread.focus_screen ]
+      assert_equal [ "candidate", "apply", nil ], [ thread.focus_context, thread.focus_screen, thread.focus_state ]
     end
   end
 

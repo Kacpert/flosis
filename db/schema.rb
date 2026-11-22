@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_110200) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -472,6 +472,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_110200) do
     t.string "described_version"
     t.string "focus_context"
     t.string "focus_screen"
+    t.string "focus_state"
     t.datetime "merged_at"
     t.string "merged_sha"
     t.bigint "project_id", null: false
