@@ -4,7 +4,8 @@
 # is stalled. Under the run's lock, and only if it is still stalled, the
 # Claude its killed attempt left is stopped, its setup turns still marked
 # running are failed as interrupted, its unit is freed and its job enqueued:
-# the run goes on from the step, or the feature, it was on.
+# the run goes on from the step, or the feature, it was on. A landing of an
+# accepted proposal whose job was cut off is enqueued again too.
 # Runs every ten minutes, on the default queue, so a busy designs worker never
 # holds it up.
 class Designs::ResumeSetupsJob < ApplicationJob
@@ -21,5 +22,6 @@ class Designs::ResumeSetupsJob < ApplicationJob
       end
       Designs::SetupRunJob.perform_later(setup.id) if resumed
     end
+    Designs::ImportAcceptJob.resume!
   end
 end

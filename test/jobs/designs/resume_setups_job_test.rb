@@ -42,4 +42,18 @@ class Designs::ResumeSetupsJobTest < ActiveSupport::TestCase
     @project.design_setups.create!(status: "approved", finished_at: Time.current, unit_job_id: "gone", unit_deadline_at: 1.minute.ago)
     assert_no_enqueued_jobs(only: Designs::SetupRunJob) { Designs::ResumeSetupsJob.perform_now }
   end
+
+  # A deploy can cut off the job that lands what was accepted (Accept in the
+  # background, 2026-11-22): a landing older than STALE is landed again,
+  # once per import.
+  test "a landing whose job was lost is landed again, a fresh one is left to its job" do
+    stale = @project.design_setups.create!(status: "approved", phase: "feature", step: 6, finished_at: 1.hour.ago)
+    stale.features.create!(name: "Bug Reporting", key: "bug-reporting", position: 1, status: "landing", queued_at: 6.minutes.ago)
+    stale.features.create!(name: "Library", key: "library", position: 2, status: "landing", queued_at: 7.minutes.ago)
+    fresh = @project.design_setups.create!(status: "approved", phase: "feature", step: 6, finished_at: 1.hour.ago)
+    fresh.features.create!(name: "Settings", key: "settings", position: 1, status: "landing", queued_at: 1.minute.ago)
+
+    Designs::ResumeSetupsJob.perform_now
+    assert_equal [ [ stale.id ] ], enqueued_jobs.select { _1["job_class"] == "Designs::ImportAcceptJob" }.map { _1["arguments"] }
+  end
 end

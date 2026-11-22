@@ -17,6 +17,17 @@ class Designs::ImportAcceptJob < ApplicationJob
   # a worker's thread, and lands what the first one left.
   limits_concurrency to: 1, key: ->(setup_id) { "designs-accept-#{setup_id}" }, duration: 10.minutes
 
+  # A landing accepted longer ago than this and still landing lost its job:
+  # a deploy cut it off.
+  STALE = 5.minutes
+
+  # Enqueued again, once per import, for every landing gone stale
+  # (Designs::ResumeSetupsJob, every ten minutes). Running it again is safe: a
+  # branch already on master lands nothing, and its feature is done.
+  def self.resume!
+    DesignSetupFeature.where(status: "landing", queued_at: ...STALE.ago).distinct.pluck(:design_setup_id).each { |id| perform_later(id) }
+  end
+
   def perform(setup_id)
     tried = []
     while (feature = next_landing(setup_id, tried))

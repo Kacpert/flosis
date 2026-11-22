@@ -177,6 +177,20 @@ class Designs::ImportReviewsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # A deploy cut the landing's job off after its push: run again, it is done,
+  # and master is not merged twice.
+  test "a landing run again after its push is done, and master is merged once" do
+    with_a_thread_on_master do |repo, _remote|
+      review_it(repo)
+      Designs::ImportLanding.new(@feature).land!(accepted: true)
+      @feature.update!(status: "landing", queued_at: 10.minutes.ago)
+      perform_enqueued_jobs(only: Designs::ImportAcceptJob) { Designs::ImportAcceptJob.perform_later(@import.id) }
+
+      assert_equal [ "done", nil ], [ @feature.reload.status, @feature.error ]
+      assert_equal %w[manual import], @project.design_merges.order(:id).pluck(:how)
+    end
+  end
+
   test "a landing GitHub refuses brings the card back with the reason" do
     with_a_thread_on_master do |repo, remote|
       review_it(repo)
