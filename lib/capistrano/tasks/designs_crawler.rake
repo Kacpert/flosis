@@ -30,4 +30,18 @@ namespace :setup do
       end
     end
   end
+
+  # The tools alone (2026-11-22: git.mjs came with code-first imports): every
+  # deploy uploads lib/designs_crawler/*.mjs into shared/designs_crawler, where
+  # the server runs them, so that they never lag the release. No npm and no
+  # Playwright: a new dependency still needs setup:designs_crawler. A node
+  # process already running keeps the file it loaded.
+  desc "Upload the Designs node tools (lib/designs_crawler/*.mjs) into shared/designs_crawler"
+  task :designs_crawler_files do
+    on roles(:app) do
+      dir = "#{shared_path}/designs_crawler"
+      execute :mkdir, "-p", dir
+      Dir.glob("lib/designs_crawler/*.mjs").each { |file| upload! file, "#{dir}/#{File.basename(file)}" }
+    end
+  end
 end

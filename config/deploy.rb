@@ -142,3 +142,8 @@ namespace :deploy do
     invoke "solid_queue:restart"
   end
 end
+
+# The Designs node tools run from shared/designs_crawler, outside the
+# releases: each deploy brings them up to date (lib/capistrano/tasks/
+# designs_crawler.rake).
+after "deploy:published", "setup:designs_crawler_files"
