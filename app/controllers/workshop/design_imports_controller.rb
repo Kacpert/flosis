@@ -7,23 +7,26 @@ class Workshop::DesignImportsController < Workshop::BaseController
   before_action { require_permission!(:designs) }
   before_action { require_permission!(:configuration) }
   include DesignsVisibility
-  before_action :load_import, except: :create
+  before_action :load_import, except: %i[new create]
+  before_action :refuse_new_import, only: %i[new create]
 
-  # New import: a resync from the last import that is over, once master has
-  # the first one and while no import runs.
+  # New import opens the setup form first (Kacper, 2026-11-22: "może będę
+  # chciał zmienić linki albo dodać nowy kontekst"), filled in.
+  def new
+    render_form
+  end
+
+  # Start import: the form saved, a resync from the last import that is over,
+  # once master has the first one and while no import runs.
   def create
     project = current_workshop_project
-    since = helpers.import_resync_from(project)
-    if since.nil?
-      flash[:clar_toast] = "A new import starts once the first one is on master."
-      return redirect_to workshop_designs_overview_path(tab: "imports")
-    end
-    if project.design_setups.working.exists?
-      flash[:clar_toast] = "An import is already running. It goes on from where it is."
-      return redirect_to workshop_designs_overview_path(tab: "imports")
+    form = Designs::SetupForm.new(project, form_params)
+    unless form.save
+      flash.now[:alert] = form.error
+      return render_form(status: :unprocessable_entity)
     end
 
-    resync = project.design_setups.create!(kind: "resync", since_setup: since, status: "active", phase: "resync", step: 0, started_by: current_user)
+    resync = project.design_setups.create!(kind: "resync", since_setup: @since, status: "active", phase: "resync", step: 0, started_by: current_user)
     resync.start_work!
     flash[:clar_toast] = "Looking for what changed in the app since #{resync.since_label}"
     redirect_to helpers.import_page_path(resync)
@@ -72,6 +75,31 @@ class Workshop::DesignImportsController < Workshop::BaseController
   end
 
   private
+
+  # A new import starts once master has the first one, and not while another
+  # one works.
+  def refuse_new_import
+    project = current_workshop_project
+    @since = helpers.import_resync_from(project)
+    if @since.nil?
+      flash[:clar_toast] = "A new import starts once the first one is on master."
+      redirect_to workshop_designs_overview_path(tab: "imports")
+    elsif project.design_setups.working.exists?
+      flash[:clar_toast] = "An import is already running. It goes on from where it is."
+      redirect_to workshop_designs_overview_path(tab: "imports")
+    end
+  end
+
+  def render_form(status: :ok)
+    @project = current_workshop_project
+    @import_mode = true
+    render "workshop/design_setup_runs/new", status: status
+  end
+
+  def form_params
+    params.permit(:framework, :framework_version, :ui, :ui_version, :repo, :repo_token,
+                  repos: %i[role url], contexts: %i[id name url login password])
+  end
 
   # The description's first sentence, as the map would name a feature.
   def feature_name(description)

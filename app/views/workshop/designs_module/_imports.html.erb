@@ -27,7 +27,7 @@
         <% since = import_resync_from(@project) %>
         <% if can?(:configuration) && since && @imports.none?(&:busy?) %>
           <div class="flex flex-col items-end gap-1">
-            <%= button_to "New import", workshop_design_imports_path, class: "clar-btn clar-btn-primary !py-1.5 !px-3.5 !text-[12.5px]", form: { class: "contents" } %>
+            <%= link_to "New import", new_workshop_design_import_path, class: "clar-btn clar-btn-primary !py-1.5 !px-3.5 !text-[12.5px] no-underline" %>
             <span class="text-[11.5px] clar-text-faint">What developers built since <%= since.created_at.in_time_zone.strftime("%b %-d") %></span>
           </div>
         <% end %>

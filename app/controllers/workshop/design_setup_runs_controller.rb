@@ -16,9 +16,9 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
   FRAMEWORKS = [ [ "vue", "Vue.js", "3.4" ], [ "react", "React", "18.3" ], [ "angular", "Angular", "17" ], [ "html", "HTML + CSS", nil ] ].freeze
   UI_SYSTEMS = [ [ "foundation", "Foundation", "6.8" ], [ "bootstrap", "Bootstrap", "5.3" ], [ "tailwind", "Tailwind", "4" ],
                  [ "material", "Material", "3" ], [ "custom", "Custom", nil ] ].freeze
-  SUPPORTED = %w[html tailwind custom].freeze
-  INCOMPLETE = "Fill in the designs repository, at least one app repository and one context with URL and login.".freeze
-  REPO = %r{\A[\w.-]+/[\w.-]+(@[\w./-]+)?\z}
+  # The form's rules live in Designs::SetupForm, which New import shares.
+  SUPPORTED = Designs::SetupForm::SUPPORTED
+  INCOMPLETE = Designs::SetupForm::INCOMPLETE
 
   def new
     @project = current_workshop_project
@@ -145,58 +145,8 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
                   repos: %i[role url], contexts: %i[id name url login password])
   end
 
-  # Any GitHub address names its repository, as on the project: "github.com/
-  # acme/designs", "git@github.com:acme/designs.git" and "acme/designs" all
-  # name acme/designs, and "acme/app@production" keeps its branch.
-  def repo_name(value)
-    Project.normalize_value_for(:github_repo, value.to_s).presence
-  end
-
-  def rows(value)
-    value.respond_to?(:values) ? value.values : Array(value)
-  end
-
   def save_form
-    form = form_params
-    repo = repo_name(form[:repo])
-    repos = rows(form[:repos]).filter_map do |row|
-      name = repo_name(row[:url])
-      { "role" => row[:role].to_s.strip.presence || "Repository", "repo" => name } if name&.match?(REPO)
-    end
-    contexts = rows(form[:contexts]).select { |row| row[:name].present? && row[:url].present? && row[:login].present? }
-    roles = @project.design_setup_roles.index_by { |role| role.id.to_s }
-    return false unless repo&.match?(REPO) && repos.any? && contexts.any?
-    return false if contexts.any? { |row| row[:password].blank? && !roles.key?(row[:id].to_s) }
-
-    framework = form[:framework].presence_in(SUPPORTED) || "html"
-    ui = form[:ui].presence_in(SUPPORTED) || "tailwind"
-    Project.transaction do
-      @project.update!(designs_framework: framework, designs_framework_version: form[:framework_version].presence,
-                       designs_ui_system: ui, designs_ui_version: form[:ui_version].presence, design_repo: repo,
-                       design_app_repos: repos, design_base_kit: ui == "custom" ? "plain" : "tailwind4",
-                       design_app_url: origin(contexts.first[:url]), designs_enabled: true)
-      @project.update!(design_repo_token: form[:repo_token]) if form[:repo_token].present?
-      kept = contexts.each_with_index.map do |row, position|
-        role = roles[row[:id].to_s] || @project.design_setup_roles.new
-        role.assign_attributes(name: row[:name].strip, login_url: row[:url].strip, username: row[:login].strip, position: position)
-        role.password = row[:password] if row[:password].present?
-        role.save!
-        role.id
-      end
-      @project.design_setup_roles.where.not(id: kept).destroy_all
-    end
-    true
-  rescue ActiveRecord::RecordInvalid => e
-    # What only the record can judge (the target being one of the app's own
-    # repositories) is said on the form; it used to escape as a bare 422.
-    @refusal = e.record.errors.full_messages.to_sentence
-    false
-  end
-
-  def origin(url)
-    uri = URI.parse(url.to_s.strip)
-    uri.host ? "#{uri.scheme}://#{uri.host}#{":#{uri.port}" unless uri.default_port == uri.port}" : url
-  rescue URI::InvalidURIError
-    url
+    form = Designs::SetupForm.new(@project, form_params)
+    form.save.tap { |saved| @refusal = form.error unless saved }
   end
 end

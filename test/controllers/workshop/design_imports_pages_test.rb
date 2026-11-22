@@ -206,7 +206,7 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
       get workshop_designs_overview_path(tab: "imports")
       assert_response :success
       assert_includes response.body, "Changes since Nov 3"
-      assert_select "form[action=?]", workshop_design_imports_path, false, "not while one runs"
+      assert_select "a[href=?]", new_workshop_design_import_path, false, "not while one runs"
     end
   end
 
@@ -214,7 +214,7 @@ class Workshop::DesignImportsPagesTest < ActionDispatch::IntegrationTest
     with_designs do
       first_import([ [ "Bug Reporting", "done" ] ])
       get workshop_designs_overview_path(tab: "imports")
-      assert_select "form[action=?]", workshop_design_imports_path, text: /New import/
+      assert_select "a[href=?]", new_workshop_design_import_path, text: "New import"
     end
   end
 
