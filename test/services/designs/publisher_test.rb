@@ -210,6 +210,19 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     end
   end
 
+  # Kacper (2026-11-22): View as named a role after its folder
+  # ("Flosis-staff-hidmin"). A context is named as its role is in the setup;
+  # a folder no role has keeps its own name.
+  test "a published ref names each context as its role is named in the setup" do
+    with_design_remote do |repo, _|
+      repo.project.design_setup_roles.create!(name: "Flosis admin", position: 0, code_only: true)
+      seed_master(repo, { "designs/flosis-admin/plans.html" => "<title>Plans</title>", "designs/candidate/apply.html" => "<title>Apply</title>" })
+      dir = Designs::Publisher.new(repo.project, repo).publish!("master", "master")
+      assert_equal [ { "id" => "candidate", "name" => "Candidate" }, { "id" => "flosis-admin", "name" => "Flosis admin" } ],
+                   JSON.parse(dir.join("__flosis/screens.json").read)["contexts"]
+    end
+  end
+
   test "a thread's branch is published with its changes against its base, which are never committed" do
     with_design_remote do |repo, _|
       base = seed_master(repo, { "designs/admin/pipeline.html" => "<html><body><h1>Pipeline</h1></body></html>" })

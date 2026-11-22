@@ -383,10 +383,12 @@ class Designs::Publisher
                                            through: record[:through], screens: JSON.parse(head.as_json.to_json)))
   end
 
-  # The screens of an unpacked, stripped copy, read from the copy itself.
+  # The screens of an unpacked, stripped copy, read from the copy itself, each
+  # context named as its role is in the setup (View as, Kacper 2026-11-22).
   def screens_in(dir)
     reader = ->(path) { file = dir.join(path); file.file? ? file.read : nil }
-    Designs::Screens.new(paths: Dir.glob("designs/*/*.html", base: dir.to_s), reader: reader)
+    names = @project.design_setup_roles.to_h { |role| [ Designs::Subject::SetupSubject.folder_for(role), role.name ] }
+    Designs::Screens.new(paths: Dir.glob("designs/*/*.html", base: dir.to_s), reader: reader, names: names)
   end
 
   def strip_unservable!(dir)
