@@ -46,6 +46,18 @@ class Workshop::DesignImportsController < Workshop::BaseController
     redirect_to helpers.import_page_path(@import)
   end
 
+  # A stopped or failed resync with nothing on master (Kacper, 2026-11-22).
+  def destroy
+    unless @import.deletable?
+      flash[:clar_toast] = @import.features.where(status: "done").exists? ? "This import has work on master, so it stays." : "Stop the import before deleting it."
+      return redirect_to helpers.import_page_path(@import)
+    end
+
+    Designs::ImportDeletion.new(@import).delete!
+    flash[:clar_toast] = "Import deleted"
+    redirect_to workshop_designs_overview_path(tab: "imports")
+  end
+
   def add_feature
     description = params[:description].to_s.strip
     if description.present? && @import.done?

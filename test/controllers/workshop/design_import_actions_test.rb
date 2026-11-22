@@ -175,4 +175,25 @@ class Workshop::DesignImportActionsTest < ActionDispatch::IntegrationTest
     assert_equal "failed", earlier.reload.status
     assert_enqueued_with(job: Designs::SetupRunJob, args: [ stopped.id ])
   end
+
+  # Kacper, 2026-11-22: "ten najnowszy trzeba zatrzymać i usunąć".
+  test "Delete removes a stopped import and goes back to the list" do
+    stopped = @project.design_setups.create!(kind: "resync", since_setup: @import, status: "failed", phase: "feature", step: 3,
+                                             started_by: users(:one), stopped_at: 5.minutes.ago, stopped_by: users(:one))
+
+    delete workshop_design_import_path(stopped)
+    assert_redirected_to workshop_designs_overview_path(tab: "imports")
+    assert_equal "Import deleted", flash[:clar_toast]
+    refute DesignSetup.exists?(stopped.id)
+  end
+
+  test "Delete refuses an import whose work is on master" do
+    stopped = @project.design_setups.create!(kind: "resync", since_setup: @import, status: "failed", phase: "feature", step: 3,
+                                             started_by: users(:one), stopped_at: 5.minutes.ago, stopped_by: users(:one))
+    stopped.features.create!(name: "Library", key: "library", position: 1, status: "done")
+
+    delete workshop_design_import_path(stopped)
+    assert_equal "This import has work on master, so it stays.", flash[:clar_toast]
+    assert DesignSetup.exists?(stopped.id)
+  end
 end

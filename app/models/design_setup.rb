@@ -221,6 +221,13 @@ class DesignSetup < ApplicationRecord
     features.needs_you
   end
 
+  # A resync that stopped or failed before any of it reached master (Kacper,
+  # 2026-11-22): it can be deleted, branches, chats and all
+  # (Designs::ImportDeletion). A first import or a re-import stays.
+  def deletable?
+    resync? && failed? && !busy? && !features.where(status: "done").exists?
+  end
+
   # Running, or with a feature queued or under way after it was over.
   def busy?
     running? || features.pending.exists?
