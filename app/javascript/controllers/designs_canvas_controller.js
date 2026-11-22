@@ -5,7 +5,8 @@ import { Controller } from "@hotwired/stimulus"
 // an origin of its own, so it speaks only through postMessage (runtime/
 // flosis.js): which screen it shows ("AI sees …", and what the next message
 // is about), and a link to a screen that is not designed (a toast, as the
-// design has it).
+// design has it). View as and the modes go on from the screen it shows, which
+// a link inside it may have changed (Kacper, 2026-11-22).
 //
 // The frame's edges resize it (Kacper, 2026-11-19): a side drags its width,
 // both sides at once so that it stays centered, the bottom its height, a
@@ -22,7 +23,7 @@ const BORDER = 2
 const DRAG_THRESHOLD = 3
 
 export default class extends Controller {
-  static targets = ["box", "wrap", "frame", "size", "sees", "context", "screen", "path"]
+  static targets = ["box", "wrap", "frame", "size", "sees", "context", "screen", "path", "viewAs", "mode"]
   static values = { contexts: Object, width: { type: Number, default: STANDARD.width }, height: { type: Number, default: STANDARD.height } }
 
   connect() {
@@ -174,6 +175,7 @@ export default class extends Controller {
       this.contextTargets.forEach((element) => { element.value = data.context })
       this.screenTargets.forEach((element) => { element.value = data.screen })
       this.pathTargets.forEach((element) => { element.textContent = `designs/${data.context}/${data.screen}.html` })
+      if (data.context && data.screen) this.follow(data.context, data.screen)
     } else if (data.type === "flosis:missing") {
       const label = String(data.label || "This page")
       const message = data.reason === "other-context"
@@ -181,6 +183,21 @@ export default class extends Controller {
         : `${label} is not designed yet. Start a thread to add it.`
       window.dispatchEvent(new CustomEvent("clar:toast", { detail: { message } }))
     }
+  }
+
+  // A role opens at this screen, or at its closest when it has none (the
+  // page decides); a mode shows this screen on its copy.
+  follow(context, screen) {
+    const go = (link, params) => {
+      const url = new URL(link.getAttribute("href"), window.location.href)
+      Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value))
+      link.setAttribute("href", `${url.pathname}${url.search}`)
+    }
+    this.viewAsTargets.forEach((link) => {
+      go(link, { screen })
+      link.classList.toggle("clar-seg-item-active", link.dataset.context === context)
+    })
+    this.modeTargets.forEach((link) => go(link, { ctx: context, screen }))
   }
 
   toast(event) {

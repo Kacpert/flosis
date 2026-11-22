@@ -211,13 +211,42 @@ class Workshop::DesignsModuleController < Workshop::BaseController
     [ all, all.map { |pair| [ *pair, "updated" ] }, {} ]
   end
 
-  # The screen asked for, else where the thread was last, else the first.
+  # The screen asked for, else where the thread was last, else the first. A
+  # role asked for by name stays (View as, Kacper 2026-11-22: a role with no
+  # screen in common with the others could not be opened at all): without
+  # that screen it opens its closest one, and says so when another role has it.
   def pick_screen
-    wanted = [ params[:ctx].presence || @thread&.focus_context, params[:screen].presence || @thread&.focus_screen ]
-    found = @screens.find { |s| [ s[:context], s[:id] ] == wanted } ||
-            @screens.find { |s| s[:id] == wanted[1] } ||
-            @screens.find { |s| s[:context] == wanted[0] } ||
-            @screens.first
+    asked = params[:ctx].presence
+    wanted = [ asked || @thread&.focus_context, params[:screen].presence || @thread&.focus_screen ]
+    found = @screens.find { |s| [ s[:context], s[:id] ] == wanted }
+    if !found && asked && (found = closest_screen(asked, wanted[1]))
+      say_instead(wanted[1], found)
+    end
+    found ||= @screens.find { |s| s[:id] == wanted[1] } ||
+              @screens.find { |s| s[:context] == wanted[0] } ||
+              @screens.first
     found ? [ found[:context], found[:id] ] : [ nil, nil ]
+  end
+
+  # A role's way in when it has no screen of the area asked for.
+  HOME_SCREENS = %w[overview dashboard home index].freeze
+
+  # The role's screen of the same area as id: the longest run of leading
+  # words their names share, the plainest of those (configuration for
+  # configuration-jira, idea before idea-details); else its overview, else its
+  # first. nil when the role has no screens.
+  def closest_screen(context, id)
+    own = @screens.select { |s| s[:context] == context }
+    words = id.to_s.split("-")
+    shared = ->(screen) { screen[:id].split("-").zip(words).take_while { |mine, theirs| mine == theirs }.size }
+    near = own.select { |s| shared.(s).positive? }.min_by { |s| [ -shared.(s), s[:id].count("-") ] }
+    near || HOME_SCREENS.lazy.filter_map { |home| own.find { |s| s[:id] == home } }.first || own.first
+  end
+
+  # The canvas shows another screen than the one asked for, which another
+  # role has: it says which (a toast).
+  def say_instead(id, shown)
+    elsewhere = @screens.find { |s| s[:id] == id } or return
+    flash.now[:clar_toast] ||= "#{elsewhere[:name]} is not available as #{helpers.designs_context_name(@contexts, shown[:context])} · showing #{shown[:name]}"
   end
 end
