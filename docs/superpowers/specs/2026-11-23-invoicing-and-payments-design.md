@@ -16,20 +16,21 @@ and every decision the product spec leaves open. Organizations are `Workspace`.
    source of truth next to the KSeF invoices. No Stripe invoices, no webhooks: every
    charge is confirmed synchronously, a 3-D Secure challenge on a charge an admin
    makes in the browser returns through `return_url`.
-2. **No plan, or a plan not activated yet (no details/card): nothing charged, nothing
-   blocked**, as the product spec says. One predicate (`Billing::Allowance#open_without_plan?`)
-   decides it, so "no plan = AI paused" is a one-line change if Kacper wants it
-   (an ended plan otherwise gives free AI).
+2. **No plan (none, not activated yet, ended): AI paused** (Kacper, 2026-11-24),
+   unless Flosis staff turn on **Free AI** for the organization in /hidmin
+   (`workspaces.free_ai`, off for new organizations; the migration turns it on for
+   every organization that exists, so nothing stops at deploy).
 3. **While a payment is failing, the top-up balance is not used**: 15% of the plan
    price, then paused (product spec, literally).
 4. **Retries**: the first attempt on the 1st is day 1; retries on days 3, 5 and 7
    ("Retrying · day 3 of 7"). Each failed attempt emails the admins. After day 7 the
    charge is *unpaid*; changing the card charges it at once. On the next 1st a still
    unpaid charge is abandoned (never invoiced) and the new month is charged.
-5. **Seller and numbering from ENV**: `INVOICE_SELLER_NAME`, `INVOICE_SELLER_NIP`,
-   `INVOICE_SELLER_STREET`, `INVOICE_SELLER_POSTAL_CODE`, `INVOICE_SELLER_CITY`,
-   `INVOICE_NUMBER_PREFIX` (default `FV`). Numbers are `PREFIX/YYYY/MM/NNNN`, gap-free
-   per calendar month (a locked counter row).
+5. **Seller: Ruby on SaaS Sp. z o.o., ul. Dalanowska 46/117, 03-566 Warszawa, NIP
+   5242954651** (Kacper, 2026-11-24; ENV `INVOICE_SELLER_*` overrides it, which KSeF
+   TEST needs). Numbers follow the company's format `PREFIX/NNN/MM/YYYY` (theirs:
+   FV/005/11/2026), gap-free per month; `INVOICE_NUMBER_PREFIX` defaults to `FV/F`, a
+   series of its own so Flosis never repeats a number the company gives by hand.
 6. **Monthly charge at 06:00 Warsaw on the 1st** (the design's emails say 06:0x);
    until it runs, the new month counts as paid.
 7. **Runs before release** get `funding = "legacy"` in the migration and never touch a
@@ -150,8 +151,7 @@ PDFs; emails per `designs/emails/*`.
   the number (the PDF must carry it); the paused note says "payment not through" when
   the pause is a failed payment rather than the limit; flashes say "The invoice is on
   its way to every admin" (it is emailed once KSeF accepts it, not at the charge).
-- **Open, for Kacper / the accountant**: seller details and numbering series; whether
-  "no plan" should pause AI (today an ended plan means free AI); whether a top-up
-  balance may be used while a payment is failing; the reverse-charge wording and the
-  NBP table date (see the KSeF module's notes); production KSeF credentials and live
-  Stripe keys.
+- **Open, for Kacper / the accountant**: whether a top-up balance may be used while a
+  payment is failing; the reverse-charge wording; the NBP table date (Kacper said the
+  invoice's own day, to be confirmed with the accountants; built as the working day
+  before, art. 31a); production KSeF credentials and live Stripe keys.
