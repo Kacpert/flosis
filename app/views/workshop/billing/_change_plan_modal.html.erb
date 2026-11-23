@@ -1,0 +1,48 @@
+<%# Change plan: higher plans start now, lower ones on the 1st. The foot
+    names the exact charge and the new limit for the plan picked. %>
+<% account = @account %>
+<% current = current_workspace.ai_plan %>
+<% running = account.plan_running? %>
+<% options = @plans.options.to_a %>
+<% picked = (running ? options.find { |plan| plan.monthly_price_usd > current.monthly_price_usd } : nil) || current || options.first %>
+<%= render layout: "workshop/billing/modal", locals: { id: "change-plan", title: running ? "Change plan" : "Choose a plan" } do %>
+  <% if options.empty? %>
+    <p class="mt-0 mb-0 text-[12.5px] leading-snug clar-text-muted">No plans are offered yet. Flosis adds them.</p>
+  <% else %>
+    <%= form_with url: workshop_billing_plan_path, method: :post, data: { turbo: false, action: "submit->billing#busy" } do %>
+      <p class="mt-0 mb-3.5 text-[12.5px] leading-snug clar-text-muted">
+        <% if running %>
+          A higher plan starts now: the difference for the days left is charged and added to this month&rsquo;s limit. A lower plan starts on <%= @plans.next_first %>.
+        <% else %>
+          A plan starts now: the days left this month are charged and are this month&rsquo;s limit. From the 1st it is charged in full, upfront.
+        <% end %>
+      </p>
+      <div class="flex flex-col gap-2">
+        <% options.each do |plan| %>
+          <% preview = @plans.preview(plan) %>
+          <% note = if running && plan == current then "Your plan"
+                    elsif preview.kind == :next_month then "Starts on #{@plans.next_first}"
+                    else "Starts now"
+                    end %>
+          <label class="flex cursor-pointer items-center gap-3 rounded-[10px] border border-[color:var(--border)] px-3.5 py-3 has-[:checked]:border-[color:var(--primary)] has-[:checked]:bg-[var(--primary-soft)]">
+            <input type="radio" name="plan_id" value="<%= plan.id %>" data-summary="<%= preview.summary %>" class="accent-[var(--primary)]"
+                   data-action="change->billing#pickPlan" <%= "checked" if plan == picked %>>
+            <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span class="flex items-center gap-2 text-[13.5px] font-semibold clar-text-text">
+                <%= plan.name %>
+                <% if running && plan == current %><span class="rounded-[6px] bg-[var(--surface-2)] px-[7px] py-px text-[10px] font-bold tracking-[.4px] clar-text-muted">CURRENT</span><% end %>
+              </span>
+              <span class="text-[11.5px] clar-text-faint"><%= note %></span>
+            </span>
+            <span class="whitespace-nowrap text-[13.5px] font-semibold clar-text-text"><%= Billing::Copy.whole(plan.monthly_price_usd) %> a month</span>
+          </label>
+        <% end %>
+      </div>
+      <p class="mt-3.5 mb-0 rounded-[10px] bg-[var(--surface-2)] px-3.5 py-[11px] text-[12.5px] leading-snug clar-text-text" data-billing-target="planSummary"><%= @plans.preview(picked).summary %></p>
+      <div class="mt-4.5 flex justify-end gap-2.5">
+        <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+        <button type="submit" class="clar-btn clar-btn-primary" data-busy-text="Charging the card…"><%= running ? "Change plan" : "Choose plan" %></button>
+      </div>
+    <% end %>
+  <% end %>
+<% end %>

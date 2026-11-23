@@ -97,7 +97,7 @@
     <% over = @workspaces.select { |w| w.ai_plan && (@billing[w.id]&.price || 0) > w.ai_plan.monthly_price_usd } %>
     <p class="m-0 text-[12.5px] leading-[1.5] clar-text-muted">
       <%= over.any? ? "#{over.map(&:name).to_sentence} #{over.size == 1 ? 'is' : 'are'} over this month." : "Nobody is over this month." %>
-      Going over blocks nothing: it is shown to the organization on its own Consumption page and invoiced in the next ticket.
+      An organization paying for its plan is paused at its limit (or uses its top-up) instead of going over; one without a paid plan is paused unless Free AI is on for it.
     </p>
   </div>
 </div>

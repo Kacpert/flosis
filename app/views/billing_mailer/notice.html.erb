@@ -1,0 +1,23 @@
+<h1 style="margin:0 0 12px; font-size:18px; line-height:1.35; color:#1a1d24;"><%= @heading %></h1>
+<% @paragraphs.each do |paragraph| %>
+  <p style="margin:0 0 10px; font-size:14px; line-height:1.55; color:#3d4452;"><%= paragraph %></p>
+<% end %>
+<% if @invoice %>
+  <%# What the invoice charged (design email-invoice-lines): the line, its VAT
+      (also in PLN at the NBP rate), the total, its number and KSeF number. %>
+  <table role="presentation" style="width:100%; margin:16px 0 4px; border-collapse:collapse; font-size:14px; color:#1a1d24;">
+    <tr><td style="padding:8px 0; border-bottom:1px solid #e6e8ec;"><%= @invoice.line_name %></td><td style="padding:8px 0; border-bottom:1px solid #e6e8ec; text-align:right;"><%= Billing::Copy.money(@invoice.net_usd) %></td></tr>
+    <tr>
+      <td style="padding:8px 0; border-bottom:1px solid #e6e8ec;">
+        <%= @invoice.vat_usd.positive? ? "VAT #{@invoice.vat_rate.to_i}%" : (@invoice.vat_treatment == "eu_reverse_charge" ? "VAT: reverse charge" : "VAT: not subject to Polish VAT") %>
+        <% if @invoice.vat_pln_line %><br><span style="font-size:12px; color:#8a93a3;"><%= @invoice.vat_pln_line %></span><% end %>
+      </td>
+      <td style="padding:8px 0; border-bottom:1px solid #e6e8ec; text-align:right;"><%= Billing::Copy.money(@invoice.vat_usd) %></td>
+    </tr>
+    <tr><td style="padding:8px 0; font-weight:700;">Charged to <%= @invoice.workspace.billing_account&.card_short || "your card" %></td><td style="padding:8px 0; text-align:right; font-weight:700;"><%= Billing::Copy.money(@invoice.gross_usd) %></td></tr>
+  </table>
+  <p style="margin:0; font-size:12px; color:#8a93a3;">Invoice <b><%= @invoice.number %></b> &middot; KSeF <%= @invoice.ksef_number %></p>
+<% end %>
+<% @after.to_a.each do |paragraph| %>
+  <p style="margin:12px 0 0; font-size:14px; line-height:1.55; color:#3d4452;"><%= paragraph %></p>
+<% end %>

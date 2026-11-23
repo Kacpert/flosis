@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_23_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -64,6 +64,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_000000) do
     t.decimal "limit_usd", precision: 12, scale: 2
     t.date "month", null: false
     t.string "plan_name"
+    t.date "starts_on"
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
     t.index ["ai_plan_id"], name: "index_ai_month_limits_on_ai_plan_id"
@@ -96,6 +97,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_000000) do
     t.decimal "cost_usd", precision: 14, scale: 6
     t.datetime "created_at", null: false
     t.integer "duration_ms"
+    t.string "funding"
     t.bigint "input_tokens", default: 0, null: false
     t.bigint "item_id"
     t.string "item_label"
@@ -120,6 +122,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_000000) do
     t.index ["started_by_id"], name: "index_ai_runs_on_started_by_id"
     t.index ["status", "ran_at"], name: "index_ai_runs_on_status_and_ran_at"
     t.index ["workspace_id", "area", "ran_at"], name: "index_ai_runs_on_workspace_id_and_area_and_ran_at"
+    t.index ["workspace_id", "funding", "ran_at"], name: "index_ai_runs_on_workspace_id_and_funding_and_ran_at"
     t.index ["workspace_id", "ran_at"], name: "index_ai_runs_on_workspace_id_and_ran_at"
   end
 
@@ -184,6 +187,68 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_000000) do
     t.index ["token_digest"], name: "index_api_tokens_on_token_digest", unique: true
     t.index ["user_id"], name: "index_api_tokens_on_user_id"
     t.index ["workspace_id"], name: "index_api_tokens_on_workspace_id"
+  end
+
+  create_table "billing_accounts", force: :cascade do |t|
+    t.boolean "auto_top_up", default: false, null: false
+    t.decimal "auto_top_up_usd", precision: 12, scale: 2, default: "100.0", null: false
+    t.string "card_brand"
+    t.integer "card_exp_month"
+    t.integer "card_exp_year"
+    t.string "card_last4"
+    t.datetime "card_saved_at"
+    t.string "city"
+    t.string "company_name"
+    t.string "country_code", limit: 2
+    t.datetime "created_at", null: false
+    t.datetime "paused_notified_at"
+    t.bigint "pending_ai_plan_id"
+    t.date "plan_ends_on"
+    t.date "plan_started_on"
+    t.string "plan_state", default: "none", null: false
+    t.string "postal_code"
+    t.string "street"
+    t.string "stripe_customer_id"
+    t.string "stripe_payment_method_id"
+    t.datetime "updated_at", null: false
+    t.date "usage_80_notified_on"
+    t.datetime "vat_checked_at"
+    t.string "vat_number"
+    t.bigint "workspace_id", null: false
+    t.index ["pending_ai_plan_id"], name: "index_billing_accounts_on_pending_ai_plan_id"
+    t.index ["workspace_id"], name: "index_billing_accounts_on_workspace_id", unique: true
+  end
+
+  create_table "billing_charges", force: :cascade do |t|
+    t.bigint "ai_plan_id"
+    t.integer "attempts", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.string "failure_message"
+    t.datetime "first_failed_at"
+    t.decimal "gross_usd", precision: 12, scale: 2, null: false
+    t.string "kind", null: false
+    t.decimal "net_usd", precision: 12, scale: 2, null: false
+    t.date "next_retry_on"
+    t.datetime "paused_notified_at"
+    t.date "period_from"
+    t.date "period_month"
+    t.date "period_to"
+    t.string "plan_name"
+    t.decimal "plan_price_usd", precision: 12, scale: 2
+    t.string "status", default: "pending", null: false
+    t.string "stripe_payment_intent_id"
+    t.datetime "succeeded_at"
+    t.datetime "updated_at", null: false
+    t.decimal "vat_rate", precision: 5, scale: 2
+    t.string "vat_treatment", null: false
+    t.decimal "vat_usd", precision: 12, scale: 2, null: false
+    t.bigint "workspace_id", null: false
+    t.index ["ai_plan_id"], name: "index_billing_charges_on_ai_plan_id"
+    t.index ["created_by_id"], name: "index_billing_charges_on_created_by_id"
+    t.index ["stripe_payment_intent_id"], name: "index_billing_charges_on_stripe_payment_intent_id"
+    t.index ["workspace_id", "kind", "period_month"], name: "idx_on_workspace_id_kind_period_month_3316737841"
+    t.index ["workspace_id", "status"], name: "index_billing_charges_on_workspace_id_and_status"
   end
 
   create_table "briefs", force: :cascade do |t|
@@ -606,6 +671,53 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_000000) do
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
     t.index ["workspace_id"], name: "index_integrations_on_workspace_id"
+  end
+
+  create_table "invoice_counters", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "last_number", default: 0, null: false
+    t.date "month", null: false
+    t.datetime "updated_at", null: false
+    t.index ["month"], name: "index_invoice_counters_on_month", unique: true
+  end
+
+  create_table "invoices", force: :cascade do |t|
+    t.bigint "billing_charge_id", null: false
+    t.string "buyer_city"
+    t.string "buyer_country_code", limit: 2, null: false
+    t.string "buyer_name", null: false
+    t.string "buyer_postal_code"
+    t.string "buyer_street"
+    t.string "buyer_vat_number"
+    t.datetime "created_at", null: false
+    t.datetime "emailed_at"
+    t.decimal "exchange_rate", precision: 10, scale: 4
+    t.date "exchange_rate_date"
+    t.string "exchange_rate_table"
+    t.decimal "gross_usd", precision: 12, scale: 2, null: false
+    t.date "issued_on", null: false
+    t.string "kind", null: false
+    t.integer "ksef_attempts", default: 0, null: false
+    t.string "ksef_error"
+    t.string "ksef_number"
+    t.string "ksef_reference"
+    t.datetime "ksef_sent_at"
+    t.string "ksef_status", default: "pending", null: false
+    t.text "ksef_xml"
+    t.string "line_name", null: false
+    t.decimal "net_usd", precision: 12, scale: 2, null: false
+    t.string "number", null: false
+    t.date "sold_on", null: false
+    t.datetime "updated_at", null: false
+    t.decimal "vat_pln", precision: 12, scale: 2
+    t.decimal "vat_rate", precision: 5, scale: 2
+    t.string "vat_treatment", null: false
+    t.decimal "vat_usd", precision: 12, scale: 2, null: false
+    t.bigint "workspace_id", null: false
+    t.index ["billing_charge_id"], name: "index_invoices_on_billing_charge_id", unique: true
+    t.index ["ksef_status"], name: "index_invoices_on_ksef_status"
+    t.index ["number"], name: "index_invoices_on_number", unique: true
+    t.index ["workspace_id", "issued_on"], name: "index_invoices_on_workspace_id_and_issued_on"
   end
 
   create_table "jira_board_column_statuses", force: :cascade do |t|
@@ -1088,6 +1200,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_000000) do
     t.datetime "created_at", null: false
     t.string "discord_channel_id"
     t.string "discord_user_token"
+    t.boolean "free_ai", default: false, null: false
     t.boolean "hr_access", default: false, null: false
     t.string "name", null: false
     t.datetime "updated_at", null: false
@@ -1111,6 +1224,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_000000) do
   add_foreign_key "alert_runs", "alert_rules"
   add_foreign_key "api_tokens", "users"
   add_foreign_key "api_tokens", "workspaces"
+  add_foreign_key "billing_accounts", "ai_plans", column: "pending_ai_plan_id", on_delete: :nullify
+  add_foreign_key "billing_accounts", "workspaces"
+  add_foreign_key "billing_charges", "ai_plans", on_delete: :nullify
+  add_foreign_key "billing_charges", "users", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "billing_charges", "workspaces"
   add_foreign_key "briefs", "chat_sessions"
   add_foreign_key "briefs", "tasks"
   add_foreign_key "briefs", "workspaces"
@@ -1167,6 +1285,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_000000) do
   add_foreign_key "holiday_requests", "users", column: "reviewed_by_id"
   add_foreign_key "holiday_requests", "workspaces"
   add_foreign_key "integrations", "workspaces"
+  add_foreign_key "invoices", "billing_charges"
+  add_foreign_key "invoices", "workspaces"
   add_foreign_key "jira_board_column_statuses", "jira_board_columns"
   add_foreign_key "jira_board_columns", "jira_boards"
   add_foreign_key "jira_boards", "projects"

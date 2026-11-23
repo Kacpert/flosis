@@ -82,6 +82,15 @@ module ChatStreaming
       return
     end
 
+    # SCRUM-71: a paused organization starts no conversation, and a pending
+    # handoff stays pending for when AI is back.
+    if ai_paused?
+      write_sse_headers
+      write_sse_safe("error" => ai_paused_message, "paused" => ai_paused_who)
+      close_stream_safe
+      return
+    end
+
     write_sse_headers
 
     service = ClaudeCliService.new(codebase_path: chat_codebase_path, allowed_tools: chat_tools,
@@ -146,6 +155,11 @@ module ChatStreaming
 
     unless @chat_session
       render json: { error: "No active chat session" }, status: :not_found
+      return
+    end
+
+    if ai_paused?
+      render json: { error: ai_paused_message, paused: ai_paused_who }, status: :unprocessable_entity
       return
     end
 

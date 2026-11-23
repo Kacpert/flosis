@@ -1,0 +1,44 @@
+<%# SCRUM-71: the billing banners, above the top bar on every Workshop screen,
+    for organization administrators only. A payment that failed is red, at
+    every retry; past 80% of the limit, the limit reached and the automatic
+    top-ups used up are amber, with the way to Billing. %>
+<% allowance = workspace_admin? ? ai_allowance : nil %>
+<% if allowance&.reason == :no_plan %>
+  <div role="alert" data-billing-banner="no-plan" class="flex items-center justify-center gap-3 px-4 py-2 text-[13px] text-center [&_a]:font-bold [&_a]:text-inherit [&_a]:underline border-b border-[color:var(--warn)] bg-[color:var(--warn-soft)] clar-text-text">
+    <span>AI paused: <%= current_workspace.name %> has no plan. <%= link_to "Choose a plan in Billing", workshop_billing_path(open: "change-plan") %></span>
+  </div>
+<% elsif allowance&.running? %>
+  <% money = ->(amount) { Billing::Copy.money(amount) } %>
+  <% banner = "flex items-center justify-center gap-3 px-4 py-2 text-[13px] text-center [&_a]:font-bold [&_a]:text-inherit [&_a]:underline" %>
+  <% warn = "#{banner} border-b border-[color:var(--warn)] bg-[color:var(--warn-soft)] clar-text-text" %>
+  <% back = allowance.back_on.strftime("%-d %b") %>
+  <% if allowance.payment_failing? %>
+    <% charge = allowance.charge %>
+    <div role="alert" data-billing-banner="payment-failed" class="<%= banner %> bg-[var(--danger)] text-white">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="flex-none" aria-hidden="true"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      <span>Payment failed, update your card.
+        <% if allowance.reason == :unpaid %>
+          AI is paused until the payment goes through.
+        <% elsif allowance.reason == :retry_spent %>
+          AI is paused: the <%= money.(charge.grace_usd) %> allowed while we retry is used up<%= ", and so is the top-up balance" if Billing::Ledger.top_up_spent(current_workspace).positive? %>.
+        <% elsif allowance.grace_left? %>
+          AI keeps running up to <%= money.(charge.grace_usd) %> while we retry (day <%= charge.retry_day %> of <%= Billing::RETRY_DAYS %>)<%= ", then on the #{money.(allowance.balance)} top-up balance, which gets it back once the payment goes through" if allowance.balance.positive? %>.
+        <% else %>
+          AI runs on the top-up balance (<%= money.(allowance.balance) %> left) until the payment goes through; what it uses comes back then.
+        <% end %>
+        <%= link_to "Update card", workshop_billing_path %></span>
+    </div>
+  <% elsif allowance.auto_top_ups_paused? %>
+    <div role="alert" data-billing-banner="auto-paused" class="<%= warn %>">
+      <span>AI paused: this month&rsquo;s limit is reached and automatic top-ups are paused until <%= back %>. <%= link_to "Buy a top-up", workshop_billing_path(open: "top-up") %></span>
+    </div>
+  <% elsif allowance.reason == :limit %>
+    <div role="alert" data-billing-banner="paused" class="<%= warn %>">
+      <span>AI paused: this month&rsquo;s limit is reached and the top-up balance is empty. <%= link_to "Top up in Billing", workshop_billing_path(open: "top-up") %></span>
+    </div>
+  <% elsif allowance.near_limit? %>
+    <div role="status" data-billing-banner="near-limit" class="<%= warn %>">
+      <span>You&rsquo;ve used 80% of this month&rsquo;s AI limit (<%= Billing::Copy.whole(allowance.limit_usd * BigDecimal("0.8")) %> of <%= Billing::Copy.whole(allowance.limit_usd) %>). <%= link_to "See Consumption", workshop_consumption_path %></span>
+    </div>
+  <% end %>
+<% end %>

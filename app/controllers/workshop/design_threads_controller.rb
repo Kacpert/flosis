@@ -7,6 +7,9 @@ class Workshop::DesignThreadsController < Workshop::BaseController
   before_action { require_permission!(:designs) }
   include DesignsVisibility
   before_action :set_thread, except: %i[create start_from_task]
+  # SCRUM-71: what starts a Designs turn waits while the organization's AI is
+  # paused (a project on its own key goes on).
+  before_action :refuse_designs_when_ai_paused, only: %i[start_from_task message retry go update_description update_master]
 
   def create
     thread = Designs::Threads.start!(project: current_workshop_project, user: current_user)

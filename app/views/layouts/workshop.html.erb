@@ -47,6 +47,7 @@
         })(document.currentScript.closest(".clar-app"));
       </script>
 
+      <%= render "layouts/billing_banners" if respond_to?(:workshop_billing_path) %>
       <%= render "layouts/clar_topbar" %>
 
       <div class="flex flex-1 min-h-0">

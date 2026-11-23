@@ -70,6 +70,8 @@ class Workshop::AlertRulesController < Workshop::BaseController
   # The schedule is unaffected: due? only skips a slot when a run happened AFTER
   # it, so running by hand before today's slot still leaves that slot to fire.
   def run_now
+    return refuse_when_ai_paused if ai_paused?
+
     AlertRuleRunJob.perform_later(@alert_rule.id, started_by_id: current_user.id)
     flash[:clar_toast] = %(Run started · "#{@alert_rule.name}" — the result lands in View history)
     redirect_to workshop_process_path(tab: "alerts"), status: :see_other

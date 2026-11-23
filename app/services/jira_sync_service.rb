@@ -128,6 +128,8 @@ class JiraSyncService
           .where(external_reference: issue_keys, ai_estimate_points: nil)
           .limit(AUTO_ESTIMATE_CAP - estimates_enqueued)
           .find_each do |task|
+          break if ai_paused?
+
           AutoEstimateJob.perform_later(task.id)
           estimates_enqueued += 1
         end
@@ -168,12 +170,13 @@ class JiraSyncService
         if previous_status != status_trigger && issue[:status_name] == status_trigger
           task = @project.tasks.jira_synced.find_by(external_reference: issue[:key])
           # Estimate once — skip tasks that already have an AI estimate.
-          AutoEstimateJob.perform_later(task.id) if task && task.ai_estimate_points.blank?
+          AutoEstimateJob.perform_later(task.id) if task && task.ai_estimate_points.blank? && !ai_paused?
         end
       end
 
       next unless issue[:issue_type] == "Bug"
       next if bug_attributions_enqueued >= BUG_ATTRIBUTION_CAP
+      next if ai_paused?
       next if BugAttribution.exists?(project_id: @project.id, jira_key: issue[:key])
 
       BugAttributionJob.perform_later(@project.id, issue[:key])
@@ -182,6 +185,15 @@ class JiraSyncService
   end
 
   private
+
+  # SCRUM-71: while the organization's AI is paused, a sync queues no AI
+  # estimate or bug analysis; unestimated tasks and unanalyzed bugs are
+  # offered again by the next sync once AI is back.
+  def ai_paused?
+    return @ai_paused if defined?(@ai_paused)
+
+    @ai_paused = Billing::Allowance.paused_for?(@project.workspace)
+  end
 
   # Resolves + caches the Jira custom field id used for story points on the
   # project (mirrors JiraWriter#ai_actions_field_id's caching). The project is

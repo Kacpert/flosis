@@ -26,7 +26,7 @@
   </div>
   <p class="mt-3.5 mb-0 text-[12.5px] leading-[1.45] clar-text-muted">
     The limit is a monthly one, so it is read month by month below.
-    <%= over.zero? ? "No month has gone over it so far." : "#{pluralize(over, 'month')} went over it so far, and nothing was blocked then either." %>
+    <%= over.zero? ? "No month has gone over it so far." : "#{pluralize(over, 'month')} went over it before billing started, when nothing was charged or paused." %>
   </p>
 </section>
 

@@ -1,0 +1,11 @@
+<%# The three top-up amounts as pills (design topup-amounts): one is always
+    picked; disabled greys them out (automatic top-up off). %>
+<%# locals: (name:, label:, picked:, disabled: false, action: nil) %>
+<div role="radiogroup" aria-label="<%= label %>" class="flex flex-wrap gap-1.5" data-topup-amounts>
+  <% Billing::TOP_UP_AMOUNTS.each do |amount| %>
+    <label class="inline-flex cursor-pointer items-center rounded-full border border-[color:var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-[13px] font-semibold clar-text-muted has-[:checked]:border-[color:var(--primary)] has-[:checked]:bg-[var(--primary-soft)] has-[:checked]:text-[color:var(--primary)] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
+      <input type="radio" name="<%= name %>" value="<%= amount.to_i %>" class="sr-only" <%= "checked" if amount == picked %> <%= "disabled" if disabled %>
+             <% if action %>data-action="<%= action %>"<% end %>><%= Billing::Copy.whole(amount) %>
+    </label>
+  <% end %>
+</div>

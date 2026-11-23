@@ -102,6 +102,10 @@
           <span class="w-40 flex-none text-[12px] clar-text-muted"><%= AiRun::AREAS[run.area] %></span>
           <span class="flex-1 min-w-0 truncate clar-text-text"><%= run.item_label %></span>
           <span class="w-60 flex-none truncate whitespace-nowrap clar-mono text-[11.5px] clar-text-faint"><%= AiCostFormatter.tokens(run) %></span>
+          <%= form_with url: set_cost_hidmin_ai_run_path(run), method: :patch, class: "flex flex-none items-center gap-1.5" do %>
+            <input type="text" name="cost_usd" inputmode="decimal" placeholder="Cost $" aria-label="What this run cost, in dollars" class="clar-input !w-[84px] !py-1 !px-2 !text-[12px]">
+            <button type="submit" class="clar-btn !py-1 !px-2.5 !text-[12px]">Set cost</button>
+          <% end %>
           <%= button_to "Looked at", looked_at_hidmin_ai_run_path(run), method: :patch, class: "clar-btn !py-1 !px-2.5 !text-[12px]" %>
         </div>
       <% end %>

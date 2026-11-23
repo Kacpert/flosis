@@ -1,0 +1,17 @@
+<%# Buy top-up: charged straight away to the card on file. %>
+<% account = @account %>
+<% vat = account.vat %>
+<% gross = vat.gross(200) %>
+<%= render layout: "workshop/billing/modal", locals: { id: "top-up", title: "Buy top-up" } do %>
+  <%= form_with url: workshop_billing_top_up_path, method: :post, data: { turbo: false, action: "submit->billing#busy" } do %>
+    <p class="mt-0 mb-3.5 text-[12.5px] leading-snug clar-text-muted">Used only after this month&rsquo;s limit is reached, at cost + 30%. It never expires and is never refunded.</p>
+    <%= render "workshop/billing/amounts", name: "amount", label: "Top-up amount", picked: BigDecimal("200"), action: "change->billing#pickAmount" %>
+    <p class="mt-3.5 mb-0 rounded-[10px] bg-[var(--surface-2)] px-3.5 py-[11px] text-[12.5px] leading-snug clar-text-text" data-billing-target="topUpSummary">
+      Charged now to <%= account.card_short %>: <b class="font-semibold"><%= Billing::Copy.money(gross) %></b> (<%= Billing::Copy.money(200) %><%= vat.charged? ? " + #{vat.short_label}" : ", #{vat.short_label}" %>). The invoice goes to every admin.
+    </p>
+    <div class="mt-4.5 flex justify-end gap-2.5">
+      <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+      <button type="submit" class="clar-btn clar-btn-primary" data-billing-target="payButton" data-busy-text="Charging the card…">Pay <%= Billing::Copy.money(gross) %></button>
+    </div>
+  <% end %>
+<% end %>

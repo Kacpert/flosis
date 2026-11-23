@@ -1,7 +1,11 @@
+# free_ai: both stand for organizations that existed before billing
+# (SCRUM-71), which keep their AI without a plan until staff turn it off.
 one:
   name: Test Workspace
   hr_access: true
+  free_ai: true
 
 two:
   name: Other Workspace
   hr_access: true
+  free_ai: true

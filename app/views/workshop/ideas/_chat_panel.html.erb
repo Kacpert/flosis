@@ -1,3 +1,4 @@
+<% paused = ai_paused? %>
 <%# Chat panel (left panel of the workspace grid). Ports task_chat_controller.js's
     SSE core, re-skinned as clar-chat. Shared by both stages that have a chat:
     briefing (persona "briefing", acts like a Product Owner, brief_chat_session
@@ -42,7 +43,7 @@
     <%# New task from this conversation: opens the dialog in show.html.erb. %>
     <button type="button" title="Start a new task from this conversation — the AI hands it what was said about it"
             aria-label="New task from this conversation"
-            class="clar-btn flex-none whitespace-nowrap" data-action="click->clar-modal#open" data-clar-modal-id-param="new-task">
+            class="clar-btn flex-none whitespace-nowrap" data-action="click->clar-modal#open" data-clar-modal-id-param="new-task" data-ai-action <%= "disabled" if paused %>>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
       <span class="hidden @[44rem]:inline">New task</span>
     </button>
@@ -55,7 +56,7 @@
       <span class="hidden @[40rem]:inline" data-clar-chat-target="liveThinkingLabel">Live thinking: off</span>
       <span class="hidden @[30rem]:inline @[40rem]:hidden">Thinking</span>
     </button>
-    <button type="button" title="Reset this AI session" class="clar-btn flex-none whitespace-nowrap" data-action="click->clar-modal#open" data-clar-modal-id-param="reset-session">
+    <button type="button" title="Reset this AI session" class="clar-btn flex-none whitespace-nowrap" data-action="click->clar-modal#open" data-clar-modal-id-param="reset-session" data-ai-action <%= "disabled" if paused %>>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
       <span class="hidden @[26rem]:inline">Reset session</span>
       <span class="@[26rem]:hidden">Reset</span>
@@ -75,20 +76,23 @@
     <div class="clar-composer-grip" role="separator" aria-orientation="horizontal" aria-label="Resize the message box"
          title="Drag to make the box taller · double-click to let it size itself"
          data-action="pointerdown->clar-composer#start dblclick->clar-composer#reset"></div>
+    <%# SCRUM-71: the organization is paused, so sending starts no AI run and
+        the box says why. A run already going finishes. %>
+    <%= render "workshop/billing/paused_note", classes: "mb-2.5" if paused %>
     <div class="hidden flex-wrap gap-2 mb-2.5" data-clar-chat-target="previews"></div>
     <div class="flex gap-2.5 items-end">
       <input type="file" class="hidden" multiple accept="image/png,image/jpeg,image/gif,image/webp"
              data-clar-chat-target="fileInput" data-action="change->clar-chat#filesPicked">
       <button type="button" class="clar-btn flex-none h-[42px] w-[42px] !p-0" title="Add images" aria-label="Add images"
-              data-action="click->clar-chat#pickImages">
+              data-action="click->clar-chat#pickImages" data-ai-action <%= "disabled" if paused %>>
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg>
       </button>
-      <textarea rows="1" placeholder="<%= placeholder %>"
+      <textarea rows="1" placeholder="<%= paused ? ai_paused_placeholder : placeholder %>" data-ai-action <%= "disabled" if paused %>
                 class="clar-textarea flex-1 resize-none"
                 data-clar-chat-target="input" data-clar-composer-target="input"
                 data-action="keydown->clar-chat#handleKeydown input->clar-composer#fit paste->clar-chat#pasteImages"></textarea>
       <button type="button" class="clar-btn clar-btn-primary flex-none h-[42px] w-[42px] !p-0"
-              data-action="click->clar-chat#sendMessage" aria-label="Send">
+              data-action="click->clar-chat#sendMessage" aria-label="Send" data-ai-action <%= "disabled" if paused %>>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
       </button>
     </div>

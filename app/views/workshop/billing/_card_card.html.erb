@@ -1,0 +1,31 @@
+<%# The card is entered and changed on Stripe's own secure page; Flosis only
+    ever shows its brand, last four and expiry. %>
+<% account = @account %>
+<% failing = account.plan_running? && @allowance.payment_failing? %>
+<section class="clar-card flex flex-col p-4.5" aria-labelledby="card-title" data-card-card>
+  <h2 id="card-title" class="m-0 mb-1.5 text-[11px] font-bold tracking-[.4px] clar-text-faint">CARD</h2>
+  <% if account.card? %>
+    <div class="flex items-center gap-2.5">
+      <svg width="22" height="16" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="1.6" class="flex-none clar-text-muted" aria-hidden="true"><rect x="1" y="1" width="22" height="16" rx="2.5"/><path d="M1 6h22"/></svg>
+      <span class="text-[14px] font-bold clar-text-text"><%= account.card_label %></span>
+    </div>
+    <% if failing %>
+      <p class="mt-1 mb-0 text-[12.5px] leading-snug font-semibold clar-text-danger">Declined on <%= @allowance.charge.updated_at.strftime("%-d %b") %>: <%= @allowance.charge.failure_message %>. Change the card and we charge it straight away.</p>
+    <% else %>
+      <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">The plan, top-ups and automatic top-ups are charged to this card.</p>
+    <% end %>
+  <% else %>
+    <div class="text-[14px] font-bold clar-text-text">No card yet</div>
+    <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">Added on Stripe&rsquo;s secure page. Flosis never sees the card number.</p>
+  <% end %>
+
+  <div class="mt-auto flex flex-wrap items-center gap-2 pt-3.5">
+    <%= button_to account.card? ? "Change card" : "Add card", workshop_billing_card_path,
+          class: "clar-btn #{'clar-btn-primary' if failing} !py-2 !px-3.5", form_class: "contents",
+          form: { data: { turbo: false, action: "submit->billing#busy" } }, data: { busy_text: "Opening Stripe’s secure page…" } %>
+    <span class="inline-flex items-center gap-1 text-[11.5px] clar-text-faint">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      Opens Stripe
+    </span>
+  </div>
+</section>

@@ -109,14 +109,17 @@
   <% else %>
     <%# Images go with the message (designs-images: the paperclip, a drop
         anywhere on the page, a paste), waiting above the box until sent. %>
+    <%# SCRUM-71: paused, unless the project designs on its own key. %>
+    <% paused = ai_paused?(project: thread.project, designs: true) %>
+    <%= render "workshop/billing/paused_note", classes: "mb-2" if paused %>
     <%= form_with url: message_workshop_design_thread_path(thread), method: :post, multipart: true, class: "border border-[color:var(--border)] rounded-xl bg-[var(--bg)] pt-2 pr-2 pb-2 pl-3" do |f| %>
       <div class="hidden flex-wrap gap-2 mb-2" data-designs-images-target="previews"></div>
       <%= hidden_field_tag :ctx, @context, data: { designs_canvas_target: "context" } %>
       <%= hidden_field_tag :screen, @screen, data: { designs_canvas_target: "screen" } %>
       <%= hidden_field_tag :state, nil, id: nil, data: { designs_canvas_target: "state" } %>
       <%= hidden_field_tag :mode, @mode %>
-      <textarea name="text" rows="2" required class="w-full resize-none border-0 outline-none bg-transparent text-[13px] leading-[1.5] clar-text-text"
-                placeholder="<%= thread.fresh? ? 'What should change? Navigate the app on the right, AI sees the page you’re on.' : 'Describe a change…' %>"
+      <textarea name="text" rows="2" required data-ai-action <%= "disabled" if paused %> class="w-full resize-none border-0 outline-none bg-transparent text-[13px] leading-[1.5] clar-text-text"
+                placeholder="<%= paused ? ai_paused_placeholder : (thread.fresh? ? 'What should change? Navigate the app on the right, AI sees the page you’re on.' : 'Describe a change…') %>"
                 data-controller="designs-composer" data-designs-composer-draft-key-value="designs.draft.<%= thread.id %>"
                 data-action="keydown->designs-composer#key paste->designs-images#paste"></textarea>
       <div class="flex items-center gap-2">
@@ -124,8 +127,8 @@
         <input type="file" name="images[]" multiple class="hidden" accept="image/png,image/jpeg,image/gif,image/webp"
                data-designs-images-target="input" data-draft-key="designs.images.<%= thread.id %>" data-action="change->designs-images#picked">
         <button type="button" class="clar-btn !p-0 w-[30px] h-[30px] justify-center" title="Add images" aria-label="Add images"
-                data-action="designs-images#pick"><%= designs_icon(:attach, 14) %></button>
-        <button type="submit" class="clar-btn clar-btn-primary !p-0 w-[30px] h-[30px] justify-center" title="Send"><%= designs_icon(:send, 14) %></button>
+                data-action="designs-images#pick" data-ai-action <%= "disabled" if paused %>><%= designs_icon(:attach, 14) %></button>
+        <button type="submit" class="clar-btn clar-btn-primary !p-0 w-[30px] h-[30px] justify-center" title="Send" data-ai-action <%= "disabled" if paused %>><%= designs_icon(:send, 14) %></button>
       </div>
     <% end %>
   <% end %>

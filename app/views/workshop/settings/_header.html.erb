@@ -1,0 +1,41 @@
+<%# The head of Settings (SCRUM-71, design config-header): the title, one line
+    for the lit tab's group, then one tab bar. The organization's tabs come
+    first (Billing, Consumption) and a hairline, organization administrators
+    only, not even locked for anyone else; then the project's tabs, where a tab
+    the person lacks is drawn locked rather than left out. %>
+<%# locals: (tab:) %>
+<% org_tab = tab.in?(%w[billing consumption]) %>
+<h1 class="clar-h1">Settings</h1>
+<p class="clar-sub">
+  <% if org_tab %>
+    The organization&rsquo;s AI spend across every project, its plan, payments and invoices.
+  <% else %>
+    Per-project credentials, AI behaviour<%= " and access" if can?(:configuration) %>.
+  <% end %>
+</p>
+
+<nav class="clar-tabs mb-6 flex-wrap items-center" aria-label="Settings" data-settings-tabs>
+  <% if workspace_admin? %>
+    <%= link_to "Billing", workshop_billing_path, class: "clar-tab #{'clar-tab-active' if tab == 'billing'}", data: { tip: "Whole organization, all projects" } %>
+    <%= link_to "Consumption", workshop_consumption_path, class: "clar-tab #{'clar-tab-active' if tab == 'consumption'}" %>
+    <span aria-hidden="true" class="mx-1.5 h-5 w-px bg-[var(--border)]"></span>
+  <% end %>
+  <% { "integrations" => "Integrations", "ai" => "AI", "briefing" => "Create Tasks", "users" => "Users" }.each do |project_tab, label| %>
+    <% needed = Workshop::ConfigurationController::TAB_PERMISSIONS.fetch(project_tab, :configuration) %>
+    <% if can?(needed) %>
+      <%= link_to label, workshop_configuration_path(tab: project_tab),
+            class: "clar-tab #{'clar-tab-active' if tab == project_tab}" %>
+    <% else %>
+      <%# Shown but locked: that it exists, and why it is shut, is more use
+          than a tab that silently is not there. The controller refuses it
+          server-side too. %>
+      <span class="clar-tab clar-tip clar-tip-below inline-flex items-center gap-1.5 cursor-not-allowed opacity-60"
+            data-tip="Needs the <%= PermissionPreset.label(needed) %> permission &mdash; <%= PermissionPreset.description(needed) %>"
+            aria-label="<%= label %>: needs the <%= PermissionPreset.label(needed) %> permission"
+            tabindex="0" aria-disabled="true">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <%= label %>
+      </span>
+    <% end %>
+  <% end %>
+</nav>

@@ -38,7 +38,7 @@ class WorkshopLayoutTest < ActionDispatch::IntegrationTest
       assert_select "a span", text: "Create Tasks", count: 1
       assert_select "a span", text: "Agents & Automations", count: 0
       assert_select "a span", text: "Reporting", count: 0
-      assert_select "a span", text: "Configuration", count: 0
+      assert_select "a span", text: "Settings", count: 0
     end
   end
 end

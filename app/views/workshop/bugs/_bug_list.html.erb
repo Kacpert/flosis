@@ -3,6 +3,9 @@
   <div class="px-5 py-[15px] border-b clar-divider font-bold text-[14px] clar-text-text">
     Bug analysis
   </div>
+  <% if ai_paused? %>
+    <div class="px-5 pt-3.5"><%= render "workshop/billing/paused_note", what: "New bugs aren’t analyzed and Analyze can’t be pressed until AI is back.", classes: "" %></div>
+  <% end %>
 
   <% if bugs.any? %>
     <% bug_costs = ai_figures(bugs.filter_map { |bug| bug[:attribution] }, area: "bug_analysis") %>
@@ -25,7 +28,8 @@
             <span class="clar-badge clar-badge-muted">Analyzing&hellip;</span>
           <% elsif attribution&.status == "failed" %>
             <span class="clar-badge clar-badge-danger">Analysis failed</span>
-            <%= button_to "Analyze", workshop_analyze_bug_path(bug[:key]), method: :post, class: "clar-btn !text-[12px] !py-[5px] !px-2.5" %>
+            <%= button_to "Analyze", workshop_analyze_bug_path(bug[:key]), method: :post, class: "clar-btn !text-[12px] !py-[5px] !px-2.5",
+                  disabled: ai_paused?, data: { ai_action: true } %>
           <% end %>
           <%# What analysing this bug cost in AI (SCRUM-70) — a failed run still
               spent what it spent. %>

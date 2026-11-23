@@ -1,0 +1,8 @@
+An invoice was not accepted by KSeF
+
+Organization: <%= @invoice.workspace.name %>
+Invoice: <%= @invoice.number %> · <%= @invoice.type_label %> · <%= Billing::Copy.money(@invoice.gross_usd) %>
+Reason: <%= @invoice.ksef_error %>
+Tried: <%= Time.current.strftime("%-d %b %Y, %H:%M") %>
+
+The payment went through, so the invoice stands, but its PDF does not reach the organization’s admins until KSeF accepts it. Check the organization’s NIP, then retry from its page.

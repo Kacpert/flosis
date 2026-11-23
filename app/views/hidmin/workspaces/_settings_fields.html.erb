@@ -20,6 +20,14 @@
 </label>
 
 <label class="flex items-start gap-2.5 cursor-pointer">
+  <%= f.check_box :free_ai, class: "mt-1" %>
+  <span>
+    <span class="block text-[13.5px] font-semibold clar-text-text">Free AI without a plan</span>
+    <span class="block text-[12.5px] clar-text-muted">Off: with no paid plan, the organization's AI is paused. On: it keeps running and nothing is charged. A paid plan's limit applies either way.</span>
+  </span>
+</label>
+
+<label class="flex items-start gap-2.5 cursor-pointer">
   <%= f.check_box :clients_enabled, class: "mt-1" %>
   <span>
     <span class="block text-[13.5px] font-semibold clar-text-text">Clients in Time &amp; HR</span>

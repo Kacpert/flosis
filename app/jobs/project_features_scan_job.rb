@@ -25,6 +25,8 @@ class ProjectFeaturesScanJob < ApplicationJob
     end
 
     Workspace.where(workshop_enabled: true).find_each do |workspace|
+      next if Billing::Allowance.paused_for?(workspace)
+
       workspace.projects.where(external_type: "jira").find_each do |project|
         scan_and_store(project)
       end

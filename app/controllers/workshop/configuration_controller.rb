@@ -98,6 +98,8 @@ class Workshop::ConfigurationController < Workshop::BaseController
   # "what the app already does" reference for the briefing chat). Enqueued so the
   # request returns immediately — the scan reads the repo and can take a while.
   def refresh_features
+    return refuse_when_ai_paused if ai_paused?
+
     if current_workshop_project
       ProjectFeaturesScanJob.perform_later(current_workshop_project.id, started_by_id: current_user.id)
       flash[:clar_toast] = "Refreshing the app feature summary — this runs in the background."

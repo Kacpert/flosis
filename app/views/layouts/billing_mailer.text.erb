@@ -1,0 +1,9 @@
+<%= yield %>
+<% if @cta %>
+
+<%= @cta %>: <%= @cta_url %>
+<% end %>
+
+--
+<%= @why %>
+<%= Billing::Seller.footer %>

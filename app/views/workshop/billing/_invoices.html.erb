@@ -1,0 +1,46 @@
+<%# Invoices: issued only once a payment has gone through, so none has a
+    status. Each is emailed to every organization administrator, as a PDF
+    carrying its KSeF number, once KSeF has given it one. %>
+<section class="clar-card overflow-hidden" aria-labelledby="invoices-title" data-invoices>
+  <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[color:var(--border)] px-4.5 py-3.5">
+    <h2 id="invoices-title" class="m-0 text-[14px] font-bold clar-text-text">Invoices</h2>
+    <span class="text-[11.5px] clar-text-faint">Newest first &middot; each one is emailed to every admin as a PDF once it is paid</span>
+  </div>
+  <% if @invoices.any? %>
+    <div class="overflow-x-auto">
+      <div class="min-w-[672px]">
+        <div class="flex gap-3 border-b border-[color:var(--border)] px-4.5 py-[9px] text-[11px] font-bold tracking-[.4px] clar-text-faint">
+          <span class="w-28">DATE</span><span class="w-40">NUMBER</span><span class="flex-1">TYPE</span><span class="w-36 text-right">AMOUNT</span><span class="w-16"></span>
+        </div>
+        <% @invoices.each do |invoice| %>
+          <div class="flex items-center gap-3 border-b border-[color:var(--border)] px-4.5 py-[11px] text-[13.5px] last:border-b-0" data-invoice="<%= invoice.number %>">
+            <span class="w-28 flex-none text-[12.5px] clar-text-muted"><%= invoice.issued_on.strftime("%-d %b %Y") %></span>
+            <span class="w-40 flex-none clar-mono text-[12.5px] clar-text-text"><%= invoice.number %></span>
+            <span class="flex min-w-0 flex-1 items-center gap-2">
+              <span class="flex-none rounded-[6px] px-2 py-0.5 text-[11px] font-bold <%= invoice.type_label == 'Plan' ? 'bg-[var(--primary-soft)] text-[color:var(--primary)]' : 'bg-[var(--surface-2)] clar-text-muted' %>"><%= invoice.type_label %></span>
+              <span class="min-w-0 text-[12.5px] clar-text-muted"><%= Billing::Copy.invoice_detail(invoice) %></span>
+            </span>
+            <span class="flex w-36 flex-none flex-col items-end">
+              <span class="font-semibold clar-text-text"><%= Billing::Copy.money(invoice.gross_usd) %></span>
+              <span class="text-[11.5px] clar-text-faint"><%= Billing::Copy.net_line(invoice) %></span>
+            </span>
+            <% if invoice.sent_to_ksef? %>
+              <%= link_to workshop_billing_invoice_path(invoice), class: "inline-flex w-16 flex-none items-center justify-center gap-1 rounded-[9px] border border-[color:var(--border)] bg-[var(--surface)] px-2 py-[5px] text-[12px] font-semibold clar-text-text no-underline",
+                    data: { turbo: false }, aria: { label: "Download #{invoice.number} as PDF" } do %>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+                PDF
+              <% end %>
+            <% else %>
+              <span class="clar-tip w-16 flex-none text-center text-[11.5px] clar-text-faint" data-tip="The PDF comes once KSeF has given the invoice its number">Soon</span>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% else %>
+    <div class="px-4.5 py-8 text-center">
+      <div class="text-[13.5px] font-semibold clar-text-text">No invoices yet</div>
+      <div class="mt-1 text-[12.5px] clar-text-muted">The first one comes with the first charge, and goes to every admin&rsquo;s inbox.</div>
+    </div>
+  <% end %>
+</section>

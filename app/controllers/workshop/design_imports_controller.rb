@@ -9,6 +9,7 @@ class Workshop::DesignImportsController < Workshop::BaseController
   include DesignsVisibility
   before_action :load_import, except: %i[new create]
   before_action :refuse_new_import, only: %i[new create]
+  before_action :refuse_designs_when_ai_paused, only: %i[create retry_all add_feature]
 
   # New import opens the setup form first (Kacper, 2026-11-22: "może będę
   # chciał zmienić linki albo dodać nowy kontekst"), filled in.

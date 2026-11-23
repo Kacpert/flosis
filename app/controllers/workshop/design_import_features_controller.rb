@@ -10,6 +10,7 @@ class Workshop::DesignImportFeaturesController < Workshop::BaseController
   before_action { require_permission!(:configuration) }
   include DesignsVisibility
   before_action :load_feature
+  before_action :refuse_designs_when_ai_paused, only: %i[retry reply revise]
 
   def retry
     if @feature.problem || @feature.status == "set_aside"

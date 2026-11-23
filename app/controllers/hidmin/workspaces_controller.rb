@@ -52,11 +52,17 @@ class Hidmin::WorkspacesController < Hidmin::BaseController
 
   # SCRUM-70: an organization's plan. Its price becomes the monthly limit from
   # now on (this month's included); runs so far keep the margin they had.
+  #
+  # SCRUM-71: an organization that pays for its plan keeps the month it paid
+  # for; the plan staff assign starts with its next charge, on the 1st.
   def assign_plan
     plan = AiPlan.find(params[:ai_plan_id])
-    @workspace.update!(ai_plan: plan, ai_plan_assigned_at: Time.current)
-    AiMonthLimit.refresh_current!(@workspace)
-    redirect_back_or_to hidmin_workspaces_path, flash: { clar_toast: "Plan assigned" }
+    toast = if Billing::Plans.assign_by_staff!(@workspace, plan) == :next_month
+      "#{plan.name} starts on #{Date.current.next_month.beginning_of_month.strftime('%-d %b')}, with the next charge"
+    else
+      "Plan assigned"
+    end
+    redirect_back_or_to hidmin_workspaces_path, flash: { clar_toast: toast }
   end
 
   private
@@ -73,7 +79,7 @@ class Hidmin::WorkspacesController < Hidmin::BaseController
   end
 
   def workspace_params
-    params.require(:workspace).permit(:name, :workshop_enabled, :hr_access, :clients_enabled)
+    params.require(:workspace).permit(:name, :workshop_enabled, :hr_access, :clients_enabled, :free_ai)
   end
 
   def admin_params

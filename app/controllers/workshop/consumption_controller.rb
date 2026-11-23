@@ -18,6 +18,12 @@ class Workshop::ConsumptionController < Workshop::BaseController
     @summary = @all_time ? @costs.all_time : @costs.month(@month)
     @offset = params[:offset].to_i.clamp(0, nil)
     @runs = @costs.runs(@month, offset: @offset, limit: PAGE) unless @all_time
+    # SCRUM-71: what counted toward the plan's limit, what the top-up paid,
+    # and whether AI is paused now.
+    @plan_spend = Billing::Ledger.plan_spend(current_workspace, @month)
+    @top_up_spent = Billing::Ledger.top_up_spent(current_workspace, @month)
+    @balance = Billing::Ledger.balance(current_workspace)
+    @allowance = Billing::Allowance.for(current_workspace)
 
     render "workshop/consumption/more", layout: false if @offset.positive? && turbo_frame_request?
   end

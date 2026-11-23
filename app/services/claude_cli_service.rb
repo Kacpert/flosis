@@ -156,6 +156,16 @@ class ClaudeCliService
   # A run that went past its timeout. It has been stopped by the time this is raised.
   class TimeoutError < ClaudeCliError; end
 
+  # The organization's AI is paused (SCRUM-71: limit reached and no top-up
+  # left, or a payment unpaid). Raised before the CLI starts, so no run is
+  # recorded; a run already going is never stopped for it.
+  class PausedError < ClaudeCliError
+    def initialize(message = "AI paused: limit reached.")
+      super
+    end
+  end
+
+
   # Marks the error a caller's block raises to stop a run (Designs' Stop): the
   # run is then recorded as stopped rather than failed.
   module StopSignal; end
@@ -557,6 +567,7 @@ class ClaudeCliService
   # starts, finished after it ends with what it reported, however it ended.
   # Recording never raises (AiRun::Recorder).
   def recorded
+    refuse_if_paused!
     @usage = AiRun::Usage.new
     @run = AiRun::Recorder.start!(@attribution, own_key: own_key?)
     started = monotonic
@@ -576,6 +587,18 @@ class ClaudeCliService
     raise
   ensure
     AiRun::Recorder.finish!(@run, @usage, status: status, duration_ms: ((monotonic - started) * 1000).round) if started
+  end
+
+  # SCRUM-71: a paused organization starts no new run, unless it runs on the
+  # project's own key. Asking must never stop a run by its own failure.
+  def refuse_if_paused!
+    reason = begin
+      Billing::Allowance.reason_for(@attribution.workspace, own_key: own_key?)
+    rescue StandardError => e
+      Rails.error.report(e, handled: true, context: { gate: "ClaudeCliService#refuse_if_paused!" })
+      nil
+    end
+    raise PausedError, Billing::Copy.paused_parts(reason).first if reason
   end
 
   # Whether the CLI ended with an answer rather than an error.

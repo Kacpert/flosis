@@ -1,0 +1,96 @@
+<%# Payments & invoices (SCRUM-71, design flosis-admin/organization.html):
+    whether the organization has paid, what it has left after its limit, and
+    every invoice with what KSeF made of it. The organization sees its
+    invoices without any KSeF status. %>
+<% account = @workspace.billing_account %>
+<% if account && account.plan_state != "none" %>
+  <% allowance = Billing::Allowance.for(@workspace) %>
+  <% charge = allowance.charge %>
+  <% invoices = @workspace.invoices.newest_first.includes(:billing_charge).limit(50) %>
+  <% automatic = Billing::Ledger.automatic_top_ups(@workspace) %>
+  <section class="mb-8" data-payments>
+    <h2 class="clar-section-label mb-2.5">Payments &amp; invoices</h2>
+    <div class="grid grid-cols-1 gap-3.5 md:grid-cols-3">
+      <div class="clar-card p-4.5" data-payment-status>
+        <div class="text-[11px] font-bold tracking-[.4px] clar-text-faint">PAYMENT</div>
+        <div class="mt-1.5">
+          <% if account.cancelling? || account.plan_state == "ended" %>
+            <span class="clar-badge clar-badge-muted">Cancelled</span>
+          <% elsif charge&.failed? && charge.unpaid? %>
+            <span class="clar-badge clar-badge-danger">Unpaid</span>
+          <% elsif charge&.failed? %>
+            <span class="clar-badge clar-badge-warn">Retrying &middot; day <%= charge.retry_day %> of <%= Billing::RETRY_DAYS %></span>
+          <% elsif account.plan_running? %>
+            <span class="clar-badge clar-badge-success">Paid</span>
+          <% else %>
+            <span class="clar-badge clar-badge-muted">Not active yet</span>
+          <% end %>
+        </div>
+        <div class="mt-1.5 text-[12px] clar-text-muted">
+          <% if account.cancelling? %>
+            Active until <%= account.plan_ends_on.strftime("%-d %b %Y") %> &middot; nothing charged after
+          <% elsif account.plan_state == "ended" %>
+            No plan since <%= (account.plan_ends_on + 1).strftime("%-d %b %Y") %>
+          <% elsif charge&.failed? && charge.unpaid? %>
+            <%= charge.period_month.strftime("%B") %>&rsquo;s <%= Billing::Copy.money(charge.gross_usd) %> unpaid since <%= charge.first_failed_at.strftime("%-d %b") %> &middot; AI paused until the charge succeeds
+          <% elsif charge&.failed? %>
+            <%= charge.period_month.strftime("%B") %>&rsquo;s <%= Billing::Copy.money(charge.gross_usd) %> declined on <%= charge.first_failed_at.strftime("%-d %b") %> &middot; AI allowed up to <%= Billing::Copy.money(charge.grace_usd) %> until it is paid
+          <% elsif charge&.succeeded? %>
+            <%= charge.period_month.strftime("%B") %> paid on <%= charge.succeeded_at.strftime("%-d %b") %> &middot; next charge <%= Date.current.next_month.beginning_of_month.strftime("%-d %b %Y") %>
+          <% else %>
+            No billing details or card yet
+          <% end %>
+        </div>
+      </div>
+      <div class="clar-card p-4.5">
+        <div class="text-[11px] font-bold tracking-[.4px] clar-text-faint">TOP-UP BALANCE</div>
+        <div class="mt-1 text-[26px] font-bold clar-text-text"><%= Billing::Copy.money(Billing::Ledger.balance(@workspace)) %></div>
+        <div class="text-[12px] clar-text-muted">Used after the limit, at cost + 30%. Never expires.</div>
+      </div>
+      <div class="clar-card p-4.5">
+        <div class="text-[11px] font-bold tracking-[.4px] clar-text-faint">AUTOMATIC TOP-UPS</div>
+        <div class="mt-1 text-[26px] font-bold clar-text-text"><%= automatic %> of <%= Billing::AUTO_TOP_UPS_PER_MONTH %></div>
+        <div class="text-[12px] clar-text-muted">this month &middot; <%= account.auto_top_up ? "#{Billing::Copy.whole(account.auto_top_up_usd)} each when the balance runs out" : "off" %></div>
+      </div>
+    </div>
+
+    <div class="clar-card mt-3.5 overflow-x-auto">
+      <div class="min-w-[900px]">
+        <div class="flex items-baseline justify-between border-b border-[color:var(--border)] px-4.5 py-3">
+          <h3 class="m-0 text-[14px] font-bold clar-text-text">Invoices</h3>
+          <span class="text-[11.5px] clar-text-faint">Issued only after a successful charge &middot; newest first</span>
+        </div>
+        <% if invoices.any? %>
+          <div class="flex gap-3 border-b border-[color:var(--border)] px-5 py-[11px] text-[11px] font-bold tracking-[.4px] clar-text-faint">
+            <span class="w-28">DATE</span><span class="w-36">NUMBER</span><span class="w-40">TYPE</span><span class="w-24 text-right">AMOUNT</span><span class="flex-1 pl-4">KSEF</span><span class="w-20"></span>
+          </div>
+          <% invoices.each do |invoice| %>
+            <div class="flex items-center gap-3 border-b border-[color:var(--border)] px-5 py-2.5 text-[13px]" data-ksef-invoice="<%= invoice.number %>" data-status="<%= invoice.ksef_status %>">
+              <span class="w-28 flex-none text-[12px] clar-text-muted"><%= invoice.issued_on.strftime("%-d %b %Y") %></span>
+              <span class="w-36 flex-none clar-mono text-[12px] clar-text-text"><%= invoice.number %></span>
+              <span class="w-40 flex-none text-[12px] clar-text-muted"><%= invoice.type_label %> &middot; <%= Billing::Copy.invoice_detail(invoice) %></span>
+              <span class="w-24 flex-none text-right font-semibold clar-text-text"><%= Billing::Copy.money(invoice.gross_usd) %></span>
+              <span class="min-w-0 flex-1 pl-4 text-[12px]">
+                <% if invoice.sent_to_ksef? %>
+                  <span class="clar-badge clar-badge-success">Sent</span> <span class="clar-mono clar-text-muted"><%= invoice.ksef_number %></span>
+                <% elsif invoice.ksef_status == "failed" %>
+                  <span class="clar-badge clar-badge-danger">Failed</span> <span class="clar-text-danger"><%= invoice.ksef_error %></span>
+                <% else %>
+                  <span class="clar-badge clar-badge-muted">Sending</span>
+                <% end %>
+              </span>
+              <span class="w-20 flex-none text-right">
+                <% if invoice.ksef_status == "failed" %>
+                  <%= button_to "Retry", retry_ksef_hidmin_invoice_path(invoice), class: "clar-btn !py-1 !px-2.5 !text-[12px]", form: { data: { turbo_submits_with: "Sending…" } } %>
+                <% end %>
+              </span>
+            </div>
+          <% end %>
+          <div class="bg-[var(--surface-2)] px-5 py-2.5 text-[11.5px] clar-text-faint">The PDF reaches the organization&rsquo;s admins once KSeF has its number.</div>
+        <% else %>
+          <div class="px-5 py-6 text-center text-[12.5px] clar-text-muted">No invoices yet.</div>
+        <% end %>
+      </div>
+    </div>
+  </section>
+<% end %>

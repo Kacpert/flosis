@@ -16,6 +16,12 @@
         class: "clar-tab #{'clar-tab-active' if @tab == 'alerts'}" %>
 </div>
 
+<%# SCRUM-71: while the organization's AI is paused the automations don't run,
+    and Run now / Re-estimate are switched off. %>
+<% if ai_paused? %>
+  <%= render "workshop/billing/paused_note", what: "PR reviews, estimates and alert rules don’t run until an admin tops up; missed runs show as “Skipped: AI paused”." %>
+<% end %>
+
 <% if @tab == "pr" %>
   <%= render "pr_tab" %>
 <% elsif @tab == "estimate" %>

@@ -1,32 +1,4 @@
-<% content_for :title, "Configuration · Flosis" %>
-<% is_admin = can?(:configuration) %>
-
-<% if is_admin %>
-  <div class="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[.4px] clar-text-warn bg-[color:var(--warn-soft)] py-[3px] px-[9px] rounded-[6px] mb-2.5">ADMINISTRATOR ONLY</div>
-<% end %>
-<h1 class="clar-h1">Configuration</h1>
-<p class="clar-sub">Per-project credentials, AI behaviour<%= " and access" if is_admin %>.</p>
-
-<div class="clar-tabs mb-6">
-  <% { "integrations" => "Integrations", "ai" => "AI",
-       "briefing" => "Create Tasks", "users" => "Users" }.each do |tab, label| %>
-    <% if tab_permitted?(tab) %>
-      <%= link_to label, workshop_configuration_path(tab: tab),
-            class: "clar-tab #{'clar-tab-active' if @tab == tab}" %>
-    <% else %>
-      <%# Shown but locked. That it exists, and why it is shut, is more use
-          than a tab that silently is not there. The controller refuses it
-          server-side too, so this is presentation and not the gate. %>
-      <% needed = tab_permission(tab) %>
-      <span class="clar-tab clar-tip inline-flex items-center gap-1.5 cursor-not-allowed opacity-60"
-            data-tip="Needs the <%= PermissionPreset.label(needed) %> permission &mdash; <%= PermissionPreset.description(needed) %>"
-            aria-label="<%= label %>: needs the <%= PermissionPreset.label(needed) %> permission"
-            tabindex="0" aria-disabled="true">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-        <%= label %>
-      </span>
-    <% end %>
-  <% end %>
-</div>
+<% content_for :title, "Settings · Flosis" %>
+<%= render "workshop/settings/header", tab: @tab %>
 
 <%= render "#{@tab}_tab" %>

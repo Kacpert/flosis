@@ -12,12 +12,16 @@ class AiPlan < ApplicationRecord
 
   # A plan renamed or repriced moves this month's limit for everyone on it;
   # a closed month keeps the one it had (AiMonthLimit). A margin change needs
-  # nothing: each run keeps the margin it was priced with.
+  # nothing: each run keeps the margin it was priced with. An organization that
+  # paid for this month (SCRUM-71) keeps the limit it paid for: the new price
+  # applies from its next charge.
   after_update_commit :refresh_month_limits, if: -> { saved_change_to_name? || saved_change_to_monthly_price_usd? }
 
   private
 
   def refresh_month_limits
-    workspaces.find_each { |workspace| AiMonthLimit.refresh_current!(workspace) }
+    workspaces.includes(:billing_account).find_each do |workspace|
+      AiMonthLimit.refresh_current!(workspace) unless workspace.billing_account&.plan_running?
+    end
   end
 end

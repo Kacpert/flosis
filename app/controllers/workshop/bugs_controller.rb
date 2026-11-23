@@ -26,6 +26,8 @@ class Workshop::BugsController < Workshop::BaseController
   end
 
   def analyze
+    return refuse_when_ai_paused if ai_paused?
+
     attribution = current_workshop_project.bug_attributions.find_by!(jira_key: params[:jira_key])
 
     BugAttributionJob.perform_later(current_workshop_project.id, attribution.jira_key, started_by_id: current_user.id)

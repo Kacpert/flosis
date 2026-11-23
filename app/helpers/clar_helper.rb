@@ -120,6 +120,7 @@ module ClarHelper
     case status
     when :fired, :quiet then "text-[color:var(--success)]"
     when :error then "text-[color:var(--danger)]"
+    when :skipped then "clar-text-warn"
     else "clar-text-faint"
     end
   end
