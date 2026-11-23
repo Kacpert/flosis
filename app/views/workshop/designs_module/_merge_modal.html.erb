@@ -15,6 +15,8 @@
       <div class="mb-3.5 px-3 py-2.5 rounded-[9px] bg-[var(--warn-soft)] text-[12.5px] clar-text-text leading-[1.5]"><%= key %>'s description changed since the designs were last updated (<%= @description_change[:from] %> → <%= @description_change[:to] %>). Update the designs first to see it in the screens.</div>
     <% end %>
     <label class="clar-field-label">CHANGED SCREENS</label>
+    <%# The row writes itself into the page: called with <%= it would also
+        print what it returns, its last bit of text (Kacper, 2026-11-23). %>
     <% row = lambda do |(context, screen), first| %>
       <div data-changed-screen class="flex items-center justify-between gap-3 px-3 py-2 flex-wrap <%= 'border-t border-[color:var(--border)]' unless first %>"><span class="text-[13px] font-semibold clar-text-text"><%= designs_context_name(@contexts, context) %> › <%= designs_screen_name(@screens, context, screen) %></span><span class="clar-mono text-[11px] clar-text-faint">designs/<%= context %>/<%= screen %>.html</span></div>
     <% end %>
@@ -22,11 +24,11 @@
       <%# Five, then "and N more", which opens the rest inside the list; the list
           then scrolls on its own (Kacper, 2026-11-22). %>
       <div class="max-h-[22rem] overflow-y-auto" data-changed-list>
-        <% @changed_own.first(5).each_with_index do |pair, i| %><%= row.call(pair, i.zero?) %><% end %>
+        <% @changed_own.first(5).each_with_index do |pair, i| %><% row.call(pair, i.zero?) %><% end %>
         <% if @changed_own.size > 5 %>
           <details class="[&[open]>summary]:hidden">
             <summary class="px-3 py-2 border-t border-[color:var(--border)] text-[12px] font-semibold clar-text-primary cursor-pointer list-none hover:underline [&::-webkit-details-marker]:hidden">and <%= @changed_own.size - 5 %> more</summary>
-            <% @changed_own.drop(5).each do |pair| %><%= row.call(pair, false) %><% end %>
+            <% @changed_own.drop(5).each do |pair| %><% row.call(pair, false) %><% end %>
           </details>
         <% end %>
         <% if @changed_own.empty? %><div class="px-3 py-2 text-[12.5px] clar-text-faint">No screen differs from master yet.</div><% end %>

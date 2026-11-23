@@ -876,6 +876,10 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
         "2 · SP-1051's description is updated to v#{version}, adding a link to the designs, the merge commit and the changed " \
         "screens, with small edits wherever the designs settled something new",
         "3 · You're taken back to SP-1051" ].each { |copy| assert_includes dialog_text, copy }
+      # Kacper, 2026-11-23: each changed screen showed ".html</span></div>" under it.
+      assert_equal [ [ "Candidate › Application form", "designs/candidate/apply.html" ] ],
+                   css_select("[data-clar-modal-panel-id-value=merge-thread] [data-changed-screen]").map { |row| row.css("span").map { |part| part.text.squish } }
+      assert_not_includes dialog_text, "</span>"
       assert_not_includes response.body, "Merge to master"
       assert_not_includes response.body, "Flosis first makes components"
     end
