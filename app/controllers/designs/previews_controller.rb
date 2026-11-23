@@ -5,6 +5,8 @@
 # opened it here once they have signed in (Designs::PreviewEntriesController),
 # and the Designs screen shows its work here. Nothing here asks who is signed
 # in or touches the session: the sandboxed page's requests carry no session.
+# A page whose grant ran out is sent to be renewed, where whoever opened it
+# signs in (#ran_out).
 #
 # The pages are Claude's, with scripts anyone who can push to the design repo
 # can change, served from the app's own host. Every response is sandboxed:
@@ -22,12 +24,13 @@ class Designs::PreviewsController < ActionController::Base
 
   POLICY = "sandbox allow-scripts allow-forms allow-popups allow-modals; frame-ancestors 'self'".freeze
   RUN_OUT = "This link to the designs has run out. Open the designs again from Flosis.".freeze
+  RELOAD = "This preview has run out. Reload the page to see it again.".freeze
 
   before_action :set_headers
 
   def show
     project, slot = Designs::PreviewGrant.read(params[:grant])
-    return render(plain: RUN_OUT, status: :not_found) unless project
+    return ran_out unless project
 
     folder = Designs::Publisher.new(project, nil).slot_folder(slot)
     path = params[:path].to_s
@@ -50,6 +53,33 @@ class Designs::PreviewsController < ActionController::Base
   end
 
   private
+
+  # A grant that ran out, in a tab left open overnight or a link copied out of
+  # one (Kacper, 2026-11-23: "a linki miały nie wygasać"). A page goes to be
+  # renewed, its page and query along: whoever signs in and may see the
+  # project gets a new grant (Designs::PreviewEntriesController#renew). In a
+  # frame the sign-in would open inside the sandbox, which sends no cookie, so
+  # the Designs screen's frame says to reload; a page's file cannot sign in at
+  # all. A grant that was changed or made up is never renewed.
+  def ran_out
+    destination = request.headers["Sec-Fetch-Dest"].presence || "document"
+    genuine = Designs::PreviewGrant.read(params[:grant], ran_out: true)
+    if genuine && destination == "document"
+      redirect_to renewal_path
+    elsif genuine && %w[iframe frame].include?(destination)
+      render plain: RELOAD, status: :not_found
+    else
+      render plain: RUN_OUT, status: :not_found
+    end
+  end
+
+  # The same page under /renew, built from the route rather than the path as
+  # asked, which may start with // and so name another host.
+  def renewal_path
+    path = designs_preview_renewal_path(organization: params[:organization], project: params[:project],
+                                        grant: params[:grant], path: params[:path])
+    request.query_string.present? ? "#{path}?#{request.query_string}" : path
+  end
 
   def set_headers
     response.headers.merge!(

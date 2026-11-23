@@ -10,8 +10,10 @@ require "openssl"
 # It reads <project id>.<slot>.<expiry>.<signature>, with the slot's / written
 # as ~ and the expiry in base 36. The signature is an HMAC of the rest under a
 # key derived from the app's secret, so a grant cannot be made up or changed,
-# and it runs out after LIFETIME: a link copied out of a screen stops working
-# within hours.
+# and it runs out after LIFETIME: a link copied out of a screen stops opening
+# on its own within hours. A page whose grant ran out is then renewed for
+# whoever signs in and may see the project (Designs::PreviewEntriesController
+# #renew), so a tab left open or a copied link keeps working for them (2026-11-23).
 class Designs::PreviewGrant
   LIFETIME = 12.hours
 
@@ -24,12 +26,14 @@ class Designs::PreviewGrant
   end
 
   # [project, slot], or nil when the grant was made up, changed or has run out.
-  def self.read(grant, now: Time.current)
+  # With ran_out: true one that has run out reads as well, for a renewal that
+  # asks whoever opened it to sign in.
+  def self.read(grant, now: Time.current, ran_out: false)
     body, _, signed = grant.to_s.rpartition(".")
     return unless ActiveSupport::SecurityUtils.secure_compare(signed, signature(body))
 
     id, slot, expiry = body.split(".", 3)
-    return unless expiry.to_s.to_i(36) > now.to_i
+    return unless ran_out || expiry.to_s.to_i(36) > now.to_i
 
     project = Project.find_by(id: id)
     [ project, slot.tr("~", "/") ] if project

@@ -20,6 +20,17 @@ class Designs::PreviewEntriesController < ApplicationController
     open_preview(task_slot(project, params[:key]), project)
   end
 
+  # A page whose grant ran out (Designs::PreviewsController#ran_out), at
+  # /<organization>/<project>/<grant>/renew/<page>: someone the Workshop shows
+  # the grant's project to gets a new grant for the same slot and page, work
+  # in progress included, as the Designs screen would give them.
+  def renew
+    project, slot = Designs::PreviewGrant.read(params[:grant], ran_out: true)
+    return head(:not_found) unless project && shown?(project)
+
+    open_preview(slot, project)
+  end
+
   private
 
   def open_preview(slot, project = named_project)
@@ -49,6 +60,11 @@ class Designs::PreviewEntriesController < ApplicationController
     return key unless task
 
     Designs::AcceptedScreens.new(task).slot || task.design_thread&.branch.presence || key
+  end
+
+  def shown?(project)
+    workspace = Current.user.workspaces.find_by(id: project.workspace_id)
+    workspace.present? && Project.workshop_visible_to(Current.user, workspace).exists?(id: project.id)
   end
 
   def named_project

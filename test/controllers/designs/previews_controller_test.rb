@@ -76,15 +76,45 @@ class Designs::PreviewsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to "/acme/hiring/#{@grant}/design/designs/?ctx=admin"
   end
 
-  test "a grant that was changed, made up or ran out opens nothing" do
-    travel_to(Time.current + Designs::PreviewGrant::LIFETIME + 1.minute) do
-      get "/acme/hiring/#{@grant}/design/index.html"
-      assert_response :not_found
-      assert_match(/run out/, response.body)
-    end
+  test "a grant that was changed or made up opens nothing, and is never sent to be renewed" do
     get "/acme/hiring/#{@grant.sub("master", "REC-1")}/design/index.html"
     assert_response :not_found
     assert_no_match(/master/, response.body)
+    travel_to(Time.current + Designs::PreviewGrant::LIFETIME + 1.minute) do
+      get "/acme/hiring/#{@grant.sub("master", "REC-1")}/design/index.html", headers: { "Sec-Fetch-Dest" => "document" }
+      assert_response :not_found
+      assert_match(/run out/, response.body)
+    end
+  end
+
+  # Kacper, 2026-11-23: a tab opened from the Designs screen the night before
+  # said its link had run out. A page whose grant ran out goes to be renewed,
+  # with its page and query: whoever signs in and may see the project gets a
+  # new grant (Designs::PreviewEntriesController#renew).
+  test "a page whose grant ran out is sent to be renewed, with its page and its query, and no cookie" do
+    travel_to(Time.current + Designs::PreviewGrant::LIFETIME + 1.minute) do
+      get "/acme/hiring/#{@grant}/design/designs/jobs.html?ctx=admin", headers: { "Sec-Fetch-Dest" => "document" }
+      assert_redirected_to "/acme/hiring/#{@grant}/renew/designs/jobs.html?ctx=admin"
+      assert_nil response.headers["Set-Cookie"]
+      # A browser that does not say what it asks for is taken for a page.
+      get "/acme/hiring/#{@grant}/design/designs/my%20jobs.html"
+      assert_redirected_to "/acme/hiring/#{@grant}/renew/designs/my%20jobs.html"
+      get "/acme/hiring/#{@grant}/design"
+      assert_redirected_to "/acme/hiring/#{@grant}/renew"
+    end
+  end
+
+  # In the Designs screen's frame the sign-in would open inside the sandbox,
+  # which sends no cookie; a page's image or script cannot sign in at all.
+  test "in a frame a grant that ran out says to reload the page, and a file of the page is not found" do
+    travel_to(Time.current + Designs::PreviewGrant::LIFETIME + 1.minute) do
+      get "/acme/hiring/#{@grant}/design/index.html", headers: { "Sec-Fetch-Dest" => "iframe" }
+      assert_response :not_found
+      assert_match(/Reload the page/, response.body)
+      get "/acme/hiring/#{@grant}/design/design-system/logo.svg", headers: { "Sec-Fetch-Dest" => "image" }
+      assert_response :not_found
+      assert_match(/run out/, response.body)
+    end
   end
 
   test "a dotfile, a half-published copy, a path out of the slot and a link that leaves it are not found" do

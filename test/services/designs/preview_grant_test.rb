@@ -33,6 +33,19 @@ class Designs::PreviewGrantTest < ActiveSupport::TestCase
     assert_nil Designs::PreviewGrant.read(grant, now: Time.current + Designs::PreviewGrant::LIFETIME + 1.minute)
   end
 
+  # Kacper, 2026-11-23: a tab opened the night before had run out. A grant
+  # that ran out still names what it was for, to be renewed for whoever signs
+  # in again; one that was changed or made up never does.
+  test "with ran_out: true a grant that ran out still names its project and slot, and a forged one still names nothing" do
+    grant = Designs::PreviewGrant.issue(@project, "design/task-551-billing")
+    later = Time.current + Designs::PreviewGrant::LIFETIME + 1.day
+    assert_nil Designs::PreviewGrant.read(grant, now: later)
+    assert_equal [ @project, "design/task-551-billing" ], Designs::PreviewGrant.read(grant, now: later, ran_out: true)
+    forged = grant.sub(/.\z/) { |last| last == "0" ? "1" : "0" }
+    assert_nil Designs::PreviewGrant.read(forged, now: later, ran_out: true)
+    assert_nil Designs::PreviewGrant.read(grant.sub("billing", "payroll"), now: later, ran_out: true)
+  end
+
   test "a grant for a project that is gone names nothing" do
     grant = Designs::PreviewGrant.issue(Project.new(id: Project.maximum(:id) + 1), "master")
     assert_nil Designs::PreviewGrant.read(grant)
