@@ -105,6 +105,42 @@ class Designs::PreviewEntriesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Kacper, 2026-11-23: a tab opened from the Designs screen the night before
+  # had run out. Its grant is renewed for whoever signs in and may see the
+  # project, to the same slot and page, work in progress included.
+  test "a grant that ran out is renewed for the same slot and page once its reader signs in" do
+    write("design/task-551-billing/designs/admin/billing.html", "<p>billing</p>")
+    grant = Designs::PreviewGrant.issue(@project, "design/task-551-billing", now: 2.days.ago)
+    path = "/test-workspace/elvium/#{grant}/renew/designs/admin/billing.html?ctx=admin"
+
+    get path
+    assert_redirected_to new_session_path
+
+    sign_in_as(users(:two))
+    get path
+    renewed = assert_granted("design/task-551-billing", "designs/admin/billing.html?ctx=admin")
+    assert_not_equal grant, renewed
+    get "/test-workspace/elvium/#{renewed}/design/designs/admin/billing.html"
+    assert_equal "<p>billing</p>", response.body
+  end
+
+  test "a renewal is not found for someone the Workshop does not show the project to, a forged grant, or a slot taken down" do
+    grant = Designs::PreviewGrant.issue(@project, "master", now: 2.days.ago)
+    ProjectMembership.where(user: users(:workspace_client_user), project: @project).delete_all
+    sign_in_as(users(:workspace_client_user))
+    get "/test-workspace/elvium/#{grant}/renew/index.html"
+    assert_response :not_found
+
+    sign_in_as(users(:one))
+    get "/test-workspace/elvium/#{grant}/renew/index.html"
+    assert_granted("master", "index.html")
+    forged = grant.sub(/.\z/) { |last| last == "0" ? "1" : "0" }
+    get "/test-workspace/elvium/#{forged}/renew/index.html"
+    assert_response :not_found
+    get "/test-workspace/elvium/#{Designs::PreviewGrant.issue(@project, "REC-2", now: 2.days.ago)}/renew/index.html"
+    assert_response :not_found
+  end
+
   test "a version that was never published is not found" do
     sign_in_as(users(:one))
     get "/test-workspace/elvium/REC-2/design/"
