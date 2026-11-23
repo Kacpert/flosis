@@ -5,6 +5,7 @@ require "test_helper"
 # LIKE, not ILIKE). This catches PostgreSQL-only syntax before it reaches
 # production.
 class AiSqlPortabilityTest < ActiveSupport::TestCase
+  include AiRunTestHelper
   POSTGRES_ONLY = /FILTER\s*\(|date_trunc|AT TIME ZONE|::[a-z]|\bILIKE\b|\bjsonb\b/i
 
   setup do
@@ -45,6 +46,18 @@ class AiSqlPortabilityTest < ActiveSupport::TestCase
       billing.own_key_projects
       billing.unknown_runs.to_a
       billing.recent_runs.to_a
+    end
+    offending = statements.grep(POSTGRES_ONLY)
+    assert_empty offending, offending.join("\n")
+  end
+
+  # 2026-11-23: a run of a resumed session records its own share, and the
+  # runs recorded before that are recounted.
+  test "the recording and the recount of a resumed session's runs are portable SQL" do
+    run = AiRun.create!(workspace: @workspace, project: projects(:jira_project), area: "designs", status: "running", ran_at: Time.current)
+    statements = sql_of do
+      AiRun::Recorder.finish!(run, cli_usage, status: "succeeded", duration_ms: 1)
+      AiRun::Recorder.recount_sessions!
     end
     offending = statements.grep(POSTGRES_ONLY)
     assert_empty offending, offending.join("\n")
