@@ -1,14 +1,10 @@
-<% content_for :title, "Consumption · Flosis" %>
+<% content_for :title, "Settings — Consumption · Flosis" %>
 <%# Consumption (SCRUM-70): the organization's AI spend against its plan —
     after the accepted designs consumption*.html, in dollars. %>
 <% limit = @summary.limit %>
 <div class="max-w-[1040px]">
-  <div class="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[.4px] clar-text-warn bg-[color:var(--warn-soft)] py-[3px] px-[9px] rounded-[6px] mb-2.5">ORGANIZATION ADMINISTRATORS ONLY</div>
-  <h1 class="clar-h1">Consumption</h1>
-  <p class="clar-sub">
-    Every AI run in <b class="clar-text-text"><%= current_workspace.name %></b> &mdash; all projects &mdash;
-    <%= current_workspace.ai_plan ? "priced on your plan" : "priced as it ran" %>. Month means calendar month, and a past month never changes.
-  </p>
+  <%# Consumption is a tab of Settings now, in its organization group (SCRUM-71). %>
+  <%= render "workshop/settings/header", tab: "consumption" %>
 
   <%= render "workshop/consumption/period" %>
 

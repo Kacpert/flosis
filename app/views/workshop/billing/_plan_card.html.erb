@@ -1,0 +1,80 @@
+<%# The plan: what it is, what it costs, when it is charged. The organization
+    administrator picks and changes it; it can't start without billing details
+    and a card. %>
+<%
+  account = @account
+  plan = current_workspace.ai_plan
+  charge = @allowance.charge
+  today = Date.current
+  money = ->(amount) { Billing::Copy.money(amount) }
+  price = plan && "#{plan.name}, #{Billing::Copy.whole(plan.monthly_price_usd)} a month"
+  next_first = @plans.next_first
+  upgrades = plan && current_workspace.billing_charges.succeeded.where(kind: "upgrade").for_month(today).order(:id).to_a
+%>
+<section class="clar-card flex flex-col p-4.5" aria-labelledby="plan-title" data-plan-card data-plan-state="<%= account.plan_state %>">
+  <h2 id="plan-title" class="m-0 mb-1.5 text-[11px] font-bold tracking-[.4px] clar-text-faint">PLAN</h2>
+
+  <% if account.plan_running? && @allowance.payment_failing? %>
+    <div class="text-[14px] font-bold clar-text-text"><%= price %> &middot; <span class="clar-text-danger"><%= charge.period_month.strftime("%B") %>&rsquo;s charge failed</span></div>
+    <% if charge.unpaid? %>
+      <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">We stopped retrying on <%= charge.retry_until.strftime("%-d %b") %>. AI is paused until the charge succeeds: change the card and we charge it straight away. No invoice is issued for a failed charge.</p>
+    <% else %>
+      <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">We retry the card until <%= (charge.retry_until + 1).strftime("%-d %b") %> (day <%= charge.retry_day %> of <%= Billing::RETRY_DAYS %>). Until it goes through, AI runs up to <%= money.(charge.grace_usd) %>, then pauses. No invoice is issued for a failed charge.</p>
+    <% end %>
+  <% elsif account.cancelling? %>
+    <div class="text-[14px] font-bold clar-text-text"><%= price %> &middot; ends <%= account.plan_ends_on.strftime("%-d %b %Y") %>, nothing charged after</div>
+    <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">AI keeps working on the paid month until then. Invoices, usage statements and the <%= money.(@balance) %> top-up balance stay.</p>
+  <% elsif account.plan_running? %>
+    <div class="text-[14px] font-bold clar-text-text"><%= price %> &middot; next charge <%= next_first %></div>
+    <% if upgrades.any? %>
+      <% paid = current_workspace.billing_charges.succeeded.plan_charges.for_month(today).order(:id).last %>
+      <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">
+        This month&rsquo;s limit is <%= money.(@allowance.limit_usd || AiMonthLimit.for(current_workspace, today)&.limit_usd) %>:
+        <%= [ (paid && "#{money.(paid.net_usd)} paid on #{paid.succeeded_at.strftime('%-d %b')}"), *upgrades.map { |up| "#{money.(up.net_usd)} for #{Billing::Copy.days(up)}" } ].compact.to_sentence(words_connector: " plus ", two_words_connector: " plus ", last_word_connector: " plus ") %>.
+        From <%= today.next_month.beginning_of_month.strftime("%-d %b") %>, <%= money.(account.vat.gross(plan.monthly_price_usd)) %><%= account.vat.charged? ? " with #{account.vat.short_label}" : ", #{account.vat.short_label}" %>.
+      </p>
+    <% else %>
+      <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">
+        <%= money.(account.vat.gross(plan.monthly_price_usd)) %><%= account.vat.charged? ? " with #{account.vat.short_label}" : ", #{account.vat.short_label}" %>, charged to <%= account.card_short || "the card" %> on the 1st of each month, for that month.
+      </p>
+    <% end %>
+    <% if account.pending_ai_plan %>
+      <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-text" data-pending-plan><b class="font-semibold"><%= account.pending_ai_plan.name %></b> starts on <%= next_first %>, at <%= Billing::Copy.whole(account.pending_ai_plan.monthly_price_usd) %> a month.</p>
+    <% end %>
+  <% elsif plan %>
+    <% first_net = Billing::Proration.amount(plan.monthly_price_usd, today) %>
+    <div class="text-[14px] font-bold clar-text-text"><%= price %> &middot; not active yet</div>
+    <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">Activating today charges <%= money.(first_net) %><%= " + VAT" if account.vat.charged? || !account.details_complete? %> for <%= Billing::Proration.label(Billing::Proration.period(today)) %>, and this month&rsquo;s limit is <%= money.(first_net) %>.<% unless today.day == 1 %> From <%= today.next_month.beginning_of_month.strftime("%-d %b") %> it is the full <%= Billing::Copy.whole(plan.monthly_price_usd) %>.<% end %></p>
+    <% unless account.ready? %>
+      <div class="mt-3 rounded-[10px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-3.5 py-2.5 text-[12.5px] font-semibold clar-text-warn" data-not-ready>
+        <%= account.details_complete? ? "Add a card to activate your plan" : "Add billing details to activate your plan" %>
+      </div>
+    <% end %>
+  <% elsif account.plan_state == "ended" %>
+    <div class="text-[14px] font-bold clar-text-text">No plan since <%= (account.plan_ends_on + 1).strftime("%-d %b %Y") %></div>
+    <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">The plan was cancelled. Nothing is charged and nothing is paused. Invoices, usage statements and the <%= money.(@balance) %> top-up balance are kept.</p>
+  <% else %>
+    <div class="text-[14px] font-bold clar-text-text">No plan yet</div>
+    <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">Choose a plan: the days left this month are charged now and are this month&rsquo;s limit, then the plan is charged on the 1st of each month.</p>
+  <% end %>
+
+  <div class="mt-auto flex flex-wrap items-center gap-2 pt-3.5">
+    <% if account.plan_running? && !account.cancelling? %>
+      <button type="button" class="clar-btn !py-2 !px-3.5" data-action="click->clar-modal#open" data-clar-modal-id-param="change-plan">Change plan</button>
+    <% elsif account.cancelling? %>
+      <%= button_to "Keep plan", workshop_billing_keep_path, class: "clar-btn clar-btn-primary !py-2 !px-3.5", form_class: "contents" %>
+    <% elsif plan && account.plan_pending? %>
+      <% if account.ready? %>
+        <%= button_to "Activate #{plan.name}", workshop_billing_activate_path, class: "clar-btn clar-btn-primary !py-2 !px-3.5", form_class: "contents",
+              form: { data: { turbo: false, action: "submit->billing#busy" } }, data: { busy_text: "Charging the card…" } %>
+      <% else %>
+        <span class="clar-tip" data-tip="Add billing details and a card first">
+          <button type="button" disabled class="clar-btn clar-btn-primary !py-2 !px-3.5 opacity-50">Activate <%= plan.name %></button>
+        </span>
+      <% end %>
+      <button type="button" class="clar-btn !py-2 !px-3.5" data-action="click->clar-modal#open" data-clar-modal-id-param="change-plan">Change plan</button>
+    <% else %>
+      <button type="button" class="clar-btn clar-btn-primary !py-2 !px-3.5" data-action="click->clar-modal#open" data-clar-modal-id-param="change-plan"><%= account.plan_state == "ended" ? "Renew plan" : "Choose a plan" %></button>
+    <% end %>
+  </div>
+</section>

@@ -1,0 +1,25 @@
+<%# One per closed month: each project's price and the total. A breakdown,
+    not a tax invoice. %>
+<section class="clar-card overflow-hidden" aria-labelledby="statements-title" data-statements>
+  <div class="border-b border-[color:var(--border)] px-4.5 py-3.5">
+    <h2 id="statements-title" class="m-0 text-[14px] font-bold clar-text-text">Usage statements</h2>
+    <p class="mt-[3px] mb-0 text-[11.5px] clar-text-faint">Each closed month, project by project, with the organization total. A breakdown, not a tax invoice.</p>
+  </div>
+  <% if @statements.any? %>
+    <% @statements.each do |statement| %>
+      <div class="flex items-center gap-3 border-b border-[color:var(--border)] px-4.5 py-[11px] text-[13.5px] last:border-b-0">
+        <span class="min-w-0 flex-1 clar-text-text"><%= statement[:month].strftime("%B %Y") %></span>
+        <span class="text-[12.5px] clar-text-faint"><%= pluralize(statement[:projects], "project") %></span>
+        <span class="w-24 flex-none text-right font-semibold clar-text-text"><%= Billing::Copy.money(statement[:total]) %></span>
+        <%= link_to workshop_billing_statement_path(month: statement[:month].strftime("%Y-%m")),
+              class: "inline-flex w-16 flex-none items-center justify-center gap-1 rounded-[9px] border border-[color:var(--border)] bg-[var(--surface)] px-2 py-[5px] text-[12px] font-semibold clar-text-text no-underline",
+              data: { turbo: false }, aria: { label: "Download the #{statement[:month].strftime('%B %Y')} usage statement as PDF" } do %>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+          PDF
+        <% end %>
+      </div>
+    <% end %>
+  <% else %>
+    <div class="px-4.5 py-6 text-center text-[12.5px] clar-text-muted">No closed month yet. The first statement comes on <%= Date.current.next_month.beginning_of_month.strftime("%-d %b %Y") %>.</div>
+  <% end %>
+</section>

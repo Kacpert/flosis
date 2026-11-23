@@ -1,0 +1,44 @@
+<%# Billing details: what every invoice is made out to. The country and the
+    VAT number decide the VAT; an EU business's number is checked in VIES. %>
+<% account = @account %>
+<% draft = session.delete(:billing_details_draft) || {} %>
+<% value = ->(field) { draft[field.to_s] || account.public_send(field) } %>
+<% country = value.(:country_code).presence || "PL" %>
+<% vat = Billing::Vat.for(country) %>
+<%= render layout: "workshop/billing/modal", locals: { id: "details", title: "Billing details" } do %>
+  <%= form_with model: account, url: workshop_billing_details_path, method: :patch, scope: :billing_account,
+                class: "mt-3 flex flex-col gap-3", data: { action: "submit->billing#busy" } do |form| %>
+    <div>
+      <label for="bd-company" class="clar-field-label">COMPANY NAME</label>
+      <%= form.text_field :company_name, id: "bd-company", value: value.(:company_name), autocomplete: "organization", required: true, class: "clar-input" %>
+    </div>
+    <div>
+      <label for="bd-street" class="clar-field-label">ADDRESS</label>
+      <%= form.text_field :street, id: "bd-street", value: value.(:street), autocomplete: "street-address", required: true, class: "clar-input" %>
+    </div>
+    <div class="grid grid-cols-[1fr_2fr] gap-3">
+      <div>
+        <label for="bd-postal" class="clar-field-label">POSTAL CODE</label>
+        <%= form.text_field :postal_code, id: "bd-postal", value: value.(:postal_code), autocomplete: "postal-code", required: true, class: "clar-input" %>
+      </div>
+      <div>
+        <label for="bd-city" class="clar-field-label">CITY</label>
+        <%= form.text_field :city, id: "bd-city", value: value.(:city), autocomplete: "address-level2", required: true, class: "clar-input" %>
+      </div>
+    </div>
+    <div>
+      <label for="bd-country" class="clar-field-label">COUNTRY</label>
+      <%= form.select :country_code, options_for_select(Billing::Countries.options, country), {},
+            id: "bd-country", autocomplete: "country", class: "clar-select", data: { action: "change->billing#pickCountry", eu: Billing::Vat::EU.join(" ") } %>
+    </div>
+    <div>
+      <label for="bd-vat" class="clar-field-label"><span data-billing-target="vatLabel"><%= vat.number_label %></span></label>
+      <%= form.text_field :vat_number, id: "bd-vat", value: value.(:vat_number), class: "clar-input clar-mono" %>
+      <p class="mt-1.5 mb-0 text-[11.5px] leading-snug clar-text-faint" data-billing-target="vatNote"><%= vat.note %></p>
+    </div>
+    <div class="mt-1.5 flex justify-end gap-2.5">
+      <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
+      <button type="submit" class="clar-btn clar-btn-primary" data-busy-text="Saving…">Save billing details</button>
+    </div>
+  <% end %>
+<% end %>

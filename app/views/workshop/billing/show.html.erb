@@ -1,0 +1,40 @@
+<% content_for :title, "Settings — Billing · Flosis" %>
+<% content_for :clar_own_flash, "1" %>
+<%# Settings › Billing (SCRUM-71), after designs/admin/billing.html: the plan
+    and the card side by side, top-ups, invoices, usage statements and the
+    billing details, then cancelling, quiet and last. %>
+<div class="max-w-[1040px]" data-controller="clar-modal billing"
+     <% if @open %>data-clar-modal-open-value="<%= @open %>"<% end %>
+     data-billing-vat-rate-value="<%= @account.details_complete? ? @account.vat.rate.to_s : '23' %>"
+     data-billing-card-value="<%= @account.card_short %>"
+     data-billing-vat-label-value="<%= @account.details_complete? ? @account.vat.short_label : '23% VAT' %>">
+  <%= render "workshop/settings/header", tab: "billing" %>
+  <%= render "layouts/clar_flash" %>
+
+  <div class="flex flex-col gap-4.5">
+    <div class="grid grid-cols-1 items-stretch gap-4.5 md:grid-cols-2">
+      <%= render "workshop/billing/plan_card" %>
+      <%= render "workshop/billing/card_card" %>
+    </div>
+    <%= render "workshop/billing/top_ups" %>
+    <%= render "workshop/billing/invoices" %>
+    <div class="grid grid-cols-1 items-start gap-4.5 md:grid-cols-2">
+      <%= render "workshop/billing/statements" %>
+      <%= render "workshop/billing/details_card" %>
+    </div>
+    <% if @account.plan_state == "active" %>
+      <%# Cancelling is quiet and last: the paid month runs out and nothing is
+          charged after. Nothing is removed. %>
+      <div class="clar-card flex flex-wrap items-center justify-between gap-3 px-4.5 py-3.5" data-cancel-row>
+        <span class="text-[12.5px] clar-text-muted"><b class="font-semibold clar-text-text">Cancel plan.</b> The plan stays active until the end of the paid month, and nothing is charged after. You can keep it until then, or renew it later.</span>
+        <button type="button" class="clar-btn !border-[color:var(--danger)] !text-[color:var(--danger)] !py-2 !px-3.5"
+                data-action="click->clar-modal#open" data-clar-modal-id-param="cancel">Cancel plan</button>
+      </div>
+    <% end %>
+  </div>
+
+  <%= render "workshop/billing/change_plan_modal" %>
+  <%= render "workshop/billing/top_up_modal" if @account.plan_running? %>
+  <%= render "workshop/billing/details_modal" %>
+  <%= render "workshop/billing/cancel_modal" if @account.plan_state == "active" %>
+</div>

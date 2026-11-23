@@ -1,0 +1,14 @@
+<%# Cancel plan: nothing is removed, and the plan can be kept until the month
+    ends, or renewed after. %>
+<% plan = current_workspace.ai_plan %>
+<%= render layout: "workshop/billing/modal", locals: { id: "cancel", title: "Cancel #{plan.name}?" } do %>
+  <p class="mt-2 mb-0 text-[13.5px] leading-relaxed clar-text-muted">
+    <%= plan.name %> stays active until <b class="font-semibold clar-text-text"><%= Date.current.end_of_month.strftime("%-d %b %Y") %></b>, the end of the paid month,
+    and nothing is charged after. Invoices, usage statements and the <%= Billing::Copy.money(@balance) %> top-up balance stay. You can keep
+    the plan until then, or renew it later.
+  </p>
+  <div class="mt-4.5 flex justify-end gap-2.5">
+    <button type="button" class="clar-btn" data-action="clar-modal#close">Keep plan</button>
+    <%= button_to "Cancel plan", workshop_billing_cancel_path, class: "clar-btn !bg-[var(--danger)] !text-white !border-transparent", form_class: "contents" %>
+  </div>
+<% end %>

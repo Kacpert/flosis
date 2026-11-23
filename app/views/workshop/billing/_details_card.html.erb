@@ -1,0 +1,27 @@
+<%# Billing details: required before the first charge; they are what the
+    invoice is made out to, and they decide its VAT. %>
+<% account = @account %>
+<section class="clar-card p-4.5" aria-labelledby="details-title" data-details-card>
+  <div class="mb-2.5 flex items-baseline justify-between gap-2">
+    <h2 id="details-title" class="m-0 text-[14px] font-bold clar-text-text">Billing details</h2>
+    <% if account.details_complete? %>
+      <button type="button" class="cursor-pointer border-0 bg-transparent p-0 text-[13px] font-semibold clar-text-primary"
+              data-action="click->clar-modal#open" data-clar-modal-id-param="details">Edit</button>
+    <% end %>
+  </div>
+  <% if account.details_complete? %>
+    <dl class="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[12.5px]">
+      <dt class="clar-text-faint">Company</dt><dd class="m-0 clar-text-text"><%= account.company_name %></dd>
+      <dt class="clar-text-faint">Address</dt><dd class="m-0 clar-text-text"><%= account.street %>, <%= account.postal_code %> <%= account.city %></dd>
+      <dt class="clar-text-faint">Country</dt><dd class="m-0 clar-text-text"><%= account.country_name %></dd>
+      <% if account.vat_number.present? %>
+        <dt class="clar-text-faint"><%= account.vat.number_label == "NIP" ? "NIP" : (account.vat.kind == :eu_reverse_charge ? "EU VAT" : "Tax ID") %></dt>
+        <dd class="m-0 clar-mono clar-text-text"><%= account.country_code == "PL" ? account.vat_number.delete_prefix("PL") : account.vat_number %></dd>
+      <% end %>
+    </dl>
+    <p class="mt-2.5 mb-0 border-t border-[color:var(--border)] pt-2.5 text-[11.5px] leading-snug clar-text-faint"><%= account.vat.details_note %></p>
+  <% else %>
+    <p class="mt-0 mb-3 text-[12.5px] leading-snug clar-text-muted">Company name, address, country and VAT number. Invoices are made out to them.</p>
+    <button type="button" class="clar-btn clar-btn-primary !py-2 !px-3.5" data-action="click->clar-modal#open" data-clar-modal-id-param="details">Add billing details</button>
+  <% end %>
+</section>

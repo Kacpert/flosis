@@ -1,0 +1,43 @@
+<%# Top-ups: money for after the limit. Bought by hand, or charged
+    automatically when the limit is reached and the balance runs out. %>
+<% account = @account %>
+<% automatic = @top_ups.automatic_this_month %>
+<% next_first = Date.current.next_month.beginning_of_month.strftime("%-d %b") %>
+<section class="clar-card p-4.5" aria-labelledby="topups-title" data-top-ups>
+  <h2 id="topups-title" class="m-0 mb-3 text-[14px] font-bold clar-text-text">Top-ups</h2>
+  <div class="grid grid-cols-1 gap-4.5 md:grid-cols-2">
+    <div class="flex flex-col">
+      <div class="text-[12.5px] clar-text-muted">Top-up balance: <b class="text-[26px] font-bold tracking-[-.5px] clar-text-text" data-balance><%= Billing::Copy.money(@balance) %></b></div>
+      <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">Used only after the monthly limit is reached, at cost + 30%. It never expires, carries over every month, and is never refunded.</p>
+      <div class="mt-auto pt-3.5">
+        <% if account.plan_running? %>
+          <button type="button" class="clar-btn clar-btn-primary !py-2 !px-3.5" data-action="click->clar-modal#open" data-clar-modal-id-param="top-up">Buy top-up</button>
+        <% else %>
+          <span class="clar-tip" data-tip="Available once the plan is active">
+            <button type="button" disabled class="clar-btn clar-btn-primary !py-2 !px-3.5 opacity-50">Buy top-up</button>
+          </span>
+        <% end %>
+      </div>
+    </div>
+
+    <%= form_with url: workshop_billing_auto_top_up_path, method: :patch, class: "rounded-[10px] border border-[color:var(--border)] bg-[var(--bg)] p-3.5", data: { auto_top_up: true } do %>
+      <input type="hidden" name="enabled" value="0">
+      <label class="flex cursor-pointer items-center gap-2.5 text-[13.5px] font-semibold clar-text-text">
+        <input type="checkbox" name="enabled" value="1" class="h-4 w-4 accent-[var(--primary)]" <%= "checked" if account.auto_top_up %>
+               <%= "disabled" unless account.ready? %> data-action="change->billing#submitForm">
+        Top up automatically
+      </label>
+      <div class="mt-2.5 pl-6.5">
+        <%= render "workshop/billing/amounts", name: "amount", label: "Automatic top-up amount", picked: account.auto_top_up_usd,
+                   disabled: !account.auto_top_up, action: "change->billing#submitForm" %>
+        <% if account.auto_top_up && automatic >= Billing::AUTO_TOP_UPS_PER_MONTH %>
+          <p class="mt-2 mb-0 text-[11.5px] leading-snug font-semibold clar-text-warn">Paused until <%= next_first %> &middot; <%= automatic %> of <%= Billing::AUTO_TOP_UPS_PER_MONTH %> used this month. Buy a top-up to keep AI running.</p>
+        <% elsif account.auto_top_up %>
+          <p class="mt-2 mb-0 text-[11.5px] leading-snug clar-text-faint"><%= Billing::Copy.whole(account.auto_top_up_usd) %> is charged when the limit is reached and the balance runs out, at most <%= Billing::AUTO_TOP_UPS_PER_MONTH %> times a month &middot; <b class="font-semibold clar-text-text"><%= automatic %> of <%= Billing::AUTO_TOP_UPS_PER_MONTH %> this month</b></p>
+        <% else %>
+          <p class="mt-2 mb-0 text-[11.5px] leading-snug clar-text-faint">Off. When the limit is reached and the balance runs out, AI pauses until the 1st.</p>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</section>

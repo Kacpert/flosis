@@ -159,6 +159,22 @@ Rails.application.routes.draw do
     post "configuration/refresh_features", to: "configuration#refresh_features", as: :refresh_features_configuration
     patch "configuration/ai_costs", to: "configuration#update_ai_costs", as: :configuration_ai_costs
     get "consumption", to: "consumption#show", as: :consumption
+    # SCRUM-71: Settings › Billing, organization administrators only.
+    scope "billing", controller: "billing", as: "billing" do
+      get "/", action: :show
+      patch "details", action: :details, as: :details
+      post "card", action: :card, as: :card
+      get "card/return", action: :card_return, as: :card_return
+      post "plan", action: :plan, as: :plan
+      post "activate", action: :activate, as: :activate
+      post "cancel", action: :cancel, as: :cancel
+      post "keep", action: :keep, as: :keep
+      post "top_up", action: :top_up, as: :top_up
+      patch "auto_top_up", action: :auto_top_up, as: :auto_top_up
+      get "payment/return", action: :payment_return, as: :payment_return
+      get "invoices/:id", action: :invoice, as: :invoice
+      get "statements/:month", action: :statement, as: :statement, constraints: { month: /\d{4}-\d{2}/ }
+    end
     resources :discord_webhooks, only: [ :create, :destroy ]
     resources :project_members, only: [ :create, :update, :destroy ]
     resources :projects, only: [ :create ]
