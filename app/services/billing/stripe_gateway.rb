@@ -58,7 +58,7 @@ module Billing
     def card_setup_url(account, success_url:, cancel_url:)
       client.v1.checkout.sessions.create(
         mode: "setup", customer: ensure_customer(account), currency: "usd",
-        payment_method_types: [ "card" ], success_url: success_url, cancel_url: cancel_url,
+        allowed_payment_method_types: [ "card" ], success_url: success_url, cancel_url: cancel_url,
         metadata: { workspace_id: account.workspace_id }
       ).url
     end
@@ -79,7 +79,7 @@ module Billing
     def charge(account, cents:, description:, idempotency_key:, off_session:, return_url: nil, metadata: {})
       params = {
         amount: cents, currency: "usd", customer: account.stripe_customer_id,
-        payment_method: account.stripe_payment_method_id, payment_method_types: [ "card" ],
+        payment_method: account.stripe_payment_method_id, allowed_payment_method_types: [ "card" ],
         confirm: true, description: description, metadata: metadata
       }
       off_session ? params[:off_session] = true : params[:return_url] = return_url
