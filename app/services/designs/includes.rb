@@ -1,8 +1,10 @@
 # <x-include> expanded on the server, the way the design repo's runtime
 # (runtime/flosis.js) expands it in the browser, so that Changes compares what
 # people see: {{ name }} takes the include's attribute, escaped; the include's
-# children take the component's <slot>; components may include components, up
-# to ten rounds. It is text all the way: nothing in a design repo runs here.
+# children take the component's <slot>; the include's states (data-show-in,
+# data-hide-in, data-open-in) go onto each element of the component; components
+# may include components, up to ten rounds. It is text all the way: nothing in
+# a design repo runs here.
 #
 # A src is a path from the repo's root. One that is empty, absolute, has a
 # scheme or climbs out of the repo is never read, and neither is one the reader
@@ -15,6 +17,8 @@ module Designs::Includes
   MAX_BYTES = 2_000_000
   TOO_LARGE = "Components too large to show".freeze
   PLACEHOLDER = /\{\{\s*([\w-]+)\s*\}\}/
+  # The runtime's STATE_ATTRIBUTES: which states of its page an element shows in.
+  STATE_ATTRIBUTES = %w[data-show-in data-hide-in data-open-in].freeze
 
   module_function
 
@@ -54,6 +58,10 @@ module Designs::Includes
     fragment = element.document.fragment(text.gsub(PLACEHOLDER) { CGI.escapeHTML(element[$1].to_s) })
     from_root!(fragment, root) if root
     fragment.at_css("slot")&.replace(element.children)
+    # Without them the Changes view showed every state's rows at once (Kacper, 2026-11-23).
+    STATE_ATTRIBUTES.each do |name|
+      fragment.element_children.each { |part| part[name] = element[name] } if element.key?(name)
+    end
     element.replace(fragment)
   end
 
