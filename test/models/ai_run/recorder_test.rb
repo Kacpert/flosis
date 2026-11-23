@@ -108,6 +108,18 @@ class AiRun::RecorderTest < ActiveSupport::TestCase
     assert_equal 0, AiRun::Recorder.recount_sessions!, "a second recount changes nothing"
   end
 
+  # The CLI reports costs to more places than the columns keep.
+  test "a recount of costs finer than a cent's millionth changes nothing the second time" do
+    reports = [ CLI_RESULT, GROWN.merge("modelUsage" => GROWN["modelUsage"].transform_values { |used| used.merge("costUSD" => used["costUSD"] + 0.0000001234) }) ]
+    reports.each_with_index do |report, i|
+      run = AiRun::Recorder.start!(ai_attribution, own_key: false)
+      AiRun::Recorder.finish!(run, cli_usage(report.merge("session_id" => "fine-#{i}")), status: "succeeded", duration_ms: 1)
+      run.update_columns(claude_session_id: "fine")
+    end
+    assert_equal 1, AiRun::Recorder.recount_sessions!
+    assert_equal 0, AiRun::Recorder.recount_sessions!
+  end
+
   test "a model never seen is added to the price list" do
     run = AiRun::Recorder.start!(ai_attribution, own_key: false)
     AiRun::Recorder.finish!(run, cli_usage, status: "succeeded", duration_ms: 1)

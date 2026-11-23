@@ -103,12 +103,13 @@ module AiRun::Recorder
   end
 
   # What a report added to the one before it, or nil when it is smaller in
-  # any part (then it is not the session's whole report).
+  # any part (then it is not the session's whole report). Its cost is kept to
+  # the places the column keeps, so a recount compares like with like.
   def added(report, before)
     return unless report && before
 
     share = report.to_h { |column, value| [ column, value - before[column] ] }
-    share unless share.values.any?(&:negative?)
+    share.merge(cost_usd: share[:cost_usd].round(6)) unless share.values.any?(&:negative?)
   end
 
   def token_columns
