@@ -31,6 +31,10 @@ gem "tailwindcss-rails", "~> 4.2", groups: [:development, :test]
 # PDF generation
 gem "prawn", "~> 2.5"
 gem "prawn-table", "~> 0.2"
+gem "rqrcode", "~> 3.2"
+
+# SCRUM-71: organizations pay by card; Stripe keeps the card.
+gem "stripe", "~> 21.1"
 
 # Pagination
 gem "pagy", "~> 9.0"

@@ -8,6 +8,7 @@ require_relative "test_helpers/design_repo_test_helper"
 require_relative "test_helpers/fake_chat_cli_test_helper"
 require_relative "test_helpers/ai_run_test_helper"
 require_relative "test_helpers/fake_claude_bin_test_helper"
+require_relative "test_helpers/fake_billing_gateway"
 
 module ActiveSupport
   class TestCase
@@ -39,6 +40,11 @@ module ActiveSupport
     # unless a test says otherwise.
     setup { Designs::SetupRunJob.app_history = ->(_setup) { [] } }
     teardown { Designs::SetupRunJob.app_history = nil }
+
+    # No test reaches Stripe (SCRUM-71): a fake takes every charge.
+    include BillingTestHelper
+    setup { Billing.gateway = (@billing_gateway = FakeBillingGateway.new) }
+    teardown { Billing.gateway = nil }
 
     # Sets environment variables for the block (nil unsets one), then puts
     # back what was there. Credentials the machine holds (.env, the CLI's
