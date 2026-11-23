@@ -65,7 +65,9 @@ module Designs::DesignsSection
   # text lacks the link to them; otherwise the text as it is.
   def with_section(task, text)
     section = build(task) or return text
-    return text if text.to_s.include?(Designs::Publisher.new(task.project, nil).url(Designs::BranchNames.slug(task), nil))
+    link = Designs::Publisher.new(task.project, nil).url(Designs::BranchNames.slug(task), nil)
+    # The link itself, not a longer key's that starts with it (SCRUM-700 for SCRUM-70).
+    return text if text.to_s.match?(%r{#{Regexp.escape(link)}(?=[/?#)\s\]]|\z)})
 
     insert(markdown(text), section)
   end

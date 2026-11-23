@@ -87,6 +87,17 @@ class Designs::PreviewsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Review, 2026-11-23: a page fetched by the app's Turbo would land inside the
+  # app's own page, where its sandbox does not reach. Turbo is told to open it
+  # as a page of its own instead.
+  test "a page Turbo fetches is not given; Turbo is told to load it as a page of its own" do
+    get "/acme/hiring/#{@grant}/design/designs/jobs.html", headers: { "X-Turbo-Request-Id" => "1" }
+    assert_response :success
+    assert_includes response.body, %(<meta name="turbo-visit-control" content="reload">)
+    assert_not_includes response.body, "<p>jobs</p>"
+    assert_includes response.headers["Content-Security-Policy"], "sandbox"
+  end
+
   # Kacper, 2026-11-23: a tab opened from the Designs screen the night before
   # said its link had run out. A page whose grant ran out goes to be renewed,
   # with its page and query: whoever signs in and may see the project gets a

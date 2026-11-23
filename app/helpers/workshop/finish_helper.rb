@@ -21,13 +21,26 @@ module Workshop::FinishHelper
     !(jira || github)
   end
 
+  # In words anyone reads at once (Kacper, 2026-11-23).
   def finish_whats_left(task)
     jira, github = finish_integrations(task)
-    ticket = task.external_reference.present? ? "the Jira ticket updated with the new description" : "a Jira ticket created with the new description"
-    if jira && github then "A branch with the task for the developer to take over, and #{ticket}."
-    elsif jira then "#{ticket.upcase_first}."
-    elsif github then "A branch with the task for the developer to take over."
-    else "Finish the task here."
+    ticket, branch = finish_places(task)
+    if jira && github then "Finish puts this description in #{ticket} and in #{branch}, so a developer can start right away."
+    elsif jira then "Finish puts this description in #{ticket}."
+    elsif github then "Finish puts this description in #{branch}, so a developer can start right away."
+    else "Finish saves the task here."
+    end
+  end
+
+  # What Finish is doing once clicked, while the page waits for it (Kacper,
+  # 2026-11-23: "po kliknięciu też nie wiadomo co się dzieje").
+  def finish_doing(task)
+    jira, github = finish_integrations(task)
+    ticket, branch = finish_places(task)
+    if jira && github then "Putting the description in #{ticket} and in #{branch}"
+    elsif jira then "Putting the description in #{ticket}"
+    elsif github then "Putting the description in #{branch}"
+    else "Saving the task"
     end
   end
 
@@ -40,6 +53,12 @@ module Workshop::FinishHelper
   end
 
   private
+
+  # Where Finish puts the description: the ticket and the branch, new or the task's own.
+  def finish_places(task)
+    [ task.external_reference.present? ? "the Jira ticket" : "a new Jira ticket",
+      task.code_branch_pushed_at.present? ? "the task's branch on GitHub" : "a new branch on GitHub" ]
+  end
 
   def finish_integrations(task)
     TaskFinish.integrations(task.project)

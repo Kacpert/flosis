@@ -5,7 +5,17 @@
 <div class="hidden clar-modal-overlay" data-clar-modal-target="panel" data-clar-modal-panel-id-value="merge-thread" data-action="click->clar-modal#close">
   <%# Fits the window and scrolls inside it (Kacper, 2026-11-21: SCRUM-70's 21
       screens pushed the buttons out of reach). %>
-  <div class="clar-modal p-5.5 max-w-[520px] max-h-[calc(100vh-48px)] overflow-y-auto" data-action="click->clar-modal#stopPropagation">
+  <%# Once Accept is clicked, the question gives way to the steps it waits for
+      (designs-accepting; Kacper, 2026-11-23: "żeby user wiedział na co czeka"). %>
+  <div class="clar-modal p-5.5 max-w-[520px] max-h-[calc(100vh-48px)] overflow-y-auto" data-action="click->clar-modal#stopPropagation" data-controller="designs-accepting">
+    <% if task %>
+      <% writing = "Writing #{key}'s description v#{Designs::Threads.next_description_version(task)}" %>
+      <div class="hidden" data-designs-accepting-target="progress">
+        <%= render "acceptance", thread: @thread, inline: false,
+                   steps: [ { label: "Merging into master", state: :running }, { label: writing, state: :waiting }, { label: "Back to #{key}", state: :waiting } ] %>
+      </div>
+    <% end %>
+    <div data-designs-accepting-target="confirm">
     <div class="flex items-center justify-between gap-3 mb-1"><h2 class="m-0 text-[18px] font-bold clar-text-text"><%= task ? "Accept designs?" : "Merge into master?" %></h2><button type="button" class="bg-transparent border-0 cursor-pointer clar-text-faint flex p-1" data-action="clar-modal#close"><%= designs_icon(:close, 18) %></button></div>
     <div class="flex items-center gap-2 flex-wrap mt-1.5 mb-4"><span class="clar-mono text-[11.5px] clar-text-ai bg-[var(--ai-soft)] px-2 py-0.5 rounded-md"><%= @thread.branch %></span><span class="clar-text-faint">→</span><span class="clar-mono text-[11.5px] clar-text-success bg-[var(--success-soft)] px-2 py-0.5 rounded-md">master</span></div>
     <% if @behind.any? %>
@@ -50,10 +60,12 @@
     <div class="flex gap-2 justify-end">
       <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
       <% if task %>
-        <%= button_to merge_workshop_design_thread_path(@thread), class: "clar-btn clar-btn-primary", form: { class: "contents" } do %><%= designs_icon(:check, 14) %>Accept designs<% end %>
+        <%= button_to merge_workshop_design_thread_path(@thread), class: "clar-btn clar-btn-primary",
+                      form: { class: "contents", data: { action: "submit->designs-accepting#start" } } do %><%= designs_icon(:check, 14) %>Accept designs<% end %>
       <% else %>
         <%= button_to merge_workshop_design_thread_path(@thread), class: "clar-btn clar-btn-primary", form: { class: "contents" } do %><%= designs_icon(:merge, 14) %>Merge into master<% end %>
       <% end %>
+    </div>
     </div>
   </div>
 </div>

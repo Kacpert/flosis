@@ -112,6 +112,10 @@ class Designs::DesignsSectionTest < ActiveSupport::TestCase
     assert_equal "Intro.\n\n#{section}\n\n## Feature", Designs::DesignsSection.with_section(@task, "Intro.\n\n## Feature")
     kept = "Intro with [the designs](#{LINK})."
     assert_equal kept, Designs::DesignsSection.with_section(@task, kept)
+    assert_equal "Intro.\n\n#{section}", Designs::DesignsSection.with_section(@task, "Intro.")
+    # Review, 2026-11-23: SCRUM-700's link is not SCRUM-70's.
+    other = "See [another](#{LINK}0)."
+    assert_equal "#{other}\n\n#{section}", Designs::DesignsSection.with_section(@task, other)
     assert_equal "<p>Intro.</p>", Designs::DesignsSection.with_section(@project.tasks.create!(name: "Other"), "<p>Intro.</p>")
     assert_equal "Intro.\n\n#{section}", Designs::DesignsSection.with_section(@task, "<p>Intro.</p>")
   end

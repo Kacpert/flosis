@@ -27,6 +27,8 @@ const BORDER = 2
 // A click that wobbles a pixel or two is not a drag.
 const DRAG_THRESHOLD = 3
 const STATES_KEY = "designs.screenStates"
+// Contexts named as a link's own words keep the page's path (Designs::Publisher::LINK_WORDS).
+const LINK_WORDS = ["wip", "design"]
 const DEFAULT_STATE = "default"
 
 export default class extends Controller {
@@ -279,7 +281,11 @@ export default class extends Controller {
     const { template, context, screen } = event.params
     const shown = this.shown || { context, screen, state: null }
     if (!template || !shown.context || !shown.screen) return
-    let link = template.replace("{context}", encodeURIComponent(shown.context)).replace("{screen}", encodeURIComponent(shown.screen))
+    let link = template
+    if (LINK_WORDS.includes(shown.context) && !template.includes("designs/{context}")) {
+      link = link.replace("{context}/{screen}", "designs/{context}/{screen}.html")
+    }
+    link = link.replace("{context}", encodeURIComponent(shown.context)).replace("{screen}", encodeURIComponent(shown.screen))
     if (shown.state) link += `#${encodeURIComponent(shown.state)}`
     let message
     try {

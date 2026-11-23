@@ -98,6 +98,9 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     assert_equal "https://preview.example/elvium/REC-1/designs/admin/jobs.changes.html", publisher.url("REC-1", "designs/admin/jobs.changes.html")
     assert_equal "https://preview.example/elvium/REC-1/components/banner/banner.html", publisher.url("REC-1", "components/banner/banner.html")
     assert_equal "https://preview.example/elvium/REC-1/admin/job%20offers", publisher.url("REC-1", "designs/admin/job offers.html")
+    # Review, 2026-11-23: a context named as a link's own word stays a path.
+    assert_equal "https://preview.example/elvium/REC-1/designs/wip/jobs.html", publisher.url("REC-1", "designs/wip/jobs.html")
+    assert_equal "https://preview.example/elvium/REC-1/designs/design/jobs.html", publisher.url("REC-1", "designs/design/jobs.html")
   end
 
   test "only master and a task's key have a lasting link" do

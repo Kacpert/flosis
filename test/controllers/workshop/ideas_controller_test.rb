@@ -781,8 +781,9 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "*", text: /Detailed/
     assert_select "*", text: /8 pts/
     assert_select "*", text: /auto/
-    # What is copied is what shows: the checkout command (2026-11-22).
-    assert_select "[data-controller=clar-copy][data-clar-copy-value=?] code[data-clar-copy-target=text]",
+    # What is copied is what shows: the checkout command (2026-11-22), in the
+    # attribute Stimulus reads for the value (Kacper, 2026-11-23: Copy copied nothing).
+    assert_select "[data-controller=clar-copy][data-clar-copy-value-value=?] code[data-clar-copy-target=text]",
                   "git checkout #{idea.suggested_branch}", text: "git checkout #{idea.suggested_branch}"
     # No GitHub repo: the branch is only suggested (2026-11-21).
     assert_select "*", text: /Suggested branch/
@@ -1124,12 +1125,24 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
                                 merged_at: Time.current, slot: "accepted/1", description_version: 5,
                                 description_changes: [ "Costs in euro." ])
 
+    idea.task_drafts.create!(source: TaskDraft::REFINE_SOURCE, origin: "designs", content: "## Billing\nThe plan is charged upfront.", version: 5)
+
     get workshop_idea_path(idea, stage: "details")
     assert_select "[data-controller~=clar-modal][data-clar-modal-open-value=designs-accepted]"
-    modal = css_select("[data-clar-modal-panel-id-value=designs-accepted]").sole.text.squish
-    [ "Designs accepted", "Description updated · v5", "Changed to match the designs:", "Costs in euro.", "Designs linked",
-      "What's left", "A branch with the task for the developer to take over, and the Jira ticket updated with the new description.",
-      "Later", "Finish · Update Jira & Create branch" ].each { |copy| assert_includes modal, copy }
+    panel = css_select("[data-clar-modal-panel-id-value=designs-accepted]").sole
+    modal = panel.text.squish
+    # Kacper, 2026-11-23: plainer words, and the new description to read.
+    [ "Designs accepted", "The task description is now v5", "It links to the designs and lists the 0 screens that changed.",
+      "The AI also changed it to match the designs:", "Costs in euro.", "Link to the designs",
+      "Opens the accepted designs. Anyone on the project can open it after signing in.",
+      "Next: hand it to a developer",
+      "Finish puts this description in the Jira ticket and in a new branch on GitHub, so a developer can start right away.",
+      "Not now", "Finish · Update Jira & Create branch", "The new description · v5" ].each { |copy| assert_includes modal, copy }
+    assert_equal "## Billing\nThe plan is charged upfront.", panel.at_css("[data-description-preview][data-controller=clar-markdown]").text.strip
+    # Once Finish is clicked, it says what it is doing (designs-accepting).
+    assert panel.at_css("form[data-action~='submit->designs-accepting#start']")
+    assert_includes panel.at_css("[data-designs-accepting-target=progress]").text.squish,
+                    "Putting the description in the Jira ticket and in a new branch on GitHub…"
     assert merge.reload.announced_at
 
     get workshop_idea_path(idea, stage: "details")
@@ -1146,8 +1159,8 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
 
     get workshop_idea_path(idea, stage: "details")
     modal = css_select("[data-clar-modal-panel-id-value=designs-accepted]").sole.text.squish
-    assert_includes modal, "and a Jira ticket created with the new description."
-    assert_includes modal, "The text wasn't checked against the designs this time."
+    assert_includes modal, "Finish puts this description in a new Jira ticket and in a new branch on GitHub"
+    assert_includes modal, "The AI couldn't compare the rest of the text with the designs this time, so read it before you finish."
     assert_includes modal, "Finish · Create Jira ticket & branch"
   end
 

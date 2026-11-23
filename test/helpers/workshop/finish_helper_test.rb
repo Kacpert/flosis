@@ -39,17 +39,29 @@ class Workshop::FinishHelperTest < ActionView::TestCase
     assert finish_locally?(local)
   end
 
-  test "what is left says what Finish will do" do
-    assert_equal "A branch with the task for the developer to take over, and the Jira ticket updated with the new description.",
+  # Kacper, 2026-11-23: in words anyone reads at once.
+  test "what is left says what Finish will do, and what it is doing once clicked" do
+    assert_equal "Finish puts this description in the Jira ticket and in a new branch on GitHub, so a developer can start right away.",
                  finish_whats_left(@task)
+    assert_equal "Putting the description in the Jira ticket and in a new branch on GitHub", finish_doing(@task)
     local = @project.tasks.create!(name: "Local idea")
-    assert_equal "A branch with the task for the developer to take over, and a Jira ticket created with the new description.",
+    assert_equal "Finish puts this description in a new Jira ticket and in a new branch on GitHub, so a developer can start right away.",
                  finish_whats_left(local)
     assert_equal "feat/scrum-70-add-token-calculations · tasks/SCRUM-70/scrum-70.md", finish_target(@task)
+    @task.update!(code_branch_pushed_at: Time.current)
+    assert_equal "Finish puts this description in the Jira ticket and in the task's branch on GitHub, so a developer can start right away.",
+                 finish_whats_left(@task)
 
     @project.update!(github_repo: nil)
-    assert_equal "The Jira ticket updated with the new description.", finish_whats_left(@task.reload)
+    assert_equal "Finish puts this description in the Jira ticket.", finish_whats_left(@task.reload)
+    assert_equal "Putting the description in the Jira ticket", finish_doing(@task)
     assert_nil finish_target(@task)
+
+    @project.update!(jira_site: nil, github_repo: "acme/app")
+    assert_equal "Finish puts this description in a new branch on GitHub, so a developer can start right away.", finish_whats_left(local.reload)
+    @project.update!(github_repo: nil)
+    assert_equal "Finish saves the task here.", finish_whats_left(local.reload)
+    assert_equal "Saving the task", finish_doing(local)
   end
   test "with the server's Jira login set, a project not linked to Jira keeps the local Finish" do
     ENV["JIRA_DOMAIN"] = "server.atlassian.net"

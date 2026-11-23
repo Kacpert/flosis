@@ -41,6 +41,16 @@
     <% end %>
     <% if (steps = Designs::Threads.acceptance(thread)) %>
       <%= render "acceptance", thread: thread, steps: steps %>
+      <%# In a window of its own too, polled with the chat, until Hide puts it
+          away for this acceptance in this tab (Kacper, 2026-11-23: "żeby user
+          wiedział na co czeka"). %>
+      <div class="clar-modal-overlay" data-acceptance-window data-controller="designs-accepting"
+           data-designs-accepting-key-value="designs.acceptanceHidden.<%= thread.id %>.<%= turns.last&.id %>" data-action="click->designs-accepting#hide">
+        <div class="clar-modal p-5.5 max-w-[440px]" data-action="click->designs-accepting#keep">
+          <%= render "acceptance", thread: thread, steps: steps, inline: false %>
+          <div class="flex justify-end mt-3.5"><button type="button" class="clar-btn" data-action="designs-accepting#hide">Hide</button></div>
+        </div>
+      </div>
     <% end %>
     <%# Accept designs (2026-11-21): once the task's description is written, the
         person who accepted goes to the task, where its modal says what

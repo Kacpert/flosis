@@ -58,6 +58,8 @@ class Workshop::AiItemCostsTest < ActionDispatch::IntegrationTest
 
     get workshop_process_path(tab: "pr")
     assert_includes response.body, FIGURE
+    # Kacper, 2026-11-23 ("co to w ogóle jest?"): the figure says it is AI.
+    assert_select "[data-ai-cost]", text: /\A· AI #{Regexp.escape(FIGURE)}\z/
   end
 
   test "the estimate tab shows each estimate's AI cost" do
@@ -90,6 +92,8 @@ class Workshop::AiItemCostsTest < ActionDispatch::IntegrationTest
     get workshop_idea_path(task, stage: "ready")
     assert_response :success
     assert_includes response.body, FIGURE
+    # Kacper, 2026-11-23: "skąd tu się wzięła cena $1.26 - co to w ogóle jest?"
+    assert_select "[data-ai-cost]", text: /\AAI cost #{Regexp.escape(FIGURE)}\z/
   end
 
 end

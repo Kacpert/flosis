@@ -118,22 +118,29 @@ class Designs::PreviewEntriesControllerTest < ActionDispatch::IntegrationTest
   end
 
   # The same project name and key in two of a person's organizations is rare
-  # (Kacper, 2026-11-23): they pick one, and the link names it with ?org=.
-  test "a project name and key in two of a person's organizations asks which, and ?org= opens one" do
+  # (Kacper, 2026-11-23): they pick one, and the link names it with ?in=. Two
+  # projects of one name in one organization are asked about the same way.
+  # The choices open outside Turbo: a design page must never land in the app's.
+  test "a project name and key found twice asks which, and ?in= opens one" do
     accepted_task
     other = Project.create!(name: "Elvium", workspace: workspaces(:two), color: "#000000", currency: "USD", show_in_workshop: true,
                             design_preview_token: "t1k")
     Task.create!(project: other, name: "Their task", external_reference: "SP-1051")
     write("SP-1051/index.html", "<p>theirs</p>", token: "t1k")
     WorkspaceMembership.create!(user: users(:one), workspace: workspaces(:two), workspace_admin: true)
+    twin = Project.create!(name: "Elvium!", workspace: workspaces(:one), color: "#000000", currency: "USD", show_in_workshop: true,
+                           design_preview_token: "t2k")
+    Task.create!(project: twin, name: "Twin task", external_reference: "SP-1051")
+    write("SP-1051/index.html", "<p>twin</p>", token: "t2k")
     sign_in_as(users(:one))
 
     get "/elvium/SP-1051/candidate/apply"
     assert_response :success
-    assert_select "a[href=?]", "/elvium/SP-1051/candidate/apply?org=test-workspace"
-    assert_select "a[href=?]", "/elvium/SP-1051/candidate/apply?org=other-workspace"
+    [ @project, other, twin ].each do |project|
+      assert_select "a[href=?][data-turbo=false]", "/elvium/SP-1051/candidate/apply?in=#{project.id}"
+    end
 
-    get "/elvium/SP-1051?org=other-workspace"
+    get "/elvium/SP-1051?in=#{other.id}"
     assert_granted("SP-1051", "", project: other)
   end
 
@@ -145,7 +152,8 @@ class Designs::PreviewEntriesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
 
     sign_in_as(users(:one))
-    [ "/other-project/SP-1051", "/elvium/SP-9999", "/elvium/SP-1051?org=other-workspace" ].each do |path|
+    hidden = Project.create!(name: "Elvium", workspace: workspaces(:two), color: "#000000", currency: "USD", show_in_workshop: true)
+    [ "/other-project/SP-1051", "/elvium/SP-9999", "/elvium/SP-1051?in=#{hidden.id}" ].each do |path|
       get path
       assert_response :not_found, path
     end
