@@ -135,7 +135,7 @@ export default class extends Controller {
     sizing.area.style.removeProperty("padding-bottom")
     this.element.classList.remove("designs-frame-sizing")
     this.element.style.removeProperty("--designs-frame-cursor")
-    if (sizing.moved) this.remember()
+    if (sizing.moved) this.rememberSize()
     this.applySize()
   }
 
@@ -153,7 +153,9 @@ export default class extends Controller {
     return area.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - BORDER
   }
 
-  remember() {
+  // Its own name: a second remember() (a screen's state, 2026-11-22) replaced
+  // this one, and the size dragged was never kept (Kacper, 2026-11-23).
+  rememberSize() {
     try {
       if (this.widthValue === STANDARD.width && this.heightValue === STANDARD.height) {
         localStorage.removeItem(STORAGE_KEY)
@@ -216,7 +218,7 @@ export default class extends Controller {
         return
       }
     }
-    this.remember(this.seen.screen, current.key)
+    this.rememberState(this.seen.screen, current.key)
     if (this.hasStatesTarget) {
       this.statesTarget.hidden = states.length < 2
       this.stateSelectTarget.replaceChildren(...states.map((state) => new Option(String(state.label || state.key), state.key, false, state === current)))
@@ -242,7 +244,7 @@ export default class extends Controller {
     }
   }
 
-  remember(screen, state) {
+  rememberState(screen, state) {
     try {
       const states = JSON.parse(sessionStorage.getItem(STATES_KEY)) || {}
       if (state === DEFAULT_STATE) delete states[screen]
