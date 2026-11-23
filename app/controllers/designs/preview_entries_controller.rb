@@ -18,7 +18,7 @@ class Designs::PreviewEntriesController < ApplicationController
   # work in progress; /<project>/<KEY>/wip always the work in progress, the
   # link to send someone; then <context>/<screen> for a screen, or a path. The
   # project is looked for in each of the reader's organizations: the same name
-  # and key in two of them asks which, and ?org= names it.
+  # and key found twice asks which, and ?in=<project id> names it.
   def short
     found = short_matches
     return head(:not_found) if found.empty?
@@ -67,22 +67,23 @@ class Designs::PreviewEntriesController < ApplicationController
     request.original_fullpath.split("?", 2).first.end_with?("/")
   end
 
-  # The query that goes along to the page: all of it but which organization.
+  # The query that goes along to the page: all of it but which project.
   def passed_query
-    request.query_string.split("&").reject { |pair| pair.start_with?("org=") }.join("&")
+    request.query_string.split("&").reject { |pair| pair.start_with?("in=") }.join("&")
   end
 
-  # [project, slot] in each of the reader's organizations whose project of
-  # that name has something published for the key, or only the one ?org= names.
+  # [project, slot] for each project of that name, in each of the reader's
+  # organizations, that has something published for the key; only the one
+  # ?in= names when it does.
   def short_matches
-    Current.user.workspaces.order(:name).filter_map do |workspace|
-      next if params[:org].present? && Designs::Publisher.label(workspace.name, "organization") != params[:org]
+    Current.user.workspaces.order(:name).flat_map do |workspace|
+      Project.workshop_visible_to(Current.user, workspace).filter_map do |project|
+        next unless Designs::Publisher.label(project.name, "project") == params[:project]
+        next if params[:in].present? && project.id.to_s != params[:in].to_s
 
-      project = Project.workshop_visible_to(Current.user, workspace).find do |candidate|
-        Designs::Publisher.label(candidate.name, "project") == params[:project]
+        slot = short_slot(project)
+        [ project, slot ] if slot
       end
-      slot = project && short_slot(project)
-      [ project, slot ] if slot
     end
   end
 
@@ -122,28 +123,27 @@ class Designs::PreviewEntriesController < ApplicationController
     end
   end
 
-  # The same project name and key in two of the reader's organizations: they
-  # pick one, and its link says which with ?org= (Kacper, 2026-11-23: "rzadkość").
+  # The same project name and key found twice: they pick one, and its link
+  # says which with ?in= (Kacper, 2026-11-23: "rzadkość"). The link is built
+  # from what the route read, never the path as asked, which may start with //.
   def choose(found)
-    path = request.original_fullpath.split("?", 2).first
+    segments = [ params[:project], params[:key], *params[:path].to_s.split("/") ]
+    path = "/#{segments.map { |segment| CGI.escapeURIComponent(segment) }.join("/")}#{'/' if params[:path].present? && slashed?}"
     query = passed_query.split("&")
     @choices = found.map do |project, _|
-      organization = Designs::Publisher.label(project.workspace.name, "organization")
-      { organization: project.workspace.name, project: project.name,
-        href: "#{path}?#{(query + [ "org=#{CGI.escapeURIComponent(organization)}" ]).join("&")}" }
+      { organization: project.workspace.name, project: project.name, href: "#{path}?#{(query + [ "in=#{project.id}" ]).join("&")}" }
     end
     render :choose
   end
-
-  # The project the link names, among those the Workshop shows whoever opened
-  # it, in the workspace the link names rather than the one they last chose.
-  # Names are compared as links write them.
 
   def shown?(project)
     workspace = Current.user.workspaces.find_by(id: project.workspace_id)
     workspace.present? && Project.workshop_visible_to(Current.user, workspace).exists?(id: project.id)
   end
 
+  # The project the link names, among those the Workshop shows whoever opened
+  # it, in the workspace the link names rather than the one they last chose.
+  # Names are compared as links write them.
   def named_project
     Current.user.workspaces.find_each do |workspace|
       next unless Designs::Publisher.label(workspace.name, "organization") == params[:organization]

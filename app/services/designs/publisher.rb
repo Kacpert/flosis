@@ -50,6 +50,8 @@ class Designs::Publisher
   # A screen, which a task's link names as <context>/<screen>: no dot in
   # either name, so that a screen's changes (x.changes.html) stay a page.
   SCREEN_PAGE = %r{\Adesigns/([^/.]+)/([^/.]+)\.html\z}
+  # Contexts named as a link's own words (/wip, master's /design) keep the path.
+  LINK_WORDS = %w[wip design].freeze
 
   # What a context id may be made of, the same for a dimension and a value
   # (the design repo's README says so). A link carries contexts as they are.
@@ -197,7 +199,7 @@ class Designs::Publisher
     return task if path.nil?
 
     screen = SCREEN_PAGE.match(check_page!(path))
-    return link(task, path, ctx) unless screen
+    return link(task, path, ctx) if screen.nil? || LINK_WORDS.include?(screen[1])
 
     with_contexts("#{task}/#{screen.captures.map { |name| CGI.escapeURIComponent(name) }.join("/")}", ctx)
   end

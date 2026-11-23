@@ -28,7 +28,14 @@ class Designs::PreviewsController < ActionController::Base
 
   before_action :set_headers
 
+  # What the app's Turbo gets instead of a page it fetched (a link inside the
+  # app that did not leave it): fetched, the page would be put inside the
+  # app's own, where no sandbox reaches; this makes Turbo load it as a page.
+  RELOAD_AS_PAGE = %(<!doctype html><html><head><meta name="turbo-visit-control" content="reload"></head><body></body></html>).freeze
+
   def show
+    return render(html: RELOAD_AS_PAGE.html_safe) if request.headers["X-Turbo-Request-Id"].present?
+
     project, slot = Designs::PreviewGrant.read(params[:grant])
     return ran_out unless project
 

@@ -5,7 +5,8 @@
   <p class="text-[13px] clar-text-muted mb-5"><%= params[:key] %> is in more than one of your organizations.</p>
   <ul class="flex flex-col gap-2 list-none p-0 m-0">
     <% @choices.each do |choice| %>
-      <li><%= link_to "#{choice[:organization]} › #{choice[:project]}", choice[:href], class: "clar-btn no-underline w-full justify-start" %></li>
+      <%# Outside Turbo: a design page must open as a page, never inside the app's. %>
+      <li><%= link_to "#{choice[:organization]} › #{choice[:project]}", choice[:href], class: "clar-btn no-underline w-full justify-start", data: { turbo: false } %></li>
     <% end %>
   </ul>
 </div>

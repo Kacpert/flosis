@@ -1,7 +1,7 @@
 # The Web links from a task's Jira issue to its designs (Workshop Designs v2):
 # one to the designs of the task's thread, and one per screen the thread
-# changed against master. They are lasting links (/<org>/<project>/<KEY>/
-# design/…), which open the thread's branch for whoever may see the project;
+# changed against master. They are lasting links (/<project>/<KEY>/…, 2026-11-23),
+# which open the task's designs for whoever may see the project;
 # they are written with the project's own Jira credentials and never touch the
 # description: Jira's sync rewrites that every few minutes.
 #
