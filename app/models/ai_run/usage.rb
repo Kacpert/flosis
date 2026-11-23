@@ -31,6 +31,12 @@ class AiRun::Usage
     @result.present? || @messages.any?
   end
 
+  # The output the run's own assistant messages reported as they streamed;
+  # nil when none streamed.
+  def streamed_output_tokens
+    @messages.values.sum { |usage| usage["output_tokens"].to_i } if @messages.any?
+  end
+
   def totals
     tokens = @result ? result_tokens : message_tokens
     model_usage = @result && @result["modelUsage"].is_a?(Hash) ? @result["modelUsage"] : nil
