@@ -23,6 +23,33 @@ class Designs::IncludesTest < ActiveSupport::TestCase
     assert_equal '<div class="card"><p>Inside</p></div>', body(html)
   end
 
+  # Kacper, 2026-11-23: the Changes view of task 551's Consumption showed its
+  # four period rows and both banners at once. The runtime puts an include's
+  # state attributes on each element of its component; this expansion, which
+  # the Changes view is made from, must do the same.
+  test "an include's states go onto each element of its component, as the runtime puts them" do
+    html = expand('<body><x-include src="components/row.html" data-show-in="over-limit" data-hide-in="paused" data-open-in="edit">' \
+                  "<em>In</em></x-include></body>",
+                  "components/row.html" => '<div class="row">A</div> <slot></slot><span>B</span>')
+    elements = Nokogiri::HTML5(html).at("body").element_children
+
+    assert_equal %w[div em span], elements.map(&:name)
+    elements.each do |element|
+      assert_equal "over-limit", element["data-show-in"], element.name
+      assert_equal "paused", element["data-hide-in"], element.name
+      assert_equal "edit", element["data-open-in"], element.name
+    end
+  end
+
+  test "a component's elements keep their own states when the include names none" do
+    html = expand('<body><x-include src="components/row.html" label="x"></x-include></body>',
+                  "components/row.html" => '<div data-show-in="paused">A</div><span>B</span>')
+    div, span = Nokogiri::HTML5(html).at("body").element_children.to_a
+
+    assert_equal "paused", div["data-show-in"]
+    assert_nil span["data-show-in"]
+  end
+
   test "components may include components" do
     html = expand('<body><x-include src="components/a.html"></x-include></body>',
                   "components/a.html" => '<div><x-include src="components/b.html"></x-include></div>',

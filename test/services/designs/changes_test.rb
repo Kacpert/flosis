@@ -40,6 +40,24 @@ class Designs::ChangesTest < ActiveSupport::TestCase
     assert_equal [ [ "p", "new", "121 / 500" ] ], marks(result.marked_html("candidate", "apply"))
   end
 
+  # Kacper, 2026-11-23: in the Changes view of task 551's Consumption, the
+  # period row of every state and both banners showed at once.
+  test "a screen's changes keep which states each included component shows in" do
+    page = <<~HTML
+      <html><body><nav data-states><a href="#">This month</a><a href="#paused">AI paused</a></nav>
+      <x-include src="components/banner/banner.html" text="80% used" data-show-in="default"></x-include>
+      <x-include src="components/banner/banner.html" text="AI paused" data-show-in="paused"></x-include>
+      <x-include src="components/period/period.html" data-hide-in="paused"></x-include></body></html>
+    HTML
+    files = { "components/banner/banner.html" => '<div role="alert">{{ text }}</div>',
+              "components/period/period.html" => '<div class="period">Period</div>' }
+    result = changes(files, files.merge("designs/admin/consumption.html" => page))
+    body = Nokogiri::HTML5(result.marked_html("admin", "consumption")).at("body")
+
+    assert_equal %w[default paused], body.css("[role=alert]").map { |banner| banner["data-show-in"] }
+    assert_equal "paused", body.at_css(".period")["data-hide-in"]
+  end
+
   test "changed text or attributes mark the element that changed" do
     head = PAGE.sub("Submit", "Submit application").sub('<button class="btn">', '<button class="btn" disabled>')
     result = changes({ "designs/candidate/apply.html" => PAGE }, { "designs/candidate/apply.html" => head })
