@@ -1,56 +1,101 @@
-<%# The month's total against the plan. The plan's monthly price is the limit;
-    going over it blocks nothing, so the card says so where somebody would
-    otherwise fear it did. Then the three notes that keep the arithmetic honest. %>
+<%# The month's spend against what was paid for it (SCRUM-71, after
+    designs/admin/consumption.html). With billing, the figure is what counted
+    toward the plan's limit; past the limit the top-up balance pays, at cost +
+    30%, shown as a thin bar under the full one; with no balance left AI
+    pauses. A month before billing started is shown as it ran. %>
 <%# locals: (limit:) %>
-<% total = @summary.total %>
+<% current = @month == Date.current.beginning_of_month %>
+<% billed = @plan_spend.positive? || (current && @allowance&.running?) %>
+<% total = billed ? @plan_spend : @summary.total %>
 <% cap = limit&.limit_usd %>
 <% percent = consumption_percent(total, cap) %>
-<% current_plan = limit&.ai_plan_id.present? && limit.ai_plan_id == current_workspace.ai_plan_id %>
+<% account = current_workspace.billing_account %>
+<% at_limit = billed && cap && total >= cap %>
+<% paused = current && @allowance&.paused? && @allowance.reason == :limit %>
+<% used_top_up = @top_up_spent %>
+<% top_up_pool = current ? @balance + used_top_up : nil %>
+<% back_on = Date.current.next_month.beginning_of_month.strftime("%-d %b") %>
 <section class="clar-card mb-4.5 p-4.5" data-plan-card>
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
       <div class="mb-1 text-[11px] font-bold tracking-[.4px] clar-text-faint">USED IN <%= @month.strftime("%B").upcase %></div>
-      <div class="flex items-baseline gap-2.5">
-        <span class="text-[30px] font-bold tracking-[-.5px] clar-text-text"><%= AiCostFormatter.sum(total, runs: @summary.runs, priced: @summary.by_area.sum { |row| row[3].to_i }) %></span>
-        <span class="text-[14px] clar-text-muted"><%= cap ? "of #{AiCostFormatter.money(cap)}" : "no limit set" %></span>
+      <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+        <span class="text-[30px] font-bold tracking-[-.5px] clar-text-text"><%= billed ? AiCostFormatter.money(total) : AiCostFormatter.sum(total, runs: @summary.runs, priced: @summary.by_area.sum { |row| row[3].to_i }) %></span>
+        <span class="text-[14px] clar-text-muted" data-limit>
+          <%= cap ? "of #{AiCostFormatter.money(cap)}" : "no limit set" %><%= " · #{Billing::Proration.label(limit.starts_on..@month.end_of_month)}" if cap && limit.partial? %>
+        </span>
+        <% if current && billed && top_up_pool&.positive? %>
+          <% if used_top_up.positive? %>
+            <span class="text-[14px] clar-text-muted" data-top-up>&middot; top-up <b class="font-semibold <%= paused ? 'clar-text-warn' : 'clar-text-text' %>"><%= AiCostFormatter.money(used_top_up) %></b> of <%= AiCostFormatter.money(top_up_pool) %> used</span>
+          <% else %>
+            <span class="text-[14px] clar-text-muted" data-top-up>&middot; top-up balance <%= AiCostFormatter.money(@balance) %></span>
+          <% end %>
+        <% elsif !current && used_top_up.positive? %>
+          <span class="text-[14px] clar-text-muted" data-top-up>&middot; top-up <%= AiCostFormatter.money(used_top_up) %> used</span>
+        <% end %>
       </div>
     </div>
     <div class="text-right">
       <div class="mb-1 text-[11px] font-bold tracking-[.4px] clar-text-faint">PLAN</div>
       <% if limit&.plan_name %>
-        <div class="text-[13.5px] font-semibold clar-text-text"><%= limit.plan_name %> &middot; <%= AiCostFormatter.money(cap) %> / month</div>
-        <% if current_plan && current_workspace.ai_plan_assigned_at %>
-          <div class="mt-[3px] text-[11.5px] clar-text-faint">assigned <%= current_workspace.ai_plan_assigned_at.strftime("%-d %b %Y") %></div>
+        <div class="text-[13.5px] font-semibold clar-text-text"><%= limit.plan_name %> &middot; <%= Billing::Copy.whole(limit.ai_plan&.monthly_price_usd || cap) %> a month</div>
+        <% if current && account&.plan_running? && !account.cancelling? %>
+          <div class="mt-[3px] text-[11.5px] clar-text-faint">next charge <%= Date.current.next_month.beginning_of_month.strftime("%-d %b %Y") %> &middot; <%= link_to "Billing", workshop_billing_path, class: "font-semibold clar-text-primary no-underline" %></div>
+        <% elsif current %>
+          <div class="mt-[3px] text-[11.5px] clar-text-faint"><%= link_to "Billing", workshop_billing_path, class: "font-semibold clar-text-primary no-underline" %></div>
         <% end %>
       <% else %>
         <span class="clar-badge clar-badge-muted">NO PLAN</span>
-        <div class="mt-[3px] text-[11.5px] clar-text-faint">Flosis assigns the plan &middot; usage is priced until then</div>
+        <div class="mt-[3px] text-[11.5px] clar-text-faint">No plan in <%= @month.strftime("%B") %> &middot; <%= link_to "Choose one in Billing", workshop_billing_path, class: "font-semibold clar-text-primary no-underline" %></div>
       <% end %>
     </div>
   </div>
 
   <% if cap %>
-    <div class="mt-3.5 h-2.5 w-full overflow-hidden rounded-full bg-[var(--surface-2)]" role="img" aria-label="<%= percent %>% of the monthly limit used">
-      <div class="h-full rounded-full <%= total > cap ? 'bg-[var(--warn)]' : 'bg-[var(--primary)]' %>" style="width: <%= [ percent, 100 ].min %>%;"></div>
-    </div>
+    <% if at_limit && current %>
+      <%# At the limit the bar is full; the top-up is the thin bar under it,
+          filling as it is spent. Paused, both are full and amber. %>
+      <% top_percent = top_up_pool.to_d.positive? ? [ (used_top_up / top_up_pool * 100).round, 100 ].min : 100 %>
+      <div class="mt-3.5 flex flex-col gap-1" role="img" aria-label="The monthly limit used, and <%= top_percent %>% of the top-up balance">
+        <div class="h-2.5 w-full overflow-hidden rounded-full bg-[var(--surface-2)]"><div class="h-full rounded-full <%= paused ? 'bg-[var(--warn)]' : 'bg-[var(--primary)]' %>" style="width: 100%;"></div></div>
+        <div class="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-2)]"><div class="h-full rounded-full <%= paused ? 'bg-[var(--warn)]' : 'bg-[var(--primary)] opacity-60' %>" style="width: <%= paused ? 100 : top_percent %>%;"></div></div>
+      </div>
+    <% else %>
+      <div class="mt-3.5 h-2.5 w-full overflow-hidden rounded-full bg-[var(--surface-2)]" role="img" aria-label="<%= percent %>% of the monthly limit used">
+        <div class="h-full rounded-full <%= total > cap ? 'bg-[var(--warn)]' : 'bg-[var(--primary)]' %>" style="width: <%= [ percent, 100 ].min %>%;"></div>
+      </div>
+    <% end %>
     <div class="mt-2 flex flex-wrap items-center justify-between gap-2.5">
-      <span class="text-[12.5px] clar-text-muted">
-        <%= percent %>% of the limit &middot;
-        <% if total > cap %>
-          <b class="font-semibold clar-text-warn"><%= AiCostFormatter.money(total - cap) %> over</b>
+      <span class="text-[12.5px] clar-text-muted" data-limit-line>
+        <% if at_limit && current && paused %>
+          Limit reached &middot; <b class="font-semibold clar-text-warn">no top-up left</b>
+        <% elsif at_limit && current %>
+          Limit reached &middot; <b class="font-semibold clar-text-text"><%= AiCostFormatter.money(@balance) %> of top-up left</b>
+        <% elsif total > cap %>
+          <%= percent %>% of the limit &middot; <b class="font-semibold clar-text-warn"><%= AiCostFormatter.money(total - cap) %> over</b>
         <% else %>
-          <b class="font-semibold clar-text-text"><%= AiCostFormatter.money(cap - total) %> left</b>
+          <%= percent %>% of the limit &middot; <b class="font-semibold clar-text-text"><%= AiCostFormatter.money(cap - total) %> left</b>
         <% end %>
       </span>
       <span class="text-[11.5px] clar-text-faint">
-        <%= @month < Date.current.beginning_of_month ? "#{@month.strftime('%B')} is closed — a past month never changes." : "Nothing is ever blocked at the limit — going over is only shown here." %>
+        <% if !current %>
+          <%= @month.strftime("%B") %> is closed &mdash; a past month never changes.
+        <% elsif paused %>
+          AI is back with a top-up, or on <%= back_on %> with the new month.
+        <% elsif at_limit %>
+          Runs past the limit are paid from the top-up at cost + 30%.
+        <% elsif billed %>
+          At the limit, runs are paid from the top-up balance at cost + 30%; with none left, AI pauses.
+        <% else %>
+          The plan isn&rsquo;t active yet, so nothing is charged and nothing pauses.
+        <% end %>
       </span>
     </div>
   <% else %>
     <div class="mt-3.5 rounded-[10px] bg-[var(--surface-2)] px-3.5 py-3 text-[12.5px] clar-text-muted">
-      <b class="clar-text-text"><%= current_workspace.name %> has no plan assigned</b>, so there is no monthly limit and no plan
-      price. Every run is still recorded and priced, and these figures stand once a plan arrives &mdash; past months never
-      change. Ask Flosis to assign one.
+      <b class="clar-text-text"><%= current_workspace.name %> <%= current ? "has no plan" : "had no plan in #{@month.strftime('%B')}" %></b>, so there <%= current ? "is" : "was" %> no monthly limit, nothing
+      <%= current ? "is" : "was" %> charged and nothing <%= current ? "is" : "was" %> paused. Every run is still recorded and priced, and past months never
+      change. <%= link_to "Choose a plan in Billing.", workshop_billing_path, class: "font-semibold clar-text-primary no-underline" %>
     </div>
   <% end %>
 
@@ -70,7 +115,7 @@
     <%= render "workshop/consumption/note", label: "Unknown cost", warn: @summary.unknown_runs.positive? do %>
       <% if @summary.unknown_runs.positive? %>
         <b class="font-semibold clar-text-text"><%= pluralize(@summary.unknown_runs, "run") %></b> came back with no cost.
-        Their tokens are kept, the price shows as unknown, and none counts as $0.
+        Their tokens are kept, the price shows as unknown, and they count toward the limit only once Flosis sets their cost.
       <% else %>
         No run in <%= @month.strftime("%B") %> came back without a cost.
       <% end %>

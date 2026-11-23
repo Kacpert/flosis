@@ -11,10 +11,31 @@
   <% if @all_time %>
     <%= render "workshop/consumption/all_time" %>
   <% else %>
-    <% if limit&.limit_usd && @summary.total > limit.limit_usd %>
+    <% if @month == Date.current.beginning_of_month && @allowance&.paused? %>
+      <%# AI paused (SCRUM-71): new AI runs wait for a top-up or the 1st; a run
+          already going finishes. %>
+      <div class="mb-4.5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[12px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4.5 py-3 text-[12.5px] clar-text-text" data-ai-paused>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="flex-none clar-text-warn" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+        <span class="min-w-0 flex-1">
+          <% if @allowance.reason == :limit %>
+            <b class="font-bold clar-text-warn">AI paused: limit reached.</b>
+            <%= link_to "Top up in Billing.", workshop_billing_path(open: "top-up"), class: "font-semibold clar-text-primary no-underline" %>
+          <% else %>
+            <b class="font-bold clar-text-warn">AI paused: the payment is not through.</b>
+            <%= link_to "Update the card in Billing.", workshop_billing_path, class: "font-semibold clar-text-primary no-underline" %>
+          <% end %>
+          <span class="clar-text-muted">Runs already going finish. Time &amp; HR and projects on their own key keep working.</span>
+        </span>
+        <% if @allowance.reason == :limit %>
+          <%= link_to "Buy top-up", workshop_billing_path(open: "top-up"), class: "clar-btn clar-btn-primary !py-2 !px-3.5 flex-none no-underline" %>
+        <% end %>
+      </div>
+    <% elsif limit&.limit_usd && @plan_spend.zero? && @summary.total > limit.limit_usd && @month < Date.current.beginning_of_month %>
+      <%# A month before billing started: nothing was charged and nothing
+          paused, so it may read over its limit. %>
       <div class="mb-4.5 flex items-start gap-2 rounded-[12px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4.5 py-3 text-[13px] clar-text-text" data-over-limit>
-        <b class="clar-text-warn">Over the limit by <%= AiCostFormatter.money(@summary.total - limit.limit_usd) %>.</b>
-        Nothing was blocked and no run was refused &mdash; <%= @month.strftime("%B") %> simply cost more than the plan.
+        <span><b class="clar-text-warn"><%= @month.strftime("%B") %> went <%= AiCostFormatter.money(@summary.total - limit.limit_usd) %> over the limit.</b>
+        It ran before billing started, so nothing was charged and nothing was paused.</span>
       </div>
     <% end %>
     <%= render "workshop/consumption/plan_card", limit: limit %>

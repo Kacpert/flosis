@@ -1,0 +1,18 @@
+<%# One amber line where AI would run (SCRUM-71, design ai-paused-note and
+    the chat panel's paused note): the organization's AI is paused, what
+    doesn't run because of it, and the way back. An organization
+    administrator is sent to Billing, anyone else to an admin. %>
+<%# locals: (what: nil, classes: "mb-4.5") %>
+<div role="status" data-paused-note="<%= ai_paused_who %>"
+     class="<%= classes %> flex items-start gap-2 rounded-[10px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-3.5 py-2.5 text-[12.5px] leading-snug clar-text-text">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mt-px flex-none clar-text-warn" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+  <span>
+    <b class="font-bold clar-text-warn">AI paused: <%= ai_allowance&.reason == :limit ? "limit reached" : "payment not through" %>.</b>
+    <% if what %><span class="clar-text-muted"><%= what %></span><% end %>
+    <% if ai_paused_who == "admin" %>
+      <%= link_to ai_allowance&.reason == :limit ? "Top up in Billing." : "Update the card in Billing.", workshop_billing_path(open: (ai_allowance&.reason == :limit ? "top-up" : nil)), class: "font-semibold clar-text-primary no-underline" %>
+    <% else %>
+      <span class="font-semibold">Ask an admin to <%= ai_allowance&.reason == :limit ? "top up" : "update the card" %>.</span>
+    <% end %>
+  </span>
+</div>

@@ -81,7 +81,7 @@
               <%= button_to estimate_workshop_idea_path(task),
                     form: { data: { turbo_confirm: "Re-estimate #{task.external_reference}? The AI value may change." } },
                     class: "clar-btn !gap-[5px] !py-[5px] !px-[10px] !text-[11.5px] !rounded-[7px] clar-text-muted",
-                    title: "Re-estimate this task now" do %>
+                    title: "Re-estimate this task now", disabled: ai_paused?, data: { ai_action: true } do %>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
                 Re-estimate
               <% end %>

@@ -11,11 +11,11 @@ class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
     post switch_workshop_project_path, params: { project_id: @project.id }
   end
 
-  test "admin GET show renders the Configuration shell and AI tab by default" do
+  test "admin GET show renders the Settings shell and AI tab by default" do
     get workshop_configuration_path
 
     assert_response :success
-    assert_select "h1", "Configuration"
+    assert_select "h1", "Settings"
     assert_select "body", /Per-project credentials, AI behaviour and access\./
     assert_select ".clar-tab", /Integrations/
     assert_select ".clar-tab", /AI/

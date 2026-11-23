@@ -53,20 +53,20 @@ class Workshop::ConsumptionControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "of $1,200.00"
     assert_includes response.body, "70% of the limit"
     assert_includes response.body, "$357.83 left"
-    assert_includes css_select("[data-plan-card]").text.squish, "Scale · $1,200.00 / month"
+    assert_includes css_select("[data-plan-card]").text.squish, "Scale · $1,200 a month"
     assert_includes css_select("[data-own-key-row]").text, "SecretProject"
     assert_includes css_select("[data-own-key-row]").text, "$24.60"
   end
 
-  test "over the limit says by how much and that nothing was blocked" do
+  test "a month before billing that went over says so, and that nothing was charged or paused" do
     @workspace.update!(ai_plan: ai_plans(:scale))
     october = Date.new(2026, 10, 1)
     AiMonthLimit.create!(workspace: @workspace, month: october, ai_plan: ai_plans(:scale), plan_name: "Scale", limit_usd: 1200)
     run!(price: 1446.15, ran_at: Time.zone.local(2026, 10, 20))
 
     get workshop_consumption_path(month: "2026-10")
-    assert_includes response.body, "Over the limit by $246.15"
-    assert_includes response.body, "Nothing was blocked"
+    assert_includes response.body, "October went $246.15 over the limit."
+    assert_includes response.body, "It ran before billing started, so nothing was charged and nothing was paused."
     assert_includes response.body, "121% of the limit"
   end
 
@@ -153,7 +153,7 @@ class Workshop::ConsumptionControllerTest < ActionDispatch::IntegrationTest
     run!(price: 5)
     get workshop_consumption_path
     assert_response :success
-    assert_includes response.body, "Over the limit by $5.00"
+    assert_includes response.body, "$5.00 over"
     get workshop_consumption_path(view: "all")
     assert_response :success
   end
@@ -165,4 +165,39 @@ class Workshop::ConsumptionControllerTest < ActionDispatch::IntegrationTest
     css_select("[data-consumption-total]").each { |row| assert_includes row.text, "unknown" }
   end
 
+
+  # SCRUM-71: with billing, the figure is what counted toward the paid limit.
+  test "a partial first month reads of $110.00 · 20–30 Nov" do
+    billing_ready!(@workspace)
+    travel_to Time.zone.local(2026, 11, 20, 10) do
+      Billing::Plans.new(@workspace.reload).choose!(billing_plan(name: "Team", price: 300))
+      get workshop_consumption_path
+      assert_includes css_select("[data-limit]").text.squish, "of $110.00 · 20–30 Nov"
+    end
+  end
+
+  test "past the limit the top-up pays, and the balance used shows beside the limit" do
+    billing_ready!(@workspace)
+    travel_to Time.zone.local(2026, 11, 1, 6) do
+      Billing::Plans.new(@workspace.reload).choose!(billing_plan(name: "Team", price: 300))
+      Billing::TopUps.new(@workspace).buy!(200)
+      run!(price: 300).update_columns(funding: "plan")
+      run!(price: 60).update_columns(funding: "top_up")
+      get workshop_consumption_path
+      assert_equal "$300.00", css_select("[data-plan-card] .text-\\[30px\\]").text.strip
+      assert_includes css_select("[data-top-up]").text.squish, "top-up $60.00 of $200.00 used"
+      assert_includes css_select("[data-limit-line]").text.squish, "Limit reached · $140.00 of top-up left"
+    end
+  end
+
+  test "AI paused: limit reached replaces over the limit" do
+    travel_to Time.zone.local(2026, 11, 26, 9) do
+      pause_ai!(@workspace)
+      get workshop_consumption_path
+      assert_includes css_select("[data-ai-paused]").text.squish, "AI paused: limit reached. Top up in Billing. Runs already going finish. Time & HR and projects on their own key keep working."
+      assert_includes css_select("[data-limit-line]").text.squish, "Limit reached · no top-up left"
+      assert_includes response.body, "AI is back with a top-up, or on 1 Dec with the new month."
+      assert_empty css_select("[data-over-limit]")
+    end
+  end
 end
