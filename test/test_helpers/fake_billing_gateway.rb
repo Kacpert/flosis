@@ -4,12 +4,23 @@ class FakeBillingGateway
   Card = Billing::StripeGateway::Card
   Result = Billing::StripeGateway::ChargeResult
 
-  attr_reader :charges
+  attr_reader :charges, :cancelled
 
   def initialize
     @charges = []
     @queued = []
     @results = {}
+    @cancelled = []
+  end
+
+  # Stripe could not be reached: the charge's outcome is unknown.
+  def unknown_next!
+    @queued << ->(_id) { Result.new(status: :unknown, payment_intent_id: nil, failure_message: "Stripe could not be reached", redirect_url: nil) }
+  end
+
+  def cancel_payment(payment_intent_id)
+    @cancelled << payment_intent_id
+    true
   end
 
   def fail_next!(message = "insufficient funds", times: 1)
@@ -45,7 +56,12 @@ class FakeBillingGateway
     id = "pi_fake_#{@charges.size + 1}"
     @charges << { account: account, cents: cents, description: description, idempotency_key: idempotency_key,
                   off_session: off_session, return_url: return_url, payment_intent_id: id }
-    (@queued.shift || ->(pid) { Result.new(status: :succeeded, payment_intent_id: pid, failure_message: nil, redirect_url: nil) }).call(id)
+    result = (@queued.shift || ->(pid) { Result.new(status: :succeeded, payment_intent_id: pid, failure_message: nil, redirect_url: nil) }).call(id)
+    # A declined payment stays declined when Stripe is asked about it later;
+    # one sent to 3-D Secure reads as paid (the admin finished it) unless a
+    # test says otherwise with settle!.
+    @results[id] = result if result.failed?
+    result
   end
 
   def payment_result(payment_intent_id)

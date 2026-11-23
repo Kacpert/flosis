@@ -57,16 +57,12 @@ class Hidmin::WorkspacesController < Hidmin::BaseController
   # for; the plan staff assign starts with its next charge, on the 1st.
   def assign_plan
     plan = AiPlan.find(params[:ai_plan_id])
-    account = @workspace.billing_account
-    if account&.plan_running?
-      account.update!(pending_ai_plan: plan == @workspace.ai_plan ? nil : plan)
-      return redirect_back_or_to(hidmin_workspaces_path, flash: { clar_toast: "#{plan.name} starts on #{Date.current.next_month.beginning_of_month.strftime('%-d %b')}, with the next charge" })
+    toast = if Billing::Plans.assign_by_staff!(@workspace, plan) == :next_month
+      "#{plan.name} starts on #{Date.current.next_month.beginning_of_month.strftime('%-d %b')}, with the next charge"
+    else
+      "Plan assigned"
     end
-
-    @workspace.update!(ai_plan: plan, ai_plan_assigned_at: Time.current)
-    @workspace.billing.update!(plan_state: "pending") if @workspace.billing.plan_state.in?(%w[none ended])
-    AiMonthLimit.refresh_current!(@workspace)
-    redirect_back_or_to hidmin_workspaces_path, flash: { clar_toast: "Plan assigned" }
+    redirect_back_or_to hidmin_workspaces_path, flash: { clar_toast: toast }
   end
 
   private

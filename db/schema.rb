@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -196,6 +196,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_090000) do
     t.integer "card_exp_month"
     t.integer "card_exp_year"
     t.string "card_last4"
+    t.datetime "card_saved_at"
     t.string "city"
     t.string "company_name"
     t.string "country_code", limit: 2

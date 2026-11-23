@@ -7,6 +7,9 @@
 module Ksef
   class SendInvoiceJob < ApplicationJob
     queue_as :default
+    # One send per invoice at a time: two copies would both reach KSeF and
+    # email the admins twice.
+    limits_concurrency to: 1, key: ->(invoice, **) { "ksef-invoice-#{invoice.id}" }, duration: 15.minutes
 
     QUIET_TRIES = 3
     PENDING_CHECKS = 10
@@ -29,8 +32,15 @@ module Ksef
       result = session_ref ? client.invoice_status(session_ref, invoice_ref) : client.send_invoice(invoice.ksef_xml)
       invoice.increment!(:ksef_attempts) unless session_ref
       record(invoice, result, check)
-    rescue NbpRate::Unavailable, Ksef::ConfigurationError => e
-      failed!(invoice, e.message, tell_staff: invoice.ksef_attempts >= QUIET_TRIES || e.is_a?(Ksef::ConfigurationError))
+    rescue NbpRate::Unavailable => e
+      # NBP not answering: tried again quietly a few times before staff hear.
+      invoice.increment!(:ksef_attempts)
+      quiet = invoice.ksef_attempts < QUIET_TRIES
+      failed!(invoice, e.message, tell_staff: !quiet)
+      self.class.set(wait: (10 * invoice.ksef_attempts).minutes).perform_later(invoice) if quiet
+    rescue Ksef::ConfigurationError, ArgumentError => e
+      # The invoice can't be built (seller details, a bad NIP): staff fix it.
+      failed!(invoice, e.message, tell_staff: true)
     end
 
     private
@@ -39,7 +49,7 @@ module Ksef
       case result.status
       when :accepted
         invoice.update!(ksef_status: "sent", ksef_number: result.ksef_number, ksef_sent_at: Time.current, ksef_error: nil)
-        BillingMailer.invoice(invoice).deliver_later
+        BillingMailer.invoice(invoice).deliver_later if invoice.emailed_at.nil?
       when :pending
         invoice.update!(ksef_reference: result.reference_number || invoice.ksef_reference, ksef_status: "pending")
         if check < PENDING_CHECKS

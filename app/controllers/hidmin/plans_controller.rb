@@ -57,12 +57,13 @@ class Hidmin::PlansController < Hidmin::BaseController
   end
 
   # "Assign it now": the plan's price becomes the organization's limit from
-  # this moment; its runs so far keep the margin they were priced with.
+  # this moment; its runs so far keep the margin they were priced with. An
+  # organization paying for its plan gets it with its next charge instead
+  # (SCRUM-71, Billing::Plans.assign_by_staff!).
   def assign_if_asked
     workspace = Workspace.find_by(id: params[:assign_workspace_id])
     return unless workspace
 
-    workspace.update!(ai_plan: @plan, ai_plan_assigned_at: Time.current)
-    AiMonthLimit.refresh_current!(workspace)
+    Billing::Plans.assign_by_staff!(workspace, @plan)
   end
 end

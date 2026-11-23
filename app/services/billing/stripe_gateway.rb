@@ -11,7 +11,9 @@ module Billing
     Card = Data.define(:payment_method_id, :brand, :last4, :exp_month, :exp_year)
     # status: :succeeded · :failed (failure_message is the bank's reason, in
     # plain words) · :requires_action (redirect_url finishes 3-D Secure) ·
-    # :pending (still processing).
+    # :pending (still processing) · :unknown (Stripe could not be reached or
+    # failed itself: the charge may or may not have happened, so it is asked
+    # again with the same idempotency key, never charged afresh).
     ChargeResult = Data.define(:status, :payment_intent_id, :failure_message, :redirect_url) do
       def succeeded? = status == :succeeded
       def failed? = status == :failed
@@ -87,10 +89,23 @@ module Billing
     rescue Stripe::CardError => e
       ChargeResult.new(status: :failed, payment_intent_id: e.error&.payment_intent&.id,
                        failure_message: reason(e.error&.decline_code || e.code, e.message), redirect_url: nil)
+    rescue Stripe::APIConnectionError, Stripe::APIError, Stripe::RateLimitError, Stripe::IdempotencyError => e
+      Rails.logger.error("[Billing::StripeGateway] #{e.class}: #{e.message}")
+      ChargeResult.new(status: :unknown, payment_intent_id: nil, failure_message: "Stripe could not be reached", redirect_url: nil)
     rescue Stripe::StripeError => e
       Rails.logger.error("[Billing::StripeGateway] #{e.class}: #{e.message}")
       ChargeResult.new(status: :failed, payment_intent_id: nil,
                        failure_message: "the payment could not be made (#{e.class.name.demodulize})", redirect_url: nil)
+    end
+
+    # Gives up a payment still waiting for 3-D Secure, so it can't be paid
+    # later by surprise. A payment that can't be cancelled any more is left.
+    def cancel_payment(payment_intent_id)
+      client.v1.payment_intents.cancel(payment_intent_id)
+      true
+    rescue Stripe::StripeError => e
+      Rails.logger.warn("[Billing::StripeGateway] cancel #{payment_intent_id}: #{e.class}: #{e.message}")
+      false
     end
 
     def payment_result(payment_intent_id)

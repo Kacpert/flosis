@@ -93,4 +93,25 @@ class Ksef::SendInvoiceJobTest < ActiveJob::TestCase
     end
     assert_equal "KSeF is not set up (KSEF_NIP and a token or certificate)", @invoice.reload.ksef_error
   end
+
+  test "NBP not answering is retried quietly, then staff hear" do
+    stub_request(:get, %r{api.nbp.pl}).to_return(status: 503)
+    client = FakeClient.new
+    with_client(client) do
+      assert_no_enqueued_emails { Ksef::SendInvoiceJob.perform_now(@invoice) }
+      assert_enqueued_with(job: Ksef::SendInvoiceJob)
+      Ksef::SendInvoiceJob.perform_now(@invoice.reload)
+      assert_enqueued_email_with(StaffMailer, :ksef_failed, args: [ @invoice ]) { Ksef::SendInvoiceJob.perform_now(@invoice.reload) }
+    end
+    assert_empty client.sent
+  end
+
+  test "an invoice that can't be built tells staff at once" do
+    with_client(FakeClient.new) do
+      with_env("INVOICE_SELLER_NIP" => "123") do
+        assert_enqueued_email_with(StaffMailer, :ksef_failed, args: [ @invoice ]) { Ksef::SendInvoiceJob.perform_now(@invoice) }
+      end
+    end
+    assert_equal "failed", @invoice.reload.ksef_status
+  end
 end

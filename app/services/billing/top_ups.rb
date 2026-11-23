@@ -30,11 +30,20 @@ module Billing
     # minutes. The account row is locked, so two runs finishing at once charge
     # once. Returns the charge, or nil.
     def auto!
-      @account.with_lock do
-        return nil unless due?
+      charger = Charger.new(@workspace)
+      charge = @account.with_lock do
+        next nil unless due?
 
-        Charger.new(@workspace).charge!(kind: "auto_top_up", net: @account.auto_top_up_usd, off_session: true)
+        charger.prepare!(kind: "auto_top_up", net: @account.auto_top_up_usd)
       end
+      charge && charger.attempt!(charge, off_session: true)
+    end
+
+    # The automatic top-up would be charged now.
+    def due?
+      @account.auto_top_up && @account.plan_running? && @account.card? &&
+        automatic_this_month < AUTO_TOP_UPS_PER_MONTH &&
+        Ledger.balance(@workspace) <= 0 && limit_reached? && !held_back?
     end
 
     def automatic_this_month
@@ -47,22 +56,21 @@ module Billing
 
     private
 
-    def due?
-      @account.auto_top_up && @account.plan_running? && @account.card? &&
-        automatic_this_month < AUTO_TOP_UPS_PER_MONTH &&
-        Ledger.balance(@workspace) <= 0 && limit_reached? && !recent_attempt?
-    end
-
     def limit_reached?
       limit = AiMonthLimit.for(@workspace, Date.current)&.limit_usd
       limit.present? && Ledger.plan_spend(@workspace) >= limit
     end
 
-    # A failed automatic top-up pauses AI until someone acts; it is not tried
-    # again by every run that finishes after it.
-    def recent_attempt?
+    # One is being charged right now; or the last one failed and nobody has
+    # acted since: AI stays paused until the card is changed or a top-up is
+    # bought by hand, rather than every finished run trying the card again.
+    def held_back?
       last = @workspace.billing_charges.automatic_top_ups.where(created_at: Date.current.in_time_zone.all_month).order(:id).last
-      last.present? && (last.failed? || last.created_at > 5.minutes.ago) && !last.succeeded?
+      return false if last.nil? || last.succeeded?
+      return last.created_at > 5.minutes.ago unless last.failed?
+
+      acted = [ @account.card_saved_at, @workspace.billing_charges.top_ups.succeeded.maximum(:succeeded_at) ].compact.max
+      acted.nil? || acted < last.created_at
     end
   end
 end

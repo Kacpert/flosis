@@ -45,8 +45,7 @@ module Billing
     end
 
     def auto_top_up_coming?(workspace, account)
-      account.auto_top_up && account.card? && Ledger.automatic_top_ups(workspace) < AUTO_TOP_UPS_PER_MONTH &&
-        !workspace.billing_charges.automatic_top_ups.failed.where(created_at: Date.current.in_time_zone.all_month).exists?
+      account.auto_top_up && TopUps.new(workspace).due?
     end
   end
 end

@@ -17,9 +17,13 @@ module Billing
     def save!(session_id, return_url: nil)
       card = Billing.gateway.card_from_setup(@account, session_id)
       @account.update!(stripe_payment_method_id: card.payment_method_id, card_brand: card.brand, card_last4: card.last4,
-                       card_exp_month: card.exp_month, card_exp_year: card.exp_year)
+                       card_exp_month: card.exp_month, card_exp_year: card.exp_year, card_saved_at: Time.current)
       failing = @account.plan_running? && @workspace.billing_charges.plan_charges.failed.order(:id).last
-      failing && Charger.new(@workspace).attempt!(failing, off_session: false, return_url: return_url)
+      return Charger.new(@workspace).attempt!(failing, off_session: false, return_url: return_url) if failing
+
+      # A failed automatic top-up paused AI: the new card is tried at once.
+      TopUps.new(@workspace).auto! if @account.auto_top_up
+      nil
     end
   end
 end

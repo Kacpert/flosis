@@ -151,6 +151,11 @@ class Workshop::BillingController < Workshop::BaseController
 
   # Where a charge landed, said as Billing says it.
   def finish(charge)
+    unless charge
+      flash[:clar_toast] = "Nothing to charge: the plan is already active or being paid for."
+      return redirect_to(workshop_billing_path)
+    end
+
     case charge.status
     when "succeeded" then flash[:notice] = Billing::Copy.charged(charge)
     when "requires_action" then return redirect_to(charge.redirect_url, allow_other_host: true, status: :see_other)
