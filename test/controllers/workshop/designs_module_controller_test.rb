@@ -476,14 +476,16 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
   end
 
   # Kacper (2026-11-19): moving to another screen reloads the page, and the
-  # message being typed went with it. The composer keeps it per thread.
-  test "the composer keeps what is typed per thread" do
+  # message being typed went with it. The composer keeps it per thread; its
+  # images too, since 2026-11-23 (lib/designs_crawler/test/designs_images.test.mjs).
+  test "the composer keeps what is typed and the images waiting per thread" do
     with_designs do |repo|
       thread = thread_with_work(repo)
 
       get workshop_designs_overview_path(thread: thread.id)
 
       assert_select "textarea[data-controller=designs-composer][data-designs-composer-draft-key-value=?]", "designs.draft.#{thread.id}"
+      assert_select "input[type=file][data-designs-images-target=input][data-draft-key=?]", "designs.images.#{thread.id}"
     end
   end
 
