@@ -15,8 +15,12 @@ export default class extends Controller {
   static targets = ["text"]
   static values = { value: String, message: { type: String, default: "Checkout command copied" } }
 
+  // Kacper, 2026-11-23: it still copied nothing. The view set the value as
+  // data-clar-copy-value, which Stimulus does not read (data-clar-copy-value-value),
+  // and an empty copy went through as copied. Nothing to copy is a failure now.
   copy() {
     const text = this.valueValue
+    if (!text) return this.failed()
     if (this.copyBySelection(text)) return this.announce(this.messageValue)
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
