@@ -35,6 +35,25 @@ class AiMonthLimit < ApplicationRecord
       (month == Date.current.beginning_of_month ? new(workspace: workspace, month: month, **from_plan(workspace)) : nil)
   end
 
+  # SCRUM-71: a month a plan was paid for is measured against what was paid:
+  # the plan charge (prorated from starts_on in a first month), plus each
+  # upgrade's difference (add: true). Repricing the plan never moves it.
+  def self.paid!(workspace, month:, plan:, limit_usd:, starts_on: nil, add: false)
+    row = find_or_initialize_by(workspace: workspace, month: month.beginning_of_month)
+    row.limit_usd = add && row.persisted? ? row.limit_usd.to_d + limit_usd : limit_usd
+    row.ai_plan = plan
+    row.plan_name = plan&.name
+    row.starts_on = starts_on && starts_on > row.month ? starts_on : nil unless add
+    row.save!
+    row
+  rescue ActiveRecord::RecordNotUnique
+    retry
+  end
+
+  def partial?
+    starts_on.present? && starts_on > month
+  end
+
   def self.from_plan(workspace)
     plan = workspace.ai_plan
     { ai_plan: plan, plan_name: plan&.name, limit_usd: plan&.monthly_price_usd }

@@ -11,6 +11,9 @@ class BillingCharge < ApplicationRecord
   belongs_to :created_by, class_name: "User", optional: true
   has_one :invoice, dependent: :restrict_with_error
 
+  # Where 3-D Secure continues, when Stripe asked for it (not stored).
+  attr_accessor :redirect_url
+
   validates :kind, inclusion: { in: KINDS }
   validates :status, inclusion: { in: STATUSES }
   validates :vat_treatment, inclusion: { in: %w[pl_23 eu_reverse_charge non_eu] }

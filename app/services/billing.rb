@@ -24,4 +24,15 @@ module Billing
   def self.gateway
     @@gateway ||= StripeGateway.new
   end
+
+  # A charge went through and its invoice exists: send it to KSeF, which
+  # emails it to the admins once it has a number.
+  def self.invoice_issued(invoice)
+    Ksef::SendInvoiceJob.perform_later(invoice) if invoice && defined?(Ksef::SendInvoiceJob)
+  end
+
+  # A charge failed: the admins are told (each attempt of a plan charge).
+  def self.charge_failed(charge, first_attempt:)
+    Notices.charge_failed(charge, first_attempt: first_attempt) if defined?(Notices)
+  end
 end
