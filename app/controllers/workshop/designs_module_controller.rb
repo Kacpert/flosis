@@ -77,6 +77,7 @@ class Workshop::DesignsModuleController < Workshop::BaseController
     # as it was, so its canvas shows master's screens.
     @master_for_branch = @slot != Designs::Repo::MASTER && @ahead.zero? && !@publisher.published?(@slot)
     @slot = Designs::Repo::MASTER if @master_for_branch
+    @link_template = link_template(live, finished)
     screens = published_screens(@slot)
     @contexts = screens[:contexts]
     @screens = screens[:screens]
@@ -94,6 +95,21 @@ class Workshop::DesignsModuleController < Workshop::BaseController
     @frame_src = @publisher.grant_url(@slot, @frame_path)
   rescue Designs::Publisher::Error, ArgumentError
     @frame_src = nil
+  end
+
+  # Copy link's link (Kacper, 2026-11-23: a link to send someone): the short
+  # link to the screen shown, its {context} and {screen} filled in by
+  # designs-canvas. A live task thread's work in progress (/wip), a finished
+  # one's version, master's on master; none for a thread with no task on its
+  # own branch.
+  def link_template(live, finished)
+    if @slot == Designs::Repo::MASTER
+      "#{@publisher.url(Designs::Repo::MASTER, nil)}/designs/{context}/{screen}.html"
+    elsif @thread&.task && (live || finished)
+      "#{@publisher.url(Designs::BranchNames.slug(@thread.task), nil)}#{'/wip' if live}/{context}/{screen}"
+    end
+  rescue ArgumentError
+    nil
   end
 
   # A finished thread's copy: its accepted copy, else (merged before those
