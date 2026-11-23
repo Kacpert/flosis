@@ -42,6 +42,7 @@ module AiRun::Recorder
                       .merge(status: status, duration_ms: duration_ms, cost_usd: cost, margin_percent: margin, price_usd: price))
     AiMonthLimit.ensure_current!(workspace)
     AiModel.register!(totals[:model])
+    Billing::Funding.assign!(run)
     run
   rescue StandardError => e
     report(e)
