@@ -1,10 +1,13 @@
 <%# The acceptance under way (Kacper, 2026-11-22, mockups v2 step 2): its
-    steps as they stand, in the polled chat, and where the person goes next. %>
+    steps as they stand, in the polled chat, and where the person goes next.
+    The same steps fill the Accept dialog once it is clicked, and a window of
+    their own while it runs (inline: false, 2026-11-23). %>
 <% key = Designs::ThreadNames.key(thread.task) %>
-<div class="rounded-[12px] border border-[color:var(--border)] bg-[var(--surface-2)] px-3.5 py-3 flex flex-col gap-2" data-acceptance>
+<% inline = local_assigns.fetch(:inline, true) %>
+<div class="rounded-[12px] border border-[color:var(--border)] bg-[var(--surface-2)] px-3.5 py-3 flex flex-col gap-2" <%= "data-acceptance" if inline %>>
   <div class="text-[12px] font-bold clar-text-text">Accepting the designs</div>
   <% steps.each do |step| %>
-    <div class="flex items-center gap-2.5 text-[12.5px] <%= step[:state] == :waiting ? 'clar-text-faint' : 'clar-text-text' %>">
+    <div class="flex items-center gap-2.5 text-[12.5px] <%= step[:state] == :waiting ? 'clar-text-faint' : 'clar-text-text' %>" data-step>
       <% if step[:state] == :done %>
         <span class="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-none" style="background: var(--success-soft); color: var(--success);"><%= designs_icon(:check, 11) %></span>
       <% elsif step[:state] == :running %>

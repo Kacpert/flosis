@@ -880,6 +880,15 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       assert_equal [ [ "Candidate › Application form", "designs/candidate/apply.html" ] ],
                    css_select("[data-clar-modal-panel-id-value=merge-thread] [data-changed-screen]").map { |row| row.css("span").map { |part| part.text.squish } }
       assert_not_includes dialog_text, "</span>"
+      # Kacper, 2026-11-23: once Accept is clicked, the dialog shows the steps
+      # it waits for (designs-accepting), the first under way.
+      dialog = css_select("[data-clar-modal-panel-id-value=merge-thread]").sole
+      assert dialog.at_css("form[data-action~='submit->designs-accepting#start']")
+      progress = dialog.at_css("[data-designs-accepting-target=progress]")
+      assert_includes progress["class"], "hidden"
+      assert_equal [ "Merging into master", "Writing SP-1051's description v#{version}", "Back to SP-1051" ],
+                   progress.css("[data-step]").map { |step| step.text.squish.delete_suffix("…") }
+      assert dialog.at_css("[data-designs-accepting-target=confirm]")
       assert_not_includes response.body, "Merge to master"
       assert_not_includes response.body, "Flosis first makes components"
     end
@@ -1050,6 +1059,11 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
       assert_includes response.body, "Accepting"
       assert_select "button[data-clar-modal-id-param=merge-thread]", count: 0
       assert_select "textarea[name=text]", count: 0
+      # Kacper, 2026-11-23: the steps in a window of their own too, until Hide.
+      window = css_select("[data-acceptance-window]").sole
+      assert_includes window.text.squish, "Making components from the thread's screens"
+      assert window.at_css("button[data-action~='designs-accepting#hide']")
+      assert_match(/\Adesigns\.acceptanceHidden\.#{thread.id}\.\d+\z/, window["data-designs-accepting-key-value"])
     end
   end
 
