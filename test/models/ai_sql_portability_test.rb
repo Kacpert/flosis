@@ -68,4 +68,26 @@ class AiSqlPortabilityTest < ActiveSupport::TestCase
     refute_match(/\.jsonb\b/, source)
     refute_match(/\bwhere:/, source)
   end
+
+  # SCRUM-71: the billing ledger, the gate, the month start and retries.
+  test "the billing queries are portable SQL" do
+    billing_ready!(@workspace)
+    Billing::Plans.new(@workspace.reload).choose!(billing_plan(name: "Team", price: 300))
+    statements = sql_of do
+      Billing::Ledger.plan_spend(@workspace)
+      Billing::Ledger.top_up_spent(@workspace)
+      Billing::Ledger.balance(@workspace)
+      Billing::Ledger.automatic_top_ups(@workspace)
+      Billing::Allowance.for(@workspace).paused?
+      Billing::TopUps.new(@workspace).auto!
+      Billing::MonthStartJob.perform_now(Date.current.next_month.beginning_of_month)
+      Billing::RetryJob.perform_now
+      Billing::Notices.after_run(@workspace)
+      InvoiceCounter.next_number!(Date.current)
+      @workspace.invoices.newest_first.to_a
+      @workspace.billing_charges.automatic_top_ups.succeeded.charged_in_month(Date.current).where(id: ..1).count
+    end
+    offending = statements.grep(POSTGRES_ONLY)
+    assert_empty offending, offending.join("\n")
+  end
 end
