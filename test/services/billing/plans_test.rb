@@ -110,4 +110,12 @@ class Billing::PlansTest < ActiveSupport::TestCase
       assert_equal 30000, @billing_gateway.charges.last[:cents]
     end
   end
+
+  test "an EU business's upgrade summary carries no VAT" do
+    billing_ready!(@workspace, country: "DE", vat_number: "DE123456789")
+    travel_to(Time.zone.local(2026, 11, 1, 6)) { plans(Date.current).choose!(@team) }
+    travel_to Time.zone.local(2026, 11, 16, 12) do
+      assert_equal "Growth starts now: $150.00 is charged today for 16–30 Nov, and this month’s limit becomes $450.00.", plans(Date.current).preview(@growth).summary
+    end
+  end
 end

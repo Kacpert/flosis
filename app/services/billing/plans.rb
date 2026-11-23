@@ -34,16 +34,16 @@ module Billing
         net = Proration.amount(plan.monthly_price_usd - current.monthly_price_usd, @today)
         limit = month_limit + net
         Preview.new(plan: plan, kind: :now, net: net, limit_after: limit, period: period,
-                    summary: "#{plan.name} starts now: #{money(net)} + VAT is charged today for #{days}, and this month’s limit becomes #{money(limit)}.")
+                    summary: "#{plan.name} starts now: #{money(net)}#{plus_vat} is charged today for #{days}, and this month’s limit becomes #{money(limit)}.")
       elsif account.plan_running?
         Preview.new(plan: plan, kind: :next_month, net: 0, limit_after: nil, period: nil,
                     summary: "#{plan.name} starts on #{next_first}. This month stays on #{current.name}.")
       else
         net = Proration.amount(plan.monthly_price_usd, @today)
         summary = if account.ready?
-          "#{plan.name} starts now: #{money(net)} + VAT is charged today for #{days}, and this month’s limit is #{money(net)}."
+          "#{plan.name} starts now: #{money(net)}#{plus_vat} is charged today for #{days}, and this month’s limit is #{money(net)}."
         else
-          "#{plan.name} starts once billing details and a card are added: #{money(net)} + VAT for the days left this month."
+          "#{plan.name} starts once billing details and a card are added: #{money(net)}#{plus_vat} for the days left this month."
         end
         Preview.new(plan: plan, kind: :now, net: net, limit_after: net, period: period, summary: summary)
       end
@@ -121,6 +121,11 @@ module Billing
 
     def money(amount)
       AiCostFormatter.money(amount)
+    end
+
+    # " + VAT" for a buyer who pays Polish VAT (or hasn't said where they are yet).
+    def plus_vat
+      !account.details_complete? || account.vat.charged? ? " + VAT" : ""
     end
   end
 end
