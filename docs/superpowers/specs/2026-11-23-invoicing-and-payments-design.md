@@ -129,3 +129,29 @@ with balance figures and the paused block; banners above the top bar for admins
 paused note + disabled controls in chats, Agents & Automations, Bug Reporting;
 hidmin organization Payments & invoices with KSeF status and Retry; usage statement
 PDFs; emails per `designs/emails/*`.
+
+## As built (2026-11-23)
+
+- **Stripe, checked against the sandbox** (Ruby on SaaS sp. z o.o. sandbox, PL, PLN
+  default): Checkout in setup mode saves the card (filled with 4242 on Stripe's real
+  page), PaymentIntents take the charge. Since API 2026-09-30 Stripe refuses
+  `payment_method_types`; the gateway sends `allowed_payment_method_types: ["card"]`.
+  Decline (insufficient funds, expired card) and 3-D Secure (redirect, then
+  `payment_return`) come back as the gateway says. No webhooks are needed.
+- **KSeF, checked against the Ministry's TEST environment**: FA(3) invoices for all
+  three VAT treatments were accepted (self-signed certificate on TE; token login also
+  works). The KOD I link opens "Faktura znajduje się w KSeF". `rake ksef:smoke`.
+- **Configuration (ENV)**: `STRIPE_SECRET_KEY` (falls back to
+  `STRIPE_SANDBOX_SECRET_KEY`), `INVOICE_SELLER_NAME/NIP/STREET/POSTAL_CODE/CITY`,
+  `INVOICE_NUMBER_PREFIX` (FV), `KSEF_ENV` (test/demo/production), `KSEF_NIP`,
+  `KSEF_TOKEN` or `KSEF_CERT_PATH` + `KSEF_KEY_PATH` (+ `KSEF_KEY_PASSWORD`),
+  `BILLING_MAIL_FROM`.
+- **Deviations from the designs**: the invoice PDF link shows "Soon" until KSeF has
+  the number (the PDF must carry it); the paused note says "payment not through" when
+  the pause is a failed payment rather than the limit; flashes say "The invoice is on
+  its way to every admin" (it is emailed once KSeF accepts it, not at the charge).
+- **Open, for Kacper / the accountant**: seller details and numbering series; whether
+  "no plan" should pause AI (today an ended plan means free AI); whether a top-up
+  balance may be used while a payment is failing; the reverse-charge wording and the
+  NBP table date (see the KSeF module's notes); production KSeF credentials and live
+  Stripe keys.
