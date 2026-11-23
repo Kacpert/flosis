@@ -37,7 +37,7 @@ gem "rqrcode", "~> 3.2"
 gem "stripe", "~> 21.1"
 
 # Pagination
-gem "pagy", "~> 9.0"
+gem "pagy", "~> 43.6"
 
 # CSV support
 gem "csv"
