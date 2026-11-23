@@ -4,7 +4,7 @@ require "test_helper"
 # and its attachments, so "read tasks/SCRUM-70/scrum-70.md" is all their AI
 # needs.
 class TaskFileTest < ActiveSupport::TestCase
-  LINK = "https://preview.example/test-workspace/elvium/SCRUM-70/design".freeze
+  LINK = "https://preview.example/elvium/SCRUM-70".freeze
 
   setup do
     @root = Pathname(Dir.mktmpdir("preview"))

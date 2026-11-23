@@ -43,6 +43,14 @@ class Designs::Publisher
   # The design runtime every preview serves (#current_runtime!).
   RUNTIME_SOURCE = Rails.root.join("lib/designs_template", Designs::Repo::RUNTIME).freeze
 
+  # A task's key in its link: its Jira key, or task-<id> for a task with none
+  # (Designs::BranchNames.slug). Unanchored, as a route's constraint must be.
+  TASK_KEY = /[A-Z][A-Z0-9_]+-\d+|task-\d+/
+
+  # A screen, which a task's link names as <context>/<screen>: no dot in
+  # either name, so that a screen's changes (x.changes.html) stay a page.
+  SCREEN_PAGE = %r{\Adesigns/([^/.]+)/([^/.]+)\.html\z}
+
   # What a context id may be made of, the same for a dimension and a value
   # (the design repo's README says so). A link carries contexts as they are.
   CONTEXT = /\A[A-Za-z0-9_-]+\z/
@@ -154,11 +162,18 @@ class Designs::Publisher
     locked { FileUtils.rm_rf(self.class.root.join(folder, slot)) }
   end
 
-  # A lasting link, for Jira and for people to keep: to the project's designs
-  # (master) at /<organization>/<project>/design/<page>, or to a task's last
-  # approved version at /<organization>/<project>/<key>/design/<page>. Whoever
-  # opens one signs in, and must be someone the Workshop shows the project to
-  # (Designs::PreviewEntriesController). Work in progress has none.
+  # A lasting link, for Jira and for people to keep, which asks whoever opens
+  # it to sign in (Designs::PreviewEntriesController):
+  #
+  #   /<organization>/<project>/design/<page>   the project's designs (master)
+  #   /<project>/<KEY>                          a task's designs (Kacper, 2026-11-23):
+  #   /<project>/<KEY>/<context>/<screen>       its last accepted version, else its
+  #   /<project>/<KEY>/<page>                   work in progress
+  #
+  # A task's link names no organization: whoever opens it is looked up in
+  # their own. Its KEY is the task's Jira key or task-<id> (TASK_KEY); a screen
+  # (designs/<context>/<screen>.html) gets the short form, any other page goes
+  # as a path. Work in progress has none (/wip is the reader's to add).
   #
   # The slot must be one publish! would take. The page is escaped a segment at
   # a time, so a space, #, ? or % in a file name still makes a working link. A
@@ -168,19 +183,30 @@ class Designs::Publisher
     slot = check_slot!(slot)
     raise ArgumentError, "#{slot} is work in progress, which has no lasting link" if slot.start_with?("wip/")
 
-    within = slot == Designs::Repo::MASTER ? "design" : "#{slot}/design"
+    if slot == Designs::Repo::MASTER
+      # No page: the designs themselves.
+      return "#{self.class.base_url}/#{names}/design" if path.nil?
+
+      return link("#{self.class.base_url}/#{names}/design", path, ctx)
+    end
+    raise ArgumentError, "#{slot} is not a task's key, which a lasting link names" unless /\A(?:#{TASK_KEY.source})\z/.match?(slot)
+
+    task = "#{self.class.base_url}/#{self.class.label(project.name, "project")}/#{slot}"
     # No page: the version itself, which opens the list of what changed when
     # it has one (Designs::PreviewEntriesController).
-    return "#{self.class.base_url}/#{names}/#{within}" if path.nil?
+    return task if path.nil?
 
-    link(within, path, ctx)
+    screen = SCREEN_PAGE.match(check_page!(path))
+    return link(task, path, ctx) unless screen
+
+    with_contexts("#{task}/#{screen.captures.map { |name| CGI.escapeURIComponent(name) }.join("/")}", ctx)
   end
 
   # The page under a short-lived grant for the slot, where it is served
   # sandboxed (Designs::PreviewsController): where a lasting link sends whoever
   # opened it, and where the Designs screen shows its work.
   def grant_url(slot, path = "index.html", ctx: [])
-    link("#{Designs::PreviewGrant.issue(project, check_slot!(slot))}/design", path, ctx)
+    link("#{self.class.base_url}/#{names}/#{Designs::PreviewGrant.issue(project, check_slot!(slot))}/design", path, ctx)
   end
 
   # Gives the project a new token and moves its previews under it, which kills
@@ -283,10 +309,13 @@ class Designs::Publisher
     "#{self.class.label(project.workspace&.name, "organization")}/#{self.class.label(project.name, "project")}"
   end
 
-  # /<organization>/<project>/<within>/<page>, with the contexts.
-  def link(within, path, ctx)
+  # <prefix>/<page>, with the contexts.
+  def link(prefix, path, ctx)
     page = check_page!(path).split("/", -1).map { |segment| CGI.escapeURIComponent(segment) }.join("/")
-    link = "#{self.class.base_url}/#{names}/#{within}/#{page}"
+    with_contexts("#{prefix}/#{page}", ctx)
+  end
+
+  def with_contexts(link, ctx)
     contexts = Array(ctx).map { |value| check_context!(value) }
     contexts.empty? ? link : "#{link}?ctx=#{contexts.join(",")}"
   end
