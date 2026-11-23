@@ -52,10 +52,10 @@
     <% end %>
   <% elsif account.plan_state == "ended" %>
     <div class="text-[14px] font-bold clar-text-text">No plan since <%= (account.plan_ends_on + 1).strftime("%-d %b %Y") %></div>
-    <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">The plan was cancelled. Nothing is charged and nothing is paused. Invoices, usage statements and the <%= money.(@balance) %> top-up balance are kept.</p>
+    <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">The plan was cancelled. Nothing is charged<%= current_workspace.free_ai ? "" : ", and AI is paused until a plan is renewed" %>. Invoices, usage statements and the <%= money.(@balance) %> top-up balance are kept.</p>
   <% else %>
     <div class="text-[14px] font-bold clar-text-text">No plan yet</div>
-    <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">Choose a plan: the days left this month are charged now and are this month&rsquo;s limit, then the plan is charged on the 1st of each month.</p>
+    <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">Choose a plan: the days left this month are charged now and are this month&rsquo;s limit, then the plan is charged on the 1st of each month.<%= " AI is paused until then." unless current_workspace.free_ai %></p>
   <% end %>
 
   <div class="mt-auto flex flex-wrap items-center gap-2 pt-3.5">

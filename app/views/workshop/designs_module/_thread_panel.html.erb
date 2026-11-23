@@ -119,7 +119,7 @@
       <%= hidden_field_tag :state, nil, id: nil, data: { designs_canvas_target: "state" } %>
       <%= hidden_field_tag :mode, @mode %>
       <textarea name="text" rows="2" required data-ai-action <%= "disabled" if paused %> class="w-full resize-none border-0 outline-none bg-transparent text-[13px] leading-[1.5] clar-text-text"
-                placeholder="<%= paused ? 'AI paused: limit reached' : (thread.fresh? ? 'What should change? Navigate the app on the right, AI sees the page you’re on.' : 'Describe a change…') %>"
+                placeholder="<%= paused ? ai_paused_placeholder : (thread.fresh? ? 'What should change? Navigate the app on the right, AI sees the page you’re on.' : 'Describe a change…') %>"
                 data-controller="designs-composer" data-designs-composer-draft-key-value="designs.draft.<%= thread.id %>"
                 data-action="keydown->designs-composer#key paste->designs-images#paste"></textarea>
       <div class="flex items-center gap-2">

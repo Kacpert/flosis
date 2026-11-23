@@ -1,12 +1,13 @@
 # Whether an organization's AI may start a new run (SCRUM-71). Paused when:
+# - no_plan: no paid plan runs (none, not activated yet, ended), unless Flosis
+#   staff turned on free AI for the organization (workspaces.free_ai);
 # - limit: this month's plan spend reached what was paid and the top-up
 #   balance is empty (automatic top-up, if on, refills it first);
 # - retry_spent: this month's plan charge failed and AI already used the 15%
 #   of the plan price allowed while it is retried;
 # - unpaid: the charge is still unpaid after the 7 days of retries.
-# Open when there is no running plan (none, not activated yet, ended): nothing
-# is charged and nothing paused, as before billing. A run already going always
-# finishes; Time & HR and runs on a project's own Anthropic key never pause.
+# A run already going always finishes; Time & HR and runs on a project's own
+# Anthropic key never pause.
 module Billing
   class Allowance
     attr_reader :workspace, :reason, :plan_spend, :limit_usd, :charge, :today
@@ -20,6 +21,13 @@ module Billing
       return false if own_key || workspace.nil?
 
       self.for(workspace).paused?
+    end
+
+    # Why, for ClaudeCliService::PausedError: nil when open.
+    def self.reason_for(workspace, own_key: false)
+      return nil if own_key || workspace.nil?
+
+      self.for(workspace).reason
     end
 
     def initialize(workspace, today)
@@ -77,7 +85,10 @@ module Billing
 
     def compute
       @plan_spend = BigDecimal("0")
-      return unless running?
+      unless running?
+        @reason = :no_plan unless workspace.free_ai
+        return
+      end
 
       @plan_spend = Ledger.plan_spend(workspace, today)
       @charge = workspace.billing_charges.plan_charges.for_month(today).where.not(status: "abandoned").order(:id).last

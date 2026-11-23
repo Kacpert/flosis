@@ -83,12 +83,25 @@ class ClaudeCliServicePausedTest < ActiveSupport::TestCase
     assert_equal :unpaid, Billing::Allowance.for(@workspace).reason
   end
 
-  test "no plan: nothing is paused" do
+  test "no plan: AI is paused, unless Flosis turned on free AI for the organization" do
     @workspace.billing.update!(plan_state: "ended")
+    @workspace.update!(free_ai: false)
+    assert_equal :no_plan, Billing::Allowance.for(@workspace).reason
+    with_fake_claude_bin(answer) do
+      error = assert_raises(ClaudeCliService::PausedError) { service.start_session(prompt: "hi") }
+      assert_equal "AI paused: no plan.", error.message
+    end
+    @workspace.update!(free_ai: true)
     spend!(BigDecimal("1000"))
     assert_not Billing::Allowance.for(@workspace).paused?
     with_fake_claude_bin(answer) { service.start_session(prompt: "hi") }
     assert_equal "free", AiRun.last.funding
+  end
+
+  test "a plan chosen but not activated yet pauses AI too, without free AI" do
+    @workspace.billing.update!(plan_state: "pending")
+    @workspace.update!(free_ai: false)
+    assert_equal :no_plan, Billing::Allowance.for(@workspace).reason
   end
 
   test "an unknown-cost run counts nowhere" do

@@ -83,7 +83,7 @@ class Hidmin::WorkspacesController < Hidmin::BaseController
   end
 
   def workspace_params
-    params.require(:workspace).permit(:name, :workshop_enabled, :hr_access, :clients_enabled)
+    params.require(:workspace).permit(:name, :workshop_enabled, :hr_access, :clients_enabled, :free_ai)
   end
 
   def admin_params

@@ -20,6 +20,9 @@
           <% if @allowance.reason == :limit %>
             <b class="font-bold clar-text-warn">AI paused: limit reached.</b>
             <%= link_to "Top up in Billing.", workshop_billing_path(open: "top-up"), class: "font-semibold clar-text-primary no-underline" %>
+          <% elsif @allowance.reason == :no_plan %>
+            <b class="font-bold clar-text-warn">AI paused: no plan.</b>
+            <%= link_to "Choose a plan in Billing.", workshop_billing_path(open: "change-plan"), class: "font-semibold clar-text-primary no-underline" %>
           <% else %>
             <b class="font-bold clar-text-warn">AI paused: the payment is not through.</b>
             <%= link_to "Update the card in Billing.", workshop_billing_path, class: "font-semibold clar-text-primary no-underline" %>

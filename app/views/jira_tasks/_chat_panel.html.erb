@@ -43,7 +43,7 @@
     <form class="flex gap-2" data-action="submit->task-chat#sendMessage">
       <input type="text" data-ai-action <%= "disabled" if paused %>
              class="flex-1 px-4 py-2.5 rounded-full text-sm outline-none bg-[color:var(--surface)] clar-text-text border clar-divider"
-             placeholder="<%= paused ? "AI paused: limit reached" : "Ask Claude about this task..." %>"
+             placeholder="<%= paused ? ai_paused_placeholder : "Ask Claude about this task..." %>"
              data-task-chat-target="chatInput"
              data-action="keydown->task-chat#handleKeydown"
              autocomplete="off">

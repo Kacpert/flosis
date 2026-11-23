@@ -73,7 +73,7 @@ class Workshop::BillingControllerTest < ActionDispatch::IntegrationTest
       follow_redirect!
       assert_select "[data-plan-card]", text: /Starter, \$200 a month · next charge 1 Dec 2026/
       assert_select "[data-plan-card]", text: /\$246\.00 with 23% VAT, charged to Visa •••• 4242 on the 1st of each month, for that month\./
-      assert_select "[data-invoice='FV/2026/11/0001']", text: /Starter, 22–30 Nov/
+      assert_select "[data-invoice='FV/F/001/11/2026']", text: /Starter, 22–30 Nov/
     end
   end
 

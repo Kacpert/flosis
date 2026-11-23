@@ -20,7 +20,7 @@ class Hidmin::PaymentsTest < ActionDispatch::IntegrationTest
       get hidmin_workspace_path(@workspace)
       assert_select "[data-payment-status]", text: /Paid/
       assert_select "[data-payment-status]", text: /November paid on 1 Nov · next charge 1 Dec 2026/
-      assert_select "[data-ksef-invoice='FV/2026/11/0001']", text: /Sent\s+7010123456-20261101-8F3A21C9B0-4D/
+      assert_select "[data-ksef-invoice='FV/F/001/11/2026']", text: /Sent\s+7010123456-20261101-8F3A21C9B0-4D/
     end
   end
 
@@ -42,11 +42,11 @@ class Hidmin::PaymentsTest < ActionDispatch::IntegrationTest
     invoice = @workspace.invoices.sole
     invoice.update!(ksef_status: "failed", ksef_error: "Rejected by KSeF: buyer NIP not found (code 21405)")
     get hidmin_workspace_path(@workspace)
-    assert_select "[data-ksef-invoice='FV/2026/11/0001']", text: /Failed\s+Rejected by KSeF: buyer NIP not found \(code 21405\)/
+    assert_select "[data-ksef-invoice='FV/F/001/11/2026']", text: /Failed\s+Rejected by KSeF: buyer NIP not found \(code 21405\)/
     assert_enqueued_with(job: Ksef::SendInvoiceJob, args: [ invoice ]) do
       post retry_ksef_hidmin_invoice_path(invoice)
     end
-    assert_equal "Sending FV/2026/11/0001 to KSeF again.", flash[:clar_toast]
+    assert_equal "Sending FV/F/001/11/2026 to KSeF again.", flash[:clar_toast]
     assert_equal "pending", invoice.reload.ksef_status
   end
 

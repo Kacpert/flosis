@@ -24,6 +24,29 @@ module Billing
       "#{money(charge.gross_usd)} charged (#{net}#{span})"
     end
 
+    # Why AI is paused, and the way back, for an organization administrator
+    # (admin: true) or anyone else.
+    PAUSED = {
+      limit: [ "AI paused: limit reached.", "Top up in Billing.", "Ask an admin to top up." ],
+      no_plan: [ "AI paused: no plan.", "Choose a plan in Billing.", "Ask an admin to choose a plan." ],
+      retry_spent: [ "AI paused: the payment is not through.", "Update the card in Billing.", "Ask an admin to update the card." ],
+      unpaid: [ "AI paused: the payment is not through.", "Update the card in Billing.", "Ask an admin to update the card." ]
+    }.freeze
+
+    def paused_parts(reason)
+      PAUSED.fetch(reason || :limit)
+    end
+
+    def paused(reason, admin:)
+      title, admin_way, member_way = paused_parts(reason)
+      "#{title} #{admin ? admin_way : member_way}"
+    end
+
+    # The message box's placeholder: "AI paused: limit reached".
+    def paused_short(reason)
+      paused_parts(reason).first.delete_suffix(".")
+    end
+
     # The flash after a charge went through.
     def charged(charge)
       invoice = "The invoice is on its way to every admin."

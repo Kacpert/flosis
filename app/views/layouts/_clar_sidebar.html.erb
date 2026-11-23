@@ -127,9 +127,13 @@
     <% if paused %>
       <%# SCRUM-71: the organization's AI is paused, so the card turns amber
           and says when it comes back. %>
-      <% back = ai_allowance.reason == :limit ? "AI limit reached &middot; back on #{ai_allowance.back_on.strftime('%-d %b')} or after a top-up" : "Payment failed &middot; back once it&rsquo;s paid" %>
+      <% back, why = case ai_allowance.reason
+                     when :limit then [ "AI limit reached &middot; back on #{ai_allowance.back_on.strftime('%-d %b')} or after a top-up", "this month's AI limit is reached" ]
+                     when :no_plan then [ "No plan &middot; back once one is chosen in Billing", "the organization has no plan" ]
+                     else [ "Payment failed &middot; back once it&rsquo;s paid", "a payment is unpaid" ]
+                     end %>
       <div class="clar-status-card !border-[color:var(--warn)] !bg-[color:var(--warn-soft)]" data-clar-sidebar-collapsed-only-hide data-ai-paused-card
-           title="Claude Opus is paused: <%= ai_allowance.reason == :limit ? "this month's AI limit is reached" : "a payment is unpaid" %>">
+           title="Claude Opus is paused: <%= why %>">
         <div class="flex items-center gap-[7px] text-[11.5px] font-bold clar-text-warn">
           <span class="clar-dot" style="background: var(--warn);"></span>Claude Opus &middot; paused
         </div>

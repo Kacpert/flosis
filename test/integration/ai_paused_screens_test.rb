@@ -59,4 +59,27 @@ class AiPausedScreensTest < ActionDispatch::IntegrationTest
       assert_select "[data-billing-banner=payment-failed]", text: /Payment failed, update your card\. AI keeps running up to \$30\.00 while we retry \(day 3 of 7\)\. Update card/
     end
   end
+
+  test "no plan and no free AI: the admin is sent to choose a plan, a member to an admin" do
+    @workspace.update!(free_ai: false)
+    enter_workshop(users(:one))
+    get workshop_process_path
+    assert_select "[data-billing-banner=no-plan]", text: /AI paused: Test Workspace has no plan\. Choose a plan in Billing/
+    assert_select "[data-ai-paused-card]", text: /No plan · back once one is chosen in Billing/
+    assert_select "[data-paused-note=admin]", text: /AI paused: no plan\..*Choose a plan in Billing\./m
+    sign_out
+    enter_workshop(users(:two))
+    get workshop_bugs_path
+    assert_select "[data-billing-banner]", count: 0
+    assert_select "[data-paused-note=member]", text: /Ask an admin to choose a plan\./
+  end
+
+  test "Flosis staff turn free AI on in hidmin" do
+    users(:one).update!(flosis_staff: true)
+    @workspace.update!(free_ai: false)
+    sign_in_as(users(:one))
+    patch hidmin_workspace_path(@workspace), params: { workspace: { free_ai: "1" } }
+    assert @workspace.reload.free_ai
+    assert_not Billing::Allowance.for(@workspace).paused?
+  end
 end

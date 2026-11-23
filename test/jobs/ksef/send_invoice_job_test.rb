@@ -56,7 +56,7 @@ class Ksef::SendInvoiceJobTest < ActiveJob::TestCase
     assert_equal BigDecimal("167.96"), @invoice.vat_pln
     assert_equal Date.new(2026, 10, 30), @invoice.exchange_rate_date
     assert_equal client.sent.first, @invoice.ksef_xml
-    assert_includes @invoice.ksef_xml, "FV/2026/11/0001"
+    assert_includes @invoice.ksef_xml, "FV/F/001/11/2026"
     assert_match %r{\Ahttps://qr-test.ksef.mf.gov.pl/invoice/5261040828/01-11-2026/}, with_env(@env) { @invoice.qr_url }
     assert with_env(@env) { InvoicePdf.new(@invoice).render }.start_with?("%PDF")
   end
@@ -69,7 +69,7 @@ class Ksef::SendInvoiceJobTest < ActiveJob::TestCase
       assert_equal "failed", @invoice.reload.ksef_status
       assert_equal "Rejected by KSeF: buyer NIP not found (code 21405)", @invoice.ksef_error
       mail = StaffMailer.ksef_failed(@invoice)
-      assert_equal "KSeF send failed: FV/2026/11/0001 · #{@workspace.name}", mail.subject
+      assert_equal "KSeF send failed: FV/F/001/11/2026 · #{@workspace.name}", mail.subject
       assert_includes mail.text_part.body.to_s, "Reason: Rejected by KSeF: buyer NIP not found (code 21405)"
       Ksef::SendInvoiceJob.perform_now(@invoice.reload)
       assert_equal "sent", @invoice.reload.ksef_status

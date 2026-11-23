@@ -87,15 +87,19 @@
         <% elsif billed %>
           At the limit, runs are paid from the top-up balance at cost + 30%; with none left, AI pauses.
         <% else %>
-          The plan isn&rsquo;t active yet, so nothing is charged and nothing pauses.
+          The plan isn&rsquo;t active yet, so nothing is charged<%= current_workspace.free_ai ? "" : " and AI is paused until it is" %>.
         <% end %>
       </span>
     </div>
   <% else %>
     <div class="mt-3.5 rounded-[10px] bg-[var(--surface-2)] px-3.5 py-3 text-[12.5px] clar-text-muted">
-      <b class="clar-text-text"><%= current_workspace.name %> <%= current ? "has no plan" : "had no plan in #{@month.strftime('%B')}" %></b>, so there <%= current ? "is" : "was" %> no monthly limit, nothing
-      <%= current ? "is" : "was" %> charged and nothing <%= current ? "is" : "was" %> paused. Every run is still recorded and priced, and past months never
-      change. <%= link_to "Choose a plan in Billing.", workshop_billing_path, class: "font-semibold clar-text-primary no-underline" %>
+      <% if current %>
+        <b class="clar-text-text"><%= current_workspace.name %> has no plan</b>, so there is no monthly limit and nothing is charged.
+        <%= current_workspace.free_ai ? "Flosis keeps its AI on without a plan." : "AI is paused until a plan is chosen." %>
+      <% else %>
+        <b class="clar-text-text"><%= current_workspace.name %> had no plan in <%= @month.strftime("%B") %></b>, so there was no monthly limit and nothing was charged.
+      <% end %>
+      Every run is still recorded and priced, and past months never change. <%= link_to "Choose a plan in Billing.", workshop_billing_path(open: "change-plan"), class: "font-semibold clar-text-primary no-underline" %>
     </div>
   <% end %>
 

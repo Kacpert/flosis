@@ -165,6 +165,7 @@ class ClaudeCliService
     end
   end
 
+
   # Marks the error a caller's block raises to stop a run (Designs' Stop): the
   # run is then recorded as stopped rather than failed.
   module StopSignal; end
@@ -591,13 +592,13 @@ class ClaudeCliService
   # SCRUM-71: a paused organization starts no new run, unless it runs on the
   # project's own key. Asking must never stop a run by its own failure.
   def refuse_if_paused!
-    paused = begin
-      Billing::Allowance.paused_for?(@attribution.workspace, own_key: own_key?)
+    reason = begin
+      Billing::Allowance.reason_for(@attribution.workspace, own_key: own_key?)
     rescue StandardError => e
       Rails.error.report(e, handled: true, context: { gate: "ClaudeCliService#refuse_if_paused!" })
-      false
+      nil
     end
-    raise PausedError if paused
+    raise PausedError, Billing::Copy.paused_parts(reason).first if reason
   end
 
   # Whether the CLI ended with an answer rather than an error.

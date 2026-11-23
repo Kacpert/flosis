@@ -7,7 +7,7 @@ module AiPauseGuard
   extend ActiveSupport::Concern
 
   included do
-    helper_method :ai_allowance, :ai_paused?, :ai_paused_message, :ai_paused_who
+    helper_method :ai_allowance, :ai_paused?, :ai_paused_message, :ai_paused_who, :ai_paused_placeholder
   end
 
   private
@@ -29,12 +29,16 @@ module AiPauseGuard
     ai_allowance&.paused? || false
   end
 
+  def ai_paused_placeholder
+    Billing::Copy.paused_short(ai_allowance&.reason)
+  end
+
   def ai_paused_who
     workspace_admin? ? "admin" : "member"
   end
 
   def ai_paused_message
-    "AI paused: limit reached. #{ai_paused_who == 'admin' ? 'Top up in Billing.' : 'Ask an admin to top up.'}"
+    Billing::Copy.paused(ai_allowance&.reason, admin: ai_paused_who == "admin")
   end
 
   # A before_action for buttons that only queue an AI job.

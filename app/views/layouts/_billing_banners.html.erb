@@ -3,7 +3,11 @@
     every retry; past 80% of the limit, the limit reached and the automatic
     top-ups used up are amber, with the way to Billing. %>
 <% allowance = workspace_admin? ? ai_allowance : nil %>
-<% if allowance&.running? %>
+<% if allowance&.reason == :no_plan %>
+  <div role="alert" data-billing-banner="no-plan" class="flex items-center justify-center gap-3 px-4 py-2 text-[13px] text-center [&_a]:font-bold [&_a]:text-inherit [&_a]:underline border-b border-[color:var(--warn)] bg-[color:var(--warn-soft)] clar-text-text">
+    <span>AI paused: <%= current_workspace.name %> has no plan. <%= link_to "Choose a plan in Billing", workshop_billing_path(open: "change-plan") %></span>
+  </div>
+<% elsif allowance&.running? %>
   <% money = ->(amount) { Billing::Copy.money(amount) } %>
   <% banner = "flex items-center justify-center gap-3 px-4 py-2 text-[13px] text-center [&_a]:font-bold [&_a]:text-inherit [&_a]:underline" %>
   <% warn = "#{banner} border-b border-[color:var(--warn)] bg-[color:var(--warn-soft)] clar-text-text" %>
