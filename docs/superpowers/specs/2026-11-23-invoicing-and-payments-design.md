@@ -20,8 +20,10 @@ and every decision the product spec leaves open. Organizations are `Workspace`.
    unless Flosis staff turn on **Free AI** for the organization in /hidmin
    (`workspaces.free_ai`, off for new organizations; the migration turns it on for
    every organization that exists, so nothing stops at deploy).
-3. **While a payment is failing, the top-up balance is not used**: 15% of the plan
-   price, then paused (product spec, literally).
+3. **While a payment is failing** (Kacper, 2026-11-24): 15% of the plan price, then
+   the top-up balance as a buffer, then paused. Once the month is paid, what the
+   top-up paid meanwhile becomes the plan's (plan margin, up to the paid limit) and
+   the balance gets it back. The plan's month never carries over.
 4. **Retries**: the first attempt on the 1st is day 1; retries on days 3, 5 and 7
    ("Retrying · day 3 of 7"). Each failed attempt emails the admins. After day 7 the
    charge is *unpaid*; changing the card charges it at once. On the next 1st a still
@@ -29,8 +31,8 @@ and every decision the product spec leaves open. Organizations are `Workspace`.
 5. **Seller: Ruby on SaaS Sp. z o.o., ul. Dalanowska 46/117, 03-566 Warszawa, NIP
    5242954651** (Kacper, 2026-11-24; ENV `INVOICE_SELLER_*` overrides it, which KSeF
    TEST needs). Numbers follow the company's format `PREFIX/NNN/MM/YYYY` (theirs:
-   FV/005/11/2026), gap-free per month; `INVOICE_NUMBER_PREFIX` defaults to `FV/F`, a
-   series of its own so Flosis never repeats a number the company gives by hand.
+   FV/005/11/2026), gap-free per month; `INVOICE_NUMBER_PREFIX` defaults to `FS` (Flosis,
+   Kacper 2026-11-24): FS/001/11/2026, a series of its own.
 6. **Monthly charge at 06:00 Warsaw on the 1st** (the design's emails say 06:0x);
    until it runs, the new month counts as paid.
 7. **Runs before release** get `funding = "legacy"` in the migration and never touch a
@@ -151,7 +153,5 @@ PDFs; emails per `designs/emails/*`.
   the number (the PDF must carry it); the paused note says "payment not through" when
   the pause is a failed payment rather than the limit; flashes say "The invoice is on
   its way to every admin" (it is emailed once KSeF accepts it, not at the charge).
-- **Open, for Kacper / the accountant**: whether a top-up balance may be used while a
-  payment is failing; the reverse-charge wording; the NBP table date (Kacper said the
-  invoice's own day, to be confirmed with the accountants; built as the working day
-  before, art. 31a); production KSeF credentials and live Stripe keys.
+- **Open, for Kacper / the accountant**: the reverse-charge wording; production KSeF
+  credentials and live Stripe keys. NBP: the last working day before (Kacper agreed).
