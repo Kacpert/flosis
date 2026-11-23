@@ -221,8 +221,8 @@ Rails.application.routes.draw do
 
   # A project's designs (Designs::Publisher). The lasting links ask whoever
   # opens them to sign in: /<organization>/<project>/design/<page> for master,
-  # /<organization>/<project>/<key>/design/<page> for a task's approved
-  # version. Each sends its reader on to the same page under a grant, served
+  # /<project>/<KEY>/… for a task's designs (below, last of all). Each sends
+  # its reader on to the same page under a grant, served
   # sandboxed: /<organization>/<project>/<grant>/design/<page>. A page whose
   # grant ran out is renewed at /<organization>/<project>/<grant>/renew/<page>
   # for whoever signs in and may see the project. Last, so that no page of the
@@ -232,6 +232,10 @@ Rails.application.routes.draw do
     get ":grant/renew(/*path)", to: "designs/preview_entries#renew", constraints: { grant: Designs::PreviewGrant::FORMAT },
                                 as: :designs_preview_renewal
     get "design(/*path)", to: "designs/preview_entries#master"
-    get ":key/design(/*path)", to: "designs/preview_entries#task", constraints: { key: /[A-Za-z0-9_-]+/ }
   end
+  # A task's designs by its project and key, no organization (Kacper,
+  # 2026-11-23): /<project>/<KEY>, /<project>/<KEY>/wip, a screen
+  # /<project>/<KEY>(/wip)/<context>/<screen>. The key must look like a
+  # ticket's, so no page of the app is ever taken for one.
+  get ":project/:key(/*path)", to: "designs/preview_entries#short", constraints: { key: Designs::Publisher::TASK_KEY }, format: false
 end
