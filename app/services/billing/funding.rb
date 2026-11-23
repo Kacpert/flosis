@@ -42,7 +42,7 @@ module Billing
 
     def after_run(workspace)
       Billing::AutoTopUpJob.perform_later(workspace) if workspace.billing_account.auto_top_up
-      Notices.after_run(workspace) if defined?(Notices)
+      Notices.after_run(workspace)
     end
   end
 end

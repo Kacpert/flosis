@@ -1,0 +1,8 @@
+<h1 style="margin:0 0 12px; font-size:18px; color:#1a1d24;">An invoice was not accepted by KSeF</h1>
+<table role="presentation" style="width:100%; border-collapse:collapse; font-size:14px; color:#1a1d24; margin:0 0 14px;">
+  <tr><td style="padding:5px 0; color:#8a93a3; width:110px;">Organization</td><td style="padding:5px 0;"><%= @invoice.workspace.name %></td></tr>
+  <tr><td style="padding:5px 0; color:#8a93a3;">Invoice</td><td style="padding:5px 0;"><b><%= @invoice.number %></b> &middot; <%= @invoice.type_label %> &middot; <%= Billing::Copy.money(@invoice.gross_usd) %></td></tr>
+  <tr><td style="padding:5px 0; color:#8a93a3;">Reason</td><td style="padding:5px 0;"><%= @invoice.ksef_error %></td></tr>
+  <tr><td style="padding:5px 0; color:#8a93a3;">Tried</td><td style="padding:5px 0;"><%= Time.current.strftime("%-d %b %Y, %H:%M") %></td></tr>
+</table>
+<p style="margin:0; font-size:14px; line-height:1.55; color:#3d4452;">The payment went through, so the invoice stands, but its PDF does not reach the organization’s admins until KSeF accepts it. Check the organization’s NIP, then retry from its page.</p>

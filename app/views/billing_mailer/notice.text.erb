@@ -1,0 +1,16 @@
+<%= @heading %>
+
+<% @paragraphs.each do |paragraph| %>
+<%= strip_tags(paragraph.to_s) %>
+
+<% end %>
+<% if @invoice %>
+<%= @invoice.line_name %>: <%= Billing::Copy.money(@invoice.net_usd) %>
+VAT: <%= Billing::Copy.money(@invoice.vat_usd) %><%= " (#{@invoice.vat_pln_line})" if @invoice.vat_pln_line %>
+Charged to <%= @invoice.workspace.billing_account&.card_short || "your card" %>: <%= Billing::Copy.money(@invoice.gross_usd) %>
+Invoice <%= @invoice.number %> · KSeF <%= @invoice.ksef_number %>
+<% end %>
+<% @after.to_a.each do |paragraph| %>
+
+<%= strip_tags(paragraph.to_s) %>
+<% end %>

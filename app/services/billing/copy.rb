@@ -53,8 +53,7 @@ module Billing
       when "upgrade" then "#{charge.plan_name} upgrade, #{days(charge)}"
       when "top_up" then charge.created_by ? "Bought by #{charge.created_by.name}" : "Bought"
       when "auto_top_up"
-        number = charge.workspace.billing_charges.automatic_top_ups.succeeded
-                       .charged_in_month(charge.succeeded_at.to_date).where(id: ..charge.id).count
+        number = charge.automatic_number
         number >= Billing::AUTO_TOP_UPS_PER_MONTH ? "Automatic, #{number} of #{Billing::AUTO_TOP_UPS_PER_MONTH}" : "Automatic"
       end
     end

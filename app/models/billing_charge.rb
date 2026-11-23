@@ -64,6 +64,11 @@ class BillingCharge < ApplicationRecord
     failed? && retry_day(today).to_i > Billing::RETRY_DAYS
   end
 
+  # Which automatic top-up of its month this one was: 1, 2 or 3.
+  def automatic_number
+    workspace.billing_charges.automatic_top_ups.succeeded.charged_in_month(succeeded_at.to_date).where(id: ..id).count
+  end
+
   # What AI may use this month while the charge is retried: 15% of the plan price.
   def grace_usd
     (plan_price_usd.to_d * Billing::RETRY_GRACE_SHARE).round(2)
