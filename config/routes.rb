@@ -229,7 +229,11 @@ Rails.application.routes.draw do
       collection { post :read }
     end
     resources :ai_runs, only: [] do
-      member { patch :looked_at }
+      member { patch :looked_at; patch :set_cost }
+    end
+    # SCRUM-71: an invoice KSeF did not take is sent again from here.
+    resources :invoices, only: [] do
+      member { post :retry_ksef }
     end
   end
 
