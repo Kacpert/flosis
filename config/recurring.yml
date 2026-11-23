@@ -75,3 +75,11 @@ production:
   alert_rules_dispatch:
     class: AlertRulesDispatchJob
     schedule: every 5 minutes
+  # SCRUM-71: every running plan is charged upfront on the 1st (06:00 Warsaw);
+  # a failed plan charge is retried on days 3, 5 and 7.
+  billing_month_start:
+    class: Billing::MonthStartJob
+    schedule: "0 6 1 * *"
+  billing_retries:
+    class: Billing::RetryJob
+    schedule: "30 6 * * *"

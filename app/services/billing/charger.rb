@@ -65,7 +65,9 @@ module Billing
       first_attempt = charge.first_failed_at.nil?
       charge.update!(status: "failed", failure_message: message.presence || "the card was declined",
                      first_failed_at: charge.first_failed_at || Time.current)
-      charge.update!(next_retry_on: Retries.next_on(charge)) if charge.kind == "plan"
+      # Only a running plan's month is retried; a failed activation leaves the
+      # plan not active, for the admin to try again.
+      charge.update!(next_retry_on: Retries.next_on(charge)) if charge.kind == "plan" && @account.plan_running?
       Billing.charge_failed(charge, first_attempt: first_attempt)
     end
   end
