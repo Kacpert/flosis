@@ -130,4 +130,39 @@ class Billing::ChargeSafetyTest < ActiveSupport::TestCase
     assert_equal @starter, @workspace.reload.ai_plan
     assert_equal @growth, @workspace.billing.reload.pending_ai_plan
   end
+
+  # Kacper (2026-11-24): the plan's month never carries over; the top-up
+  # never expires, and while a payment fails it is a buffer after the 15%,
+  # returned to the balance once the month is paid.
+  test "a failing month runs on the 15%, then on the top-up, which gets it back once the month is paid" do
+    travel_to(Time.zone.local(2026, 11, 1, 6)) { plans.choose!(@starter) }
+    travel_to(Time.zone.local(2026, 11, 10, 9)) { Billing::TopUps.new(@workspace.reload).buy!(100) }
+    @billing_gateway.fail_next!
+    travel_to(Time.zone.local(2026, 12, 1, 6)) { Billing::MonthStartJob.perform_now }
+    run = ->(cost) { AiRun.create!(workspace: @workspace, area: "agents", automation: "T", status: "succeeded", cost_usd: cost, price_usd: cost * BigDecimal("1.3"), ran_at: Time.current).tap { |r| Billing::Funding.assign!(r) } }
+    travel_to Time.zone.local(2026, 12, 2, 10) do
+      assert_equal "plan", run.(BigDecimal("23.08")).funding # $30.00 of grace
+      assert Billing::Allowance.for(@workspace.reload).payment_failing?
+      assert_not Billing::Allowance.for(@workspace).paused?, "the top-up keeps AI on"
+      assert_equal "top_up", run.(BigDecimal("50")).funding
+      assert_equal BigDecimal("35"), Billing::Ledger.balance(@workspace)
+      assert_equal "top_up", run.(BigDecimal("50")).funding
+      assert_equal :retry_spent, Billing::Allowance.for(@workspace).reason
+    end
+    travel_to Time.zone.local(2026, 12, 3, 9) do
+      Billing::Card.new(@workspace.reload).save!("cs_new")
+      assert_equal BigDecimal("100"), Billing::Ledger.balance(@workspace), "the top-up got back what it paid"
+      assert_equal BigDecimal("160.004"), Billing::Ledger.plan_spend(@workspace).round(3)
+      assert_not Billing::Allowance.for(@workspace).paused?
+    end
+  end
+
+  test "the plan's month doesn't carry over: a new month starts from its own paid limit" do
+    travel_to(Time.zone.local(2026, 11, 1, 6)) { plans.choose!(@starter) }
+    travel_to(Time.zone.local(2026, 12, 1, 6)) { Billing::MonthStartJob.perform_now }
+    travel_to Time.zone.local(2026, 12, 2, 6) do
+      assert_equal BigDecimal("200"), AiMonthLimit.for(@workspace, Date.current).limit_usd
+      assert_equal BigDecimal("0"), Billing::Ledger.plan_spend(@workspace)
+    end
+  end
 end

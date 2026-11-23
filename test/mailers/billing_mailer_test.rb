@@ -25,8 +25,8 @@ class BillingMailerTest < ActionMailer::TestCase
       charge = travel_to(Time.zone.local(2026, 11, 1, 6)) { Billing::Plans.new(@workspace.reload).choose!(@starter) }
       mail = travel_to(Time.zone.local(2026, 11, 1, 6, 4)) { BillingMailer.invoice(invoice_for(charge)) }
       assert_equal [ users(:one).email_address ], mail.to
-      assert_equal "Invoice FV/F/001/11/2026 · Starter, November 2026", mail.subject
-      assert_equal [ "FV-F-001-11-2026.pdf" ], mail.attachments.map(&:filename)
+      assert_equal "Invoice FS/001/11/2026 · Starter, November 2026", mail.subject
+      assert_equal [ "FS-001-11-2026.pdf" ], mail.attachments.map(&:filename)
       body = mail.html_part.body.to_s
       assert_includes body, "Your invoice for November"
       assert_includes body, "We charged Starter for November 2026 to your card."

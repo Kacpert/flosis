@@ -30,11 +30,13 @@ module Billing
       Rails.error.report(e, handled: true, context: { funding: "Billing::Funding.assign!", ai_run_id: run&.id })
     end
 
-    # Under the limit before this run, or a failing payment's month (the grace
-    # is the plan's, not the balance's).
+    # Under the limit before this run. In a month whose payment is failing,
+    # within the 15% allowed while it is retried; past it the top-up pays.
     def within_plan?(workspace, month)
       charge = workspace.billing_charges.plan_charges.for_month(month).where.not(status: "abandoned").order(:id).last
-      return true if charge&.failed?
+      if charge&.failed?
+        return !charge.unpaid?(month) && Ledger.plan_spend(workspace, month) < charge.grace_usd
+      end
 
       limit = AiMonthLimit.for(workspace, month)&.limit_usd
       limit.nil? || Ledger.plan_spend(workspace, month) < limit

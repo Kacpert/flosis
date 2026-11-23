@@ -58,10 +58,12 @@ class BillingMailer < ApplicationMailer
     @cta, @cta_url = "Update card", workshop_billing_url
     @heading = "Payment failed, update your card"
     retrying = charge.next_retry_on.present?
+    balance = Billing::Ledger.balance(workspace)
+    buffer = balance.positive? ? ", then the top-up balance (#{Billing::Copy.money(balance)}), which gets back what it pays once the payment goes through" : ""
     @paragraphs = [
       "We couldn’t charge <b>#{Billing::Copy.money(charge.gross_usd)}</b> to #{h account&.card_short || 'your card'} for #{h charge.plan_name}, #{charge.period_month.strftime('%B %Y')}.".html_safe,
       "The bank said: #{h charge.failure_message}.",
-      (retrying ? "We retry the card over the next days, until #{(charge.retry_until + 1).strftime('%-d %b')}. Until the payment goes through, #{h workspace.name} can use up to <b>#{Billing::Copy.money(charge.grace_usd)}</b> of AI (15% of the plan), then AI pauses. Time & HR is never paused." :
+      (retrying ? "We retry the card over the next days, until #{(charge.retry_until + 1).strftime('%-d %b')}. Until the payment goes through, #{h workspace.name} can use up to <b>#{Billing::Copy.money(charge.grace_usd)}</b> of AI (15% of the plan)#{buffer}, then AI pauses. Time & HR is never paused." :
                   "We have stopped retrying. AI is paused until the charge succeeds: change the card and we charge it straight away. Time & HR is never paused.").html_safe,
       "No invoice is issued until the payment succeeds."
     ]
@@ -75,7 +77,7 @@ class BillingMailer < ApplicationMailer
     @cta, @cta_url = "Update card", workshop_billing_url
     @heading = "AI is paused until the payment goes through."
     @paragraphs = [
-      "#{h workspace.name} has used the <b>#{Billing::Copy.money(charge.grace_usd)}</b> of AI allowed while we retry the card, so new AI runs are paused. Runs already going finish, and Time & HR keeps working.".html_safe,
+      "#{h workspace.name} has used the <b>#{Billing::Copy.money(charge.grace_usd)}</b> of AI allowed while we retry the card#{Billing::Ledger.top_up_spent(workspace).positive? ? ', and the top-up balance' : ''}, so new AI runs are paused. Runs already going finish, and Time & HR keeps working.".html_safe,
       "We keep retrying until #{(charge.retry_until + 1).strftime('%-d %b')}; after that, AI stays paused until the charge succeeds. Once it does, the full #{Billing::Copy.money(charge.plan_price_usd)} limit applies again."
     ]
     notice(workspace, "AI paused: your payment is still failing")

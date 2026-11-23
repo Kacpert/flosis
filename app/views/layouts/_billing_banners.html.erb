@@ -20,9 +20,11 @@
         <% if allowance.reason == :unpaid %>
           AI is paused until the payment goes through.
         <% elsif allowance.reason == :retry_spent %>
-          AI is paused: the <%= money.(charge.grace_usd) %> allowed while we retry is used up.
+          AI is paused: the <%= money.(charge.grace_usd) %> allowed while we retry is used up<%= ", and so is the top-up balance" if Billing::Ledger.top_up_spent(current_workspace).positive? %>.
+        <% elsif allowance.grace_left? %>
+          AI keeps running up to <%= money.(charge.grace_usd) %> while we retry (day <%= charge.retry_day %> of <%= Billing::RETRY_DAYS %>)<%= ", then on the #{money.(allowance.balance)} top-up balance, which gets it back once the payment goes through" if allowance.balance.positive? %>.
         <% else %>
-          AI keeps running up to <%= money.(charge.grace_usd) %> while we retry (day <%= charge.retry_day %> of <%= Billing::RETRY_DAYS %>).
+          AI runs on the top-up balance (<%= money.(allowance.balance) %> left) until the payment goes through; what it uses comes back then.
         <% end %>
         <%= link_to "Update card", workshop_billing_path %></span>
     </div>

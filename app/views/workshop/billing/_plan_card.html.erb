@@ -17,9 +17,9 @@
   <% if account.plan_running? && @allowance.payment_failing? %>
     <div class="text-[14px] font-bold clar-text-text"><%= price %> &middot; <span class="clar-text-danger"><%= charge.period_month.strftime("%B") %>&rsquo;s charge failed</span></div>
     <% if charge.unpaid? %>
-      <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">We stopped retrying on <%= charge.retry_until.strftime("%-d %b") %>. AI is paused until the charge succeeds: change the card and we charge it straight away. No invoice is issued for a failed charge.</p>
+      <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">We stopped retrying on <%= charge.retry_until.strftime("%-d %b") %>. <%= @balance.positive? ? "AI runs on the #{money.(@balance)} top-up balance until the charge succeeds, and gets back what it used then" : "AI is paused until the charge succeeds" %>: change the card and we charge it straight away. No invoice is issued for a failed charge.</p>
     <% else %>
-      <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">We retry the card until <%= (charge.retry_until + 1).strftime("%-d %b") %> (day <%= charge.retry_day %> of <%= Billing::RETRY_DAYS %>). Until it goes through, AI runs up to <%= money.(charge.grace_usd) %>, then pauses. No invoice is issued for a failed charge.</p>
+      <p class="mt-1 mb-0 text-[12.5px] leading-snug clar-text-muted">We retry the card until <%= (charge.retry_until + 1).strftime("%-d %b") %> (day <%= charge.retry_day %> of <%= Billing::RETRY_DAYS %>). Until it goes through, AI runs up to <%= money.(charge.grace_usd) %>, then <%= @balance.positive? ? "on the #{money.(@balance)} top-up balance, which gets back what it used once the charge succeeds, then pauses" : "pauses" %>. No invoice is issued for a failed charge.</p>
     <% end %>
   <% elsif account.cancelling? %>
     <div class="text-[14px] font-bold clar-text-text"><%= price %> &middot; ends <%= account.plan_ends_on.strftime("%-d %b %Y") %>, nothing charged after</div>

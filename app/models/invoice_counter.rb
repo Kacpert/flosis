@@ -1,9 +1,7 @@
 # Invoice numbers, gap-free within a calendar month, in the company's own
 # format (Kacper, 2026-11-24: "FV/005/11/2026"): PREFIX/NNN/MM/YYYY. The
-# prefix is INVOICE_NUMBER_PREFIX, "FV/F" by default: a series of its own, so
-# a number Flosis gives can never be one the company also gives by hand
-# elsewhere ("FV" shares the company's series, safe only if Flosis is the one
-# place invoices are issued). The month's row is locked while the next number
+# prefix is INVOICE_NUMBER_PREFIX, "FS" (Flosis) by default: a series of its
+# own, so a number Flosis gives is never one the company gives by hand. The month's row is locked while the next number
 # is taken; it is made first, outside any transaction, so two charges issuing
 # the month's first invoice at once never deadlock on MariaDB.
 class InvoiceCounter < ApplicationRecord
@@ -21,6 +19,6 @@ class InvoiceCounter < ApplicationRecord
   end
 
   def self.prefix
-    ENV["INVOICE_NUMBER_PREFIX"].presence || "FV/F"
+    ENV["INVOICE_NUMBER_PREFIX"].presence || "FS"
   end
 end

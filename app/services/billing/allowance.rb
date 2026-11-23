@@ -4,8 +4,13 @@
 # - limit: this month's plan spend reached what was paid and the top-up
 #   balance is empty (automatic top-up, if on, refills it first);
 # - retry_spent: this month's plan charge failed and AI already used the 15%
-#   of the plan price allowed while it is retried;
-# - unpaid: the charge is still unpaid after the 7 days of retries.
+#   of the plan price allowed while it is retried, and the top-up balance;
+# - unpaid: the charge is still unpaid after the 7 days of retries, and the
+#   top-up balance is used up.
+# The plan's month never carries over: each month is paid anew. The top-up
+# balance never expires, and while a payment fails it is a buffer after the
+# 15% (Kacper, 2026-11-24); what it paid then goes back to it once the
+# month is paid (Billing::Effects).
 # A run already going always finishes; Time & HR and runs on a project's own
 # Anthropic key never pause.
 module Billing
@@ -53,6 +58,12 @@ module Billing
       charge&.grace_usd
     end
 
+    # While the payment is retried (7 days), AI runs on the plan up to 15%
+    # of its price; after that, or past it, only on the top-up balance.
+    def grace_left?
+      payment_failing? && !charge.unpaid?(today) && plan_spend < grace_usd
+    end
+
     def balance
       @balance ||= Ledger.balance(workspace)
     end
@@ -93,9 +104,9 @@ module Billing
       @plan_spend = Ledger.plan_spend(workspace, today)
       @charge = workspace.billing_charges.plan_charges.for_month(today).where.not(status: "abandoned").order(:id).last
       if payment_failing?
-        @reason = if charge.unpaid?(today) then :unpaid
-                  elsif plan_spend >= grace_usd then :retry_spent
-                  end
+        return if grace_left? || balance.positive?
+
+        @reason = charge.unpaid?(today) ? :unpaid : :retry_spent
         return
       end
 
