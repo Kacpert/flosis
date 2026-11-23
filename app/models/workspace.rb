@@ -25,5 +25,23 @@ class Workspace < ApplicationRecord
   has_many :ai_runs, dependent: :delete_all
   has_many :ai_month_limits, dependent: :delete_all
 
+  # SCRUM-71: what it pays, and the invoices for it.
+  has_one :billing_account, dependent: :destroy
+  has_many :invoices, dependent: :destroy
+  has_many :billing_charges, dependent: :destroy
+
+  # Its organization administrators: they see Billing and Consumption, and get
+  # every billing email.
+  def admin_users
+    User.where(id: workspace_memberships.where(workspace_admin: true).select(:user_id))
+  end
+
+  # Its billing row, made on first use.
+  def billing
+    billing_account || create_billing_account!(plan_state: ai_plan ? "pending" : "none")
+  rescue ActiveRecord::RecordNotUnique
+    reload.billing_account
+  end
+
   validates :name, presence: true
 end
