@@ -3,7 +3,7 @@ require "test_helper"
 # Accept designs (2026-11-21): once a task's thread is merged, its describe
 # turn writes the task's next description version from the accepted designs.
 class Designs::DescribeJobTest < ActiveSupport::TestCase
-  LINK = "https://preview.example/test-workspace/elvium/SCRUM-70/design".freeze
+  LINK = "https://preview.example/elvium/SCRUM-70".freeze
   CURRENT = "## AI usage\n\nIntro paragraph.\n\n**Display**\n\n- Costs show as \"$12 ($3.23 this month)\".".freeze
 
   # Claude as a streaming session gives it (ClaudeCliService#start_session with
@@ -74,7 +74,7 @@ class Designs::DescribeJobTest < ActiveSupport::TestCase
 
   def section
     "**Designs** · [Open the designs](#{LINK}) · merge commit [aaaaaaa](https://github.com/acme/designs/commit/#{'a' * 40})\n" \
-      "- New (1): Admin › [Plans](#{LINK}/designs/admin/plans.html)"
+      "- New (1): Admin › [Plans](#{LINK}/admin/plans)"
   end
 
   def run_job

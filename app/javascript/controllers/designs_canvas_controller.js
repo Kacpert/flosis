@@ -35,6 +35,8 @@ export default class extends Controller {
 
   connect() {
     this.firstScreen = true
+    // The screen the preview shows, and its state, for Copy link.
+    this.shown = null
     this.onMessage = this.message.bind(this)
     window.addEventListener("message", this.onMessage)
     this.sizeMove = this.sizeMove.bind(this)
@@ -183,6 +185,7 @@ export default class extends Controller {
       // Only the screen the page opened with is put back in its state: a
       // link clicked inside the preview goes where it says.
       this.seen = { label: `${contextName(data.context)} › ${data.title || data.screen}`, screen: data.screen, restore: this.firstScreen }
+      this.shown = { context: data.context, screen: data.screen, state: null }
       this.firstScreen = false
       this.seesTargets.forEach((element) => { element.textContent = `AI sees ${this.seen.label}` })
       this.contextTargets.forEach((element) => { element.value = data.context })
@@ -224,6 +227,7 @@ export default class extends Controller {
       this.stateSelectTarget.replaceChildren(...states.map((state) => new Option(String(state.label || state.key), state.key, false, state === current)))
     }
     const named = current.key !== DEFAULT_STATE
+    if (this.shown) this.shown.state = named ? current.key : null
     this.stateTargets.forEach((element) => { element.value = named ? current.key : "" })
     this.seesTargets.forEach((element) => { element.textContent = `AI sees ${this.seen.label}${named ? ` › ${current.label || current.key}` : ""}` })
   }
@@ -266,6 +270,25 @@ export default class extends Controller {
       link.classList.toggle("clar-seg-item-active", link.dataset.context === context)
     })
     this.modeTargets.forEach((link) => go(link, { ctx: context, screen }))
+  }
+
+  // Copy link (Kacper, 2026-11-23): the short link to the screen shown, in its
+  // state, to send someone. Before the preview has said which screen, the one
+  // the page opened with.
+  async copyLink(event) {
+    const { template, context, screen } = event.params
+    const shown = this.shown || { context, screen, state: null }
+    if (!template || !shown.context || !shown.screen) return
+    let link = template.replace("{context}", encodeURIComponent(shown.context)).replace("{screen}", encodeURIComponent(shown.screen))
+    if (shown.state) link += `#${encodeURIComponent(shown.state)}`
+    let message
+    try {
+      await navigator.clipboard.writeText(link)
+      message = `Link copied · ${link.replace(/^https?:\/\//, "")}`
+    } catch {
+      message = `Copy this link: ${link}`
+    }
+    window.dispatchEvent(new CustomEvent("clar:toast", { detail: { message } }))
   }
 
   toast(event) {

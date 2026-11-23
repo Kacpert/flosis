@@ -1,23 +1,31 @@
 # The lasting links to a project's designs (Designs::Publisher#url):
 # /<organization>/<project>/design/<page> for its approved designs (master),
-# and /<organization>/<project>/<key>/design/<page> for a task's last approved
-# version, the one Jira links to. Whoever opens one signs in, and must be
-# someone the Workshop shows that project to; they are then sent on to the
-# same page under a short-lived grant, where it runs sandboxed
-# (Designs::PreviewsController). The query, contexts and all, goes along.
+# and /<project>/<KEY>/… for a task's, the ones tickets and Jira carry (#short).
+# Whoever opens one signs in, and must be someone the Workshop shows that
+# project to; they are then sent on to the same page under a short-lived
+# grant, where it runs sandboxed (Designs::PreviewsController). The query,
+# contexts and all, goes along.
 class Designs::PreviewEntriesController < ApplicationController
   CHANGES_PAGE = "__flosis/changes.html".freeze
+  WIP = "wip".freeze
 
   def master
     open_preview(Designs::Repo::MASTER)
   end
 
-  # A task's lasting link: its designs' last accepted copy (2026-11-21), else
-  # its design thread's branch (Workshop Designs v2), else the slot of that
-  # name. It goes through the task's merges, so it outlives the thread.
-  def task
-    project = named_project
-    open_preview(task_slot(project, params[:key]), project)
+  # A task's designs by its project and key, no organization (Kacper,
+  # 2026-11-23): /<project>/<KEY> opens its last accepted version, else its
+  # work in progress; /<project>/<KEY>/wip always the work in progress, the
+  # link to send someone; then <context>/<screen> for a screen, or a path. The
+  # project is looked for in each of the reader's organizations: the same name
+  # and key in two of them asks which, and ?org= names it.
+  def short
+    found = short_matches
+    return head(:not_found) if found.empty?
+    return choose(found) if found.size > 1
+
+    project, slot = found.first
+    open_preview(slot, project, short_page)
   end
 
   # A page whose grant ran out (Designs::PreviewsController#ran_out), at
@@ -33,34 +41,103 @@ class Designs::PreviewEntriesController < ApplicationController
 
   private
 
-  def open_preview(slot, project = named_project)
+  def open_preview(slot, project = named_project, page = asked_page)
     publisher = project && Designs::Publisher.new(project, nil)
     return head(:not_found) unless publisher&.published?(slot)
 
-    page = params[:path].to_s
-    # Rails takes a folder's slash off request.path before routing; the path as asked keeps it.
-    page = "#{page}/" if page.present? && request.original_fullpath.split("?", 2).first.end_with?("/")
     # A version with a list of what changed opens on it (2026-11-21).
     page = CHANGES_PAGE if page.empty? && publisher.slot_folder(slot)&.join(CHANGES_PAGE)&.file?
     target = publisher.grant_url(slot, page)
-    target = "#{target}?#{request.query_string}" if request.query_string.present?
+    query = passed_query
+    target = "#{target}?#{query}" if query.present?
     # The host is the app's own, from DESIGNS_PREVIEW_URL.
     redirect_to target, allow_other_host: true
   rescue ArgumentError
     head :not_found
   end
 
+  # The page as asked. Rails takes a folder's slash off request.path before
+  # routing; the path as asked keeps it.
+  def asked_page
+    page = params[:path].to_s
+    page.present? && slashed? ? "#{page}/" : page
+  end
+
+  def slashed?
+    request.original_fullpath.split("?", 2).first.end_with?("/")
+  end
+
+  # The query that goes along to the page: all of it but which organization.
+  def passed_query
+    request.query_string.split("&").reject { |pair| pair.start_with?("org=") }.join("&")
+  end
+
+  # [project, slot] in each of the reader's organizations whose project of
+  # that name has something published for the key, or only the one ?org= names.
+  def short_matches
+    Current.user.workspaces.order(:name).filter_map do |workspace|
+      next if params[:org].present? && Designs::Publisher.label(workspace.name, "organization") != params[:org]
+
+      project = Project.workshop_visible_to(Current.user, workspace).find do |candidate|
+        Designs::Publisher.label(candidate.name, "project") == params[:project]
+      end
+      slot = project && short_slot(project)
+      [ project, slot ] if slot
+    end
+  end
+
+  # What a task's link opens: with /wip its design thread's branch while it is
+  # published; else its designs' last accepted copy (2026-11-21), else that
+  # branch (Workshop Designs v2), else the slot of the key's name. It goes
+  # through the task's merges, so it outlives the thread. Nil when none of it
+  # is published.
+  def short_slot(project)
+    key = params[:key]
+    task = key.start_with?("task-") ? project.tasks.find_by(id: key.delete_prefix("task-")) : project.tasks.find_by(external_reference: key)
+    publisher = Designs::Publisher.new(project, nil)
+    branch = task&.design_thread&.branch.presence
+    return branch if wip? && branch && publisher.published?(branch)
+
+    slot = (task && (Designs::AcceptedScreens.new(task).slot || branch)) || key
+    slot if publisher.published?(slot)
+  rescue ArgumentError
+    nil
+  end
+
+  def wip?
+    params[:path].to_s.split("/").first == WIP
+  end
+
+  # The page a task's link names: <context>/<screen> is a screen (two names,
+  # no dot in either), anything else a path inside the version, nothing the
+  # version itself.
+  def short_page
+    segments = params[:path].to_s.split("/")
+    segments.shift if wip?
+    if segments.size == 2 && segments.none? { |segment| segment.include?(".") } && !slashed?
+      "designs/#{segments.join("/")}.html"
+    else
+      page = segments.join("/")
+      page.present? && slashed? ? "#{page}/" : page
+    end
+  end
+
+  # The same project name and key in two of the reader's organizations: they
+  # pick one, and its link says which with ?org= (Kacper, 2026-11-23: "rzadkość").
+  def choose(found)
+    path = request.original_fullpath.split("?", 2).first
+    query = passed_query.split("&")
+    @choices = found.map do |project, _|
+      organization = Designs::Publisher.label(project.workspace.name, "organization")
+      { organization: project.workspace.name, project: project.name,
+        href: "#{path}?#{(query + [ "org=#{CGI.escapeURIComponent(organization)}" ]).join("&")}" }
+    end
+    render :choose
+  end
+
   # The project the link names, among those the Workshop shows whoever opened
   # it, in the workspace the link names rather than the one they last chose.
   # Names are compared as links write them.
-  def task_slot(project, key)
-    return key unless project
-
-    task = key.to_s.start_with?("task-") ? project.tasks.find_by(id: key.delete_prefix("task-")) : project.tasks.find_by(external_reference: key)
-    return key unless task
-
-    Designs::AcceptedScreens.new(task).slot || task.design_thread&.branch.presence || key
-  end
 
   def shown?(project)
     workspace = Current.user.workspaces.find_by(id: project.workspace_id)

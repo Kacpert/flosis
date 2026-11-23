@@ -1,0 +1,11 @@
+<%# The same project and ticket in two of the reader's organizations
+    (Designs::PreviewEntriesController#short): they pick which. %>
+<div class="max-w-[520px] mx-auto py-16 px-4">
+  <h1 class="text-[20px] font-semibold clar-text-text mb-2">Which designs?</h1>
+  <p class="text-[13px] clar-text-muted mb-5"><%= params[:key] %> is in more than one of your organizations.</p>
+  <ul class="flex flex-col gap-2 list-none p-0 m-0">
+    <% @choices.each do |choice| %>
+      <li><%= link_to "#{choice[:organization]} › #{choice[:project]}", choice[:href], class: "clar-btn no-underline w-full justify-start" %></li>
+    <% end %>
+  </ul>
+</div>

@@ -38,7 +38,7 @@ class Designs::JiraLinksTest < ActiveSupport::TestCase
       assert_requested(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink") { |req|
         body = JSON.parse(req.body)
         body["globalId"] == "flosis-design:#{repo.project.id}:REC-1:designs/admin/jobs.html" &&
-          body["object"]["url"] == "https://preview.example/test-workspace/elvium/REC-1/design/designs/admin/jobs.html" &&
+          body["object"]["url"] == "https://preview.example/elvium/REC-1/admin/jobs" &&
           body["object"]["title"] == "Design · Admin › Jobs"
       }
       assert_requested(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink") { |req|
@@ -60,7 +60,7 @@ class Designs::JiraLinksTest < ActiveSupport::TestCase
       assert_requested(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink") { |req|
         body = JSON.parse(req.body)
         body["globalId"] == "flosis-design:#{repo.project.id}:REC-1:index" &&
-          body["object"]["url"] == "https://preview.example/test-workspace/elvium/REC-1/design"
+          body["object"]["url"] == "https://preview.example/elvium/REC-1"
       }
     end
   end
@@ -85,7 +85,7 @@ class Designs::JiraLinksTest < ActiveSupport::TestCase
       assert_requested posts, times: 2
       assert_requested(:post, "https://acme.atlassian.net/rest/api/3/issue/REC-1/remotelink") { |req|
         body = JSON.parse(req.body)
-        body["object"]["url"] == "https://preview.example/test-workspace/elvium/REC-1/design/designs/admin/plans.html" &&
+        body["object"]["url"] == "https://preview.example/elvium/REC-1/admin/plans" &&
           body["object"]["title"] == "Design · Admin › Plans"
       }
     ensure

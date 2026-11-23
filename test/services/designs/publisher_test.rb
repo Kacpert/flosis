@@ -74,16 +74,39 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     end
   end
 
-  # A lasting link (Jira's, the Configuration's) names the project's designs,
-  # /design/, or a task's approved version, /<key>/design/; whoever opens one
-  # signs in (Designs::PreviewEntriesController).
-  test "lasting links carry the organization, the project, the version, the page and the contexts" do
+  # A lasting link names the project's designs (master) under its
+  # organization, /<organization>/<project>/design/, or a task's designs by the
+  # project and the task's key alone, /<project>/<KEY> (Kacper, 2026-11-23);
+  # whoever opens one signs in (Designs::PreviewEntriesController).
+  test "a task's link is the project and its key, then the screen or the page and the contexts; master's keeps its organization" do
     project = projects(:jira_project)
     project.update!(design_preview_token: "t0k")
     publisher = Designs::Publisher.new(project, nil)
-    assert_equal "https://preview.example/test-workspace/elvium/REC-1/design/designs/jobs.html?ctx=admin,workshop",
-                 publisher.url("REC-1", "designs/jobs.html", ctx: %w[admin workshop])
+    assert_equal "https://preview.example/elvium/REC-1/admin/jobs?ctx=admin,workshop",
+                 publisher.url("REC-1", "designs/admin/jobs.html", ctx: %w[admin workshop])
+    assert_equal "https://preview.example/elvium/REC-1/designs/jobs.html", publisher.url("REC-1", "designs/jobs.html")
+    assert_equal "https://preview.example/elvium/task-551", publisher.url("task-551", nil)
     assert_equal "https://preview.example/test-workspace/elvium/design/index.html", publisher.url("master")
+  end
+
+  # A short link takes <context>/<screen> for a screen: a name with a dot in
+  # it (a screen's changes) is a page of the version, and stays one.
+  test "only a screen gets the short form; any other page stays a path" do
+    project = projects(:jira_project)
+    project.update!(design_preview_token: "t0k")
+    publisher = Designs::Publisher.new(project, nil)
+    assert_equal "https://preview.example/elvium/REC-1/designs/admin/jobs.changes.html", publisher.url("REC-1", "designs/admin/jobs.changes.html")
+    assert_equal "https://preview.example/elvium/REC-1/components/banner/banner.html", publisher.url("REC-1", "components/banner/banner.html")
+    assert_equal "https://preview.example/elvium/REC-1/admin/job%20offers", publisher.url("REC-1", "designs/admin/job offers.html")
+  end
+
+  test "only master and a task's key have a lasting link" do
+    project = projects(:jira_project)
+    project.update!(design_preview_token: "t0k")
+    publisher = Designs::Publisher.new(project, nil)
+    [ "accepted/7", "design/task-551-billing", "rec-1", "Task-551" ].each do |slot|
+      assert_raises(ArgumentError, slot) { publisher.url(slot, nil) }
+    end
   end
 
   test "work in progress has no lasting link, only a grant" do
@@ -188,11 +211,10 @@ class Designs::PublisherTest < ActiveSupport::TestCase
     end
   end
 
-  test "a lasting link with no page names the version and stops at design" do
+  test "a task's link with no page is the project and the key" do
     project = projects(:jira_project)
     project.update!(design_preview_token: "t0k")
-    assert_equal "https://preview.example/test-workspace/elvium/SCRUM-70/design",
-                 Designs::Publisher.new(project, nil).url("SCRUM-70", nil)
+    assert_equal "https://preview.example/elvium/SCRUM-70", Designs::Publisher.new(project, nil).url("SCRUM-70", nil)
   end
 
   test "the slot pattern takes a thread's branch, and nothing below it" do
@@ -252,7 +274,7 @@ class Designs::PublisherTest < ActiveSupport::TestCase
       "designs/żółć.html" => "designs/%C5%BC%C3%B3%C5%82%C4%87.html",
       "designs/" => "designs/"
     }.each do |path, escaped|
-      assert_equal "https://preview.example/test-workspace/elvium/REC-1/design/#{escaped}", publisher.url("REC-1", path), path
+      assert_equal "https://preview.example/elvium/REC-1/#{escaped}", publisher.url("REC-1", path), path
     end
   end
 
@@ -296,7 +318,7 @@ class Designs::PublisherTest < ActiveSupport::TestCase
       "/index.html", "/" ].each do |path|
       assert_raises(ArgumentError, path) { publisher.url("REC-1", path) }
     end
-    assert_equal "https://preview.example/test-workspace/elvium/REC-1/design/designs/..x.html", publisher.url("REC-1", "designs/..x.html"),
+    assert_equal "https://preview.example/elvium/REC-1/designs/..x.html", publisher.url("REC-1", "designs/..x.html"),
                  "dots inside a name are the name"
   end
 

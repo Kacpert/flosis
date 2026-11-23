@@ -396,7 +396,7 @@ class JiraWriterTest < ActiveSupport::TestCase
     c.define_singleton_method(:update_issue_description) { |**k| sent = k[:description_text]; { ok: true } }
 
     assert JiraWriter.new(client: c).commit_detail(draft)[:ok]
-    assert_match(/\AIntro\.\n\n\*\*Designs\*\* · \[Open the designs\]\(http.*JW-40\/design\)/, sent)
+    assert_match(/\AIntro\.\n\n\*\*Designs\*\* · \[Open the designs\]\(http[^)]*\/JW-40\)/, sent)
     assert_includes sent, "## Rules"
   ensure
     ENV.delete("DESIGNS_PREVIEW_ROOT")

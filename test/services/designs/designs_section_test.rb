@@ -3,7 +3,7 @@ require "test_helper"
 # The Designs section of a task's description (Accept designs, 2026-11-21):
 # Flosis writes it from the task's accepted copy, never the AI.
 class Designs::DesignsSectionTest < ActiveSupport::TestCase
-  LINK = "https://preview.example/test-workspace/elvium/SCRUM-70/design".freeze
+  LINK = "https://preview.example/elvium/SCRUM-70".freeze
 
   setup do
     @root = Pathname(Dir.mktmpdir("preview"))
@@ -35,7 +35,7 @@ class Designs::DesignsSectionTest < ActiveSupport::TestCase
     File.write(folder.join("changes.json"), { own: own, through: through }.to_json)
   end
 
-  def screen_link(context, id) = "#{LINK}/designs/#{context}/#{id}.html"
+  def screen_link(context, id) = "#{LINK}/#{context}/#{id}"
 
   test "the section lists the merge commit, new and updated screens per context, and the through line" do
     accept!("a")

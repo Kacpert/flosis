@@ -921,6 +921,35 @@ class Workshop::DesignsModuleControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Kacper (2026-11-23): a link to send someone. Copy link copies the short
+  # link to the screen shown (designs-canvas fills in the screen and its
+  # state): /wip while the thread is live, the version once it is accepted,
+  # master's on master.
+  test "Copy link copies the task's short link: /wip while live, the version once accepted, master's on master" do
+    with_designs do |repo|
+      _, thread = task_thread(repo)
+      publisher = Designs::Publisher.new(@project, nil)
+      copy = "button[data-action~='designs-canvas#copyLink'][data-designs-canvas-template-param=?]"
+
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_select copy, "#{publisher.url('SP-1051', nil)}/wip/{context}/{screen}"
+      get workshop_designs_overview_path(thread: thread.id, mode: "master")
+      assert_select copy, "#{publisher.url('master', nil)}/designs/{context}/{screen}.html"
+
+      Designs::Threads.merge!(thread, user: users(:one))
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_select copy, "#{publisher.url('SP-1051', nil)}/{context}/{screen}"
+    end
+  end
+
+  test "a thread with no task has no Copy link on its own branch" do
+    with_designs do |repo|
+      thread = thread_with_work(repo)
+      get workshop_designs_overview_path(thread: thread.id)
+      assert_select "button[data-action~='designs-canvas#copyLink']", count: 0
+    end
+  end
+
   test "a finished thread shows its accepted copy with Accepted and Changes, Open designs and Reopen" do
     with_designs do |repo|
       task, thread = task_thread(repo)

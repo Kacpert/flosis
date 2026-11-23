@@ -28,6 +28,13 @@
   <% if @frame_src %>
     <a href="<%= @frame_src %>" target="_blank" rel="noopener noreferrer" class="clar-btn no-underline" title="Open this preview in a new tab"
        data-action="designs-canvas#toast" data-designs-canvas-message-param="Opened in new tab · <%= @frame_src.sub(%r{\Ahttps?://}, "") %>"><%= designs_icon(:external, 14) %>Open in new tab</a>
+    <%# A link to send someone (Kacper, 2026-11-23): the short link to this
+        screen in its state, /wip while the thread is live (designs-canvas). %>
+    <% if @link_template %>
+      <button type="button" class="clar-btn clar-tip clar-tip-below" data-tip="Copy a link to this screen to send someone"
+              data-action="designs-canvas#copyLink" data-designs-canvas-template-param="<%= @link_template %>"
+              data-designs-canvas-context-param="<%= @context %>" data-designs-canvas-screen-param="<%= @screen %>"><%= designs_icon(:link, 14) %>Copy link</button>
+    <% end %>
   <% end %>
   <% if live && @ahead.positive? && !@accepting %>
     <%# A task's thread is accepted into its task (Kacper, 2026-11-21). %>
