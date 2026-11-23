@@ -65,6 +65,17 @@ module BillingTestHelper
     account
   end
 
+  # The workspace's AI paused: a running $300 plan whose month is used up and
+  # no top-up balance.
+  def pause_ai!(workspace)
+    billing_ready!(workspace)
+    Billing::Plans.new(workspace.reload).choose!(billing_plan(name: "Paused plan #{workspace.id}"))
+    limit = AiMonthLimit.for(workspace, Date.current).limit_usd
+    AiRun.create!(workspace: workspace, area: "agents", automation: "Test", status: "succeeded", cost_usd: limit,
+                  price_usd: limit, ran_at: Time.current, funding: "plan")
+    workspace.reload
+  end
+
   def billing_plan(name: "Team", price: 300, margin: 30)
     AiPlan.create!(name: name, monthly_price_usd: price, margin_percent: margin)
   end

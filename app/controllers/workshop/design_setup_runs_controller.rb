@@ -12,6 +12,7 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
   include DesignsVisibility
   # A run lasts hours: another one on the same branch would undo it.
   before_action :refuse_while_running, only: %i[create update reimport]
+  before_action :refuse_designs_when_ai_paused, only: %i[create update retry reimport]
 
   FRAMEWORKS = [ [ "vue", "Vue.js", "3.4" ], [ "react", "React", "18.3" ], [ "angular", "Angular", "17" ], [ "html", "HTML + CSS", nil ] ].freeze
   UI_SYSTEMS = [ [ "foundation", "Foundation", "6.8" ], [ "bootstrap", "Bootstrap", "5.3" ], [ "tailwind", "Tailwind", "4" ],

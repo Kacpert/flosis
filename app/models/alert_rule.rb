@@ -188,6 +188,7 @@ class AlertRule < ApplicationRecord
     run = last_run
     return :not_run if run.nil?
     return :error if run.status == "error"
+    return :skipped if run.status == "skipped"
     return :fired if run.fired?
 
     notify_enabled? && discord_webhook ? :quiet : :logged
@@ -200,6 +201,7 @@ class AlertRule < ApplicationRecord
     case last_run_status
     when :not_run then "Not run yet"
     when :error   then run.summary.presence || "Run failed"
+    when :skipped then run.summary.presence || "Skipped: AI paused"
     when :fired   then "Sent · #{run.summary}"
     when :logged  then "Not sent · #{run.summary.presence || "notifications off"}"
     else "No condition met"

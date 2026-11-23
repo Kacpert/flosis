@@ -37,6 +37,9 @@ class PrReviewCheckJob < ApplicationJob
 
     Project.active.where(pr_review_enabled: true).find_each do |project|
       next unless due?(project)
+      # SCRUM-71: no review while the organization's AI is paused; open PRs
+      # are picked up once it is back.
+      next if Billing::Allowance.paused_for?(project.workspace)
 
       github = GithubClient.for_project(project)
       next unless github.configured?

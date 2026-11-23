@@ -222,7 +222,18 @@ export default class extends Controller {
         body: JSON.stringify({ content }),
         signal: this.abortController.signal
       })
-      await this.consumeSSE(response, textSpan)
+      // A refusal (SCRUM-71: AI paused) answers 422 with the reason.
+      if (response.status === 422) {
+        const data = await response.json().catch(() => ({}))
+        this.hideThinking(textSpan)
+        textSpan.textContent = data.error || "Couldn't send that."
+        return
+      }
+      const result = await this.consumeSSE(response, textSpan)
+      if (result?.error && !result.fullText) {
+        this.hideThinking(textSpan)
+        textSpan.textContent = result.error
+      }
     } catch (e) {
       if (e.name !== "AbortError") {
         this.hideThinking(textSpan)

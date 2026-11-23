@@ -390,4 +390,25 @@ class Workshop::DesignThreadsControllerTest < ActionDispatch::IntegrationTest
       assert_equal remote_branch_sha(remote, "master"), remote_branch_sha(remote, thread.branch)
     end
   end
+
+  test "SCRUM-71: a message waits while the organization's AI is paused" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      pause_ai!(workspaces(:one))
+      assert_no_enqueued_jobs(only: Designs::TurnJob) do
+        post message_workshop_design_thread_path(thread), params: { text: "Make it blue" }
+      end
+      assert_equal "AI paused: limit reached. Top up in Billing.", flash[:alert]
+    end
+  end
+
+  test "SCRUM-71: a project on its own Anthropic key keeps designing while paused" do
+    with_designs do
+      thread = Designs::Threads.start!(project: @project, user: users(:one))
+      pause_ai!(workspaces(:one))
+      @project.update!(anthropic_api_key: "sk-ant-own")
+      post message_workshop_design_thread_path(thread), params: { text: "Make it blue" }
+      assert_nil flash[:alert]
+    end
+  end
 end

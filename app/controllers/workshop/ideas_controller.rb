@@ -254,6 +254,8 @@ class Workshop::IdeasController < Workshop::BaseController
   # == "manual" is the button-only path, but this endpoint itself works
   # regardless of the configured trigger — a human explicitly asked for it).
   def estimate
+    return refuse_when_ai_paused if ai_paused?
+
     @idea = current_workshop_project.tasks.find(params[:id])
     # Manual = explicit human request → force a (re-)estimate past the
     # estimate-once guard.
