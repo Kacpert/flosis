@@ -73,10 +73,25 @@ class Billing::StripeGatewayTest < ActiveSupport::TestCase
 
   test "a customer is made once, from the billing details" do
     @account.update!(stripe_customer_id: nil)
+    keys = []
     stub_request(:post, "https://api.stripe.com/v1/customers")
-      .with(body: hash_including("name" => "Acme Sp. z o.o."))
+      .with(body: hash_including("name" => "Acme Sp. z o.o.")) { |request| keys << request.headers["Idempotency-Key"] }
       .to_return(body: { id: "cus_new", object: "customer" }.to_json)
     assert_equal "cus_new", @gateway.ensure_customer(@account)
     assert_equal "cus_new", @gateway.ensure_customer(@account.reload)
+    assert_match(/\Aflosis-customer-#{@account.id}-#{@account.created_at.to_i}-\h{16}\z/, keys.sole)
+  end
+
+  # 2026-11-24: one sandbox serves a developer's database and staging; a bare
+  # row id was already taken there with other parameters.
+  test "idempotency keys tell databases and requests apart, and repeat for the same request" do
+    key = ->(record, params, *parts) { Billing::StripeGateway.idempotency_key("charge", record, params, *parts) }
+    charge = Struct.new(:id, :created_at)
+    here = charge.new(1, Time.zone.local(2026, 11, 23, 22))
+    there = charge.new(1, Time.zone.local(2026, 11, 24, 1))
+    assert_not_equal key.(here, { cents: 100 }, 1), key.(there, { cents: 100 }, 1)
+    assert_not_equal key.(here, { cents: 100 }, 1), key.(here, { cents: 200 }, 1)
+    assert_not_equal key.(here, { cents: 100 }, 1), key.(here, { cents: 100 }, 2)
+    assert_equal key.(here, { cents: 100 }, 1), key.(here, { cents: 100 }, 1)
   end
 end

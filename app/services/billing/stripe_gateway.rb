@@ -12,8 +12,8 @@ module Billing
     # status: :succeeded · :failed (failure_message is the bank's reason, in
     # plain words) · :requires_action (redirect_url finishes 3-D Secure) ·
     # :pending (still processing) · :unknown (Stripe could not be reached or
-    # failed itself: the charge may or may not have happened, so it is asked
-    # again with the same idempotency key, never charged afresh).
+    # failed itself: the charge may or may not have happened, so it is looked
+    # up by its key later, never charged afresh).
     ChargeResult = Data.define(:status, :payment_intent_id, :failure_message, :redirect_url) do
       def succeeded? = status == :succeeded
       def failed? = status == :failed
@@ -39,6 +39,16 @@ module Billing
       ENV["STRIPE_SECRET_KEY"].presence || ENV["STRIPE_SANDBOX_SECRET_KEY"].presence
     end
 
+    # Idempotency keys are per Stripe account, and one sandbox serves every
+    # database that uses it (a developer's, staging): a bare row id repeats
+    # across them ("flosis-customer-1" was taken, 2026-11-24). The row's own
+    # creation time tells two databases' rows apart, and a digest of what is
+    # sent makes a changed request a new key while a repeat keeps its own.
+    def self.idempotency_key(kind, record, params, *parts)
+      digest = Digest::SHA256.hexdigest(params.to_json)[0, 16]
+      [ "flosis", kind, record.id, record.created_at.to_i, *parts, digest ].join("-")
+    end
+
     def initialize(api_key: self.class.api_key)
       @api_key = api_key
     end
@@ -46,12 +56,10 @@ module Billing
     def ensure_customer(account)
       return account.stripe_customer_id if account.stripe_customer_id.present?
 
-      customer = client.v1.customers.create(
-        { name: account.company_name || account.workspace.name,
-          email: account.workspace.admin_users.order(:id).pick(:email_address),
-          metadata: { workspace_id: account.workspace_id } },
-        { idempotency_key: "flosis-customer-#{account.id}" }
-      )
+      params = { name: account.company_name || account.workspace.name,
+                 email: account.workspace.admin_users.order(:id).pick(:email_address),
+                 metadata: { workspace_id: account.workspace_id } }
+      customer = client.v1.customers.create(params, { idempotency_key: self.class.idempotency_key("customer", account, params) })
       account.update!(stripe_customer_id: customer.id)
       customer.id
     end
@@ -89,13 +97,20 @@ module Billing
     rescue Stripe::CardError => e
       ChargeResult.new(status: :failed, payment_intent_id: e.error&.payment_intent&.id,
                        failure_message: reason(e.error&.decline_code || e.code, e.message), redirect_url: nil)
-    rescue Stripe::APIConnectionError, Stripe::APIError, Stripe::RateLimitError, Stripe::IdempotencyError => e
+    rescue Stripe::APIConnectionError, Stripe::APIError, Stripe::RateLimitError => e
       Rails.logger.error("[Billing::StripeGateway] #{e.class}: #{e.message}")
       ChargeResult.new(status: :unknown, payment_intent_id: nil, failure_message: "Stripe could not be reached", redirect_url: nil)
     rescue Stripe::StripeError => e
       Rails.logger.error("[Billing::StripeGateway] #{e.class}: #{e.message}")
       ChargeResult.new(status: :failed, payment_intent_id: nil,
                        failure_message: "the payment could not be made (#{e.class.name.demodulize})", redirect_url: nil)
+    end
+
+    # The payment an attempt made, found by the key it carries in its
+    # metadata, or nil when Stripe never got the request.
+    def find_payment(flosis_key)
+      intent = client.v1.payment_intents.search({ query: "metadata['flosis_key']:'#{flosis_key}'" }).data.first
+      intent && result(intent)
     end
 
     # Gives up a payment still waiting for 3-D Secure, so it can't be paid

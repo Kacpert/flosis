@@ -11,11 +11,20 @@ class FakeBillingGateway
     @queued = []
     @results = {}
     @cancelled = []
+    @found = {}
   end
 
-  # Stripe could not be reached: the charge's outcome is unknown.
-  def unknown_next!
-    @queued << ->(_id) { Result.new(status: :unknown, payment_intent_id: nil, failure_message: "Stripe could not be reached", redirect_url: nil) }
+  # Stripe could not be reached: the charge's outcome is unknown. went_through:
+  # Stripe did take it, and find_payment finds it by its key.
+  def unknown_next!(went_through: false)
+    @queued << lambda do |id|
+      @found[@charges.last[:idempotency_key]] = Result.new(status: :succeeded, payment_intent_id: id, failure_message: nil, redirect_url: nil) if went_through
+      Result.new(status: :unknown, payment_intent_id: nil, failure_message: "Stripe could not be reached", redirect_url: nil)
+    end
+  end
+
+  def find_payment(flosis_key)
+    @found[flosis_key]
   end
 
   def cancel_payment(payment_intent_id)

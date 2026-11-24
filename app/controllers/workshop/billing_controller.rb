@@ -41,8 +41,11 @@ class Workshop::BillingController < Workshop::BaseController
       cancel_url: workshop_billing_url
     )
     redirect_to url, allow_other_host: true, status: :see_other
-  rescue Billing::NotReady, Stripe::StripeError => e
-    redirect_to workshop_billing_path, alert: "Stripe's page could not be opened: #{e.message}"
+  rescue Billing::NotReady => e
+    redirect_to workshop_billing_path, alert: e.message
+  rescue Stripe::StripeError => e
+    Rails.error.report(e, handled: true, context: { billing: "card page", workspace_id: current_workspace.id })
+    redirect_to workshop_billing_path, alert: "Stripe’s secure page could not be opened. Try again in a moment; if it keeps failing, tell Flosis."
   end
 
   def card_return
@@ -51,8 +54,11 @@ class Workshop::BillingController < Workshop::BaseController
 
     flash[:clar_toast] = "Card saved: #{current_workspace.billing.reload.card_short}"
     redirect_to workshop_billing_path
-  rescue Billing::NotReady, Stripe::StripeError => e
+  rescue Billing::NotReady => e
     redirect_to workshop_billing_path, alert: "The card was not saved: #{e.message}"
+  rescue Stripe::StripeError => e
+    Rails.error.report(e, handled: true, context: { billing: "card return", workspace_id: current_workspace.id })
+    redirect_to workshop_billing_path, alert: "The card was not saved: Stripe could not be asked about it. Try again in a moment."
   end
 
   def plan
