@@ -171,7 +171,7 @@ class Workshop::ConfigurationController < Workshop::BaseController
       return
     end
 
-    save_project_fields(project, fields, "Integration settings saved")
+    saved = save_project_fields(project, fields, "Integration settings saved")
     # Same rule as ProjectCreator: a site AND a key are what make a project a
     # Jira project. This is the only screen that can supply the pair after the
     # fact, so without this a project created with "Set up later" could never
@@ -187,6 +187,23 @@ class Workshop::ConfigurationController < Workshop::BaseController
     # queuing a job that would do nothing.
     if params[:integration].to_s == "github" && ProjectCredentials.new(project).github_configured?
       ProjectRepoCheckoutJob.perform_later(project.id)
+    end
+    say_health(project, params[:integration].to_s) if saved
+  end
+
+  # A saved integration is asked at once whether it works (Kacper, 2026-11-24:
+  # a new GitHub token stayed red until the next check, half an hour away);
+  # its chip and the message say the answer.
+  def say_health(project, integration)
+    result = IntegrationHealth.check!(project, integration)
+    return unless result
+
+    name = { "jira" => "Jira", "github" => "GitHub", "figma" => "Figma" }.fetch(integration)
+    if result[:ok]
+      flash[:clar_toast] = "#{name} saved · connection OK"
+    else
+      flash.delete(:clar_toast)
+      flash[:alert] = "#{name} saved, but the connection failed: #{result[:error]}"
     end
   end
 

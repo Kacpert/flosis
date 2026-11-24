@@ -2,6 +2,11 @@ require "test_helper"
 require "webmock/minitest"
 
 class Workshop::ConfigurationControllerTest < ActionDispatch::IntegrationTest
+  include IntegrationHealthTestHelper
+
+  setup { answer_health_checks }
+  teardown { restore_health_checks }
+
   setup do
     @workspace = workspaces(:one)
     @workspace.update!(workshop_enabled: true)

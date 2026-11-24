@@ -9,6 +9,7 @@ require_relative "test_helpers/fake_chat_cli_test_helper"
 require_relative "test_helpers/ai_run_test_helper"
 require_relative "test_helpers/fake_claude_bin_test_helper"
 require_relative "test_helpers/fake_billing_gateway"
+require_relative "test_helpers/integration_health_test_helper"
 
 module ActiveSupport
   class TestCase

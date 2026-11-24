@@ -1,7 +1,12 @@
 require "test_helper"
 
 class Workshop::ConfigurationIntegrationsTest < ActionDispatch::IntegrationTest
+  include IntegrationHealthTestHelper
+
+  teardown { restore_health_checks }
+
   setup do
+    answer_health_checks
     @workspace = workspaces(:one)
     @workspace.update!(workshop_enabled: true)
     @project = projects(:jira_project)
@@ -122,6 +127,45 @@ class Workshop::ConfigurationIntegrationsTest < ActionDispatch::IntegrationTest
     @project.reload
     assert_equal "acme/repo", @project.github_repo
     assert_equal "gh-secret", @project.github_token
+  end
+
+  # Kacper (2026-11-24): a new GitHub token stayed red until the next check,
+  # half an hour away. Saving an integration asks it at once, and the chip and
+  # the message say the answer.
+  test "saving github asks GitHub at once, and a refused token turns the chip red and says why" do
+    answer_health_checks(github: { ok: false, error: "401 Unauthorized" })
+    patch workshop_configuration_path(tab: "integrations"), params: {
+      integration: "github", project: { github_repo: "acme/repo", github_token: "gh-secret" }
+    }
+    @project.reload
+    assert_equal [ false, "401 Unauthorized" ], [ @project.github_status_ok, @project.github_status_error ]
+    assert @project.github_status_checked_at > 1.minute.ago
+    assert_equal "GitHub saved, but the connection failed: 401 Unauthorized", flash[:alert]
+  end
+
+  test "saving github with a token that works turns the chip green at once" do
+    @project.update_columns(github_status_ok: false, github_status_error: "401 Unauthorized")
+    patch workshop_configuration_path(tab: "integrations"), params: {
+      integration: "github", project: { github_repo: "acme/repo", github_token: "gh-secret" }
+    }
+    @project.reload
+    assert_equal [ true, nil ], [ @project.github_status_ok, @project.github_status_error ]
+    assert_equal "GitHub saved · connection OK", flash[:clar_toast]
+  end
+
+  test "saving jira and figma asks them at once too" do
+    answer_health_checks(jira: { ok: false, error: "403 Forbidden" })
+    patch workshop_configuration_path(tab: "integrations"), params: {
+      integration: "jira", project: { jira_site: "acme.atlassian.net", jira_email: "e@x.com", jira_api_token: "jt", external_reference: "ACME" }
+    }
+    assert_equal [ false, "403 Forbidden" ], [ @project.reload.jira_status_ok, @project.jira_status_error ]
+    assert_equal "Jira saved, but the connection failed: 403 Forbidden", flash[:alert]
+
+    patch workshop_configuration_path(tab: "integrations"), params: {
+      integration: "figma", project: { figma_read_enabled: true, figma_token: "ft" }
+    }
+    assert @project.reload.figma_status_ok
+    assert_equal "Figma saved · connection OK", flash[:clar_toast]
   end
 
   # Saving a branch is what moves the server's checkout onto it.
