@@ -152,6 +152,17 @@
         <div class="my-1.5 border-t" style="border-color: var(--border);"></div>
       <% end %>
 
+      <%# Flosis's own back office (/hidmin), for Flosis staff only: everyone
+          else would get a 404 there, so nobody else sees the way in. %>
+      <% if current_user.flosis_staff? %>
+        <%= link_to hidmin_root_path,
+              class: "flex items-center gap-2.5 w-full px-2.5 py-2.5 rounded-lg border-0 text-left clar-btn no-underline",
+              style: "background: transparent; color: var(--text);", data: { turbo: false, flosis_admin_link: true } do %>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="clar-text-ai flex-none"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
+          <span class="font-semibold text-[13px]">Flosis admin</span>
+        <% end %>
+      <% end %>
+
       <%# The person's own settings, the AI costs switch among them (SCRUM-70). %>
       <%= link_to workshop_profile_path,
             class: "flex items-center gap-2.5 w-full px-2.5 py-2.5 rounded-lg border-0 text-left clar-btn no-underline",

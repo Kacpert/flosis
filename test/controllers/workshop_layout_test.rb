@@ -41,4 +41,15 @@ class WorkshopLayoutTest < ActionDispatch::IntegrationTest
       assert_select "a span", text: "Settings", count: 0
     end
   end
+
+  test "Flosis staff find Flosis admin in the account menu; nobody else does" do
+    workspaces(:one).update!(workshop_enabled: true)
+    sign_in_as(users(:one))
+    post switch_product_path, params: { product: "workshop" }
+    get workshop_process_path
+    assert_select "[data-flosis-admin-link]", count: 0
+    users(:one).update!(flosis_staff: true)
+    get workshop_process_path
+    assert_select "a[data-flosis-admin-link][href=?]", hidmin_root_path, text: "Flosis admin"
+  end
 end
