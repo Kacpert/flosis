@@ -420,7 +420,6 @@ module Designs::Subject
     # browser knows them by, come with every setup turn; the request is last.
     def turn_message(request, **)
       ui = Workshop::DesignsModuleController::UI_SYSTEMS.fetch(project.designs_ui_system, project.designs_ui_system.to_s.humanize)
-      framework = Workshop::DesignsModuleController::FRAMEWORKS.fetch(project.designs_framework, project.designs_framework.to_s.humanize)
       repos = Array(project.design_app_repos).filter_map { |row| "#{row['role']}: #{row['repo']}" if row.is_a?(Hash) }
       contexts = project.design_setup_roles.map { |role| context_line(role) }
       <<~MESSAGE
@@ -428,7 +427,7 @@ module Designs::Subject
         This turn: #{PHASE_TITLES.fetch(setup.phase, setup.phase.humanize.downcase)}
 
         ## Stack
-        #{[ framework, project.designs_framework_version ].compact_blank.join(' ')} with #{[ ui, project.designs_ui_version ].compact_blank.join(' ')}
+        #{Workshop::DesignsModuleController::TECHNOLOGY} with #{[ ui, project.designs_ui_version ].compact_blank.join(' ')}
 
         ## App repositories
         #{repos.join("\n").presence || "(the project's own repository)"}

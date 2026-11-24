@@ -5,7 +5,7 @@ require "test_helper"
 # odpalać importu tylko dać formularz").
 class Designs::SetupFormTest < ActiveSupport::TestCase
   FORM = {
-    framework: "html", ui: "tailwind", ui_version: "4", repo: "github.com/acme/app-designs", repo_token: "ghp_designs_token",
+    ui: "tailwind", ui_version: "4", repo: "github.com/acme/app-designs", repo_token: "ghp_designs_token",
     repos: { "0" => { role: "Frontend", url: "github.com/acme/app@production" } },
     contexts: { "0" => { name: "Admin", url: "https://staging.acme.test/login", login: "admin@staging.test", password: "secret-pass" } }
   }.freeze
@@ -17,8 +17,8 @@ class Designs::SetupFormTest < ActiveSupport::TestCase
   test "saves the stack, the repositories and the contexts" do
     assert form(FORM).save
     @project.reload
-    assert_equal [ "html", "tailwind", "4", "acme/app-designs", "https://staging.acme.test" ],
-                 [ @project.designs_framework, @project.designs_ui_system, @project.designs_ui_version, @project.design_repo, @project.design_app_url ]
+    assert_equal [ "tailwind", "4", "acme/app-designs", "https://staging.acme.test" ],
+                 [ @project.designs_ui_system, @project.designs_ui_version, @project.design_repo, @project.design_app_url ]
     assert_equal [ { "role" => "Frontend", "repo" => "acme/app@production" } ], @project.design_app_repos
     assert_equal [ "Admin", "admin@staging.test", "secret-pass" ], @project.design_setup_roles.sole.then { [ _1.name, _1.username, _1.password ] }
   end

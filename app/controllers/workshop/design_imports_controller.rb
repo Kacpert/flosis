@@ -102,7 +102,7 @@ class Workshop::DesignImportsController < Workshop::BaseController
   end
 
   def form_params
-    params.permit(:framework, :framework_version, :ui, :ui_version, :repo, :repo_token,
+    params.permit(:ui, :ui_version, :repo, :repo_token,
                   repos: %i[role url], contexts: %i[id name url login password code_only])
   end
 

@@ -122,7 +122,9 @@ class Workshop::DesignsModuleController < Workshop::BaseController
 
   # The screens a published slot lists (__flosis/screens.json), as
   # { contexts: [{id:, name:}], screens: [{id:, context:, name:, path:}] }.
-  FRAMEWORKS = { "html" => "HTML + CSS", "vue" => "Vue.js", "react" => "React", "angular" => "Angular" }.freeze
+  # What every design is built in: there is no framework to pick (Kacper,
+  # 2026-11-24).
+  TECHNOLOGY = "HTML + CSS".freeze
   UI_SYSTEMS = { "tailwind" => "Tailwind", "custom" => "Custom", "foundation" => "Foundation", "bootstrap" => "Bootstrap", "material" => "Material" }.freeze
 
   # What the library pages and the settings drawer read: master's tokens and
@@ -131,8 +133,7 @@ class Workshop::DesignsModuleController < Workshop::BaseController
     @setup = @project.design_setups.order(:id).last
     @app_repos = Array(@project.design_app_repos).map { |repo| repo.is_a?(Hash) ? repo["repo"] : repo.to_s }.presence || [ @project.github_repo ].compact
     ui = UI_SYSTEMS.fetch(@project.designs_ui_system, @project.designs_ui_system.to_s.humanize)
-    @stack = { framework: FRAMEWORKS.fetch(@project.designs_framework, @project.designs_framework.to_s.humanize),
-               framework_version: @project.designs_framework_version, ui: ui, ui_version: @project.designs_ui_version,
+    @stack = { technology: TECHNOLOGY, ui: ui, ui_version: @project.designs_ui_version,
                styles: "#{ui == 'Tailwind' ? 'Tailwind CSS' : 'CSS'} · tokens in design-system/" }
     master = @publisher.slot_folder(Designs::Repo::MASTER)
     @tokens = tokens_in(master&.join("design-system/theme.css"))

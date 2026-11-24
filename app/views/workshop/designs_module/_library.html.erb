@@ -34,7 +34,7 @@
       </div>
     <% when "components" %>
       <h2 class="m-0 text-[21px] font-bold tracking-[-.4px] clar-text-text">Components</h2>
-      <p class="mt-1.5 mb-5 text-[13px] clar-text-muted">On master. Built in <%= @stack[:framework] %> with <%= @stack[:ui] %> classes, matched against <%= @app_repos.first || "the app" %>.</p>
+      <p class="mt-1.5 mb-5 text-[13px] clar-text-muted">On master. Built in <%= @stack[:technology] %> with <%= @stack[:ui] %> classes, matched against <%= @app_repos.first || "the app" %>.</p>
       <div class="grid gap-3.5" style="grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));">
         <% @components.each do |component| %>
           <div class="clar-card p-0 overflow-hidden" data-designs-component>

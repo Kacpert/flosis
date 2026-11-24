@@ -1,4 +1,4 @@
-# The Designs setup form's saving (Workshop Designs v2): the stack, the designs
+# The Designs setup form's saving (Workshop Designs v2): the UI system, the designs
 # repository and its token, the app's repositories and the contexts with their
 # logins. The setup (Build designs, Save and re-import) and New import (Kacper,
 # 2026-11-22: "nie powinien od razu odpalać importu tylko dać formularz") save
@@ -9,7 +9,7 @@
 # acme/designs, and "acme/app@production" keeps its branch. A context's saved
 # password stays when the form leaves it blank; a new context needs one.
 class Designs::SetupForm
-  SUPPORTED = %w[html tailwind custom].freeze
+  SUPPORTED = %w[tailwind custom].freeze
   INCOMPLETE = "Fill in the designs repository, at least one app repository and one context: its URL and login, or No login.".freeze
   REPO = %r{\A[\w.-]+/[\w.-]+(@[\w./-]+)?\z}
 
@@ -45,11 +45,9 @@ class Designs::SetupForm
   private
 
   def save!(repo, repos, contexts, roles)
-    framework = @params[:framework].presence_in(SUPPORTED) || "html"
     ui = @params[:ui].presence_in(SUPPORTED) || "tailwind"
     Project.transaction do
-      @project.update!(designs_framework: framework, designs_framework_version: @params[:framework_version].presence,
-                       designs_ui_system: ui, designs_ui_version: @params[:ui_version].presence, design_repo: repo,
+      @project.update!(designs_ui_system: ui, designs_ui_version: @params[:ui_version].presence, design_repo: repo,
                        design_app_repos: repos, design_base_kit: ui == "custom" ? "plain" : "tailwind4",
                        design_app_url: origin(contexts.find { |row| row[:url].present? }&.dig(:url)) || @project.design_app_url, designs_enabled: true)
       @project.update!(design_repo_token: @params[:repo_token]) if @params[:repo_token].present?

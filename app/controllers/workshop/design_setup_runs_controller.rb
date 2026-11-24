@@ -4,8 +4,10 @@
 # background (Designs::SetupRunJob), its progress page, and "Edit setup" /
 # "Re-import", which run it again on a thread of its own.
 #
-# This version builds HTML + CSS with Tailwind or plain CSS: the other
-# frameworks and UI systems are shown, as designed, but cannot be picked yet.
+# The designs are HTML + CSS, styled with Tailwind or plain CSS: the other UI
+# systems are shown, as designed, but cannot be picked yet. There is no
+# framework to pick (Kacper, 2026-11-24: React, Vue and Angular are gone; the
+# AI writes HTML as fast, and it needs no build).
 class Workshop::DesignSetupRunsController < Workshop::BaseController
   before_action { require_permission!(:designs) }
   before_action(except: :show) { require_permission!(:configuration) }
@@ -14,7 +16,6 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
   before_action :refuse_while_running, only: %i[create update reimport]
   before_action :refuse_designs_when_ai_paused, only: %i[create update retry reimport]
 
-  FRAMEWORKS = [ [ "vue", "Vue.js", "3.4" ], [ "react", "React", "18.3" ], [ "angular", "Angular", "17" ], [ "html", "HTML + CSS", nil ] ].freeze
   UI_SYSTEMS = [ [ "foundation", "Foundation", "6.8" ], [ "bootstrap", "Bootstrap", "5.3" ], [ "tailwind", "Tailwind", "4" ],
                  [ "material", "Material", "3" ], [ "custom", "Custom", nil ] ].freeze
   # The form's rules live in Designs::SetupForm, which New import shares.
@@ -147,7 +148,7 @@ class Workshop::DesignSetupRunsController < Workshop::BaseController
   end
 
   def form_params
-    params.permit(:framework, :framework_version, :ui, :ui_version, :repo, :repo_token,
+    params.permit(:ui, :ui_version, :repo, :repo_token,
                   repos: %i[role url], contexts: %i[id name url login password code_only])
   end
 

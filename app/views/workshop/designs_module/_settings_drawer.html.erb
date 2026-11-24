@@ -23,7 +23,7 @@
          [ "Branch", branch, (@thread&.branch ? "from master #{@thread.base_sha.to_s.first(7)}#{" · master is now #{@behind.first.short_sha}" if @behind.any?}" : "read-only") ],
          *@app_repos.map { |repo| [ "App repository", repo, "read-only · current product code" ] },
          [ "Sync", "Synced #{designs_ago(@project.design_threads.maximum(:updated_at) || @project.updated_at)}" ] ]) %>
-    <% section.call("STACK", nil, [ [ "Technology", "#{@stack[:framework]} #{@stack[:framework_version]}".strip ],
+    <% section.call("STACK", nil, [ [ "Technology", @stack[:technology] ],
          [ "UI system", "#{@stack[:ui]} #{@stack[:ui_version]}".strip ], [ "Styles", @stack[:styles] ] ]) %>
     <% section.call("STRUCTURE", "What each folder in #{@project.design_repo} holds. The AI follows this when it changes designs.", [
          [ "design-system/", "Tokens extracted from staging and the app repository: colours, type scale, spacing, radius. Every screen uses only these." ],

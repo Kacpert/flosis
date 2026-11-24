@@ -214,14 +214,14 @@ class Workshop::DesignImportActionsTest < ActionDispatch::IntegrationTest
     assert_select "input[name='repos[0][url]'][value='github.com/acme/app@production']"
     assert_select "input[name='contexts[0][name]'][value='Admin']"
     assert_select "input[type='hidden'][name='repo'][value='github.com/acme/app-designs']"
-    assert_select "input[name='framework'][type='radio']", false
+    assert_select "input[name='framework']", false
     assert_select "button", text: "Start import"
   end
 
   test "Start import saves the form and starts the import" do
-    @project.update!(design_repo: "acme/app-designs", designs_framework: "html", designs_ui_system: "tailwind")
+    @project.update!(design_repo: "acme/app-designs", designs_ui_system: "tailwind")
     post workshop_design_imports_path, params: {
-      framework: "html", ui: "tailwind", repo: "github.com/acme/app-designs",
+      ui: "tailwind", repo: "github.com/acme/app-designs",
       repos: { "0" => { role: "Frontend", url: "github.com/acme/app@production" } },
       contexts: { "0" => { name: "Admin", url: "https://staging.acme.test/login", login: "admin@staging.test", password: "p" },
                   "1" => { name: "Flosis staff", url: "https://staging.acme.test/login", login: "staff@staging.test", password: "s" } }

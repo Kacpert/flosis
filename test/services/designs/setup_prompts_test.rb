@@ -78,7 +78,7 @@ class Designs::SetupPromptsTest < ActiveSupport::TestCase
 
   test "a setup turn is told the stack and the app's repositories" do
     project = projects(:jira_project)
-    project.update!(designs_framework: "html", designs_ui_system: "tailwind", designs_ui_version: "4",
+    project.update!(designs_ui_system: "tailwind", designs_ui_version: "4",
                     design_app_repos: [ { "role" => "Frontend", "repo" => "acme/app@production" } ])
     project.design_setups.create!(status: "active", phase: "design_system", step: 3, started_by: users(:one))
     session = ChatSession.create!(project: project, workspace: project.workspace, user: users(:one), purpose: "designs_setup",

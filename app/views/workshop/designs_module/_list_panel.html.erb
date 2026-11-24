@@ -26,7 +26,7 @@
 
 <div class="p-2 border-b border-[color:var(--border)] flex flex-col gap-px">
   <% [ [ "system", "Design system", "Colours, type, spacing, radius", :palette, nil ],
-       [ "components", "Components", "#{@components.size} in #{@stack[:framework]}", :grid, @components.size ],
+       [ "components", "Components", "#{@components.size} in #{@stack[:technology]}", :grid, @components.size ],
        [ "history", "Merge history", "#{@merges.size} merges into master", :merge, @merges.size ] ].each do |tab, label, sub, icon, count| %>
     <%= link_to workshop_designs_overview_path(tab: tab), class: "flex items-center gap-2.5 px-2 py-1.5 rounded-lg no-underline clar-row-hover #{'bg-[var(--primary-soft)]' if @tab == tab}",
           title: sub do %>

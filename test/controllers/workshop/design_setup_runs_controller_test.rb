@@ -16,7 +16,7 @@ class Workshop::DesignSetupRunsControllerTest < ActionDispatch::IntegrationTest
   end
 
   FORM = {
-    framework: "html", ui: "tailwind", ui_version: "4", repo: "github.com/acme/app-designs", repo_token: "ghp_designs_token",
+    ui: "tailwind", ui_version: "4", repo: "github.com/acme/app-designs", repo_token: "ghp_designs_token",
     repos: { "0" => { role: "Frontend", url: "github.com/acme/app@production" } },
     contexts: { "0" => { name: "Admin", url: "https://staging.acme.test/login", login: "admin@staging.test", password: "secret-pass" } }
   }.freeze
@@ -25,8 +25,8 @@ class Workshop::DesignSetupRunsControllerTest < ActionDispatch::IntegrationTest
     get new_workshop_design_setup_run_path
     assert_response :success
     [ "Set up Designs for #{@project.name}", "The AI reads your repositories, signs in to your test environment as each context, maps the app’s features and builds them one by one: the design system, the components and every screen, in the designs repository. It runs in the background and takes several hours. After that, every change happens in threads.",
-      "Technology", "What the designs are built with. Components are generated in this stack and version.", "FRAMEWORK",
-      "Vue.js", "React", "Angular", "HTML + CSS", "SOON", "UI SYSTEM", "Foundation", "Bootstrap", "Tailwind", "Material", "Custom",
+      "Technology", "The designs are HTML and CSS, styled with this UI system and version.",
+      "SOON", "UI SYSTEM", "Foundation", "Bootstrap", "Tailwind", "Material", "Custom",
       "The AI checks these against package.json and the lockfile and flags a mismatch.",
       "Repositories", "Where the designs are stored, and the product code they are based on.", "DESIGNS REPOSITORY (TARGET)",
       "The AI commits here. master holds approved designs; each thread is a branch.", "CURRENT APP REPOSITORIES · READ-ONLY",
@@ -34,9 +34,10 @@ class Workshop::DesignSetupRunsControllerTest < ActionDispatch::IntegrationTest
       "Test environment and contexts", "The AI signs in as each context and uses the app on test data: it may create, change and delete what it needs. Use a test environment (staging, or a test workspace on production) and a test account per context. Each context can have its own login page.",
       "CONTEXT", "LOGIN URL", "LOGIN", "PASSWORD", "Add context", "Several hours, in the background. You can keep working.",
       "Build designs" ].each { |copy| assert_includes response.body, CGI.escapeHTML(copy), copy }
-    assert_select "input[name=framework][value=vue]", count: 0
-    assert_select "input[name=framework][value=html]"
-    assert_select "input[name=framework_version]", count: 0
+    # Kacper, 2026-11-24: no framework to pick. The designs stay HTML and CSS,
+    # which the AI writes as fast as anything and needs no build.
+    assert_select "input[name=framework]", count: 0
+    [ "FRAMEWORK", "Vue.js", "React", "Angular" ].each { |gone| assert_not_includes response.body, gone }
   end
 
   # A run lasts hours: a second click of Build designs, or a re-import while
@@ -84,8 +85,8 @@ class Workshop::DesignSetupRunsControllerTest < ActionDispatch::IntegrationTest
     post workshop_design_setup_run_path, params: FORM
 
     @project.reload
-    assert_equal [ "html", "tailwind", "4", "acme/app-designs", "tailwind4", "https://staging.acme.test" ],
-                 [ @project.designs_framework, @project.designs_ui_system, @project.designs_ui_version, @project.design_repo,
+    assert_equal [ "tailwind", "4", "acme/app-designs", "tailwind4", "https://staging.acme.test" ],
+                 [ @project.designs_ui_system, @project.designs_ui_version, @project.design_repo,
                    @project.design_base_kit, @project.design_app_url ]
     assert_equal [ { "role" => "Frontend", "repo" => "acme/app@production" } ], @project.design_app_repos
     assert_equal "ghp_designs_token", @project.design_repo_token

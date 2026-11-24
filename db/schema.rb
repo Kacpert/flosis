@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -867,8 +867,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_100000) do
     t.text "design_repo_token"
     t.string "design_style_pack_key"
     t.boolean "designs_enabled", default: false, null: false
-    t.string "designs_framework", default: "html", null: false
-    t.string "designs_framework_version"
     t.string "designs_ui_system", default: "tailwind", null: false
     t.string "designs_ui_version", default: "4"
     t.json "estimation_field_names"

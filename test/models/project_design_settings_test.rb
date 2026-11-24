@@ -9,6 +9,13 @@ class ProjectDesignSettingsTest < ActiveSupport::TestCase
     assert_equal "tailwind4", project.design_base_kit
   end
 
+  # Kacper, 2026-11-24: the designs are HTML and CSS, with no framework to
+  # pick, so a project keeps none.
+  test "a project keeps no framework for its designs" do
+    assert_not_includes Project.column_names, "designs_framework"
+    assert_not_includes Project.column_names, "designs_framework_version"
+  end
+
   test "the base kit must be one Flosis supports" do
     @project.design_base_kit = "bootstrap5"
     assert_not @project.valid?
