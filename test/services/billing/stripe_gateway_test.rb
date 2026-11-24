@@ -79,19 +79,30 @@ class Billing::StripeGatewayTest < ActiveSupport::TestCase
       .to_return(body: { id: "cus_new", object: "customer" }.to_json)
     assert_equal "cus_new", @gateway.ensure_customer(@account)
     assert_equal "cus_new", @gateway.ensure_customer(@account.reload)
-    assert_match(/\Aflosis-customer-#{@account.id}-#{@account.created_at.to_i}-\h{16}\z/, keys.sole)
+    made = @account.created_at.in_time_zone.strftime("%Y%m%d-%H%M%S")
+    assert_equal "flosis-#{@account.workspace.name.parameterize}-customer-#{made}-#{@account.id}", keys.sole
   end
 
   # 2026-11-24: one sandbox serves a developer's database and staging; a bare
   # row id was already taken there with other parameters.
-  test "idempotency keys tell databases and requests apart, and repeat for the same request" do
-    key = ->(record, params, *parts) { Billing::StripeGateway.idempotency_key("charge", record, params, *parts) }
+  test "idempotency keys name the organization and tell databases and attempts apart" do
+    acme = Workspace.new(id: 3, name: "Acme Inc.")
     charge = Struct.new(:id, :created_at)
-    here = charge.new(1, Time.zone.local(2026, 11, 23, 22))
-    there = charge.new(1, Time.zone.local(2026, 11, 24, 1))
-    assert_not_equal key.(here, { cents: 100 }, 1), key.(there, { cents: 100 }, 1)
-    assert_not_equal key.(here, { cents: 100 }, 1), key.(here, { cents: 200 }, 1)
-    assert_not_equal key.(here, { cents: 100 }, 1), key.(here, { cents: 100 }, 2)
-    assert_equal key.(here, { cents: 100 }, 1), key.(here, { cents: 100 }, 1)
+    here = charge.new(12, Time.zone.local(2026, 12, 1, 6, 0, 12))
+    there = charge.new(12, Time.zone.local(2026, 12, 1, 6, 0, 13))
+    key = ->(workspace, record, *parts) { Billing::StripeGateway.idempotency_key(workspace, "auto_top_up", record, *parts) }
+    assert_equal "flosis-acme-inc-auto-top-up-20261201-060012-12-1", key.(acme, here, 1)
+    assert_not_equal key.(acme, here, 1), key.(acme, there, 1)
+    assert_not_equal key.(acme, here, 1), key.(acme, here, 2)
+    assert_not_equal key.(acme, here, 1), key.(Workspace.new(id: 4, name: "Beta"), here, 1)
+    assert_equal key.(acme, here, 1), key.(acme, here, 1)
+  end
+
+  test "the organization in a key: Polish letters, a long name, a name with no letters" do
+    slug = ->(name) { Billing::StripeGateway.organization_slug(Workspace.new(id: 7, name: name)) }
+    assert_equal "zolta-lodz-sp-z-o-o", slug.("Żółta Łódź Sp. z o.o.")
+    assert_equal "a" * 40, slug.("a" * 60)
+    assert_equal "a" * 39, slug.("a" * 39 + " bcd")
+    assert_equal "organization-7", slug.("株式会社")
   end
 end

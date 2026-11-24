@@ -64,7 +64,7 @@ class FakeBillingGateway
   def charge(account, cents:, description:, idempotency_key:, off_session:, return_url: nil, metadata: {})
     id = "pi_fake_#{@charges.size + 1}"
     @charges << { account: account, cents: cents, description: description, idempotency_key: idempotency_key,
-                  off_session: off_session, return_url: return_url, payment_intent_id: id }
+                  off_session: off_session, return_url: return_url, metadata: metadata, payment_intent_id: id }
     result = (@queued.shift || ->(pid) { Result.new(status: :succeeded, payment_intent_id: pid, failure_message: nil, redirect_url: nil) }).call(id)
     # A declined payment stays declined when Stripe is asked about it later;
     # one sent to 3-D Secure reads as paid (the admin finished it) unless a

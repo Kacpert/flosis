@@ -116,6 +116,22 @@ class Billing::ChargeSafetyTest < ActiveSupport::TestCase
     end
   end
 
+  test "a payment whose outcome was unknown is found by the key it was sent with, after a rename too" do
+    travel_to(Time.zone.local(2026, 11, 1, 6)) { plans.choose!(@starter) }
+    travel_to Time.zone.local(2026, 11, 10, 9) do
+      @workspace.update!(name: "Acme Inc.")
+      @billing_gateway.unknown_next!(went_through: true)
+      charge = Billing::TopUps.new(@workspace.reload).buy!(100)
+      assert_equal "flosis-acme-inc-top-up-#{charge.created_at.strftime("%Y%m%d-%H%M%S")}-#{charge.id}-1", charge.reload.stripe_key
+      assert_equal charge.stripe_key, @billing_gateway.charges.last[:idempotency_key]
+      assert_equal charge.stripe_key, @billing_gateway.charges.last[:metadata][:flosis_key]
+      @workspace.update!(name: "Acme Group")
+      travel 11.minutes
+      perform_enqueued_jobs(only: Billing::ResolveChargeJob)
+      assert charge.reload.succeeded?
+    end
+  end
+
   test "after a failed automatic top-up, a new card is tried at once" do
     travel_to(Time.zone.local(2026, 11, 1, 6)) { plans.choose!(@starter) }
     @workspace.billing.update!(auto_top_up: true)

@@ -41,12 +41,17 @@ module Billing
 
     # Idempotency keys are per Stripe account, and one sandbox serves every
     # database that uses it (a developer's, staging): a bare row id repeats
-    # across them ("flosis-customer-1" was taken, 2026-11-24). The row's own
-    # creation time tells two databases' rows apart, and a digest of what is
-    # sent makes a changed request a new key while a repeat keeps its own.
-    def self.idempotency_key(kind, record, params, *parts)
-      digest = Digest::SHA256.hexdigest(params.to_json)[0, 16]
-      [ "flosis", kind, record.id, record.created_at.to_i, *parts, digest ].join("-")
+    # across them ("flosis-customer-1" was taken, 2026-11-24). A key reads
+    # flosis-<organization>-<what>-<when the row was made>-<row id>[-<attempt>],
+    # e.g. flosis-acme-inc-plan-20261201-060012-12-1: the organization and the
+    # second the row was made tell two databases' rows apart.
+    def self.idempotency_key(workspace, kind, record, *parts)
+      [ "flosis", organization_slug(workspace), kind.to_s.dasherize,
+        record.created_at.in_time_zone.strftime("%Y%m%d-%H%M%S"), record.id, *parts ].join("-")
+    end
+
+    def self.organization_slug(workspace)
+      workspace.name.to_s.parameterize.first(40).sub(/-+\z/, "").presence || "organization-#{workspace.id}"
     end
 
     def initialize(api_key: self.class.api_key)
@@ -59,7 +64,7 @@ module Billing
       params = { name: account.company_name || account.workspace.name,
                  email: account.workspace.admin_users.order(:id).pick(:email_address),
                  metadata: { workspace_id: account.workspace_id } }
-      customer = client.v1.customers.create(params, { idempotency_key: self.class.idempotency_key("customer", account, params) })
+      customer = client.v1.customers.create(params, { idempotency_key: self.class.idempotency_key(account.workspace, "customer", account) })
       account.update!(stripe_customer_id: customer.id)
       customer.id
     end
