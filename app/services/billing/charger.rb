@@ -48,9 +48,9 @@ module Billing
       end
       result = Billing.gateway.charge(
         @account, cents: charge.cents, description: Invoice.line_name_for(charge),
-        idempotency_key: "flosis-charge-#{charge.id}-#{charge.attempts + 1}",
+        idempotency_key: attempt_key(charge),
         off_session: off_session, return_url: return_url,
-        metadata: { workspace_id: @workspace.id, charge_id: charge.id }
+        metadata: { workspace_id: @workspace.id, charge_id: charge.id, flosis_key: attempt_key(charge) }
       )
       charge.increment(:attempts) unless result.status == :unknown
       settle!(charge, result)
@@ -67,9 +67,29 @@ module Billing
       # A plan month that already failed stays failing while the bank asks
       # for 3-D Secure: the grace and the banner hold until it is paid.
       when :requires_action then charge.update!(status: charge.first_failed_at ? "failed" : "requires_action")
+      when :unknown
+        charge.update!(status: "pending")
+        Billing::ResolveChargeJob.set(wait: 10.minutes).perform_later(charge)
       else charge.update!(status: "pending")
       end
       charge.redirect_url = result.redirect_url
+      charge
+    end
+
+    # The attempt's key: the same for the same attempt, whatever asks it.
+    def attempt_key(charge)
+      StripeGateway.idempotency_key("charge", charge, { cents: charge.cents }, charge.attempts + 1)
+    end
+
+    # An attempt whose outcome was unknown (Stripe unreachable) is looked up
+    # at Stripe by its key, never sent again: found, it is settled; not
+    # there, the request never reached Stripe and nothing was charged.
+    def resolve_unknown!(charge)
+      found = Billing.gateway.find_payment(attempt_key(charge))
+      charge.increment(:attempts)
+      return settle!(charge, found) if found
+
+      fail!(charge, "Stripe could not be reached, so nothing was charged")
       charge
     end
 

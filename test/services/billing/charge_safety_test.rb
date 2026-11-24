@@ -96,17 +96,23 @@ class Billing::ChargeSafetyTest < ActiveSupport::TestCase
     end
   end
 
-  test "Stripe unreachable: the charge waits, and is asked again with the same key" do
+  test "Stripe unreachable: the charge waits, then is looked up by its key and never sent again" do
     travel_to(Time.zone.local(2026, 11, 1, 6)) { plans.choose!(@starter) }
     travel_to Time.zone.local(2026, 11, 10, 9) do
+      @billing_gateway.unknown_next!(went_through: true)
+      taken = Billing::TopUps.new(@workspace.reload).buy!(100)
       @billing_gateway.unknown_next!
-      charge = Billing::TopUps.new(@workspace.reload).buy!(100)
-      assert_equal "pending", charge.status
-      travel 5.minutes
-      Billing::RetryJob.perform_now
-      keys = @billing_gateway.charges.last(2).map { |c| c[:idempotency_key] }
-      assert_equal 1, keys.uniq.size
-      assert charge.reload.succeeded?
+      lost = Billing::TopUps.new(@workspace.reload).buy!(200)
+      assert_equal [ "pending", "pending" ], [ taken.status, lost.status ]
+      sent = @billing_gateway.charges.size
+      assert_enqueued_with(job: Billing::ResolveChargeJob, args: [ lost ])
+      travel 11.minutes
+      perform_enqueued_jobs(only: Billing::ResolveChargeJob)
+      assert_equal sent, @billing_gateway.charges.size, "nothing is charged again"
+      assert taken.reload.succeeded?
+      assert_equal "failed", lost.reload.status
+      assert_equal "Stripe could not be reached, so nothing was charged", lost.failure_message
+      assert_equal BigDecimal("100"), Billing::Ledger.balance(@workspace)
     end
   end
 
