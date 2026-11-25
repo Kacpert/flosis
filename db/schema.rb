@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -237,6 +237,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_200000) do
     t.string "plan_name"
     t.decimal "plan_price_usd", precision: 12, scale: 2
     t.string "status", default: "pending", null: false
+    t.string "stripe_key"
     t.string "stripe_payment_intent_id"
     t.datetime "succeeded_at"
     t.datetime "updated_at", null: false

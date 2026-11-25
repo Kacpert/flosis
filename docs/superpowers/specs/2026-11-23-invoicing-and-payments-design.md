@@ -141,6 +141,12 @@ PDFs; emails per `designs/emails/*`.
   `payment_method_types`; the gateway sends `allowed_payment_method_types: ["card"]`.
   Decline (insufficient funds, expired card) and 3-D Secure (redirect, then
   `payment_return`) come back as the gateway says. No webhooks are needed.
+- **Idempotency keys** read `flosis-<organization>-<what>-<YYYYMMDD-HHMMSS the row was
+  made>-<row id>[-<attempt>]`, e.g. `flosis-acme-inc-plan-20261201-060012-12-1` (Kacper,
+  2026-11-24). One sandbox serves several databases, so a bare row id is not enough.
+  A charge keeps its last attempt's key (`billing_charges.stripe_key`, also in the
+  payment's metadata as `flosis_key`); a payment whose outcome was unknown is looked
+  up by it 10 minutes later and never sent again.
 - **KSeF, checked against the Ministry's TEST environment**: FA(3) invoices for all
   three VAT treatments were accepted (self-signed certificate on TE; token login also
   works). The KOD I link opens "Faktura znajduje się w KSeF". `rake ksef:smoke`.
