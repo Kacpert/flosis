@@ -52,7 +52,9 @@
     "The AI reads the project code and this description, then drafts the brief as you talk — it #{jira_linked ? 'replaces the description above in Jira.' : 'becomes the Jira description when you push.'}"
   end
 %>
-<div class="flex flex-col min-h-0 h-full bg-[var(--surface)]"
+<%# data-clar-document-current names the current version, so a reload that
+    brings a newer one can show it arriving (clar_document_refresh_controller). %>
+<div class="flex flex-col min-h-0 h-full bg-[var(--surface)]" data-clar-document-current="<%= current_version&.version %>"
   <% if selected.present? %>
      data-controller="clar-editor"
      data-clar-editor-kind-value="<%= is_details ? 'detail' : 'brief' %>"
@@ -84,7 +86,8 @@
             %>
             <%= link_to workshop_idea_path(idea, stage: stage, v: version.version),
                         class: "clar-chip #{chip_classes}",
-                        title: "#{version.label}#{chip_current ? ' · current' : ''}" do %>
+                        title: "#{version.label}#{chip_current ? ' · current' : ''}",
+                        data: { clar_document_chip_current: (true if chip_current) } do %>
               <% if chip_current %><span class="clar-dot bg-[var(--success)]"></span><% end %>
               v<%= version.version %>
             <% end %>

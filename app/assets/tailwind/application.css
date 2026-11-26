@@ -2371,6 +2371,23 @@ span.flatpickr-weekday {
     transition:background .15s; }
   .clar-col-resizer:hover, .clar-col-resizer:active { background:var(--primary); }
   .clar-col-resizer::after { content:""; position:absolute; top:0; bottom:0; left:-4px; right:-4px; }
+  /* A new description version the AI just wrote (clar_document_refresh_controller):
+     the panel glows softly and fades, and the version's chip pulses twice.
+     Kacper, 2026-11-26: he could not tell when the AI updated it. */
+  @keyframes clar-document-updated {
+    from { box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--ai) 55%, transparent);
+           background-color:color-mix(in srgb, var(--ai) 7%, var(--surface)); }
+    to   { box-shadow:inset 0 0 0 1.5px transparent; background-color:var(--surface); }
+  }
+  @keyframes clar-chip-arrived {
+    from { box-shadow:0 0 0 0 color-mix(in srgb, var(--ai) 50%, transparent); }
+    to   { box-shadow:0 0 0 7px transparent; }
+  }
+  .clar-document-updated { animation:clar-document-updated 2.4s ease-out; }
+  .clar-document-updated [data-clar-document-chip-current] { animation:clar-chip-arrived 1.1s ease-out 2; }
+  @media (prefers-reduced-motion: reduce) {
+    .clar-document-updated, .clar-document-updated [data-clar-document-chip-current] { animation:none; }
+  }
   /* The top edge of a chat's input (clar_composer_controller): dragged up, the
      box gets taller; a line shows on hover and while dragging. */
   .clar-composer-grip { position:absolute; left:0; right:0; top:-4px; height:8px; z-index:5; cursor:ns-resize;

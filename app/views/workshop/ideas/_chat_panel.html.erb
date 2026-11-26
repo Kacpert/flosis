@@ -35,8 +35,13 @@
         <svg class="flex-none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
         <span class="truncate min-w-0"><%= persona_label %></span>
       </span>
-      <%= render "workshop/shared/ai_cost", cost: ai_item_cost(ai_figures([ idea ], area: "task_conversations"), idea),
-                 tip: "AI cost of this task's conversation · total, this month in brackets" %>
+      <%# Reloaded after every answer, as the description is (Kacper,
+          2026-11-26: in a tab left open it stayed $0.00 all day). %>
+      <%= turbo_frame_tag "clar-ai-cost", data: { controller: "clar-document-refresh",
+                                                  clar_document_refresh_reload_url_value: workshop_idea_path(idea, stage: persona) } do %>
+        <%= render "workshop/shared/ai_cost", cost: ai_item_cost(ai_figures([ idea ], area: "task_conversations"), idea),
+                   tip: "AI cost of this task's conversation · total, this month in brackets" %>
+      <% end %>
     </span>
     <span class="text-[12px] clar-text-faint min-w-0 truncate hidden @[56rem]:inline">Reads project &amp; task description first</span>
     <span class="flex-1 min-w-0"></span>

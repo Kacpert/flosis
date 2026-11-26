@@ -20,6 +20,22 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-action*='clar-chat#resetSession']", count: 1
   end
 
+  # Kacper (2026-11-26): in a tab left open, the chat's AI cost stayed $0.00
+  # through a day of answers, and a new description version arrived without a
+  # sign. Both reload after every answer (clar:document-updated); the panel
+  # names its current version, so a newer one can be shown arriving.
+  test "the chat's AI cost reloads after every answer, and the description panel names its current version" do
+    post workshop_ideas_path, params: { idea: { title: "Keep up", description: "A main product and an HR module.", start_stage: "details" } }
+    task = Task.order(:id).last
+    follow_redirect!
+
+    assert_select "turbo-frame#clar-ai-cost[data-controller=clar-document-refresh][data-clar-document-refresh-reload-url-value=?]",
+                  workshop_idea_path(task, stage: "details")
+    assert_select "turbo-frame#clar-document [data-clar-document-current=?]", task.current_detail_draft.version.to_s do
+      assert_select "a.clar-chip[data-clar-document-chip-current]", count: 1, text: /v#{task.current_detail_draft.version}/
+    end
+  end
+
   test "posting a title creates a local pipeline task at briefing and redirects to the idea" do
     assert_difference -> { Task.count }, 1 do
       post workshop_ideas_path, params: { idea: { title: "Aggregated CSV export", description: "" } }
