@@ -6,7 +6,7 @@
     routes, Task 5.1) — pass `persona` to pick the routes/copy. The
     persona-banner "Reset session" button opens the confirmation modal
     (Task 4.4, _reset_modal.html.erb, shared clar-modal scope from
-    show.html.erb); confirming there calls clar-chat#resetSession. %>
+    show.html.erb); confirming there announces clar:reset-session, which this panel hears. %>
 <%
   is_briefing = persona == "briefing"
   create_url = is_briefing ? jira_task_brief_chat_session_path(idea) : jira_task_chat_session_path(idea)
@@ -15,7 +15,7 @@
   placeholder = is_briefing ? "Describe the idea, or reply&hellip;".html_safe : "Answer the question&hellip;".html_safe
 %>
 <div class="relative flex flex-col min-h-0 h-full @container" data-controller="clar-chat"
-     data-action="dragover->clar-chat#dragOver dragleave->clar-chat#dragLeave drop->clar-chat#drop"
+     data-action="dragover->clar-chat#dragOver dragleave->clar-chat#dragLeave drop->clar-chat#drop clar:reset-session@window->clar-chat#resetSession"
      data-clar-chat-create-url-value="<%= create_url %>"
      data-clar-chat-show-url-value="<%= create_url %>"
      data-clar-chat-message-url-value="<%= message_url %>"

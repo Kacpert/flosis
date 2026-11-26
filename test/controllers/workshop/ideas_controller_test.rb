@@ -7,6 +7,19 @@ class Workshop::IdeasControllerTest < ActionDispatch::IntegrationTest
     post switch_product_path, params: { product: "workshop" }
   end
 
+  # Kacper (2026-11-26): Restart session in the Reset dialog did nothing. The
+  # dialog sits outside the chat's controller, so its button announces the
+  # reset on window and the chat listens for it there.
+  test "the Reset dialog's Restart session reaches the chat, which sits outside the dialog" do
+    post workshop_ideas_path, params: { idea: { title: "Reset me", description: "", start_stage: "details" } }
+    follow_redirect!
+
+    assert_select "[data-clar-modal-panel-id-value=reset-session] button[data-action~='click->clar-modal#confirm'][data-clar-modal-event-param='clar:reset-session']",
+                  text: /Restart session/
+    assert_select "[data-controller=clar-chat][data-action~='clar:reset-session@window->clar-chat#resetSession']"
+    assert_select "[data-action*='clar-chat#resetSession']", count: 1
+  end
+
   test "posting a title creates a local pipeline task at briefing and redirects to the idea" do
     assert_difference -> { Task.count }, 1 do
       post workshop_ideas_path, params: { idea: { title: "Aggregated CSV export", description: "" } }

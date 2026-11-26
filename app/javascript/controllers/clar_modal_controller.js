@@ -57,6 +57,16 @@ export default class extends Controller {
     document.body.style.overflow = ""
   }
 
+  // A dialog's confirm button whose work belongs to a controller elsewhere on
+  // the page: it announces data-clar-modal-event-param on window, then
+  // closes. (Kacper, 2026-11-26: the task chat's Restart session did nothing,
+  // because the chat's controller is not around the dialog.)
+  confirm(event) {
+    const name = event && event.params && event.params.event
+    if (name) window.dispatchEvent(new CustomEvent(name))
+    this.close()
+  }
+
   // Marks the click as "inside the panel" instead of calling
   // event.stopPropagation(). Stopping propagation here also stopped the click
   // reaching Turbo's document-level listener, which quietly turned every link

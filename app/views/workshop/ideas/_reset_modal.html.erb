@@ -1,7 +1,7 @@
 <%# "Reset AI session" confirmation modal (Task 4.4; parameterized by stage in
     Task 5.1) — opened by the persona banner's "Reset session" button
-    (clar-modal#open). Confirming triggers the chat controller's
-    resetSession() (DELETE, then a plain create with no mode param — the
+    (clar-modal#open). Confirming announces clar:reset-session, on which the
+    chat controller runs resetSession() (DELETE, then a plain create with no mode param — the
     opener re-seeds itself), which keeps all saved versions and the
     description untouched. Contrast: the document-footer "Reset chat" button
     skips this modal entirely and calls resetConversation() with
@@ -37,7 +37,9 @@
     </div>
     <div class="flex gap-2.5 justify-end">
       <button type="button" class="clar-btn" data-action="clar-modal#close">Cancel</button>
-      <button type="button" class="clar-btn clar-btn-ai" data-action="click->clar-chat#resetSession clar-modal#close">
+      <%# The chat's controller is not around this dialog, so the button
+          announces the reset and the chat listens for it (clar-modal#confirm). %>
+      <button type="button" class="clar-btn clar-btn-ai" data-action="click->clar-modal#confirm" data-clar-modal-event-param="clar:reset-session">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
         Restart session
       </button>
