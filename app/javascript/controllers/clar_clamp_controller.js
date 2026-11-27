@@ -41,8 +41,12 @@ export default class extends Controller {
     const wasExpanded = this.expandedValue
     this.textTarget.classList.add("is-expanded")
     const lineHeight = parseFloat(getComputedStyle(this.textTarget).lineHeight) || 1
-    const lines = Math.round(this.textTarget.clientHeight / lineHeight)
+    const height = this.textTarget.clientHeight
     this.textTarget.classList.toggle("is-expanded", wasExpanded)
+    // Hidden (a closed modal, e.g. the run history's) measures 0 — keep what
+    // was measured while it was visible instead of dropping the clamp.
+    if (height === 0) return this.render()
+    const lines = Math.round(height / lineHeight)
 
     this.worthClamping = lines >= MIN_LINES_TO_CLAMP
     this.render()

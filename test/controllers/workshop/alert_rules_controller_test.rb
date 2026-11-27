@@ -370,6 +370,20 @@ class Workshop::AlertRulesControllerTest < ActionDispatch::IntegrationTest
     assert_match(/NO ACTION/, response.body)
   end
 
+  # Kacper, 2026-11-27: a long prompt filled the whole modal and he could not
+  # see the run history under it. The prompt collapses to two lines.
+  test "history collapses the prompt so the run list stays in view" do
+    rule = AlertRule.create!(workspace: @workspace, project: @project, discord_webhook: @webhook,
+      name: "Lit translations", prompt: "Translate every new string. " * 40,
+      frequency: "daily", run_at_time: "13:00")
+
+    get history_workshop_alert_rule_path(rule)
+
+    assert_response :success
+    assert_select "[data-controller='clar-clamp'] .clar-clamp[data-clar-clamp-target='text']", text: /Translate every new string/
+    assert_select "[data-controller='clar-clamp'] button[data-action='clar-clamp#toggle']", text: "Show more"
+  end
+
   test "history is scope-safe (404s for a rule outside the current workshop project)" do
     other_project = projects(:other_jira_project)
     rule = AlertRule.create!(workspace: @workspace, project: other_project, discord_webhook: @webhook,
