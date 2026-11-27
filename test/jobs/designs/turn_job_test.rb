@@ -1632,6 +1632,63 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  # Final review I4: a paused organization (SCRUM-71) is refused before the CLI
+  # starts, so there is no session a new one could get past.
+  test "a paused organization's turn fails without starting another session or changing the chat's" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      first = thread_turn(repo, base)
+      first.update!(status: "succeeded", started_at: 6.minutes.ago, finished_at: 5.minutes.ago, context_tokens: 40_000)
+      session = first.chat_session
+      old_id = session.claude_session_id
+      fake_claude(raise_error: ClaudeCliService::PausedError.new)
+
+      assert run_turn(next_turn(session, "Make the counter red"), remote).failed?
+
+      assert_equal [ :resume_session ], @calls.map(&:first)
+      assert_equal old_id, session.reload.claude_session_id
+    end
+  end
+
+  # Final review I4: the new session the retry starts never heard the thread.
+  test "a resume that fails at once is tried again in a new session, told the thread so far" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      first = thread_turn(repo, base)
+      first.update!(status: "succeeded", started_at: 6.minutes.ago, finished_at: 5.minutes.ago, context_tokens: 40_000)
+      session = first.chat_session
+      session.chat_messages.create!(role: "assistant", kind: "summary", content: "Added a counter.")
+      scripted_claude do |call, _keywords, _opts|
+        raise ClaudeCliService::ClaudeCliError, "No conversation found" if call == :resume_session
+
+        { session_id: "s", response: "<summary>Did it.</summary>", is_error: false }
+      end
+
+      run_turn(next_turn(session, "Make the counter red"), remote)
+
+      assert_equal %i[resume_session start_session], @calls.map(&:first)
+      assert_not_includes @calls.first[1][:prompt], "## This thread so far"
+      assert_includes @calls.last[1][:prompt], "## This thread so far"
+    end
+  end
+
+  test "a new session that tries a failed request again is not told it learned from the failed run" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      failed = thread_turn(repo, base)
+      failed.update!(status: "failed", started_at: 3.hours.ago, finished_at: 3.hours.ago, error: "Claude CLI did not finish")
+      again = DesignTurn.create!(chat_session: failed.chat_session, chat_message: failed.chat_message)
+      fake_claude
+
+      run_turn(again, remote)
+
+      call, keywords = @calls.sole
+      assert_equal :start_session, call
+      assert_includes keywords[:prompt], "## Note from Flosis"
+      assert_not_includes keywords[:prompt], "with what you learned"
+    end
+  end
+
   # 2026-11-27: the size a turn's context reached decides whether the thread's
   # next message may resume its session (Designs::SessionChoice).
   test "a turn keeps the largest context its own requests had, not a subagent's" do

@@ -3,6 +3,10 @@
 # it. The person's messages and the replies the chat shows; Flosis's hidden
 # requests, its notes and the turns' steps stay out. Past the limit, the
 # oldest messages go first, whole.
+#
+# The person may write while a turn builds, so that turn's reply comes after
+# their message: replies count until the turn starts (replies_until), the
+# person's own messages only up to the one it answers.
 module Designs::ThreadHistory
   LIMIT = 20_000
   CUT = "(Earlier messages left out.)".freeze
@@ -12,8 +16,10 @@ module Designs::ThreadHistory
   module_function
 
   # nil when nothing was said before the message.
-  def text(chat_session, before:, limit: LIMIT)
-    entries = chat_session.chat_messages.where("id < ?", before).order(:id).filter_map { |message| entry(message) }
+  def text(chat_session, before:, replies_until: nil, limit: LIMIT)
+    said = chat_session.chat_messages.where("id < ?", before)
+    said = said.or(chat_session.chat_messages.where(role: "assistant", created_at: ...replies_until)) if replies_until
+    entries = said.order(:id).filter_map { |message| entry(message) }
     return if entries.empty?
 
     kept = entries.dup

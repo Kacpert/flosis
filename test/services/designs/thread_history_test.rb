@@ -24,6 +24,18 @@ class Designs::ThreadHistoryTest < ActiveSupport::TestCase
                  Designs::ThreadHistory.text(@session, before: current.id)
   end
 
+  # The person may write while a turn builds: that turn's reply comes after
+  # their message, and the next turn must still hear it (final review M1).
+  test "a reply to an earlier turn that came after the message is in it, and a later message of the person's is not" do
+    said("user", "Add usage")
+    current = said("user", "Make it weekly")
+    said("assistant", "Added a usage chart.", kind: "summary")
+    said("user", "And blue")
+
+    assert_equal "The person: Add usage\n\nYou: Added a usage chart.",
+                 Designs::ThreadHistory.text(@session, before: current.id, replies_until: Time.current)
+  end
+
   # Each message below is 30 characters with its label: two of them and the
   # note that some were left out are past 70.
   test "past the limit the oldest messages go, and it says so" do

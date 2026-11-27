@@ -404,9 +404,13 @@ class Designs::TurnJob < ApplicationJob
     # turn may read them, and named in the request for its Read tool.
     images = !@conflicts && turn.chat_message.images.attached? ? ChatImages.write!(turn.chat_message) : []
     request = "#{request}\n\n#{ChatImages.note(images)}" if images.any?
-    new_session = @session_choice && @session_choice != :resume
-    prompt = [ earlier_failure(turn), subject.turn_message(request, turn: turn, worktree: worktree, repo: repo, new_session: new_session) ]
-             .compact.join("\n\n")
+    # The message for a session that goes on, or for a new one: converse's
+    # retry starts a new session, which is told the thread so far (final
+    # review I4).
+    prompt_for = lambda do |new_session|
+      [ earlier_failure(turn, new_session: new_session),
+        subject.turn_message(request, turn: turn, worktree: worktree, repo: repo, new_session: new_session) ].compact.join("\n\n")
+    end
     bounds = bounds(turn, subject)
     with_system_prompt(subject) do |system_prompt|
       with_app(subject, turn) do |app|
@@ -420,7 +424,7 @@ class Designs::TurnJob < ApplicationJob
           )
           activity = Designs::TurnActivity.new(turn, worktree: worktree, app: app)
           begin
-            converse(cli, turn, prompt, repo, worktree) { |event| follow(turn, activity, event) }
+            converse(cli, turn, prompt_for, repo, worktree) { |event| follow(turn, activity, event) }
           ensure
             activity.save
           end
@@ -444,19 +448,22 @@ class Designs::TurnJob < ApplicationJob
     end
   end
 
-  # A note for Claude when the turn before this one started and failed: the
-  # session holds that run, but the worktree went back to the branch's last
-  # commit, so none of its edits are there. A retry, the same message again,
-  # is told it is one. A check runs in a session of its own, so it neither
+  # A note for Claude when the turn before this one started and failed: a
+  # session that goes on holds that run, but the worktree went back to the
+  # branch's last commit, so none of its edits are there. A retry, the same
+  # message again, is told it is one; in a new session it has learned nothing
+  # from the failed run. A check runs in a session of its own, so it neither
   # gets such a note nor counts for one.
-  def earlier_failure(turn)
+  def earlier_failure(turn, new_session: false)
     return if turn.check?
 
     before = DesignTurn.where(chat_session_id: turn.chat_session_id, id: ...turn.id).where.not(started_at: nil)
                        .where.not(kind: "check").order(:id).last
     return unless before&.failed?
 
-    again = " This turn is another try at the same request: do it again from the start, with what you learned." if before.chat_message_id == turn.chat_message_id
+    if before.chat_message_id == turn.chat_message_id
+      again = " This turn is another try at the same request: do it again from the start#{", with what you learned" unless new_session}."
+    end
     "## Note from Flosis\nYour last turn did not finish (#{before.error.to_s.truncate(200)}), and none of its changes " \
       "were kept: the files are as they were before it.#{again}"
   end
@@ -522,23 +529,27 @@ class Designs::TurnJob < ApplicationJob
   # A run that failed later, or went past its time limit, is not run again.
   #
   # The run streams: each event goes to the block as the CLI prints it.
-  def converse(cli, turn, prompt, repo, worktree, &on_event)
+  #
+  # prompt_for makes the message, for a session that goes on (false) or a new
+  # one (true). A paused organization (SCRUM-71) is refused before the CLI
+  # starts: there is no session to get past, and the chat keeps its own.
+  def converse(cli, turn, prompt_for, repo, worktree, &on_event)
     # A check runs in a session of its own, new each time: its screenshots
     # never ride along with the thread's later turns.
-    return cli.start_session(prompt: prompt, new_session_id: SecureRandom.uuid, &on_event) if turn.check?
+    return cli.start_session(prompt: prompt_for.call(nil), new_session_id: SecureRandom.uuid, &on_event) if turn.check?
 
     session = turn.chat_session
     started = self.class.clock.call
     case @session_choice
     when :resume
-      cli.resume_session(session_id: session.claude_session_id, prompt: prompt, &on_event)
+      cli.resume_session(session_id: session.claude_session_id, prompt: prompt_for.call(false), &on_event)
     when :renew
       session.update!(claude_session_id: SecureRandom.uuid)
-      cli.start_session(prompt: prompt, new_session_id: session.claude_session_id, &on_event)
+      cli.start_session(prompt: prompt_for.call(true), new_session_id: session.claude_session_id, &on_event)
     else
-      cli.start_session(prompt: prompt, new_session_id: session.claude_session_id, &on_event)
+      cli.start_session(prompt: prompt_for.call(true), new_session_id: session.claude_session_id, &on_event)
     end
-  rescue ClaudeCliService::TimeoutError
+  rescue ClaudeCliService::TimeoutError, ClaudeCliService::PausedError
     raise
   rescue ClaudeCliService::ClaudeCliError => e
     # A check starts a session of its own under a new id, so its error is
@@ -548,7 +559,7 @@ class Designs::TurnJob < ApplicationJob
     log(turn, e, "starting a new Claude session")
     start_clean(turn, repo, worktree)
     session.update!(claude_session_id: SecureRandom.uuid)
-    cli.start_session(prompt: prompt, new_session_id: session.claude_session_id, &on_event)
+    cli.start_session(prompt: prompt_for.call(true), new_session_id: session.claude_session_id, &on_event)
   end
 
   # The system prompt goes to the CLI as a file in the system's temp folder:

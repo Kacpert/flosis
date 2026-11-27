@@ -141,8 +141,9 @@ module Designs::Threads
 
   # Try again, under the thread's last turn when it failed: its request runs
   # once more, as a new turn of its kind, so the failed one keeps what it did.
-  # Claude resumes the session the failed run is in, and is told that none of
-  # its edits were kept (Designs::TurnJob#earlier_failure).
+  # Claude goes on in the session the failed run is in while that session is
+  # warm and small (Designs::SessionChoice), and is told that none of its edits
+  # were kept (Designs::TurnJob#earlier_failure).
   #
   # A describe turn (Accept designs, 2026-11-21) is tried again by its own job,
   # on the finished thread it belongs to (review I1).

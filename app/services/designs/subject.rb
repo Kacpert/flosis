@@ -73,8 +73,8 @@ module Designs::Subject
     def prepare! = nil
 
     # The turn is given the design repo as it starts (Designs::RepoMap): the
-    # theme and the screen in view whole on its session's first turn, when
-    # nothing of the repo is in the conversation yet. A design turn builds
+    # screen in view whole when the turn starts a session, when nothing of the
+    # repo is in the conversation yet. A design turn builds
     # screens only; components come in a turn of their own, before merging.
     # A design turn the person's message started may be answered with a
     # proposal (variant b), unless it answers a plan or a proposal. A check
@@ -100,7 +100,9 @@ module Designs::Subject
     # The most changed paths a new session's message lists.
     CHANGED_LIMIT = 60
 
-    def history(turn) = Designs::ThreadHistory.text(turn.chat_session, before: turn.chat_message_id)
+    def history(turn)
+      Designs::ThreadHistory.text(turn.chat_session, before: turn.chat_message_id, replies_until: turn.started_at || Time.current)
+    end
 
     # What the thread's branch changed from its base. Only a help, as the map
     # is: nothing it cannot read stops the turn.
