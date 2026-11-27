@@ -33,7 +33,7 @@ Turn 98, from its transcript on the server
 | Requests to the API | 110, 66 of them with 2+ tool calls side by side |
 | Tool calls | 283: Edit 174, Read 68, Grep 25, Write 16; 78 files touched |
 | Output tokens | 146k; edits and writes are about a third, the rest is thinking (design turns run at the CLI's default effort, high) |
-| Context | 81k tokens at the first request (the thread's resumed session), 385k at the last, 261k on average |
+| Context | 81k tokens at the first request (it resumed the session of turn 97, the thread's plan), 385k at the last, 261k on average |
 | Cache reads | 28.4M tokens: every request re-reads the whole context |
 | Cost at list prices | $11.19 = cache reads $5.68 + output $2.92 + cache writes $2.59 |
 
@@ -137,9 +137,13 @@ the cache reads, and those were half of turn 98's cost.
   `--effort`; its default model is Opus 5.5. Subagents have run on this
   server before: 14 transcript folders of subagents exist.
 - **Turns run on the Max subscription today and on API keys later** ("na
-  prawdziwej produkcji przejdziemy na API key"). Both must work: an own key
-  runs the CLI with `--bare`, and in bare mode only explicitly passed
-  `--agents` are honoured.
+  prawdziwej produkcji przejdziemy na API key"). Both must work.
+  - Today an own key runs the CLI with `--bare`, which guarantees the server's
+    login is never used.
+  - In bare mode, CLI 2.1.251 exposed only Read and Edit, with or without
+    `--tools` (probed 2026-11-10, never fixed). A keyed project's design turns
+    therefore cannot Write, Glob or Grep today, let alone dispatch executors
+    (see Phase 0, item 7).
 - **Executors share the subscription's limits.** Running them in parallel
   spends those limits in bursts, so parallelism is capped (see "Dispatch").
 - **The leak guard.** Turns may only change `design-system/`, `components/`,
@@ -158,10 +162,16 @@ the cache reads, and those were half of turn 98's cost.
 - **Deploys.** Deploy only when no job is claimed and no DesignTurn is queued
   or running. Production is MariaDB and tests run on PostgreSQL, so SQL must be
   portable.
-- **Earlier decisions stay.** A plan turn opens every round, with proposals
-  (variant b). Each page's states live in that page's file, and
-  `<page>-<state>.html` files are never written. The space rule and the
-  components rule stay. Designs are plain HTML and CSS, with no build step.
+- **Earlier decisions stay.**
+  - A thread's first message is planned; a thread made from a task starts
+    with a plan.
+  - Later messages go to a design turn that may propose first (variant b)
+    when a change spans several screens or adds something new. No plan is
+    added to later messages.
+  - Each page's states live in that page's file, and `<page>-<state>.html`
+    files are never written.
+  - The space rule and the components rule stay.
+  - Designs are plain HTML and CSS, with no build step.
 - **Subagents only for edits, never for exploring.** Design turns lost their
   subagents on 2026-11-10 (184ec4d) because a subagent spent minutes mapping
   the repo, which Claude then read again itself. Executors here never explore:
@@ -169,18 +179,31 @@ the cache reads, and those were half of turn 98's cost.
 
 ## The design
 
-### 1. One Claude session per round, not per thread
+### 1. A new Claude session once the old one has grown or gone cold
 
-A **round** is one message from the person and what Flosis runs for it: the
-plan turn, and the design turn that carries on from it
-(`Designs::Threads.design_as_planned!`).
+Today a thread resumes one session for all its turns, so its context only
+grows. Task 551's thread grew from 31k to 485k tokens over 12 turns. Turn 98
+ended at 385k, and thread 6's next message would have started from there.
+After an hour's pause, the whole context is written to the cache again at $8
+per million tokens.
 
-- **A turn that starts a round starts a new Claude session.** The new id is
-  kept on the chat session, as `converse`'s retry already does.
-  `resolve_conflicts` and `components` turns start new sessions too.
-- **A design turn that carries on from its plan resumes the plan's session.**
-  It keeps what the plan read, and that context is small: the plan of turn 97
-  ran for 35 s.
+Which session a turn runs in:
+
+- **A build that answers a plan or a proposal resumes that session.** These
+  are `design_as_planned!`, the person's reply to it, and "Design with these
+  proposals" (`after_plan?`). The build keeps what the plan or proposal read.
+- **Any other turn resumes the thread's session only while it is warm and
+  small:**
+  - its last turn ended less than 55 minutes ago (the CLI's cache lives an
+    hour);
+  - its last request's context was under 150k tokens. The turn keeps this
+    figure, taken from the stream's usage.
+
+  Otherwise the turn starts a new session. Kacper's quick corrections in a
+  row stay quick this way, and a long thread stops growing. Both thresholds
+  are my call, to be tuned after measuring.
+- **`resolve_conflicts` and `components` turns always start new sessions.**
+  The new id is kept on the chat session, as `converse`'s retry already does.
 - **A new session gets what a first turn gets today:** thread, focus screen
   and state, task, current description and the repo map. It also gets two new
   sections:
@@ -193,12 +216,6 @@ plan turn, and the design turn that carries on from it
   turn reads what it needs.
 - **Design turns get `--effort medium`** (a new `DesignTurn::DESIGN_EFFORT`).
   Plan, check and describe turns already run at medium.
-
-Today a thread resumes one session for all its turns, so the context only
-grows. Turn 98 started at 81k tokens, and task 551's thread grew from 31k to
-485k. After an hour's pause, the whole context is written to the cache again
-at $8 per million tokens.
-
 ### 2. Lead and executors (big design turns)
 
 **The lead.** The design turn's own agent is the lead: Opus 5.5 at medium
@@ -223,6 +240,8 @@ not files in the client's repo, and not agents installed on the server.
 - **If Haiku cannot be used.** If Phase 0 shows that Haiku 5.5 cannot run on
   this CLI or login, or its trial edits break markup, the editor runs on
   Sonnet 5.5.
+- **Turns on an own key** dispatch executors only once Phase 0, item 7, has
+  shown how. Until then they run lead-only.
 
 **Small or big.** If the lead can finish a request by changing at most three
 files, it makes the changes itself. Anything bigger is planned and dispatched.
@@ -379,8 +398,14 @@ the way states were folded on 2026-11-22:
   after, on a tall window.
 - **One commit.** The repo's runtime copy and README are updated in the same
   commit.
-- **When.** On master, when no thread is open; Kacper says when. Open branches
-  are brought along.
+- **Repeatable.** The conversion is built as tooling that gives the same
+  result every time: scripts for the mechanical steps, and one guide for the
+  agent steps. Open branches need it, and so does the B1 benchmark
+  (section 7).
+- **When.** Kacper says when master is converted. At the time of writing,
+  thread 6 (task 565) is open and changes the very Designs screens that would
+  move into page components. So the conversion either waits until that
+  branch is merged, or runs on the branch too.
 
 Other clients' repos keep working unconverted, and are converted when their
 owners want it.
@@ -390,7 +415,7 @@ owners want it.
 | Phase | What | Gate |
 |---|---|---|
 | 0 | Verify the CLI (below) | Every answer known; stop and rethink section 2 if subagents cannot be limited or costed |
-| 1a | Session per round, effort medium, theme.css out of the map, rules (sections 1, 3) | B1 and B2 measured, results to Kacper |
+| 1a | Sessions (section 1), effort medium, theme.css out of the map, rules (section 3) | B1 and B2 measured, results to Kacper |
 | 1b | Lead and executors, `outline`, activity, recorder (sections 2, 4, 5) | B1 and B2 measured |
 | 2 | 6a, 6b, conversion (6d); 6c only if short of 5× | B1 at goal; B2 no slower |
 
@@ -399,15 +424,20 @@ gate.
 
 **The benchmarks:**
 
-- **B1: the round of turns 97 and 98.** The same request is run on a scratch
-  thread, from the commit thread 6 had before turn 97 (the DesignTurn records
-  give it).
+- **B1: thread 6's first message (turns 97 and 98).** The same request is
+  run on a scratch thread, from the commit thread 6 started from (the
+  DesignTurn records give it). For Phase 2, the conversion runs on a copy of
+  that commit first.
   - Baseline: plan 35 s; design 22.9 min, $11.19, 283 tool calls, context
     81k → 385k.
   - Goal after Phase 2: plan and design in ≤ 4.7 min together; design at most
     $2.24; the check passes; Kacper accepts the screens.
-- **B2: a one-screen text change.** It is measured on today's production
-  first, and must stay no slower and use no executors.
+- **B2: a one-screen text change, sent as a follow-up.**
+  - **B2a:** right after a build, while the session is warm.
+  - **B2b:** on a session that has gone cold (forced in the test).
+
+  Both are measured on today's production first. Both must stay no slower,
+  and use no executors.
 
 Each B1 run costs a few dollars of subscription usage.
 
@@ -431,8 +461,17 @@ throwaway session that dispatches both executors, and check:
      general-purpose or Explore agent.
 6. **Effort.** `--effort` reaches the executors, or there is another way to
    set theirs.
-7. **Own key.** The same works with an API key (`--bare`). This can wait
-   until a test key exists.
+7. **Own key.** Check whether bare mode on 2.1.328 still exposes only Read
+   and Edit. The stream's init event lists the tools, so no valid key is
+   needed.
+   - **If it does:** a keyed turn runs without `--bare`, in a config dir of
+     its own (`CLAUDE_CONFIG_DIR`, empty) with only `ANTHROPIC_API_KEY` set.
+   - **What proves the guarantee still holds** (a keyed run never uses the
+     server's login):
+     - the init event names the key as the credential (`apiKeySource`);
+     - a run given a deliberately wrong key fails with an authentication
+       error.
+   - This would also fix keyed design turns that cannot Write or Grep today.
 
 **If an answer is no:**
 
@@ -441,6 +480,8 @@ throwaway session that dispatches both executors, and check:
   (`<session>/subagents/`), and the cap is enforced from the stream.
 - 5 fails → executors get the whole session's tool set, and the rules keep
   them to their files.
+- 7 finds no way → keyed turns stay lead-only, and Kacper hears of it before
+  turns move to API keys.
 
 Check the result with Kacper before Phase 1b if any of these fall-backs is
 needed.
@@ -470,7 +511,14 @@ needed.
 - **Mine, open to his review:**
   - **Executors:** the CLI's own subagents rather than separate processes;
     Sonnet 5.5 builders and Haiku 5.5 editors.
-  - **Sessions:** one per round; effort medium for design turns.
+  - **Sessions:** a build after a plan or proposal resumes that session; any
+    other turn resumes only a session that is warm (< 55 min) and small
+    (< 150k tokens). Effort medium for design turns.
+  - **Keys (security-sensitive, please check):** if bare mode still lacks
+    tools, keyed turns run without `--bare`, in an empty config dir holding
+    only the key.
+  - **Conversion:** built as repeatable tooling, so open branches and the
+    benchmark copy are converted the same way.
   - **Limits:** a three-file threshold for small requests; at most five
     executors at once.
   - **Repo shapes:** page components named `<screen>-page`;
