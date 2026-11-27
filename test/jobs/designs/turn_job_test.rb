@@ -1592,6 +1592,24 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  # 2026-11-27: the size a turn's context reached decides whether the thread's
+  # next message may resume its session (Designs::SessionChoice).
+  test "a turn keeps the largest context its own requests had, not a subagent's" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      used = lambda do |input, read, write, parent = nil|
+        { "type" => "assistant", "parent_tool_use_id" => parent,
+          "message" => { "id" => "m-#{SecureRandom.hex(3)}", "content" => [],
+                         "usage" => { "input_tokens" => input, "cache_read_input_tokens" => read, "cache_creation_input_tokens" => write } } }
+      end
+      streaming_claude(events: ->(_opts) { [ used.(10, 30_000, 5_000), used.(5, 900_000, 0, "agent-1"), used.(2, 41_000, 1_000) ] })
+
+      turn = run_turn(thread_turn(repo, base), remote)
+
+      assert_equal 42_002, turn.context_tokens
+    end
+  end
+
   test "a check's steps say what it looks at" do
     with_design_remote do |repo, remote|
       base = plan_seed(repo)

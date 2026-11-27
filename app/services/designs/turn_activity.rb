@@ -17,18 +17,26 @@ class Designs::TurnActivity
   # The reply's blocks, as Designs::TurnOutput reads them.
   REPLY_BLOCKS = %r{<(summary|context|missing|blocked|comes_in|kept|replaced)>.*?</\1>}m
 
+  # The largest context one of the turn's own requests had, in tokens: what
+  # it sent, read from the cache and wrote to it (2026-11-27). Kept with the
+  # steps, for Designs::SessionChoice.
+  attr_reader :context_tokens
+
   def initialize(turn, worktree:, app: nil, clock: Designs::TurnJob.clock)
     @turn = turn
     @worktree = worktree.to_s
     @app = app&.to_s
     @clock = clock
     @steps = Array(turn.activity)
+    @context_tokens = turn.context_tokens
   end
 
-  # One event of the stream. A subagent's are not Claude's own steps.
+  # One event of the stream. A subagent's are not Claude's own steps, nor
+  # its context the turn's.
   def record(event)
     return unless event.is_a?(Hash) && event["type"] == "assistant" && !event["parent_tool_use_id"]
 
+    measure(event.dig("message", "usage"))
     Array(event.dig("message", "content")).grep(Hash).each do |block|
       step = case block["type"]
              when "text" then said(block["text"])
@@ -43,12 +51,19 @@ class Designs::TurnActivity
   # fails is logged and never fails the turn.
   def save
     @saved_at = @clock.call
-    @turn.update_columns(activity: @steps.last(LIMIT))
+    @turn.update_columns(activity: @steps.last(LIMIT), context_tokens: @context_tokens)
   rescue StandardError => e
     Rails.logger.warn("[#{self.class.name}] turn #{@turn.id}: could not save its steps: #{e.class}: #{e.message}")
   end
 
   private
+
+  def measure(usage)
+    return unless usage.is_a?(Hash)
+
+    size = %w[input_tokens cache_read_input_tokens cache_creation_input_tokens].sum { |key| usage[key].to_i }
+    @context_tokens = [ @context_tokens.to_i, size ].max if size.positive?
+  end
 
   def add(kind, text)
     at = @turn.started_at ? (Time.current - @turn.started_at).to_i : 0
