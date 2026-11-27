@@ -35,9 +35,8 @@ module Designs::Prompt
     so in your summary. You cannot run commands, use git, open a browser or reach the web, so before you
     reply, re-read the lines you changed (with Read's offset and limit, not whole files): tags closed,
     paths and includes resolving. Flosis commits, pushes and publishes what you leave. If the
-    application's code is available as an extra directory,
-    read it to keep the designs true to the app; never change it (a change fails the turn) and never copy
-    a secret out of it.
+    application's code is available as an extra directory, read it to keep the designs true to the app;
+    never change it (a change fails the turn) and never copy a secret out of it.
 
     # How to work
 
