@@ -524,3 +524,54 @@ needed.
   - **Repo shapes:** page components named `<screen>-page`;
     `data-show-for`/`data-hide-for`; `each` built only if needed.
   - **Postponed:** short tags and a role data file.
+
+## Phase 0 results (2026-11-27)
+
+Probed on the server's CLI 2.1.328 with the subscription login, in
+throwaway folders that were deleted afterwards. The three probe runs cost
+about $0.45 together.
+
+1. **Models: yes.** `--agents` definitions with `model: claude-sonnet-5-5`
+   and `model: claude-haiku-5-5` ran on those models: each subagent's own
+   transcript names its model.
+2. **Parallel runs: yes.** Two agents sent in one message overlapped: the
+   builder ran from 10.1 s to 14.2 s, and the editor from 11.2 s to 16.2 s.
+3. **Stream and cost: yes.**
+   - 13 stream events carried a `parent_tool_use_id`.
+   - `total_cost_usd` was $0.219: Opus $0.2005, Sonnet $0.018 and Haiku
+     $0.001.
+   - `modelUsage` names all three models.
+4. **Cost cap: yes.** At `--max-budget-usd 0.02` the run ended with
+   `error_max_budget_usd`. The CLI printed "Budget limit reached …;
+   stopping background agents", and the cost it counted included the
+   Sonnet agent's.
+5. **Tool limits: yes.**
+   - The editor, defined with only Read and Edit, could not create c.html.
+   - `--tools` names the subagent tool `Task`, and its calls stream as
+     `Agent`.
+   - `--disallowedTools "Task(<name>)"` keeps the lead off an agent: Explore
+     was refused as "denied by permission rule 'Agent(Explore)' from
+     cliArg".
+   - The built-in agents to deny are claude, Explore, general-purpose, Plan,
+     statusline-setup and web-fetch.
+6. **Effort: unknown.** An agent definition takes an `effort` key without
+   complaint, but neither the stream nor the transcripts show the effort a
+   subagent ran at. 1b watches the executors' output tokens instead.
+7. **Own key.**
+   - **Bare mode** on 2.1.328 still exposes only Edit and Read.
+   - **Without `--bare`,** in an empty `CLAUDE_CONFIG_DIR` with only
+     `ANTHROPIC_API_KEY` set:
+     - the init event says `apiKeySource: "ANTHROPIC_API_KEY"`;
+     - every tool asked for is there, `Task` included;
+     - a wrong key ends in "Invalid API key". The run never fell back to
+       the server's login.
+
+**What follows for 1b:** none of the fall-backs is needed.
+- Executors come from `--agents`, and the other agents are denied with
+  `--disallowedTools`.
+- The cost and the cap already count the executors.
+- Keyed turns can leave `--bare` for an empty config dir.
+
+**Overhead to keep in mind:** a dispatch of two trivial pieces cost $0.22,
+and $0.20 of that was the Opus lead's own starting context. Small requests
+must stay lead-only.
