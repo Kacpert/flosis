@@ -55,10 +55,14 @@ module DesignsBenchmark
 
     def summary = Designs::TurnOutput.parse(answer.to_h[:response].to_s).summary
 
-    def row(name, files)
+    def cost = @result.to_h["total_cost_usd"].to_f
+
+    # A resumed run's total covers its session so far: minus is what the runs
+    # before it in that session cost.
+    def row(name, files, minus: 0)
       output = (@own.values + @sub.values).sum { |usage| usage["output_tokens"].to_i }
       format("%-10s %6.0f s  requests %3d+%-3d  tool calls %3d+%-3d  context %7d  output %7d  $%6.2f  files %3d",
-             name, seconds, @own.size, @sub.size, @tools[:own], @tools[:sub], @context, output, @result.to_h["total_cost_usd"].to_f, files)
+             name, seconds, @own.size, @sub.size, @tools[:own], @tools[:sub], @context, output, cost - minus, files)
     end
   end
 
@@ -92,7 +96,7 @@ module DesignsBenchmark
                   prompt: Designs::Prompt.thread_message(thread: thread, request: DesignTurn.find(DESIGN_TURN_ID).chat_message.content,
                                                          repo_map: Designs::RepoMap.text(dir, focus: path), design: true, after_plan: true))
     puts plan.row("B1 plan", 0)
-    puts design.row("B1 design", changed(repo, real.base_sha, dir))
+    puts design.row("B1 design", changed(repo, real.base_sha, dir), minus: plan.cost)
     puts "B1 round: #{(plan.seconds + design.seconds).round} s. Baseline: plan 35 s and design 1374 s; design $11.19, " \
          "283 tool calls, context 81k to 385k."
   ensure
@@ -122,7 +126,7 @@ module DesignsBenchmark
                                                        design: true, may_propose: true,
                                                        history: "The person: #{request}\n\nYou: #{first.summary}", changed: "- #{B2_SCREEN}"))
     puts first.row("B2 first", first_files)
-    puts warm.row("B2a warm", changed(repo, ref, dir))
+    puts warm.row("B2a warm", changed(repo, ref, dir), minus: first.cost)
     puts cold.row("B2b new", changed(repo, ref, cold_dir))
   ensure
     cleanup(dir, cold_dir)
@@ -173,7 +177,8 @@ module DesignsBenchmark
 
   def attribution(subject, name)
     project = subject.project
-    AiRun::Attribution.new(workspace: project.workspace, project: project, area: "designs", item_label: "Benchmark · #{name}")
+    AiRun::Attribution.new(workspace: project.workspace, project: project, area: "designs", item_label: "Benchmark · #{name}",
+                           automation: "Designs benchmark")
   end
 
   # The design repo at ref, in a folder of its own.
