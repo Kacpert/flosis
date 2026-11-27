@@ -89,6 +89,16 @@ class DesignTurn < ApplicationRecord
   # it, or takes its proposals with "Design with these proposals".
   def awaits_answer? = succeeded? && (plan? || proposed?)
 
+  # A design turn whose turn before it is a plan, or a proposal, that
+  # finished: it answers it. Earlier tries at the same message (Try again)
+  # and checks are passed over.
+  def answers_plan?
+    return false unless kind == "design"
+
+    chat_session.design_turns.where("id < ?", id).where.not(chat_message_id: chat_message_id)
+                .where.not(kind: "check").order(:id).last&.awaits_answer? || false
+  end
+
   def setup?
     kind == "setup"
   end

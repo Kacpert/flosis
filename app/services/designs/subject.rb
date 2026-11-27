@@ -104,15 +104,9 @@ module Designs::Subject
       "An on-screen check after your last turn changed this: #{said}" if said.present?
     end
 
-    # A design turn whose turn before it is a plan, or a proposal, that
-    # finished: what comes now answers it. Earlier tries at the same message
-    # (Try again) and checks are passed over.
-    def after_plan?(turn)
-      return false unless turn&.kind == "design"
-
-      turn.chat_session.design_turns.where("id < ?", turn.id).where.not(chat_message_id: turn.chat_message_id)
-          .where.not(kind: "check").order(:id).last&.awaits_answer? || false
-    end
+    # What comes now answers the plan or proposal before it (DesignTurn#
+    # answers_plan?).
+    def after_plan?(turn) = turn&.answers_plan? || false
 
     # Only a help to Claude: a map that cannot be made is left out, and the
     # turn goes on without it.
@@ -135,6 +129,9 @@ module Designs::Subject
     # subagent, which spent minutes mapping a repo Claude then read itself.
     def tools = Designs::TurnJob::TOOLS + [ COPY_TOOL ]
     def tool_set = Designs::TurnJob::TOOLS
+    # A thread's session is renewed once it has gone cold or grown large
+    # (Designs::SessionChoice).
+    def renews_sessions? = true
 
     # copy_file, from flosis_files on the turn's worktree; a plan only reads,
     # so it has none; a check has the design browser instead. The CLI's
@@ -249,6 +246,7 @@ module Designs::Subject
     # thread turn's bounds.
     def tools = Designs::TurnJob::TOOLS
     def tool_set = Designs::TurnJob::TOOLS
+    def renews_sessions? = false
     def with_mcp(_worktree, **) = yield(nil)
     def timeout = DesignTurn.turn_timeout
     def budget_usd = DesignTurn.turn_budget_usd
@@ -446,6 +444,8 @@ module Designs::Subject
     end
     # The CLI's own set of tools, beside the browser's.
     def tool_set = nil
+    # A feature's turns keep one session: each feature has a chat of its own.
+    def renews_sessions? = false
     def timeout = DesignTurn.setup_timeout
     def budget_usd = DesignTurn.setup_budget_usd
     # The app comes from the repositories the run cloned (add_dirs).
