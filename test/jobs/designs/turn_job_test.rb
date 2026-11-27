@@ -1592,6 +1592,46 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
+  # 2026-11-27 (Designs::SessionChoice): a thread's session goes on only
+  # while it is warm and small.
+  test "a thread's later message on a session gone cold starts a new Claude session, kept on the chat, with the thread so far" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      first = thread_turn(repo, base)
+      first.update!(status: "succeeded", started_at: 2.hours.ago, finished_at: 2.hours.ago, context_tokens: 40_000)
+      session = first.chat_session
+      old_id = session.claude_session_id
+      session.chat_messages.create!(role: "assistant", kind: "summary", content: "Added a counter.")
+      fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title>red" })
+
+      run_turn(next_turn(session, "Make the counter red"), remote)
+
+      call, keywords = @calls.sole
+      assert_equal :start_session, call
+      assert_not_equal old_id, session.reload.claude_session_id
+      assert_equal session.claude_session_id, keywords[:new_session_id]
+      assert_includes keywords[:prompt], "## This thread so far"
+      assert_includes keywords[:prompt], "You: Added a counter."
+    end
+  end
+
+  test "a thread's later message on a warm, small session resumes it" do
+    with_design_remote do |repo, remote|
+      base = plan_seed(repo)
+      first = thread_turn(repo, base)
+      first.update!(status: "succeeded", started_at: 6.minutes.ago, finished_at: 5.minutes.ago, context_tokens: 40_000)
+      session = first.chat_session
+      old_id = session.claude_session_id
+      fake_claude(files: { "designs/candidate/apply.html" => "<title>Application form</title>red" })
+
+      run_turn(next_turn(session, "Make the counter red"), remote)
+
+      call, keywords = @calls.sole
+      assert_equal [ :resume_session, old_id ], [ call, keywords[:session_id] ]
+      assert_not_includes keywords[:prompt], "## This thread so far"
+    end
+  end
+
   # 2026-11-27: the size a turn's context reached decides whether the thread's
   # next message may resume its session (Designs::SessionChoice).
   test "a turn keeps the largest context its own requests had, not a subagent's" do
@@ -1636,6 +1676,8 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       base = plan_seed(repo)
       check = check_turn(repo, base)
       check.update!(status: "failed", started_at: 1.minute.ago, finished_at: Time.current, error: "The browser did not start")
+      # The design before it left a warm, small session (Designs::SessionChoice).
+      check.chat_session.design_turns.find_by!(kind: "design").update!(context_tokens: 20_000)
       message = check.chat_session.chat_messages.create!(role: "user", content: "Make it bolder", user: users(:one))
       turn = DesignTurn.create!(chat_session: check.chat_session, chat_message: message, may_propose: true)
       fake_claude

@@ -155,6 +155,7 @@ class Designs::TurnJob < ApplicationJob
     # runs.
     turn.update!(library_version_ids: subject.library_version_ids)
     subject.prepare!
+    @session_choice = Designs::SessionChoice.for(turn, renews: subject.renews_sessions?) unless turn.check?
     answer = ask_claude(turn, repo, worktree, key, subject)
     response, capped = answer_text(answer)
     raise Failure, DesignTurn::CHECK_NO_BROWSER if turn.check? && !looked?
@@ -403,7 +404,9 @@ class Designs::TurnJob < ApplicationJob
     # turn may read them, and named in the request for its Read tool.
     images = !@conflicts && turn.chat_message.images.attached? ? ChatImages.write!(turn.chat_message) : []
     request = "#{request}\n\n#{ChatImages.note(images)}" if images.any?
-    prompt = [ earlier_failure(turn), subject.turn_message(request, turn: turn, worktree: worktree) ].compact.join("\n\n")
+    new_session = @session_choice && @session_choice != :resume
+    prompt = [ earlier_failure(turn), subject.turn_message(request, turn: turn, worktree: worktree, repo: repo, new_session: new_session) ]
+             .compact.join("\n\n")
     bounds = bounds(turn, subject)
     with_system_prompt(subject) do |system_prompt|
       with_app(subject, turn) do |app|
@@ -504,8 +507,10 @@ class Designs::TurnJob < ApplicationJob
   end
 
   # The chat's first turn starts its Claude session under the id the chat was
-  # made with, and every later one resumes it. Any turn that has started
-  # counts, failed and cut-off ones too: each may have started the session.
+  # made with. A later turn resumes it, or, when Designs::SessionChoice says
+  # the thread's session has gone cold or grown large, starts a new one under
+  # a new id the chat keeps (2026-11-27). Any turn that has started counts,
+  # failed and cut-off ones too: each may have started the session.
   #
   # The CLI cannot resume a session whose transcript is gone, nor start one
   # under an id that already has a transcript (a first turn killed by a deploy
@@ -524,8 +529,12 @@ class Designs::TurnJob < ApplicationJob
 
     session = turn.chat_session
     started = self.class.clock.call
-    if session.design_turns.where.not(id: turn.id).where.not(started_at: nil).where.not(kind: "check").exists?
+    case @session_choice
+    when :resume
       cli.resume_session(session_id: session.claude_session_id, prompt: prompt, &on_event)
+    when :renew
+      session.update!(claude_session_id: SecureRandom.uuid)
+      cli.start_session(prompt: prompt, new_session_id: session.claude_session_id, &on_event)
     else
       cli.start_session(prompt: prompt, new_session_id: session.claude_session_id, &on_event)
     end
