@@ -1689,7 +1689,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
     end
   end
 
-  test "a design turn keeps today's tools and no effort" do
+  test "a design turn keeps today's tools, at medium effort" do
     with_design_remote do |repo, remote|
       base = plan_seed(repo)
       opts = nil
@@ -1698,7 +1698,7 @@ class Designs::TurnJobTest < ActiveJob::TestCase
       run_turn(thread_turn(repo, base), remote)
 
       assert_equal Designs::TurnJob::TOOLS, opts[:tools]
-      assert_nil opts[:effort]
+      assert_equal "medium", opts[:effort]
       assert_includes opts[:allowed_tools], Designs::Subject::COPY_TOOL
       assert opts[:mcp_config].present?, "a design turn can copy a file of its repo"
     end

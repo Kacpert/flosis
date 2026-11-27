@@ -440,7 +440,7 @@ class Designs::TurnJob < ApplicationJob
       { allowed: TOOLS + Designs::Subject::CHECK_TOOLS, tools: TOOLS, budget: DesignTurn::CHECK_BUDGET_USD,
         timeout: DesignTurn::CHECK_TIMEOUT_SECONDS, effort: DesignTurn::CHECK_EFFORT }
     else
-      { allowed: subject.tools, tools: subject.tool_set, budget: subject.budget_usd, timeout: subject.timeout, effort: nil }
+      { allowed: subject.tools, tools: subject.tool_set, budget: subject.budget_usd, timeout: subject.timeout, effort: subject.effort }
     end
   end
 

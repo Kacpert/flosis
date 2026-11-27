@@ -158,6 +158,7 @@ module Designs::Subject
     # A thread's session is renewed once it has gone cold or grown large
     # (Designs::SessionChoice).
     def renews_sessions? = true
+    def effort = DesignTurn::DESIGN_EFFORT
 
     # copy_file, from flosis_files on the turn's worktree; a plan only reads,
     # so it has none; a check has the design browser instead. The CLI's
@@ -273,6 +274,7 @@ module Designs::Subject
     def tools = Designs::TurnJob::TOOLS
     def tool_set = Designs::TurnJob::TOOLS
     def renews_sessions? = false
+    def effort = nil
     def with_mcp(_worktree, **) = yield(nil)
     def timeout = DesignTurn.turn_timeout
     def budget_usd = DesignTurn.turn_budget_usd
@@ -472,6 +474,7 @@ module Designs::Subject
     def tool_set = nil
     # A feature's turns keep one session: each feature has a chat of its own.
     def renews_sessions? = false
+    def effort = nil
     def timeout = DesignTurn.setup_timeout
     def budget_usd = DesignTurn.setup_budget_usd
     # The app comes from the repositories the run cloned (add_dirs).

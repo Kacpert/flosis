@@ -132,6 +132,10 @@ class DesignTurn < ApplicationRecord
   # scratch reads the repo and the app and writes several screens.
   DEFAULT_TIMEOUT_SECONDS = 2_400
   DEFAULT_BUDGET_USD = 40
+  # Thinking was about two thirds of a design turn's output at the CLI's
+  # default effort (2026-11-27: thread 6's 23-minute turn), and stays in the
+  # context every later step re-reads.
+  DESIGN_EFFORT = "medium"
   # A setup turn builds a whole feature, browser and all. Its bounds stop a
   # turn that runs away; they are not there to save money.
   DEFAULT_SETUP_TIMEOUT_SECONDS = 7_200
