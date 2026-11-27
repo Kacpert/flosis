@@ -303,8 +303,13 @@ module Designs::Prompt
   # first, or that a plan is settled), then the request, last. A check runs in
   # a session of its own and is given only the thread, its rules and its
   # request, which lists what to look at.
+  # A turn that starts a new Claude session (Designs::SessionChoice) is told
+  # why it remembers nothing of the thread.
+  HISTORY_INTRO = "This turn starts a new session: here is the chat before this message, and what you built is on " \
+                  "the branch.".freeze
+
   def thread_message(thread:, request:, repo_map: nil, design: false, after_plan: false, plan: false,
-                     may_propose: false, check: false, check_note: nil)
+                     may_propose: false, check: false, check_note: nil, history: nil, changed: nil)
     sections = [ "## Thread\n#{thread.title}\nBranch: #{thread.branch}" ]
     unless check
       if thread.focus_context.present? && thread.focus_screen.present?
@@ -318,6 +323,8 @@ module Designs::Prompt
         sections << "## Current description\n#{Designs::CurrentDescription.for(task)&.strip || "(none yet)"}"
       end
       sections << "## The design repo now\n#{REPO_MAP_INTRO}\n\n#{repo_map}" if repo_map
+      sections << "## This thread so far\n#{HISTORY_INTRO}\n\n#{history.strip}" if history.present?
+      sections << "## Changed on this branch\n#{changed.strip}" if changed.present?
       sections << "## Since your last turn\n#{check_note.strip}" if check_note.present?
     end
     this_turn = [ (PLAN if plan), (CHECK if check), (COMPONENTS if design), (STATES if design || plan),

@@ -153,6 +153,21 @@ class Designs::PromptTest < ActiveSupport::TestCase
     assert_includes message, "## The person is looking at\nCandidate › Apply, in its Errors shown state (designs/candidate/apply.html#errors-shown)\n"
   end
 
+  # 2026-11-27: a turn that starts a new Claude session no longer has the one
+  # that heard the thread.
+  test "a new session's message carries the thread so far and the branch's changes, after the map and before the request" do
+    thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x")
+    message = Designs::Prompt.thread_message(thread: thread, request: "Make it weekly", repo_map: "MAP", design: true,
+                                             history: "The person: Add usage", changed: "- designs/admin/usage.html")
+
+    assert_equal [ "## Thread", "## The design repo now", "## This thread so far", "## Changed on this branch", "## This turn", "## Request" ],
+                 message.scan(/^## .+$/)
+    assert_includes message, "The person: Add usage"
+    assert_includes message, "## Changed on this branch\n- designs/admin/usage.html"
+    assert_equal [ "## Thread", "## The design repo now", "## This turn", "## Request" ],
+                 Designs::Prompt.thread_message(thread: thread, request: "Make it weekly", repo_map: "MAP", design: true).scan(/^## .+$/)
+  end
+
   test "a thread with no task and no screen in view says only what it is and what is asked" do
     thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x")
     assert_equal [ "## Thread", "## Request" ], Designs::Prompt.thread_message(thread: thread, request: "Do it").scan(/^## .+$/)

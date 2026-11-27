@@ -355,6 +355,32 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     end
   end
 
+  test "a turn that starts a new session gets the full map, the thread so far and the branch's changes; a resumed one gets the list alone" do
+    Dir.mktmpdir("worktree") do |worktree|
+      FileUtils.mkdir_p(File.join(worktree, "designs/admin"))
+      File.write(File.join(worktree, "designs/admin/reporting.html"), "<title>Reporting</title>")
+      thread, _first = thread_with_turn
+      session = thread.chat_session
+      session.chat_messages.create!(role: "assistant", kind: "summary", content: "Added usage.")
+      later = DesignTurn.create!(chat_session: session, chat_message: session.chat_messages.create!(role: "user", content: "Make it weekly", user: users(:one)))
+      repo = Object.new
+      def repo.diff_names(_from, _to, prefix) = prefix == "designs/" ? [ "designs/admin/usage.html" ] : []
+      subject = Designs::Subject.for(session)
+
+      fresh = subject.turn_message("Make it weekly", turn: later, worktree: worktree, repo: repo, new_session: true)
+      [ "## This thread so far", "The person: Add usage", "You: Added usage.", "## Changed on this branch\n- designs/admin/usage.html",
+        "The screen the person has open: designs/admin/reporting.html" ].each { |part| assert_includes fresh, part }
+
+      resumed = subject.turn_message("Make it weekly", turn: later, worktree: worktree, repo: repo, new_session: false)
+      [ "## This thread so far", "## Changed on this branch", "The screen the person has open:" ].each { |part| assert_not_includes resumed, part }
+
+      broken = Object.new
+      def broken.diff_names(*) = raise("bad ref")
+      assert_not_includes subject.turn_message("Make it weekly", turn: later, worktree: worktree, repo: broken, new_session: true),
+                          "## Changed on this branch"
+    end
+  end
+
   # The screen in view comes from the person's request, and is read into the prompt.
   test "a screen in view that is not a screen's name is not read" do
     Dir.mktmpdir("worktree") do |worktree|

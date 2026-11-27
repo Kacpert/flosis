@@ -80,15 +80,41 @@ module Designs::Subject
     # proposal (variant b), unless it answers a plan or a proposal. A check
     # runs in a session of its own and is given only what it looks at; the
     # turn after a check that changed something is told what it changed.
-    def turn_message(request, turn: nil, worktree: nil)
+    # A turn that starts a new session (Designs::SessionChoice, as the job
+    # says in new_session) gets the whole map, the thread so far and what the
+    # branch changed; without a word from the job, the chat's first turn does.
+    def turn_message(request, turn: nil, worktree: nil, repo: nil, new_session: nil)
       return Designs::Prompt.thread_message(thread: @thread, request: request, check: true) if turn&.check?
 
-      first = turn && turn.chat_session.design_turns.where.not(id: turn.id).where.not(started_at: nil).where.not(kind: "check").none?
+      if new_session.nil?
+        new_session = turn && turn.chat_session.design_turns.where.not(id: turn.id).where.not(started_at: nil).where.not(kind: "check").none?
+      end
       after_plan = after_plan?(turn)
-      Designs::Prompt.thread_message(thread: @thread, request: request, repo_map: (repo_map(worktree, first) if worktree),
+      Designs::Prompt.thread_message(thread: @thread, request: request, repo_map: (repo_map(worktree, new_session) if worktree),
                                      design: turn&.kind == "design", after_plan: after_plan, plan: turn&.plan? || false,
                                      may_propose: (turn&.kind == "design" && turn.may_propose && !after_plan) || false,
-                                     check_note: check_note(turn))
+                                     check_note: check_note(turn), history: (history(turn) if new_session && turn),
+                                     changed: (changed(repo) if new_session && repo))
+    end
+
+    # The most changed paths a new session's message lists.
+    CHANGED_LIMIT = 60
+
+    def history(turn) = Designs::ThreadHistory.text(turn.chat_session, before: turn.chat_message_id)
+
+    # What the thread's branch changed from its base. Only a help, as the map
+    # is: nothing it cannot read stops the turn.
+    def changed(repo)
+      base = @thread.base_sha.presence || Designs::Repo::MASTER
+      paths = %w[designs/ components/].flat_map { |prefix| repo.diff_names(base, @thread.branch, prefix) }
+      return if paths.empty?
+
+      lines = paths.first(CHANGED_LIMIT).map { |path| "- #{path}" }
+      lines << "- … and #{paths.size - CHANGED_LIMIT} more" if paths.size > CHANGED_LIMIT
+      lines.join("\n")
+    rescue StandardError => e
+      Rails.logger.warn("[Designs::Subject] no list of what #{@thread.branch} changed: #{e.class}: #{e.message}")
+      nil
     end
 
     # What the check right before this turn changed, as it said it: nil when
