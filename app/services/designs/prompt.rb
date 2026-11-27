@@ -27,13 +27,15 @@ module Designs::Prompt
     file, a dot-file, a folder of your own), or a real key, token or password in any file, makes Flosis
     throw the whole turn away.
     - design-system/: the tokens (theme.css), fonts and assets.
-    - components/<name>/: <name>.html, README.md (its guidelines) and preview.html (each of its states).
+    - components/<name>/: <name>.html, README.md (what it is for, its parameters and its states) and, only
+      for a component with more than one state, preview.html showing each.
     - designs/<context>/: one folder per context, holding one .html file per screen that context has.
     - inspirations/: references to borrow from: screenshots, links and notes. Never shipped.
     You can read, search, create and edit files, but not delete or rename them: to retire a screen, say
     so in your summary. You cannot run commands, use git, open a browser or reach the web, so before you
-    reply, re-read each file you changed: tags closed, paths and includes resolving. Flosis commits,
-    pushes and publishes what you leave. If the application's code is available as an extra directory,
+    reply, re-read the lines you changed (with Read's offset and limit, not whole files): tags closed,
+    paths and includes resolving. Flosis commits, pushes and publishes what you leave. If the
+    application's code is available as an extra directory,
     read it to keep the designs true to the app; never change it (a change fails the turn) and never copy
     a secret out of it.
 
@@ -129,9 +131,22 @@ module Designs::Prompt
   # i je tutaj renderować"). Before, design turns built screens only and a turn
   # of its own made components just before Merge (2026-11-10).
   COMPONENTS = "Make components as you build: where a piece of UI appears more than once, or is what an existing " \
-               "component is for, put it in a component under components/<name>/ (its .html, README.md with its " \
-               "guidelines, preview.html with each of its states), or use the existing one, and include it in every " \
-               "screen that shows it.".freeze
+               "component is for, put it in a component under components/<name>/ (its .html; a README.md with a " \
+               "line on what it is for, its parameters and its states; a preview.html only when it has more than " \
+               "one state), or use the existing one, and include it in every screen that shows it.".freeze
+
+  # 2026-11-27: thread 6's 23-minute turn took 283 steps; 82 of its edits
+  # changed under 200 characters, and 20 were the same edit again in a second
+  # file. Every step re-reads the whole context.
+  EDITING = <<~TEXT.squish.freeze
+    Work in as few steps as you can: every step re-reads all you have read so far. A change to something that
+    several screens show goes into its component once, never screen by screen. A text that repeats within a file
+    changes with one Edit that sets replace_all. Make all the edits one file needs in one response, as several Edit
+    calls side by side, after reading it once. Keep each old_string short and unique: you write it out just as you
+    write the new text. Use Write only for a new file, or for one that changes almost entirely. To find a place,
+    Grep for it (with line numbers), then read those lines with Read's offset and limit; read a whole file only
+    when you will change most of it.
+  TEXT
 
   # A design turn after a plan (Kacper, 2026-11-18: "if it has no doubts, it
   # says so and designs"): the request is the person's answer to the plan, or
@@ -327,7 +342,7 @@ module Designs::Prompt
       sections << "## Changed on this branch\n#{changed.strip}" if changed.present?
       sections << "## Since your last turn\n#{check_note.strip}" if check_note.present?
     end
-    this_turn = [ (PLAN if plan), (CHECK if check), (COMPONENTS if design), (STATES if design || plan),
+    this_turn = [ (PLAN if plan), (CHECK if check), (COMPONENTS if design), (EDITING if design), (STATES if design || plan),
                   (SPACE if design || plan), (COPIES if design), (DIRECTION_FIRST if may_propose && !after_plan),
                   (AFTER_PLAN if after_plan) ].compact
     sections << "## This turn\n#{this_turn.join("\n\n")}" if this_turn.any?

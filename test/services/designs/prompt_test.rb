@@ -153,6 +153,22 @@ class Designs::PromptTest < ActiveSupport::TestCase
     assert_includes message, "## The person is looking at\nCandidate › Apply, in its Errors shown state (designs/candidate/apply.html#errors-shown)\n"
   end
 
+  # 2026-11-27: thread 6's 23-minute turn took 283 steps; 82 of its edits
+  # changed under 200 characters, and 20 were repeated in a second file.
+  test "a design turn carries the editing rules, and a plan and a check do not" do
+    thread = DesignThread.new(project: projects(:jira_project), title: "x", branch: "design/x")
+
+    assert_includes Designs::Prompt.thread_message(thread: thread, request: "Do it", design: true), Designs::Prompt::EDITING
+    assert_not_includes Designs::Prompt.thread_message(thread: thread, request: "Plan it", plan: true), Designs::Prompt::EDITING
+    assert_not_includes Designs::Prompt.thread_message(thread: thread, request: "Check", check: true), Designs::Prompt::EDITING
+    [ "replace_all", "offset and", "one response", "old_string" ].each { |rule| assert_includes Designs::Prompt::EDITING, rule }
+  end
+
+  test "a component gets a preview only when it has more than one state, and a turn re-reads only the lines it changed" do
+    assert_includes Designs::Prompt::COMPONENTS, "only when it has more than one state"
+    assert_includes Designs::Prompt::BASE, "re-read the lines you changed"
+  end
+
   # 2026-11-27: a turn that starts a new Claude session no longer has the one
   # that heard the thread.
   test "a new session's message carries the thread so far and the branch's changes, after the map and before the request" do
