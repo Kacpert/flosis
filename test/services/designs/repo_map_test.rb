@@ -30,21 +30,24 @@ class Designs::RepoMapTest < ActiveSupport::TestCase
 
     text = Designs::RepoMap.text(root)
 
-    assert_includes text, "Kit: tailwind4"
+    assert_includes text, "Kit: tailwind4\nTokens: design-system/theme.css"
     assert_includes text, "- designs/admin/no-title.html — No-title\n- designs/admin/reporting.html — Reporting & usage\n" \
                           "- designs/candidate/apply.html — Application form"
     assert_includes text, "- components/metric-tile/ — A single number with its label.\n- components/switch/"
-    assert_not_includes text, "--color-primary", "the theme comes whole on a session's first turn only"
+    assert_not_includes text, "--color-primary", "the theme is named, and read when needed"
   end
 
-  test "on a session's first turn it gives the theme and the open screen whole, and leaves a file too big for Claude to read" do
+  # 2026-11-27: the theme's 29k characters rode in every new session's first
+  # message; the turn reads the tokens it uses.
+  test "on a session's first turn it gives the open screen whole and names the theme, and leaves a file too big for Claude to read" do
     root = repo("designs/admin/reporting.html" => "<title>Reporting</title><main>Usage</main>",
                 "designs/admin/huge.html" => "<title>Huge</title>#{'x' * (Designs::RepoMap::SCREEN_LIMIT + 1)}",
                 "design-system/theme.css" => "@theme { --color-primary: #1779ba; }")
 
     text = Designs::RepoMap.text(root, focus: "designs/admin/reporting.html", full: true)
 
-    assert_includes text, "### design-system/theme.css\n```css\n@theme { --color-primary: #1779ba; }\n```"
+    assert_not_includes text, "--color-primary"
+    assert_includes text, "Tokens: design-system/theme.css"
     assert_includes text, "### The screen the person has open: designs/admin/reporting.html\n```html\n<title>Reporting</title><main>Usage</main>\n```"
     huge = Designs::RepoMap.text(root, focus: "designs/admin/huge.html", full: true)
     assert_includes huge, "### The screen the person has open: designs/admin/huge.html\n(too big to give here: read it yourself)"

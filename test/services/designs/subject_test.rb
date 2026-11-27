@@ -328,7 +328,7 @@ class Designs::SubjectTest < ActiveSupport::TestCase
     [ thread, DesignTurn.create!(chat_session: thread.chat_session, chat_message: message, kind: kind) ]
   end
 
-  test "a thread's turn is given the design repo, the theme and open screen whole on its session's first turn, and builds screens only" do
+  test "a thread's turn is given the design repo, its open screen whole and the theme named on its session's first turn, and builds screens only" do
     Dir.mktmpdir("worktree") do |worktree|
       { "designs/admin/reporting.html" => "<title>Reporting</title>", "design-system/theme.css" => "@theme { --radius: 4px; }" }.each do |path, body|
         FileUtils.mkdir_p(File.dirname(File.join(worktree, path)))
@@ -341,7 +341,8 @@ class Designs::SubjectTest < ActiveSupport::TestCase
 
       assert_includes message, "## The design repo now"
       assert_includes message, "- designs/admin/reporting.html — Reporting"
-      assert_includes message, "@theme { --radius: 4px; }"
+      assert_not_includes message, "@theme"
+      assert_includes message, "Tokens: design-system/theme.css"
       assert_includes message, "The screen the person has open: designs/admin/reporting.html"
       assert_includes message, Designs::Prompt::COMPONENTS
 

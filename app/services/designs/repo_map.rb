@@ -1,15 +1,17 @@
 # The design repo as a thread's turn starts, given to Claude with the request
 # (2026-11-10), so that it reads only what it needs instead of mapping the
-# repo first: SCRUM-70's first turn spent minutes on that. The kit, every
-# screen of every context by its title, every component by the first line of
-# its guidelines, and, when full, the theme and the screen the person has
-# open, whole. A session's later turns get the list alone: the rest is in the
-# conversation already, and would only make it longer.
+# repo first: SCRUM-70's first turn spent minutes on that. The kit and where
+# its tokens are, every screen of every context by its title, every component
+# by the first line of its guidelines, and, when full, the screen the person
+# has open, whole. A session's later turns get the list alone: the rest is in
+# the conversation already, and would only make it longer. The theme is named,
+# not given whole (2026-11-27): its 29k characters rode in every new
+# session's first message, and a turn reads the tokens it uses.
 #
 # Nothing outside the worktree is read, whatever a link in it points at.
 module Designs::RepoMap
-  # Past these, a file is left for Claude to read itself.
-  THEME_LIMIT = 40_000
+  THEME = "design-system/theme.css".freeze
+  # Past this, a file is left for Claude to read itself.
   SCREEN_LIMIT = 60_000
   # A screen's <title> is near its top.
   HEAD_BYTES = 8_192
@@ -18,13 +20,11 @@ module Designs::RepoMap
 
   def text(worktree, focus: nil, full: false)
     root = Pathname(worktree)
-    parts = [ "Kit: #{kit(root)}",
+    theme = root.join(THEME)
+    parts = [ "Kit: #{kit(root)}#{"\nTokens: #{THEME}" if theme.file? && inside?(root, theme)}",
               "### Screens\n#{screens(root).presence || "(none yet)"}",
               "### Components\n#{components(root).presence || "(none yet)"}" ]
-    if full
-      parts << whole(root, "design-system/theme.css", "css", THEME_LIMIT)
-      parts << whole(root, focus, "html", SCREEN_LIMIT, heading: "The screen the person has open: #{focus}") if focus
-    end
+    parts << whole(root, focus, "html", SCREEN_LIMIT, heading: "The screen the person has open: #{focus}") if full && focus
     parts.compact.join("\n\n")
   end
 
